@@ -133,9 +133,16 @@ def process(df):
 
 def main():
     parser = argparse.ArgumentParser(description='Fetch NBA game logs')
-    parser.add_argument('--seasons', nargs='+', default=[
-        '2020-21', '2021-22', '2022-23', '2023-24', '2024-25'
-    ], help='Season strings e.g. 2020-21 2021-22')
+    all_seasons = [
+        '1996-97','1997-98','1998-99','1999-00','2000-01',
+        '2001-02','2002-03','2003-04','2004-05','2005-06',
+        '2006-07','2007-08','2008-09','2009-10','2010-11',
+        '2011-12','2012-13','2013-14','2014-15','2015-16',
+        '2016-17','2017-18','2018-19','2019-20','2020-21',
+        '2021-22','2022-23','2023-24','2024-25',
+    ]
+    parser.add_argument('--seasons', nargs='+', default=all_seasons,
+                        help='Season strings e.g. 2020-21 2021-22')
     parser.add_argument('--playoffs', action='store_true',
                         help='Also fetch playoff games (appended to same file)')
     parser.add_argument('--outdir', default='data',
@@ -171,7 +178,7 @@ def main():
         time.sleep(2)
 
     print("\nDone. Now run the Elo pipeline:")
-    csvs = ' '.join(f"data/{s}.csv" for s in args.seasons)
+    csvs = ' '.join(f"data/{s}.csv" for s in sorted(args.seasons))
     print(f"  python scripts/build_elo.py {csvs} data/2025-26.csv")
 
 if __name__ == '__main__':
