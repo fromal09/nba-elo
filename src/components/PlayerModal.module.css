@@ -1,11 +1,10 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(13,17,23,0.5);
   z-index: 200;
   display: flex;
   justify-content: flex-end;
-  backdrop-filter: blur(2px);
 }
 
 .modal {
@@ -16,7 +15,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: slideIn 0.2s ease-out;
+  animation: slideIn 0.18s ease-out;
+  box-shadow: -8px 0 32px rgba(0,0,0,0.12);
 }
 
 @keyframes slideIn {
@@ -31,6 +31,7 @@
   padding: 1.25rem 1.5rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  background: var(--nav-bg);
 }
 
 .playerName {
@@ -38,33 +39,35 @@
   font-size: 28px;
   font-weight: 700;
   letter-spacing: 0.3px;
-  color: var(--text);
+  color: var(--nav-text);
   line-height: 1.1;
 }
 
 .playerMeta {
   font-size: 12px;
-  color: var(--text3);
+  color: var(--nav-text2);
   font-family: var(--font-mono);
   margin-top: 4px;
 }
 
+.lastPlayed { opacity: 0.7; }
+
 .closeBtn {
   background: none;
-  border: 1px solid var(--border2);
+  border: 1px solid rgba(255,255,255,0.15);
   border-radius: var(--radius);
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text3);
+  color: var(--nav-text2);
   font-size: 14px;
   transition: all 0.12s;
   flex-shrink: 0;
   cursor: pointer;
 }
-.closeBtn:hover { background: var(--bg3); color: var(--text); }
+.closeBtn:hover { background: rgba(255,255,255,0.08); color: var(--nav-text); }
 
 .body {
   overflow-y: auto;
@@ -73,6 +76,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
+  background: var(--bg);
 }
 
 .statsGrid {
@@ -82,7 +86,7 @@
 }
 
 .statCard {
-  background: var(--bg3);
+  background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.75rem 1rem;
@@ -104,7 +108,7 @@
   color: var(--text);
   letter-spacing: -0.5px;
 }
-.statVal.highlight { color: var(--gold2); }
+.statVal.highlight { color: var(--gold); }
 
 .statSub {
   font-size: 10px;
@@ -116,10 +120,10 @@
 
 .sectionTitle {
   font-family: var(--font-display);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text2);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
   margin-bottom: 3px;
 }
@@ -131,27 +135,66 @@
 }
 
 .chartWrap {
-  background: var(--bg);
+  background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  
+  overflow: hidden;
 }
 
-.tooltip {
-  background: var(--bg3);
+.chartOuter {
+  position: relative;
+  width: 100%;
+  min-height: 280px;
+}
+
+.chartLoading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+
+.spagSvg {
+  display: block;
+  width: 100%;
+}
+
+.svgTooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--bg2);
   border: 1px solid var(--border2);
   border-radius: var(--radius);
-  padding: 6px 10px;
+  padding: 5px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
-.ttDate { font-size: 10px; color: var(--text3); font-family: var(--font-mono); }
-.ttVal  { font-size: 16px; font-family: var(--font-mono); font-weight: 500; color: var(--accent2); }
+
+.ttDate {
+  font-size: 10px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+.ttVal {
+  font-size: 16px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--accent);
+}
 
 .gmscBars {
   display: flex;
   align-items: flex-end;
   gap: 3px;
   height: 90px;
-  background: var(--bg);
+  background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 8px 10px;
@@ -196,43 +239,4 @@
   height: 8px;
   border-radius: 2px;
   flex-shrink: 0;
-}
-
-.chartOuter {
-  position: relative;
-  width: 100%;
-  min-height: 280px;
-}
-
-.chartLoading {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: var(--text3);
-  font-family: var(--font-mono);
-}
-
-.spagSvg {
-  display: block;
-  width: 100%;
-}
-
-.svgTooltip {
-  position: absolute;
-  pointer-events: none;
-  background: var(--bg3);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  padding: 5px 9px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  z-index: 10;
-}
-
-.lastPlayed {
-  opacity: 0.7;
 }

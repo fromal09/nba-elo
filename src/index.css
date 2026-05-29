@@ -1,21 +1,26 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:        #0f1117;
-  --bg2:       #161b27;
-  --bg3:       #1e2535;
-  --border:    rgba(255,255,255,0.08);
-  --border2:   rgba(255,255,255,0.14);
-  --text:      #e8eaf0;
-  --text2:     #8b92a8;
-  --text3:     #5a6278;
-  --accent:    #3a8fd4;
-  --accent2:   #5aadff;
-  --gold:      #d4960a;
-  --gold2:     #f0b429;
-  --green:     #1a9e75;
-  --green2:    #22c997;
-  --red:       #c94040;
+  --bg:        #f0f2f5;
+  --bg2:       #ffffff;
+  --bg3:       #e8ebf0;
+  --border:    rgba(0,0,0,0.08);
+  --border2:   rgba(0,0,0,0.14);
+  --text:      #0d1117;
+  --text2:     #5a6b7c;
+  --text3:     #8c9db0;
+  --accent:    #0057ff;
+  --accent2:   #003dd4;
+  --gold:      #c47f00;
+  --gold2:     #a86c00;
+  --green:     #0a8a5f;
+  --green2:    #07724f;
+  --red:       #c0392b;
+  --nav-bg:    #0d1117;
+  --nav-text:  #e8eaf0;
+  --nav-text2: #8b92a8;
+  --nav-border: rgba(255,255,255,0.08);
+  --nav-active: #5aadff;
   --font-display: 'Barlow Condensed', sans-serif;
   --font-body:    'Barlow', sans-serif;
   --font-mono:    'IBM Plex Mono', monospace;
@@ -36,9 +41,8 @@ body {
 }
 
 input, select, button { font-family: inherit; font-size: inherit; }
-
 button { cursor: pointer; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }

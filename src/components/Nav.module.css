@@ -4,8 +4,8 @@
   gap: 1.5rem;
   padding: 0 1.5rem;
   height: 52px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg2);
+  border-bottom: 1px solid var(--nav-border);
+  background: var(--nav-bg);
   position: sticky;
   top: 0;
   z-index: 50;
@@ -24,13 +24,13 @@
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.5px;
-  color: var(--text);
+  color: var(--nav-text);
   white-space: nowrap;
 }
 
 .meta {
   font-size: 12px;
-  color: var(--text3);
+  color: var(--nav-text2);
   white-space: nowrap;
 }
 
@@ -45,16 +45,14 @@
   padding: 6px 14px;
   font-family: var(--font-body);
   font-size: 13px;
-  color: var(--text2);
+  color: var(--nav-text2);
   border-radius: var(--radius);
   transition: background 0.15s, color 0.15s;
 }
-
-.navBtn:hover { background: var(--bg3); color: var(--text); }
-
+.navBtn:hover { background: rgba(255,255,255,0.07); color: var(--nav-text); }
 .navBtn.active {
-  color: var(--accent2);
-  background: rgba(58, 143, 212, 0.12);
+  color: var(--nav-active);
+  background: rgba(90,173,255,0.12);
 }
 
 .right {
@@ -66,5 +64,5 @@
 .updated {
   font-size: 11px;
   font-family: var(--font-mono);
-  color: var(--text3);
+  color: var(--nav-text2);
 }
