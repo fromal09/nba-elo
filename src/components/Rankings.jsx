@@ -2,15 +2,23 @@ import { useState, useMemo, useCallback } from 'react'
 import styles from './Rankings.module.css'
 
 const PER_PAGE = 50
+const ACTIVE_DAYS = 45
 
 const SORT_OPTIONS = [
-  { key: 'current_tpr_rank', label: 'TPR Rank', asc: true },
-  { key: 'current_elo',      label: 'Current Elo', asc: false },
-  { key: 'peak_elo',         label: 'Peak Elo', asc: false },
-  { key: 'recent_gmsc_avg',  label: 'Recent GmSc', asc: false },
-  { key: 'career_gmsc_avg',  label: 'Career GmSc', asc: false },
+  { key: 'current_tpr_rank', label: 'TPR Rank',     asc: true  },
+  { key: 'current_elo',      label: 'Current Elo',  asc: false },
+  { key: 'peak_elo',         label: 'Peak Elo',     asc: false },
+  { key: 'recent_gmsc_avg',  label: 'Recent GmSc',  asc: false },
+  { key: 'career_gmsc_avg',  label: 'Career GmSc',  asc: false },
   { key: 'games_played',     label: 'Games Played', asc: false },
 ]
+
+function daysSince(dateStr) {
+  if (!dateStr) return 9999
+  const last = new Date(dateStr)
+  const now  = new Date('2026-05-29')
+  return Math.floor((now - last) / 86400000)
+}
 
 function gmscColor(v) {
   if (v >= 25) return '#22c997'
@@ -21,29 +29,43 @@ function gmscColor(v) {
 }
 
 export default function Rankings({ players, onSelectPlayer }) {
-  const [search, setSearch] = useState('')
-  const [sortKey, setSortKey] = useState('current_tpr_rank')
-  const [sortAsc, setSortAsc] = useState(true)
-  const [minGP, setMinGP] = useState(10)
-  const [page, setPage] = useState(0)
+  const [search,    setSearch]    = useState('')
+  const [sortKey,   setSortKey]   = useState('current_tpr_rank')
+  const [sortAsc,   setSortAsc]   = useState(true)
+  const [minGP,     setMinGP]     = useState(10)
+  const [page,      setPage]      = useState(0)
+  const [activeOnly, setActiveOnly] = useState(true)
 
   const setSort = useCallback((key, asc) => {
-    setSortKey(key)
-    setSortAsc(asc)
-    setPage(0)
+    setSortKey(key); setSortAsc(asc); setPage(0)
   }, [])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return players
-      .filter(p => p.games_played >= minGP && (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)))
+      .filter(p => {
+        if (p.games_played < minGP) return false
+        if (activeOnly && daysSince(p.last_played) > ACTIVE_DAYS) return false
+        if (q && !p.name.toLowerCase().includes(q) && !p.team.toLowerCase().includes(q)) return false
+        return true
+      })
       .sort((a, b) => sortAsc ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey])
-  }, [players, search, minGP, sortKey, sortAsc])
+  }, [players, search, minGP, sortKey, sortAsc, activeOnly])
 
-  const maxElo = useMemo(() => Math.max(...filtered.map(p => p.current_elo)), [filtered])
+  // Re-rank within filtered set for display
+  const ranked = useMemo(() => {
+    if (sortKey !== 'current_tpr_rank') return filtered
+    return filtered.map((p, i) => ({ ...p, _displayRank: i + 1 }))
+  }, [filtered, sortKey])
 
-  const slice = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
+  const maxElo  = useMemo(() => Math.max(...filtered.map(p => p.current_elo)), [filtered])
+  const slice      = ranked.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
   const totalPages = Math.ceil(filtered.length / PER_PAGE)
+
+  const activeCount = useMemo(() =>
+    players.filter(p => p.games_played >= minGP && daysSince(p.last_played) <= ACTIVE_DAYS).length,
+    [players, minGP]
+  )
 
   return (
     <div className={styles.wrap}>
@@ -58,7 +80,24 @@ export default function Rankings({ players, onSelectPlayer }) {
             onChange={e => { setSearch(e.target.value); setPage(0) }}
             aria-label="Search players"
           />
-          {search && <button className={styles.clearBtn} onClick={() => { setSearch(''); setPage(0) }} aria-label="Clear search">✕</button>}
+          {search && <button className={styles.clearBtn} onClick={() => { setSearch(''); setPage(0) }} aria-label="Clear">✕</button>}
+        </div>
+
+        <div className={styles.activeToggle} role="group" aria-label="Player pool">
+          <button
+            className={`${styles.toggleBtn} ${activeOnly ? styles.toggleActive : ''}`}
+            onClick={() => { setActiveOnly(true); setPage(0) }}
+          >
+            Active
+            <span className={styles.toggleCount}>{activeCount}</span>
+          </button>
+          <button
+            className={`${styles.toggleBtn} ${!activeOnly ? styles.toggleActive : ''}`}
+            onClick={() => { setActiveOnly(false); setPage(0) }}
+          >
+            All Players
+            <span className={styles.toggleCount}>{players.filter(p => p.games_played >= minGP).length}</span>
+          </button>
         </div>
 
         <div className={styles.sortGroup} role="group" aria-label="Sort by">
@@ -90,6 +129,16 @@ export default function Rankings({ players, onSelectPlayer }) {
         </div>
       </div>
 
+      {activeOnly && (
+        <div className={styles.activeBanner}>
+          <span className={styles.activeDot} />
+          Showing players active within the last {ACTIVE_DAYS} days · injured and inactive players hidden
+          <button className={styles.bannerLink} onClick={() => { setActiveOnly(false); setPage(0) }}>
+            Show all →
+          </button>
+        </div>
+      )}
+
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
@@ -112,23 +161,30 @@ export default function Rankings({ players, onSelectPlayer }) {
               <th className={`${styles.th} ${styles.thR}`} onClick={() => setSort('career_gmsc_avg', sortKey === 'career_gmsc_avg' ? !sortAsc : false)}>
                 Career GmSc {sortKey === 'career_gmsc_avg' ? (sortAsc ? '↑' : '↓') : ''}
               </th>
+              <th className={`${styles.th} ${styles.thR}`}>Last Game</th>
             </tr>
           </thead>
           <tbody>
-            {slice.map(p => {
-              const barW = Math.max(2, Math.round((p.current_elo / maxElo) * 90))
-              const gc = gmscColor(p.recent_gmsc_avg)
+            {slice.map((p, i) => {
+              const displayRank = sortKey === 'current_tpr_rank'
+                ? (p._displayRank ?? p.current_tpr_rank)
+                : page * PER_PAGE + i + 1
+              const barW    = Math.max(2, Math.round((p.current_elo / maxElo) * 90))
+              const gc      = gmscColor(p.recent_gmsc_avg)
+              const days    = daysSince(p.last_played)
+              const inactive = days > ACTIVE_DAYS
+
               return (
                 <tr
                   key={p.name}
-                  className={styles.row}
+                  className={`${styles.row} ${inactive ? styles.inactive : ''}`}
                   onClick={() => onSelectPlayer(p)}
                   tabIndex={0}
                   onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)}
                   role="button"
                   aria-label={`Open ${p.name} profile`}
                 >
-                  <td className={styles.tdRank}>{p.current_tpr_rank}</td>
+                  <td className={styles.tdRank}>{displayRank}</td>
                   <td className={styles.tdName}>{p.name}</td>
                   <td className={styles.tdTeam}>{p.team}</td>
                   <td className={styles.tdElo}>
@@ -145,6 +201,11 @@ export default function Rankings({ players, onSelectPlayer }) {
                     </span>
                   </td>
                   <td className={styles.tdNum}>{p.career_gmsc_avg.toFixed(1)}</td>
+                  <td className={styles.tdNum}>
+                    <span className={inactive ? styles.stale : styles.fresh}>
+                      {p.last_played ? p.last_played.slice(5) : '—'}
+                    </span>
+                  </td>
                 </tr>
               )
             })}

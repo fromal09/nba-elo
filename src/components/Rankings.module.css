@@ -235,3 +235,76 @@ td { padding: 7px 12px; }
   min-width: 56px;
   text-align: center;
 }
+
+.activeToggle {
+  display: flex;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.toggleBtn {
+  background: none;
+  border: none;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--text2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.12s;
+}
+.toggleBtn:hover { background: var(--bg3); color: var(--text); }
+.toggleBtn.toggleActive {
+  background: rgba(58,143,212,0.15);
+  color: var(--accent2);
+}
+.toggleBtn + .toggleBtn {
+  border-left: 1px solid var(--border2);
+}
+
+.toggleCount {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--bg3);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--text3);
+}
+.toggleActive .toggleCount {
+  background: rgba(58,143,212,0.2);
+  color: var(--accent2);
+}
+
+.activeBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 1.25rem;
+  background: rgba(58,143,212,0.06);
+  border-bottom: 1px solid rgba(58,143,212,0.15);
+  font-size: 12px;
+  color: var(--text3);
+}
+.activeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green2);
+  flex-shrink: 0;
+}
+.bannerLink {
+  background: none;
+  border: none;
+  color: var(--accent2);
+  font-size: 12px;
+  margin-left: auto;
+  cursor: pointer;
+}
+.bannerLink:hover { text-decoration: underline; }
+
+.row.inactive { opacity: 0.45; }
+
+.fresh { color: var(--text3); }
+.stale { color: var(--red); }
