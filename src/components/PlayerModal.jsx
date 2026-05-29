@@ -121,22 +121,29 @@ function drawChart(data, focusIdx, svg, setTooltip) {
     svg.appendChild(txt)
   })
 
-  // X axis month labels
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  let lastMonth = null
+  // X axis — season year labels at October + vertical dividers
+  let lastYear = null
   dates.forEach((d, i) => {
-    const mo = parseInt(d.slice(5, 7), 10) - 1
-    if (mo !== lastMonth) {
-      lastMonth = mo
+    const yr = parseInt(d.slice(0, 4), 10)
+    const mo = parseInt(d.slice(5, 7), 10)
+    if (mo === 10 && yr !== lastYear) {
+      lastYear = yr
       const x = xScale(i)
+      const divider = document.createElementNS(ns, 'line')
+      divider.setAttribute('x1', x); divider.setAttribute('x2', x)
+      divider.setAttribute('y1', PAD.top); divider.setAttribute('y2', PAD.top + CH)
+      divider.setAttribute('stroke', 'rgba(0,0,0,0.06)')
+      divider.setAttribute('stroke-width', '1')
+      divider.setAttribute('stroke-dasharray', '3 3')
+      svg.appendChild(divider)
       const txt = document.createElementNS(ns, 'text')
-      txt.setAttribute('x', x)
+      txt.setAttribute('x', x + 4)
       txt.setAttribute('y', H - 6)
-      txt.setAttribute('text-anchor', 'middle')
+      txt.setAttribute('text-anchor', 'start')
       txt.setAttribute('font-size', '10')
-      txt.setAttribute('fill', '#5a6278')
+      txt.setAttribute('fill', '#8c9db0')
       txt.setAttribute('font-family', 'IBM Plex Mono, monospace')
-      txt.textContent = months[mo]
+      txt.textContent = yr + '-' + String(yr + 1).slice(2)
       svg.appendChild(txt)
     }
   })
@@ -151,7 +158,7 @@ function drawChart(data, focusIdx, svg, setTooltip) {
     const path = document.createElementNS(ns, 'path')
     path.setAttribute('d', d)
     path.setAttribute('fill', 'none')
-    path.setAttribute('stroke', 'rgba(0,0,0,0.12)')
+    path.setAttribute('stroke', 'rgba(0,0,0,0.045)')
     path.setAttribute('stroke-width', '1')
     path.setAttribute('stroke-linecap', 'round')
     bgGroup.appendChild(path)
