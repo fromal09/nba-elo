@@ -1,0 +1,237 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  flex-wrap: wrap;
+}
+
+.searchWrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 0 10px;
+  color: var(--text3);
+  min-width: 200px;
+  max-width: 280px;
+  flex: 1;
+}
+
+.search {
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  padding: 6px 0;
+  width: 100%;
+}
+
+.search::placeholder { color: var(--text3); }
+
+.clearBtn {
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-size: 11px;
+  padding: 2px;
+  line-height: 1;
+}
+.clearBtn:hover { color: var(--text2); }
+
+.sortGroup {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.sortBtn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 11px;
+  font-size: 12px;
+  color: var(--text2);
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.sortBtn:hover { background: var(--bg3); border-color: var(--border2); color: var(--text); }
+.sortBtn.sortActive {
+  background: rgba(58, 143, 212, 0.15);
+  border-color: rgba(90, 173, 255, 0.4);
+  color: var(--accent2);
+}
+
+.gpFilter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+}
+.gpLabel { font-size: 12px; color: var(--text3); }
+.gpSelect {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 12px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.tableWrap {
+  flex: 1;
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg2);
+}
+
+.table thead tr {
+  border-bottom: 1px solid var(--border2);
+}
+
+.th, .thRank, .thName, .thTeam {
+  padding: 9px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text3);
+  text-align: left;
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+}
+.th:hover { color: var(--text2); }
+.thR { text-align: right; }
+.thRank { width: 48px; text-align: right; cursor: default; }
+.thName { cursor: default; }
+.thTeam { cursor: default; }
+
+.row {
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.row:hover { background: var(--bg3); }
+.row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+td { padding: 7px 12px; }
+
+.tdRank {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text3);
+  text-align: right;
+  width: 48px;
+}
+.tdName {
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+}
+.tdTeam {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.tdElo { min-width: 160px; }
+.tdNum {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+.eloWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.eloBar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0.6;
+  min-width: 2px;
+  flex-shrink: 0;
+}
+.eloVal {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  min-width: 44px;
+  text-align: right;
+}
+
+.chip {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.paging {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1.25rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg2);
+  flex-shrink: 0;
+}
+.pagingInfo {
+  font-size: 12px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+.pagingBtns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pageBtn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text2);
+}
+.pageBtn:hover:not(:disabled) { background: var(--bg3); color: var(--text); }
+.pageBtn:disabled { opacity: 0.3; cursor: default; }
+.pageNum {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text3);
+  padding: 0 6px;
+  min-width: 56px;
+  text-align: center;
+}
