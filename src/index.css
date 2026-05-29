@@ -1,31 +1,35 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:        #f0f2f5;
-  --bg2:       #ffffff;
-  --bg3:       #e8ebf0;
-  --border:    rgba(0,0,0,0.08);
-  --border2:   rgba(0,0,0,0.14);
-  --text:      #0d1117;
-  --text2:     #5a6b7c;
-  --text3:     #8c9db0;
-  --accent:    #0057ff;
-  --accent2:   #003dd4;
-  --gold:      #c47f00;
-  --gold2:     #a86c00;
-  --green:     #0a8a5f;
-  --green2:    #07724f;
-  --red:       #c0392b;
-  --nav-bg:    #0d1117;
-  --nav-text:  #e8eaf0;
-  --nav-text2: #8b92a8;
-  --nav-border: rgba(255,255,255,0.08);
+  /* Golf-inspired palette with blue accent instead of green */
+  --bg:        #f2f4f0;
+  --bg2:       #eef0ec;
+  --bg3:       #e4e8e0;
+  --surface:   #ffffff;
+  --border:    rgba(0,0,0,0.09);
+  --border2:   rgba(0,0,0,0.15);
+  --text:      #1a1f18;
+  --text2:     #4a5545;
+  --text3:     #8a9885;
+  --accent:    #1a5fa8;
+  --accent2:   #1048842;
+  --accentbg:  rgba(26,95,168,0.10);
+  --gold:      #b07d1a;
+  --gold2:     #d4960a;
+  --green:     #1a7a4a;
+  --red:       #a83232;
+  /* Nav — dark forest, same as golf */
+  --nav-bg:    #1a2e1a;
+  --nav-bg2:   #223322;
+  --nav-text:  #e8ede4;
+  --nav-text2: #7a9a72;
+  --nav-border: rgba(255,255,255,0.07);
   --nav-active: #5aadff;
   --font-display: 'Barlow Condensed', sans-serif;
   --font-body:    'Barlow', sans-serif;
   --font-mono:    'IBM Plex Mono', monospace;
-  --radius:    6px;
-  --radius-lg: 10px;
+  --radius:    5px;
+  --radius-lg: 9px;
 }
 
 html { font-size: 16px; }

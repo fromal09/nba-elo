@@ -1,22 +1,22 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(13,17,23,0.5);
+  background: rgba(10,18,10,0.55);
   z-index: 200;
   display: flex;
   justify-content: flex-end;
 }
 
 .modal {
-  width: min(680px, 100vw);
+  width: min(700px, 100vw);
   height: 100vh;
-  background: var(--bg2);
+  background: var(--bg);
   border-left: 1px solid var(--border2);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: slideIn 0.18s ease-out;
-  box-shadow: -8px 0 32px rgba(0,0,0,0.12);
+  box-shadow: -12px 0 40px rgba(0,0,0,0.18);
 }
 
 @keyframes slideIn {
@@ -24,43 +24,40 @@
   to   { transform: translateX(0);    opacity: 1; }
 }
 
+/* Dark forest header — matches golf */
 .header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
   flex-shrink: 0;
   background: var(--nav-bg);
 }
 
 .playerName {
   font-family: var(--font-display);
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 700;
   letter-spacing: 0.3px;
   color: var(--nav-text);
-  line-height: 1.1;
+  line-height: 1.05;
 }
 
 .playerMeta {
   font-size: 12px;
   color: var(--nav-text2);
   font-family: var(--font-mono);
-  margin-top: 4px;
+  margin-top: 5px;
 }
-
 .lastPlayed { opacity: 0.7; }
 
 .closeBtn {
   background: none;
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: var(--radius);
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
   color: var(--nav-text2);
   font-size: 14px;
   transition: all 0.12s;
@@ -69,84 +66,87 @@
 }
 .closeBtn:hover { background: rgba(255,255,255,0.08); color: var(--nav-text); }
 
+/* Stat strip below header — light bg, tabular */
+.statStrip {
+  display: flex;
+  border-bottom: 1px solid var(--border2);
+  background: var(--bg2);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.stripItem {
+  display: flex;
+  flex-direction: column;
+  padding: 0.6rem 1.1rem;
+  border-right: 1px solid var(--border);
+  min-width: 90px;
+  flex-shrink: 0;
+}
+.stripItem:last-child { border-right: none; }
+.stripLabel {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 2px;
+}
+.stripVal {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+.stripVal.gold { color: var(--gold); }
+.stripVal.blue { color: var(--accent); }
+.stripSub {
+  font-size: 10px;
+  color: var(--text3);
+  margin-top: 1px;
+}
+
 .body {
   overflow-y: auto;
   flex: 1;
   padding: 1.25rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
-  background: var(--bg);
-}
-
-.statsGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.statCard {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.75rem 1rem;
-}
-
-.statLabel {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--text3);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  margin-bottom: 4px;
-}
-
-.statVal {
-  font-family: var(--font-mono);
-  font-size: 22px;
-  font-weight: 500;
-  color: var(--text);
-  letter-spacing: -0.5px;
-}
-.statVal.highlight { color: var(--gold); }
-
-.statSub {
-  font-size: 10px;
-  color: var(--text3);
-  margin-top: 2px;
+  gap: 1.5rem;
 }
 
 .section {}
-
 .sectionTitle {
   font-family: var(--font-display);
   font-size: 13px;
   font-weight: 600;
   color: var(--text2);
-  letter-spacing: 0.8px;
+  letter-spacing: 1px;
   text-transform: uppercase;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-
 .sectionSub {
   font-size: 11px;
   color: var(--text3);
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.65rem;
 }
 
+/* Chart — golf uses a clean white box with very light border */
 .chartWrap {
-  background: var(--bg2);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--border2);
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
-
 .chartOuter {
   position: relative;
   width: 100%;
   min-height: 280px;
 }
-
 .chartLoading {
   position: absolute;
   inset: 0;
@@ -157,59 +157,42 @@
   color: var(--text3);
   font-family: var(--font-mono);
 }
-
-.spagSvg {
-  display: block;
-  width: 100%;
-}
+.spagSvg { display: block; width: 100%; }
 
 .svgTooltip {
   position: absolute;
   pointer-events: none;
-  background: var(--bg2);
-  border: 1px solid var(--border2);
+  background: var(--nav-bg);
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: var(--radius);
-  padding: 5px 9px;
+  padding: 5px 10px;
   display: flex;
   flex-direction: column;
   gap: 1px;
   z-index: 10;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
+.ttDate { font-size: 10px; color: var(--nav-text2); font-family: var(--font-mono); }
+.ttVal  { font-size: 16px; font-family: var(--font-mono); font-weight: 500; color: var(--nav-active); }
 
-.ttDate {
-  font-size: 10px;
-  color: var(--text3);
-  font-family: var(--font-mono);
-}
-.ttVal {
-  font-size: 16px;
-  font-family: var(--font-mono);
-  font-weight: 500;
-  color: var(--accent);
-}
-
+/* GmSc bars */
 .gmscBars {
   display: flex;
   align-items: flex-end;
   gap: 3px;
   height: 90px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--border2);
   border-radius: var(--radius-lg);
   padding: 8px 10px;
   overflow: hidden;
 }
-
 .gmscBarWrap {
-  flex: 1;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+  flex: 1; height: 100%;
+  display: flex; flex-direction: column;
   justify-content: flex-end;
   min-width: 4px;
 }
-
 .gmscBar {
   border-radius: 2px;
   min-height: 2px;
@@ -218,25 +201,10 @@
 }
 .gmscBarWrap:hover .gmscBar { opacity: 1 !important; }
 
-.gmscLegend {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
-
+.gmscLegend { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
 .legendItem {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--text3);
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--text3);
   font-family: var(--font-mono);
 }
-
-.legendDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
+.legendDot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }

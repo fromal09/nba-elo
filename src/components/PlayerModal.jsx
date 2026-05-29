@@ -9,12 +9,12 @@ function gmscColor(v) {
   return '#c94040'
 }
 
-function StatCard({ label, value, sub, highlight }) {
+function StripItem({ label, value, sub, gold, blue }) {
   return (
-    <div className={styles.statCard}>
-      <div className={styles.statLabel}>{label}</div>
-      <div className={`${styles.statVal} ${highlight ? styles.highlight : ''}`}>{value}</div>
-      {sub && <div className={styles.statSub}>{sub}</div>}
+    <div className={styles.stripItem}>
+      <div className={styles.stripLabel}>{label}</div>
+      <div className={`${styles.stripVal}${gold ? ' '+styles.gold : blue ? ' '+styles.blue : ''}`}>{value}</div>
+      {sub && <div className={styles.stripSub}>{sub}</div>}
     </div>
   )
 }
@@ -106,7 +106,7 @@ function drawChart(data, focusIdx, svg, setTooltip) {
     const line = document.createElementNS(ns, 'line')
     line.setAttribute('x1', PAD.left); line.setAttribute('x2', W - PAD.right)
     line.setAttribute('y1', y); line.setAttribute('y2', y)
-    line.setAttribute('stroke', 'rgba(0,0,0,0.08)')
+    line.setAttribute('stroke', 'rgba(0,0,0,0.06)')
     line.setAttribute('stroke-width', '1')
     svg.appendChild(line)
 
@@ -141,7 +141,7 @@ function drawChart(data, focusIdx, svg, setTooltip) {
       txt.setAttribute('y', H - 6)
       txt.setAttribute('text-anchor', 'start')
       txt.setAttribute('font-size', '10')
-      txt.setAttribute('fill', '#8c9db0')
+      txt.setAttribute('fill', '#8a9885')
       txt.setAttribute('font-family', 'IBM Plex Mono, monospace')
       txt.textContent = yr + '-' + String(yr + 1).slice(2)
       svg.appendChild(txt)
@@ -158,7 +158,7 @@ function drawChart(data, focusIdx, svg, setTooltip) {
     const path = document.createElementNS(ns, 'path')
     path.setAttribute('d', d)
     path.setAttribute('fill', 'none')
-    path.setAttribute('stroke', 'rgba(0,0,0,0.045)')
+    path.setAttribute('stroke', 'rgba(90,120,160,0.18)')
     path.setAttribute('stroke-width', '1')
     path.setAttribute('stroke-linecap', 'round')
     bgGroup.appendChild(path)
@@ -256,18 +256,18 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
         </div>
 
         <div className={styles.body}>
-          <div className={styles.statsGrid}>
-            <StatCard label="Current Elo"   value={player.current_elo.toFixed(0)} />
-            <StatCard label="Peak Elo"      value={player.peak_elo.toFixed(0)} highlight />
-            <StatCard label="TPR Rank"      value={`#${player.current_tpr_rank}`} />
-            <StatCard label="Games Played"  value={player.games_played} />
-            <StatCard label="Recent GmSc"   value={player.recent_gmsc_avg.toFixed(1)} sub="last 10 games" />
-            <StatCard label="Career GmSc"   value={player.career_gmsc_avg.toFixed(1)} sub="season avg" />
+          <div className={styles.statStrip}>
+            <StripItem label="Current Elo"  value={player.current_elo.toFixed(0)} blue />
+            <StripItem label="Peak Elo"     value={player.peak_elo.toFixed(0)} gold />
+            <StripItem label="TPR Rank"     value={`#${player.current_tpr_rank}`} />
+            <StripItem label="Games Played" value={player.games_played} />
+            <StripItem label="Recent GmSc"  value={player.recent_gmsc_avg.toFixed(1)} sub="last 10 games" />
+            <StripItem label="Career GmSc"  value={player.career_gmsc_avg.toFixed(1)} sub="season avg" />
           </div>
 
           <div className={styles.section}>
             <div className={styles.sectionTitle}>Elo Rating Over Time</div>
-            <div className={styles.sectionSub}>All 560 players in gray · {player.name} in blue</div>
+            <div className={styles.sectionSub}>All {allPlayers.length} players in gray · {player.name} in blue</div>
             <div className={styles.chartWrap}>
               <SpaghettiChart playerIndex={playerIndex} playerName={player.name} />
             </div>

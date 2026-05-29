@@ -21,17 +21,19 @@
 
 .logo {
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
   color: var(--nav-text);
   white-space: nowrap;
+  text-transform: uppercase;
 }
 
 .meta {
   font-size: 12px;
   color: var(--nav-text2);
   white-space: nowrap;
+  font-family: var(--font-mono);
 }
 
 .nav {
@@ -42,9 +44,11 @@
 .navBtn {
   background: none;
   border: none;
-  padding: 6px 14px;
-  font-family: var(--font-body);
-  font-size: 13px;
+  padding: 6px 16px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
   color: var(--nav-text2);
   border-radius: var(--radius);
   transition: background 0.15s, color 0.15s;
@@ -52,14 +56,10 @@
 .navBtn:hover { background: rgba(255,255,255,0.07); color: var(--nav-text); }
 .navBtn.active {
   color: var(--nav-active);
-  background: rgba(90,173,255,0.12);
+  background: rgba(90,173,255,0.10);
 }
 
-.right {
-  flex: 1;
-  display: flex;
-  justify-content: flex-end;
-}
+.right { flex: 1; display: flex; justify-content: flex-end; }
 
 .updated {
   font-size: 11px;

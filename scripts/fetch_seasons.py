@@ -161,15 +161,17 @@ def main():
         frames = []
         try:
             frames.append(fetch_season(season, 'Regular Season'))
-            time.sleep(3)  # be polite
+            time.sleep(3)
+        except Exception as e:
+            print(f"  ERROR fetching {season} regular season: {e}")
+            continue
 
-            if args.playoffs:
+        if args.playoffs:
+            try:
                 frames.append(fetch_season(season, 'Playoffs'))
                 time.sleep(3)
-
-        except Exception as e:
-            print(f"  ERROR fetching {season}: {e}")
-            continue
+            except Exception as e:
+                print(f"  WARNING: playoffs failed for {season} ({e}) — saving regular season only")
 
         df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
         df = process(df)
