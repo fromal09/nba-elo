@@ -164,7 +164,7 @@ function drawChart(data, focusIdx, svg, setTooltip) {
     const path = document.createElementNS(ns, 'path')
     path.setAttribute('d', d)
     path.setAttribute('fill', 'none')
-    path.setAttribute('stroke', 'rgba(90,120,160,0.18)')
+    path.setAttribute('stroke', 'rgba(150,175,210,0.14)')
     path.setAttribute('stroke-width', '1')
     path.setAttribute('stroke-linecap', 'round')
     bgGroup.appendChild(path)
