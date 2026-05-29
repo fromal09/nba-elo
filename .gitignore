@@ -3,3 +3,5 @@ dist/
 .DS_Store
 *.local
 .env
+public/data/elo.json
+public/data/spaghetti.json
