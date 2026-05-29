@@ -156,4 +156,19 @@ if __name__ == "__main__":
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(output, separators=(",", ":")), encoding="utf-8")
     print(f"  Written {out_path} ({out_path.stat().st_size/1024:.0f} KB)")
+
+    # Build spaghetti.json — compact sparse format for the chart
+    # Shared date index + per-player [[date_idx, elo], ...] arrays
+    all_dates = sorted(set(
+        h[0] for p in output["players"] for h in p["elo_history"]
+    ))
+    date_idx = {d: i for i, d in enumerate(all_dates)}
+    sparse_players = [
+        [[date_idx[d], v] for d, v in p["elo_history"]]
+        for p in output["players"]
+    ]
+    spag = {"dates": all_dates, "players": sparse_players}
+    spag_path = Path("public/data/spaghetti.json")
+    spag_path.write_text(json.dumps(spag, separators=(",", ":")), encoding="utf-8")
+    print(f"  Written {spag_path} ({spag_path.stat().st_size/1024:.0f} KB)")
     print("Done.")
