@@ -106,7 +106,7 @@ function drawChart(data, focusIdx, svg, setTooltip) {
     const line = document.createElementNS(ns, 'line')
     line.setAttribute('x1', PAD.left); line.setAttribute('x2', W - PAD.right)
     line.setAttribute('y1', y); line.setAttribute('y2', y)
-    line.setAttribute('stroke', 'rgba(255,255,255,0.06)')
+    line.setAttribute('stroke', 'rgba(0,0,0,0.08)')
     line.setAttribute('stroke-width', '1')
     svg.appendChild(line)
 
@@ -151,7 +151,7 @@ function drawChart(data, focusIdx, svg, setTooltip) {
     const path = document.createElementNS(ns, 'path')
     path.setAttribute('d', d)
     path.setAttribute('fill', 'none')
-    path.setAttribute('stroke', 'rgba(255,255,255,0.07)')
+    path.setAttribute('stroke', 'rgba(0,0,0,0.12)')
     path.setAttribute('stroke-width', '1')
     path.setAttribute('stroke-linecap', 'round')
     bgGroup.appendChild(path)
