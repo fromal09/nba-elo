@@ -140,36 +140,37 @@ def build_elo(df):
 
     all_players = sorted(elo.keys(), key=lambda p: -elo[p])
 
+    # Build team game date sets for eligibility (once, outside player loop)
+    team_game_dates = defaultdict(set)
+    for pl, games in gmsc_hist.items():
+        for d, _ in games:
+            team_game_dates[team_map.get(pl, "")].add(d)
+
+    team_cutoff = {}
+    for team, dates in team_game_dates.items():
+        sorted_dates = sorted(dates, reverse=True)
+        team_cutoff[team] = sorted_dates[min(19, len(sorted_dates) - 1)]
+
     players_out = []
     for rank, player in enumerate(all_players, 1):
         recent     = gmsc_hist[player][-10:]
         recent_avg = sum(g[1] for g in recent) / len(recent) if recent else 0
         all_gs     = [g[1] for g in gmsc_hist[player]]
         career_avg = sum(all_gs) / len(all_gs) if all_gs else 0
+        team       = team_map.get(player, "")
+        lp         = last_played.get(player, "")
 
-        # Build team game date sets for eligibility
-    team_game_dates = defaultdict(set)
-    for pl, games in gmsc_hist.items():
-        for d, _ in games:
-            team_game_dates[team_map.get(pl, '')].add(d)
-
-    # team_cutoff: date of the 20th most recent game per team
-    team_cutoff = {}
-    for team, dates in team_game_dates.items():
-        sorted_dates = sorted(dates, reverse=True)
-        team_cutoff[team] = sorted_dates[min(19, len(sorted_dates)-1)]
-
-    players_out.append({
+        players_out.append({
             "name":             player,
-            "team":             team_map.get(player, ""),
+            "team":             team,
             "current_elo":      round(elo[player], 1),
             "peak_elo":         round(peak_elo[player], 1),
             "current_tpr_rank": rank,
             "games_played":     games_played[player],
             "recent_gmsc_avg":  round(recent_avg, 1),
             "career_gmsc_avg":  round(career_avg, 1),
-            "last_played":      last_played.get(player, ""),
-            "is_fpr_eligible":  last_played.get(player, "") >= team_cutoff.get(team_map.get(player, ""), ""),
+            "last_played":      lp,
+            "is_fpr_eligible":  lp >= team_cutoff.get(team, ""),
             "elo_history":      elo_hist[player],
             "gmsc_history":     gmsc_hist[player],
         })
