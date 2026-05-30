@@ -307,6 +307,31 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
             </div>
           </div>
         </div>
+
+        {player.badges && player.badges.length > 0 && (
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>Badges</div>
+            <div className={styles.sectionSub}>Earned through competitive performance and career milestones</div>
+            {['fpr','elo','longevity','era'].map(cat => {
+              const catBadges = player.badges.filter(b => b.cat === cat)
+              if (!catBadges.length) return null
+              const catLabel = {fpr:'FPR Rank', elo:'Elo', longevity:'Longevity', era:'Era'}[cat]
+              return (
+                <div key={cat} className={styles.badgeCat}>
+                  <div className={styles.badgeCatLabel}>{catLabel}</div>
+                  <div className={styles.badgeRow}>
+                    {catBadges.map(b => (
+                      <span key={b.id} className={`${styles.badge} ${styles['badge_'+b.cat]}`}>
+                        <span className={styles.badgeEmoji}>{b.emoji}</span>
+                        {b.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
