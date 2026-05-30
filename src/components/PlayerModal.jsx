@@ -121,36 +121,30 @@ function drawChart(data, focusIdx, svg, setTooltip) {
     svg.appendChild(txt)
   })
 
-  // X axis — season dividers every year, labels every 3 years to avoid collision
+  // X axis — season year labels at October + vertical dividers
   let lastYear = null
-  let seasonCount = 0
   dates.forEach((d, i) => {
     const yr = parseInt(d.slice(0, 4), 10)
     const mo = parseInt(d.slice(5, 7), 10)
     if (mo === 10 && yr !== lastYear) {
       lastYear = yr
-      seasonCount++
       const x = xScale(i)
-      // Divider every season
       const divider = document.createElementNS(ns, 'line')
       divider.setAttribute('x1', x); divider.setAttribute('x2', x)
       divider.setAttribute('y1', PAD.top); divider.setAttribute('y2', PAD.top + CH)
-      divider.setAttribute('stroke', 'rgba(0,0,0,0.05)')
+      divider.setAttribute('stroke', 'rgba(0,0,0,0.06)')
       divider.setAttribute('stroke-width', '1')
-      divider.setAttribute('stroke-dasharray', '2 4')
+      divider.setAttribute('stroke-dasharray', '3 3')
       svg.appendChild(divider)
-      // Label every 3 seasons only
-      if (seasonCount % 3 === 1) {
-        const txt = document.createElementNS(ns, 'text')
-        txt.setAttribute('x', x + 3)
-        txt.setAttribute('y', H - 6)
-        txt.setAttribute('text-anchor', 'start')
-        txt.setAttribute('font-size', '9')
-        txt.setAttribute('fill', '#8a9885')
-        txt.setAttribute('font-family', 'IBM Plex Mono, monospace')
-        txt.textContent = "'" + String(yr).slice(2)
-        svg.appendChild(txt)
-      }
+      const txt = document.createElementNS(ns, 'text')
+      txt.setAttribute('x', x + 4)
+      txt.setAttribute('y', H - 6)
+      txt.setAttribute('text-anchor', 'start')
+      txt.setAttribute('font-size', '10')
+      txt.setAttribute('fill', '#8a9885')
+      txt.setAttribute('font-family', 'IBM Plex Mono, monospace')
+      txt.textContent = yr + '-' + String(yr + 1).slice(2)
+      svg.appendChild(txt)
     }
   })
 
@@ -164,7 +158,7 @@ function drawChart(data, focusIdx, svg, setTooltip) {
     const path = document.createElementNS(ns, 'path')
     path.setAttribute('d', d)
     path.setAttribute('fill', 'none')
-    path.setAttribute('stroke', 'rgba(150,175,210,0.14)')
+    path.setAttribute('stroke', 'rgba(90,120,160,0.18)')
     path.setAttribute('stroke-width', '1')
     path.setAttribute('stroke-linecap', 'round')
     bgGroup.appendChild(path)
