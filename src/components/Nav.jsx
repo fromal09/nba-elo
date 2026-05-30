@@ -4,7 +4,7 @@ export default function Nav({ meta, view, setView }) {
   return (
     <header className={styles.header}>
       <div className={styles.left}>
-        <span className={styles.logo}>🏀 NBA · TPR</span>
+        <span className={styles.logo}>🏀 NBA · FPR</span>
         <span className={styles.meta}>
           {meta?.total_players} players · {meta?.total_games} games · {meta?.season}
         </span>

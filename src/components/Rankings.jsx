@@ -2,23 +2,14 @@ import { useState, useMemo, useCallback } from 'react'
 import styles from './Rankings.module.css'
 
 const PER_PAGE = 50
-const ACTIVE_DAYS = 45
-
 const SORT_OPTIONS = [
-  { key: 'current_tpr_rank', label: 'TPR Rank',     asc: true  },
+  { key: 'current_tpr_rank', label: 'FPR Rank',     asc: true  },
   { key: 'current_elo',      label: 'Current Elo',  asc: false },
   { key: 'peak_elo',         label: 'Peak Elo',     asc: false },
   { key: 'recent_gmsc_avg',  label: 'Recent GmSc',  asc: false },
   { key: 'career_gmsc_avg',  label: 'Career GmSc',  asc: false },
   { key: 'games_played',     label: 'Games Played', asc: false },
 ]
-
-function daysSince(dateStr) {
-  if (!dateStr) return 9999
-  const last = new Date(dateStr)
-  const now  = new Date('2026-05-29')
-  return Math.floor((now - last) / 86400000)
-}
 
 function gmscColor(v) {
   if (v >= 25) return '#22c997'
@@ -45,7 +36,7 @@ export default function Rankings({ players, onSelectPlayer }) {
     return players
       .filter(p => {
         if (p.games_played < minGP) return false
-        if (activeOnly && daysSince(p.last_played) > ACTIVE_DAYS) return false
+        if (activeOnly && !p.is_fpr_eligible) return false
         if (q && !p.name.toLowerCase().includes(q) && !p.team.toLowerCase().includes(q)) return false
         return true
       })
@@ -63,7 +54,7 @@ export default function Rankings({ players, onSelectPlayer }) {
   const totalPages = Math.ceil(filtered.length / PER_PAGE)
 
   const activeCount = useMemo(() =>
-    players.filter(p => p.games_played >= minGP && daysSince(p.last_played) <= ACTIVE_DAYS).length,
+    players.filter(p => p.games_played >= minGP && p.is_fpr_eligible).length,
     [players, minGP]
   )
 
@@ -132,7 +123,7 @@ export default function Rankings({ players, onSelectPlayer }) {
       {activeOnly && (
         <div className={styles.activeBanner}>
           <span className={styles.activeDot} />
-          Showing players active within the last {ACTIVE_DAYS} days · injured and inactive players hidden
+          Showing FPR-eligible players · must have played in team's last 20 games
           <button className={styles.bannerLink} onClick={() => { setActiveOnly(false); setPage(0) }}>
             Show all →
           </button>
@@ -171,8 +162,7 @@ export default function Rankings({ players, onSelectPlayer }) {
                 : page * PER_PAGE + i + 1
               const barW    = Math.max(2, Math.round((p.current_elo / maxElo) * 90))
               const gc      = gmscColor(p.recent_gmsc_avg)
-              const days    = daysSince(p.last_played)
-              const inactive = days > ACTIVE_DAYS
+              const inactive = !p.is_fpr_eligible
 
               return (
                 <tr

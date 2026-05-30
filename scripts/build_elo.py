@@ -27,6 +27,32 @@ except ImportError:
     sys.exit("pandas required: pip install pandas")
 
 
+# Explicit name aliases — maps any variant to the canonical name.
+# Add entries here whenever the same player appears under different names
+# across data sources (e.g. mid-career name changes, source inconsistencies).
+NAME_ALIASES = {
+    "Jimmy Butler III":       "Jimmy Butler",
+    "Jimmy Butler III ":      "Jimmy Butler",
+    "Jaren Jackson":          "Jaren Jackson Jr.",
+    "Taurean Waller-Prince":  "Taurean Prince",
+    "Nene":                   "Nene Hilario",
+    "Metta World Peace":      "Ron Artest",
+    "Ron Artest":             "Metta World Peace",  # canonical = later name
+    "Stephen Jackson":        "Stephen Jackson",
+    "Bam Adebayo":            "Bam Adebayo",
+}
+
+# For Artest/World Peace, pick one canonical name:
+NAME_ALIASES["Ron Artest"] = "Metta World Peace"
+
+def normalize_name(name):
+    """Apply alias map to unify player names across data sources."""
+    if not isinstance(name, str):
+        return name
+    name = name.strip()
+    return NAME_ALIASES.get(name, name)
+
+
 def parse_csv(paths):
     frames = []
     for path in paths:
@@ -39,7 +65,9 @@ def parse_csv(paths):
                 continue
             filtered.append(line)
         frames.append(pd.read_csv(io.StringIO("\n".join(filtered))))
-    return pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    df["Player"] = df["Player"].apply(normalize_name)
+    return df
 
 
 def build_elo(df):
@@ -119,7 +147,19 @@ def build_elo(df):
         all_gs     = [g[1] for g in gmsc_hist[player]]
         career_avg = sum(all_gs) / len(all_gs) if all_gs else 0
 
-        players_out.append({
+        # Build team game date sets for eligibility
+    team_game_dates = defaultdict(set)
+    for pl, games in gmsc_hist.items():
+        for d, _ in games:
+            team_game_dates[team_map.get(pl, '')].add(d)
+
+    # team_cutoff: date of the 20th most recent game per team
+    team_cutoff = {}
+    for team, dates in team_game_dates.items():
+        sorted_dates = sorted(dates, reverse=True)
+        team_cutoff[team] = sorted_dates[min(19, len(sorted_dates)-1)]
+
+    players_out.append({
             "name":             player,
             "team":             team_map.get(player, ""),
             "current_elo":      round(elo[player], 1),
@@ -129,6 +169,7 @@ def build_elo(df):
             "recent_gmsc_avg":  round(recent_avg, 1),
             "career_gmsc_avg":  round(career_avg, 1),
             "last_played":      last_played.get(player, ""),
+            "is_fpr_eligible":  last_played.get(player, "") >= team_cutoff.get(team_map.get(player, ""), ""),
             "elo_history":      elo_hist[player],
             "gmsc_history":     gmsc_hist[player],
         })
