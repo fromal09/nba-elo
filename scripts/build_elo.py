@@ -116,9 +116,9 @@ def build_elo(df):
     last_played  = {}
 
     def k_factor(n):
-        if n < 20:  return 40
-        if n < 100: return 28
-        return 20
+        if n < 20:  return 64
+        if n < 100: return 44
+        return 28
 
     def init(player):
         if player not in elo:
@@ -146,7 +146,7 @@ def build_elo(df):
             for b in players:
                 if a == b: continue
                 ea, eb = elo[a], elo[b]
-                exp_a  = 1 / (1 + 10 ** ((eb - ea) / 400))
+                exp_a  = 1 / (1 + 10 ** ((eb - ea) / 650))
                 ga, gb = gmsc[a], gmsc[b]
                 act_a  = 1.0 if ga > gb else (0.5 if ga == gb else 0.0)
                 k_eff  = k_factor(games_played[a]) / (n ** 0.5)
