@@ -26,7 +26,7 @@ try:
 except ImportError:
     sys.exit("Install requests first:\n  pip install requests")
 
-BASE = "https://api.balldontlie.io/v1"
+BASE = "https://api.balldontlie.io/nba/v1"
 PER_PAGE = 100
 
 def get(api_key, endpoint, params=None):
@@ -98,7 +98,6 @@ def fetch_season(api_key, season_start_year, out_dir, playoffs_only=False):
     print(f"  Fetching {season_str} {season_type_label}...", end=" ", flush=True)
 
     # Get all stats for this season
-    season_type_param = "Playoffs" if playoffs_only else "Regular Season"
     stats = get(api_key, "stats", {"seasons[]": season_start_year, "postseason": "true" if playoffs_only else "false"})
     print(f"{len(stats)} player-game rows", end=" ", flush=True)
 
@@ -106,13 +105,18 @@ def fetch_season(api_key, season_start_year, out_dir, playoffs_only=False):
         print("— empty, skipping")
         return
 
-    # Build lookup: game_id -> game info
-    game_ids = list(set(s["game"]["id"] for s in stats))
+    # Build game lookup: game_id -> game info (has home_team_id, visitor_team_id)
     games = {}
-    # game info is embedded in the stats response
     for s in stats:
         g = s["game"]
         games[g["id"]] = g
+
+    # Build team ID -> abbreviation lookup from the stat team objects
+    team_abbr_map = {}
+    for s in stats:
+        t = s.get("team", {})
+        if t.get("id") and t.get("abbreviation"):
+            team_abbr_map[t["id"]] = t["abbreviation"]
 
     # Write CSV
     fieldnames = [
@@ -144,15 +148,17 @@ def fetch_season(api_key, season_start_year, out_dir, playoffs_only=False):
             game = games.get(s["game"]["id"], s["game"])
             date_str = game.get("date", "")[:10]
 
-            # Determine team and opponent
+            # Determine team and opponent using team_id lookup
             team_abbr = s.get("team", {}).get("abbreviation", "")
-            home_team = game.get("home_team", {}).get("abbreviation", "")
-            away_team = game.get("visitor_team", {}).get("abbreviation", "")
-            if team_abbr == home_team:
-                opp = away_team
+            team_id   = s.get("team", {}).get("id")
+            home_team_id    = game.get("home_team_id")
+            visitor_team_id = game.get("visitor_team_id")
+
+            if team_id == home_team_id:
+                opp = team_abbr_map.get(visitor_team_id, "")
                 home_away = ""
             else:
-                opp = home_team
+                opp = team_abbr_map.get(home_team_id, "")
                 home_away = "@"
 
             # Result

@@ -5,73 +5,56 @@ Usage:
     python scripts/build_elo.py data/2026_NBA.csv
     python scripts/build_elo.py data/2026_NBA.csv data/2026_NBA_playoffs.csv
 
-Pass multiple CSVs to concatenate (e.g. regular season + playoff updates).
-Output: public/data/elo.json
-
-Key design decisions:
-  - Pairwise within-game Elo comparison by Game Score rank
-  - sqrt(n_players) K-factor scaling to normalize for game size
-  - Dynamic K: 40 (<20 GP), 28 (20-100 GP), 20 (100+ GP)
-  - 10-minute minimum to filter garbage time
-  - last_played date tracked per player for recency filtering in UI
+Pass multiple CSVs to concatenate. Output: public/data/elo.json + spaghetti.json
 """
 
-import sys, json, io
+import sys, json, io, os as _os
 from pathlib import Path
 from datetime import date
 from collections import defaultdict
+
+sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from team_canonical import canon_team
 
 try:
     import pandas as pd
 except ImportError:
     sys.exit("pandas required: pip install pandas")
 
-
-# Explicit name aliases — maps any variant to the canonical name.
-# Add entries here whenever the same player appears under different names
-# across data sources (e.g. mid-career name changes, source inconsistencies).
+# ── Name aliases ───────────────────────────────────────────────────────────
 NAME_ALIASES = {
-    "Jimmy Butler III":       "Jimmy Butler",
-    "Jimmy Butler III ":      "Jimmy Butler",
-    "Jaren Jackson":          "Jaren Jackson Jr.",
-    "Taurean Waller-Prince":  "Taurean Prince",
-    "Nene":                   "Nene Hilario",
-    "Metta World Peace":      "Ron Artest",
-    "Ron Artest":             "Metta World Peace",  # canonical = later name
-    "Stephen Jackson":        "Stephen Jackson",
-    "Bam Adebayo":            "Bam Adebayo",
+    "Jimmy Butler III":      "Jimmy Butler",
+    "Taurean Waller-Prince": "Taurean Prince",
+    "Metta World Peace":     "Metta World Peace",
+    "Ron Artest":            "Metta World Peace",
+    "Jaren Jackson":         "Jaren Jackson Jr.",
 }
 
-# For Artest/World Peace, pick one canonical name:
-NAME_ALIASES["Ron Artest"] = "Metta World Peace"
-
 def normalize_name(name):
-    """Apply alias map to unify player names across data sources."""
     if not isinstance(name, str):
         return name
-    name = name.strip()
-    return NAME_ALIASES.get(name, name)
+    return NAME_ALIASES.get(name.strip(), name.strip())
 
 
 def parse_csv(paths):
     frames = []
-    all_paths = []
-    for path in paths:
-        all_paths.append(path)
-        # Auto-include matching _playoffs.csv if it exists
+    all_paths = list(paths)
+
+    # Auto-include matching _playoffs.csv files
+    for path in list(paths):
         playoff_path = str(path).replace(".csv", "_playoffs.csv")
-        if Path(playoff_path).exists():
+        if Path(playoff_path).exists() and playoff_path not in all_paths:
             all_paths.append(playoff_path)
             print(f"  + including {Path(playoff_path).name}")
 
-    # Auto-include updates.csv if present — dedupe handles any overlap
+    # Auto-include nbaupdates.csv if present
     updates_path = Path("data/nbaupdates.csv")
-    if updates_path.exists() and updates_path not in [Path(p) for p in all_paths]:
+    if updates_path.exists() and str(updates_path) not in all_paths:
         all_paths.append(str(updates_path))
         print(f"  + including data/nbaupdates.csv")
 
     for path in all_paths:
-        raw = Path(path).read_text(encoding="utf-8")
+        raw = Path(path).read_text(encoding="utf-8", errors="replace")
         lines = raw.split("\n")
         header = lines[0]
         filtered = [header]
@@ -79,7 +62,8 @@ def parse_csv(paths):
             if line.startswith("Rk,Player") or not line.strip():
                 continue
             filtered.append(line)
-        frames.append(pd.read_csv(io.StringIO("\n".join(filtered))))
+        frames.append(pd.read_csv(io.StringIO("\n".join(filtered)), low_memory=False))
+
     df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
     df["Player"] = df["Player"].apply(normalize_name)
     return df
@@ -90,12 +74,25 @@ def build_elo(df):
         df.rename(columns={"Unnamed: 6": "home_away"}, inplace=True)
 
     df["GmSc"] = pd.to_numeric(df["GmSc"], errors="coerce")
-    df["Date"] = pd.to_datetime(df["Date"])
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     df["MP"]   = pd.to_numeric(df["MP"],   errors="coerce")
-    df = df[df["MP"] >= 10].copy()
 
-    # Drop rows with missing Team or Opp (malformed rows from some data sources)
-    df = df.dropna(subset=["Team", "Opp"]).copy()
+    print(f"  {len(df)} rows, {df['MP'].isna().sum()} rows with no MP data")
+    print(f"  Unique players: {df['Player'].nunique()}")
+
+    # Fill empty/NaN Team or Opp
+    df["Team"] = df["Team"].fillna("UNK").replace("", "UNK").astype(str)
+    df["Opp"]  = df["Opp"].fillna("").astype(str)
+
+    # Normalize team abbreviations to canonical modern form
+    df["Team"] = df["Team"].apply(canon_team)
+    df["Opp"]  = df["Opp"].apply(canon_team)
+
+    # Fill missing Opp with Team so game_id is still usable
+    null_opp = (df["Opp"].str.strip() == "") | (df["Opp"] == "nan")
+    if null_opp.sum() > 0:
+        print(f"  {null_opp.sum()} rows with missing Opp — using team as game_id fallback")
+        df.loc[null_opp, "Opp"] = df.loc[null_opp, "Team"]
 
     def make_game_id(row):
         teams = sorted([str(row["Team"]), str(row["Opp"])])
@@ -103,13 +100,11 @@ def build_elo(df):
 
     df["game_id"] = df.apply(make_game_id, axis=1)
 
-    # Deduplicate: if the same player-game appears in multiple CSVs
-    # (e.g. 2025-26.csv and updates.csv overlap), keep only one copy.
-    # Sort first so the dedup keeps the row from the later file (updates win).
+    # Deduplicate
     df = df.sort_values("Date")
     df = df.drop_duplicates(subset=["Player", "game_id"], keep="last")
     df = df.reset_index(drop=True)
-    print(f"  {len(df)} rows after deduplication")
+    print(f"  {len(df)} rows after deduplication ({df['Player'].nunique()} players)")
 
     elo          = {}
     games_played = {}
@@ -164,14 +159,13 @@ def build_elo(df):
             elo_hist[p].append([date_str, round(elo[p], 1)])
             gmsc_hist[p].append([date_str, round(gmsc[p], 1)])
 
-        # Record rank snapshot after each game — rank among all players seen so far
         sorted_by_elo = sorted(players, key=lambda p: -elo[p])
         for rank_pos, p in enumerate(sorted_by_elo, 1):
             rank_hist[p].append([date_str, rank_pos])
 
     all_players = sorted(elo.keys(), key=lambda p: -elo[p])
 
-    # Build team game date sets for eligibility (once, outside player loop)
+    # FPR eligibility
     team_game_dates = defaultdict(set)
     for pl, games in gmsc_hist.items():
         for d, _ in games:
@@ -207,24 +201,20 @@ def build_elo(df):
             "rank_history":     rank_hist[player],
         })
 
-    # ── Badge computation ─────────────────────────────────────────────────────
-    # Compute global peak Elo ranking across all players
-    peak_elo_ranking = sorted(players_out, key=lambda p: -p["peak_elo"])
+    # ── Badge computation ──────────────────────────────────────────────────
+    peak_elo_ranking  = sorted(players_out, key=lambda p: -p["peak_elo"])
     peak_elo_rank_map = {p["name"]: i+1 for i, p in enumerate(peak_elo_ranking)}
 
-    # Compute per-decade peak ranks
-    # For each player, find their best Elo within each decade
-    decade_best = defaultdict(lambda: defaultdict(float))  # player -> decade -> best_elo
+    decade_best = defaultdict(lambda: defaultdict(float))
     for p in players_out:
         for date_str, elo_val in p["elo_history"]:
-            yr = int(date_str[:4])
+            yr     = int(date_str[:4])
             decade = (yr // 10) * 10
             if elo_val > decade_best[p["name"]][decade]:
                 decade_best[p["name"]][decade] = elo_val
 
-    # For each decade, rank all players by their best Elo in that decade
-    all_decades = sorted(set(dec for pb in decade_best.values() for dec in pb))
-    decade_rank_map = {}  # decade -> {player_name -> rank}
+    all_decades    = sorted(set(dec for pb in decade_best.values() for dec in pb))
+    decade_rank_map = {}
     for decade in all_decades:
         players_in_decade = [(name, pb[decade]) for name, pb in decade_best.items() if decade in pb]
         players_in_decade.sort(key=lambda x: -x[1])
@@ -232,131 +222,99 @@ def build_elo(df):
 
     def compute_badges(p):
         badges = []
-        name = p["name"]
-        rh = p["rank_history"]  # [[date, rank], ...]
-        curr_rank = p["current_tpr_rank"]
-        peak = p["peak_elo"]
-        gp = p["games_played"]
-        fpr_eligible = p["is_fpr_eligible"]
+        name          = p["name"]
+        rh            = p["rank_history"]
+        curr_rank     = p["current_tpr_rank"]
+        peak          = p["peak_elo"]
+        gp            = p["games_played"]
+        fpr_eligible  = p["is_fpr_eligible"]
 
-        # ── FPR RANK BADGES ──────────────────────────────────────────────────
-        # Times at #1 and streak
-        at_number_one = [r for _, r in rh if r == 1]
-        games_at_1 = len(at_number_one)
-
-        # Longest consecutive streak at #1
-        max_streak = cur_streak = 0
+        games_at_1  = sum(1 for _, r in rh if r == 1)
+        max_streak  = cur_streak = 0
         for _, r in rh:
-            if r == 1:
-                cur_streak += 1
-                max_streak = max(max_streak, cur_streak)
-            else:
-                cur_streak = 0
-
-        # Best rank ever achieved
+            if r == 1: cur_streak += 1; max_streak = max(max_streak, cur_streak)
+            else:      cur_streak = 0
         best_rank_ever = min((r for _, r in rh), default=9999)
 
-        # Current rank badges (eligible players only)
         if fpr_eligible:
             if curr_rank == 1:
-                badges.append({"cat": "fpr", "id": "current_1", "label": "Current FPR #1", "emoji": "🏆"})
+                badges.append({"cat":"fpr","id":"current_1","label":"Current FPR #1","emoji":"🏆"})
             if curr_rank <= 5:
-                badges.append({"cat": "fpr", "id": "current_top5", "label": f"Current FPR Top 5 (#{curr_rank})", "emoji": "⭐"})
+                badges.append({"cat":"fpr","id":"current_top5","label":f"Current FPR Top 5 (#{curr_rank})","emoji":"⭐"})
             elif curr_rank <= 10:
-                badges.append({"cat": "fpr", "id": "current_top10", "label": f"Current FPR Top 10 (#{curr_rank})", "emoji": "⭐"})
+                badges.append({"cat":"fpr","id":"current_top10","label":f"Current FPR Top 10 (#{curr_rank})","emoji":"⭐"})
             elif curr_rank <= 25:
-                badges.append({"cat": "fpr", "id": "current_top25", "label": f"Current FPR Top 25 (#{curr_rank})", "emoji": "📈"})
+                badges.append({"cat":"fpr","id":"current_top25","label":f"Current FPR Top 25 (#{curr_rank})","emoji":"📈"})
             elif curr_rank <= 50:
-                badges.append({"cat": "fpr", "id": "current_top50", "label": f"Current FPR Top 50 (#{curr_rank})", "emoji": "📈"})
+                badges.append({"cat":"fpr","id":"current_top50","label":f"Current FPR Top 50 (#{curr_rank})","emoji":"📈"})
             elif curr_rank <= 100:
-                badges.append({"cat": "fpr", "id": "current_top100", "label": f"Current FPR Top 100 (#{curr_rank})", "emoji": "📈"})
+                badges.append({"cat":"fpr","id":"current_top100","label":f"Current FPR Top 100 (#{curr_rank})","emoji":"📈"})
 
-        # Former rank badges (based on best rank ever)
-        if best_rank_ever == 1:
-            if not (fpr_eligible and curr_rank == 1):
-                badges.append({"cat": "fpr", "id": "former_1", "label": "Former FPR #1", "emoji": "🔱"})
+        if best_rank_ever == 1 and not (fpr_eligible and curr_rank == 1):
+            badges.append({"cat":"fpr","id":"former_1","label":"Former FPR #1","emoji":"🔱"})
         elif best_rank_ever <= 5 and not (fpr_eligible and curr_rank <= 5):
-            badges.append({"cat": "fpr", "id": "former_top5", "label": f"Former FPR Top 5 (#{best_rank_ever})", "emoji": "🔱"})
+            badges.append({"cat":"fpr","id":"former_top5","label":f"Former FPR Top 5 (#{best_rank_ever})","emoji":"🔱"})
         elif best_rank_ever <= 10 and not (fpr_eligible and curr_rank <= 10):
-            badges.append({"cat": "fpr", "id": "former_top10", "label": f"Former FPR Top 10 (#{best_rank_ever})", "emoji": "🔱"})
+            badges.append({"cat":"fpr","id":"former_top10","label":f"Former FPR Top 10 (#{best_rank_ever})","emoji":"🔱"})
         elif best_rank_ever <= 25 and not (fpr_eligible and curr_rank <= 25):
-            badges.append({"cat": "fpr", "id": "former_top25", "label": f"Former FPR Top 25 (#{best_rank_ever})", "emoji": "🏅"})
+            badges.append({"cat":"fpr","id":"former_top25","label":f"Former FPR Top 25 (#{best_rank_ever})","emoji":"🏅"})
         elif best_rank_ever <= 50 and not (fpr_eligible and curr_rank <= 50):
-            badges.append({"cat": "fpr", "id": "former_top50", "label": f"Former FPR Top 50 (#{best_rank_ever})", "emoji": "🏅"})
+            badges.append({"cat":"fpr","id":"former_top50","label":f"Former FPR Top 50 (#{best_rank_ever})","emoji":"🏅"})
         elif best_rank_ever <= 100 and not (fpr_eligible and curr_rank <= 100):
-            badges.append({"cat": "fpr", "id": "former_top100", "label": f"Former FPR Top 100 (#{best_rank_ever})", "emoji": "🏅"})
+            badges.append({"cat":"fpr","id":"former_top100","label":f"Former FPR Top 100 (#{best_rank_ever})","emoji":"🏅"})
 
-        # Games at #1 and streak
         if games_at_1 >= 1:
-            badges.append({"cat": "fpr", "id": "games_at_1", "label": f"{games_at_1}-Game FPR #1", "emoji": "👑"})
+            badges.append({"cat":"fpr","id":"games_at_1","label":f"{games_at_1}-Game FPR #1","emoji":"👑"})
         if max_streak >= 10:
-            badges.append({"cat": "fpr", "id": "streak_at_1", "label": f"{max_streak}-Game FPR #1 Streak", "emoji": "🔥"})
+            badges.append({"cat":"fpr","id":"streak_at_1","label":f"{max_streak}-Game FPR #1 Streak","emoji":"🔥"})
 
-        # ── ELO BADGES ───────────────────────────────────────────────────────
-        # Club badges — every 100 points from 1800 up
         for threshold in range(1800, 3100, 100):
             if peak >= threshold:
-                badges.append({"cat": "elo", "id": f"club_{threshold}",
-                               "label": f"{threshold:,} Elo Club", "emoji": "⚡"})
+                badges.append({"cat":"elo","id":f"club_{threshold}","label":f"{threshold:,} Elo Club","emoji":"⚡"})
 
-        # All-time peak Elo ranking
         peak_rank = peak_elo_rank_map.get(name, 9999)
         if peak_rank == 1:
-            badges.append({"cat": "elo", "id": "peak_alltime_1", "label": "All-Time Peak Elo #1", "emoji": "🐐"})
+            badges.append({"cat":"elo","id":"peak_alltime_1","label":"All-Time Peak Elo #1","emoji":"🐐"})
         elif peak_rank <= 5:
-            badges.append({"cat": "elo", "id": "peak_alltime_top5", "label": f"Top 5 All-Time Peak Elo (#{peak_rank})", "emoji": "🐐"})
+            badges.append({"cat":"elo","id":"peak_alltime_top5","label":f"Top 5 All-Time Peak Elo (#{peak_rank})","emoji":"🐐"})
         elif peak_rank <= 10:
-            badges.append({"cat": "elo", "id": "peak_alltime_top10", "label": f"Top 10 All-Time Peak Elo (#{peak_rank})", "emoji": "⚡"})
+            badges.append({"cat":"elo","id":"peak_alltime_top10","label":f"Top 10 All-Time Peak Elo (#{peak_rank})","emoji":"⚡"})
         elif peak_rank <= 25:
-            badges.append({"cat": "elo", "id": "peak_alltime_top25", "label": f"Top 25 All-Time Peak Elo (#{peak_rank})", "emoji": "⚡"})
+            badges.append({"cat":"elo","id":"peak_alltime_top25","label":f"Top 25 All-Time Peak Elo (#{peak_rank})","emoji":"⚡"})
         elif peak_rank <= 50:
-            badges.append({"cat": "elo", "id": "peak_alltime_top50", "label": f"Top 50 All-Time Peak Elo (#{peak_rank})", "emoji": "⚡"})
+            badges.append({"cat":"elo","id":"peak_alltime_top50","label":f"Top 50 All-Time Peak Elo (#{peak_rank})","emoji":"⚡"})
         elif peak_rank <= 100:
-            badges.append({"cat": "elo", "id": "peak_alltime_top100", "label": f"Top 100 All-Time Peak Elo (#{peak_rank})", "emoji": "⚡"})
+            badges.append({"cat":"elo","id":"peak_alltime_top100","label":f"Top 100 All-Time Peak Elo (#{peak_rank})","emoji":"⚡"})
 
-        # ── LONGEVITY BADGES ─────────────────────────────────────────────────
         for threshold, emoji in [(1000,"💎"),(750,"🏀"),(500,"🏀")]:
             if gp >= threshold:
-                badges.append({"cat": "longevity", "id": f"games_{threshold}",
-                               "label": f"{threshold:,} Games Played", "emoji": emoji})
-                break  # only show highest achieved
+                badges.append({"cat":"longevity","id":f"games_{threshold}","label":f"{threshold:,} Games Played","emoji":emoji})
+                break
 
-        # ── ERA BADGES ────────────────────────────────────────────────────────
         era_emojis = {1940:"📼",1950:"📼",1960:"📼",1970:"📺",1980:"📺",
                       1990:"💿",2000:"💿",2010:"📱",2020:"📱"}
         for decade, player_decade_rank in sorted(decade_rank_map.items(), reverse=True):
             rank_in_decade = player_decade_rank.get(name)
-            if not rank_in_decade:
-                continue
+            if not rank_in_decade: continue
             decade_str = f"{decade}s"
             emoji = era_emojis.get(decade, "🏀")
             if rank_in_decade == 1:
-                badges.append({"cat": "era", "id": f"era_{decade}_1",
-                               "label": f"{decade_str} FPR #1", "emoji": emoji})
+                badges.append({"cat":"era","id":f"era_{decade}_1","label":f"{decade_str} FPR #1","emoji":emoji})
             elif rank_in_decade <= 5:
-                badges.append({"cat": "era", "id": f"era_{decade}_top5",
-                               "label": f"{decade_str} Top 5 (#{rank_in_decade})", "emoji": emoji})
+                badges.append({"cat":"era","id":f"era_{decade}_top5","label":f"{decade_str} Top 5 (#{rank_in_decade})","emoji":emoji})
             elif rank_in_decade <= 10:
-                badges.append({"cat": "era", "id": f"era_{decade}_top10",
-                               "label": f"{decade_str} Top 10 (#{rank_in_decade})", "emoji": emoji})
+                badges.append({"cat":"era","id":f"era_{decade}_top10","label":f"{decade_str} Top 10 (#{rank_in_decade})","emoji":emoji})
             elif rank_in_decade <= 25:
-                badges.append({"cat": "era", "id": f"era_{decade}_top25",
-                               "label": f"{decade_str} Top 25 (#{rank_in_decade})", "emoji": emoji})
+                badges.append({"cat":"era","id":f"era_{decade}_top25","label":f"{decade_str} Top 25 (#{rank_in_decade})","emoji":emoji})
             elif rank_in_decade <= 50:
-                badges.append({"cat": "era", "id": f"era_{decade}_top50",
-                               "label": f"{decade_str} Top 50 (#{rank_in_decade})", "emoji": emoji})
+                badges.append({"cat":"era","id":f"era_{decade}_top50","label":f"{decade_str} Top 50 (#{rank_in_decade})","emoji":emoji})
             elif rank_in_decade <= 100:
-                badges.append({"cat": "era", "id": f"era_{decade}_top100",
-                               "label": f"{decade_str} Top 100 (#{rank_in_decade})", "emoji": emoji})
+                badges.append({"cat":"era","id":f"era_{decade}_top100","label":f"{decade_str} Top 100 (#{rank_in_decade})","emoji":emoji})
 
         return badges
 
-    # Attach badges to all players
     for p in players_out:
         p["badges"] = compute_badges(p)
-        # Remove rank_history from output to save space — badges already computed
-        # Keep it for charting though
-        p["rank_history"] = p["rank_history"]  # keep for now
 
     return {
         "season":        "2025-26",
@@ -377,21 +335,15 @@ if __name__ == "__main__":
     print("Running Elo pipeline…")
     output = build_elo(df)
     print(f"  {output['total_players']} players · {output['total_games']} games")
+
     out_path = Path("public/data/elo.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(output, separators=(",", ":")), encoding="utf-8")
     print(f"  Written {out_path} ({out_path.stat().st_size/1024:.0f} KB)")
 
-    # Build spaghetti.json — compact sparse format for the chart
-    # Shared date index + per-player [[date_idx, elo], ...] arrays
-    all_dates = sorted(set(
-        h[0] for p in output["players"] for h in p["elo_history"]
-    ))
-    date_idx = {d: i for i, d in enumerate(all_dates)}
-    sparse_players = [
-        [[date_idx[d], v] for d, v in p["elo_history"]]
-        for p in output["players"]
-    ]
+    all_dates = sorted(set(h[0] for p in output["players"] for h in p["elo_history"]))
+    date_idx  = {d: i for i, d in enumerate(all_dates)}
+    sparse_players = [[[date_idx[d], v] for d, v in p["elo_history"]] for p in output["players"]]
     spag = {"dates": all_dates, "players": sparse_players}
     spag_path = Path("public/data/spaghetti.json")
     spag_path.write_text(json.dumps(spag, separators=(",", ":")), encoding="utf-8")
