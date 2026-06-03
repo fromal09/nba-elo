@@ -41,16 +41,27 @@ def get(api_key, endpoint, params=None):
             p["cursor"] = cursor
         r = requests.get(f"{BASE}/{endpoint}", headers=headers, params=p, timeout=30)
         if r.status_code == 429:
-            print(" [rate limited, sleeping 20s]", end="", flush=True)
-            time.sleep(20)
+            print(" [rate limited, sleeping 15s]", end="", flush=True)
+            time.sleep(15)
             continue
+        if r.status_code in (502, 503, 504):
+            print(" [server error, retrying in 30s]", end="", flush=True)
+            time.sleep(30)
+            continue
+        # Log rate limit headers on first successful response
+        if r.status_code == 200 and not getattr(get, '_logged_headers', False):
+            rl_limit = r.headers.get('X-RateLimit-Limit', 'unknown')
+            rl_remaining = r.headers.get('X-RateLimit-Remaining', 'unknown')
+            rl_reset = r.headers.get('X-RateLimit-Reset', 'unknown')
+            print(f"\n  [API limits] limit={rl_limit} remaining={rl_remaining} reset={rl_reset}")
+            get._logged_headers = True
         r.raise_for_status()
         data = r.json()
         rows.extend(data["data"])
         cursor = data.get("meta", {}).get("next_cursor")
         if not cursor:
             break
-        time.sleep(0.5)
+        time.sleep(12.5)  # 5 req/min = 1 per 12s
     return rows
 
 def compute_gmsc(row):
@@ -73,19 +84,22 @@ def compute_gmsc(row):
         + 0.7*orb + 0.3*drb + stl + 0.7*ast + 0.7*blk - 0.4*pf - tov, 1
     )
 
-def fetch_season(api_key, season_start_year, out_dir):
+def fetch_season(api_key, season_start_year, out_dir, playoffs_only=False):
     """Fetch all player stats for one season, save as CSV."""
     season_str = f"{season_start_year}-{str(season_start_year+1)[2:]}"
-    out_path = out_dir / f"{season_str}.csv"
+    suffix = "_playoffs" if playoffs_only else ""
+    out_path = out_dir / f"{season_str}{suffix}.csv"
 
     if out_path.exists():
         print(f"  {out_path} already exists — skipping")
         return
 
-    print(f"  Fetching {season_str}...", end=" ", flush=True)
+    season_type_label = "Playoffs" if playoffs_only else "Regular Season"
+    print(f"  Fetching {season_str} {season_type_label}...", end=" ", flush=True)
 
     # Get all stats for this season
-    stats = get(api_key, "stats", {"seasons[]": season_start_year})
+    season_type_param = "Playoffs" if playoffs_only else "Regular Season"
+    stats = get(api_key, "stats", {"seasons[]": season_start_year, "postseason": "true" if playoffs_only else "false"})
     print(f"{len(stats)} player-game rows", end=" ", flush=True)
 
     if not stats:
@@ -198,7 +212,7 @@ def fetch_season(api_key, season_start_year, out_dir):
             rows_written += 1
 
     print(f"→ saved {rows_written} rows to {out_path}")
-    time.sleep(1)
+    time.sleep(0.5)
 
 
 def main():
@@ -207,6 +221,8 @@ def main():
     parser.add_argument("--seasons", nargs="+", type=int,
                         default=list(range(1946, 1996)),
                         help="Start years to fetch (e.g. 1946 1947). Default: 1946-1995")
+    parser.add_argument("--playoffs", action="store_true",
+                        help="Fetch playoff games instead of regular season")
     parser.add_argument("--outdir", default="data", help="Output directory")
     args = parser.parse_args()
 
@@ -218,7 +234,7 @@ def main():
 
     for yr in sorted(args.seasons):
         try:
-            fetch_season(args.api_key, yr, out)
+            fetch_season(args.api_key, yr, out, playoffs_only=args.playoffs)
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 401:
                 print(f"\n  AUTH ERROR: Check your API key and account tier.")

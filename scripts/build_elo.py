@@ -55,7 +55,22 @@ def normalize_name(name):
 
 def parse_csv(paths):
     frames = []
+    all_paths = []
     for path in paths:
+        all_paths.append(path)
+        # Auto-include matching _playoffs.csv if it exists
+        playoff_path = str(path).replace(".csv", "_playoffs.csv")
+        if Path(playoff_path).exists():
+            all_paths.append(playoff_path)
+            print(f"  + including {Path(playoff_path).name}")
+
+    # Auto-include updates.csv if present — dedupe handles any overlap
+    updates_path = Path("data/nbaupdates.csv")
+    if updates_path.exists() and updates_path not in [Path(p) for p in all_paths]:
+        all_paths.append(str(updates_path))
+        print(f"  + including data/nbaupdates.csv")
+
+    for path in all_paths:
         raw = Path(path).read_text(encoding="utf-8")
         lines = raw.split("\n")
         header = lines[0]
@@ -79,12 +94,22 @@ def build_elo(df):
     df["MP"]   = pd.to_numeric(df["MP"],   errors="coerce")
     df = df[df["MP"] >= 10].copy()
 
+    # Drop rows with missing Team or Opp (malformed rows from some data sources)
+    df = df.dropna(subset=["Team", "Opp"]).copy()
+
     def make_game_id(row):
-        teams = sorted([row["Team"], row["Opp"]])
+        teams = sorted([str(row["Team"]), str(row["Opp"])])
         return f"{row['Date'].strftime('%Y-%m-%d')}_{teams[0]}_{teams[1]}"
 
     df["game_id"] = df.apply(make_game_id, axis=1)
-    df = df.sort_values("Date").reset_index(drop=True)
+
+    # Deduplicate: if the same player-game appears in multiple CSVs
+    # (e.g. 2025-26.csv and updates.csv overlap), keep only one copy.
+    # Sort first so the dedup keeps the row from the later file (updates win).
+    df = df.sort_values("Date")
+    df = df.drop_duplicates(subset=["Player", "game_id"], keep="last")
+    df = df.reset_index(drop=True)
+    print(f"  {len(df)} rows after deduplication")
 
     elo          = {}
     games_played = {}

@@ -144,7 +144,9 @@ def main():
     parser.add_argument('--seasons', nargs='+', default=all_seasons,
                         help='Season strings e.g. 2020-21 2021-22')
     parser.add_argument('--playoffs', action='store_true',
-                        help='Also fetch playoff games (appended to same file)')
+                        help='Also fetch playoff games as separate _playoffs.csv files')
+    parser.add_argument('--playoffs-only', action='store_true',
+                        help='Only fetch playoffs, skip regular season')
     parser.add_argument('--outdir', default='data',
                         help='Output directory (default: data/)')
     args = parser.parse_args()
@@ -154,30 +156,40 @@ def main():
 
     for season in args.seasons:
         out_path = out / f"{season}.csv"
-        if out_path.exists():
-            print(f"  {out_path} already exists — skipping (delete to re-fetch)")
-            continue
+        playoff_path = out / f"{season}_playoffs.csv"
 
-        frames = []
-        try:
-            frames.append(fetch_season(season, 'Regular Season'))
-            time.sleep(3)
-        except Exception as e:
-            print(f"  ERROR fetching {season} regular season: {e}")
-            continue
+        # Regular season
+        if not getattr(args, 'playoffs_only', False):
+            if out_path.exists():
+                print(f"  {out_path} already exists — skipping")
+            else:
+                try:
+                    df_reg = fetch_season(season, 'Regular Season')
+                    time.sleep(3)
+                    df_reg = process(df_reg)
+                    df_reg.to_csv(out_path, index=False)
+                    print(f"  Saved {out_path} ({len(df_reg)} player-games)")
+                    time.sleep(2)
+                except Exception as e:
+                    print(f"  ERROR fetching {season} regular season: {e}")
 
-        if args.playoffs:
-            try:
-                frames.append(fetch_season(season, 'Playoffs'))
-                time.sleep(3)
-            except Exception as e:
-                print(f"  WARNING: playoffs failed for {season} ({e}) — saving regular season only")
-
-        df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
-        df = process(df)
-        df.to_csv(out_path, index=False)
-        print(f"  Saved {out_path} ({len(df)} player-games)")
-        time.sleep(2)
+        # Playoffs — separate _playoffs.csv
+        if args.playoffs or getattr(args, 'playoffs_only', False):
+            if playoff_path.exists():
+                print(f"  {playoff_path} already exists — skipping")
+            else:
+                try:
+                    df_po = fetch_season(season, 'Playoffs')
+                    time.sleep(3)
+                    df_po = process(df_po)
+                    if len(df_po) > 0:
+                        df_po.to_csv(playoff_path, index=False)
+                        print(f"  Saved {playoff_path} ({len(df_po)} player-games)")
+                    else:
+                        print(f"  No playoff data for {season}")
+                    time.sleep(2)
+                except Exception as e:
+                    print(f"  WARNING: playoffs failed for {season}: {e}")
 
     print("\nDone. Now run the Elo pipeline:")
     csvs = ' '.join(f"data/{s}.csv" for s in sorted(args.seasons))
