@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Rankings from './components/Rankings'
 import Historical from './components/Historical'
 import Goat from './components/Goat'
+import H2H from './components/H2H'
 import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
 import Homepage from './components/Homepage'
@@ -54,6 +55,9 @@ export default function App() {
       )}
       {view === 'goat' && (
         <Goat players={data.players} onSelectPlayer={setSelectedPlayer} />
+      )}
+      {view === 'h2h' && (
+        <H2H players={data.players} />
       )}
       {view === 'methodology' && <Methodology />}
 
