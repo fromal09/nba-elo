@@ -31,10 +31,23 @@ export default function Teams({ players, onSelectPlayer }) {
   const [sortKey, setSortKey] = useState('current_elo')
   const [sortAsc, setSortAsc] = useState(false)
 
+  const activePlayers = useMemo(() =>
+    players.filter(p => p.is_fpr_eligible), [players]
+  )
+
+  // Active rank = rank among currently eligible players
+  const activeRankMap = useMemo(() => {
+    const sorted = [...activePlayers].sort((a, b) => b.current_elo - a.current_elo)
+    const map = {}
+    sorted.forEach((p, i) => { map[p.name] = i + 1 })
+    return map
+  }, [activePlayers])
+
   const teamPlayers = useMemo(() => {
     if (!selectedTeam) return []
+    // Only show players active in 2025-26 season (last game after Oct 2025)
     return players
-      .filter(p => p.team === selectedTeam && p.is_fpr_eligible)
+      .filter(p => p.team === selectedTeam && p.is_fpr_eligible && p.last_played >= '2025-10-01')
       .sort((a, b) => sortAsc ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey])
   }, [players, selectedTeam, sortKey, sortAsc])
 
@@ -132,7 +145,7 @@ export default function Teams({ players, onSelectPlayer }) {
               <table style={s.table}>
                 <thead style={s.thead}>
                   <tr>
-                    <th style={{ ...s.th(false), width: 52, textAlign: 'right' }}>FPR</th>
+                    <th style={{ ...s.th(false), width: 52, textAlign: 'right' }}>Active Rank</th>
                     <th style={s.th(false)}>Player</th>
                     <th style={{ ...s.th(sortKey === 'current_elo'), ...s.thR }} onClick={() => setSort('current_elo')}>
                       Current Elo{sortArrow('current_elo')}
@@ -164,7 +177,7 @@ export default function Teams({ players, onSelectPlayer }) {
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       >
                         <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>
-                          #{p.current_tpr_rank}
+                          #{activeRankMap[p.name] || p.current_tpr_rank}
                         </td>
                         <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a' }}>{p.name}</td>
                         <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 500, color: '#1a1a1a', fontVariantNumeric: 'tabular-nums' }}>
