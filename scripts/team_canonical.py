@@ -125,6 +125,38 @@ CANONICAL = {
     "STB": "STB",   # St. Louis Bombers
     "WAT": "WAT",   # Waterloo Hawks
 
+    # ── ABA FRANCHISES ───────────────────────────────────────────────────
+    "NYA": "BKN",   # New York Nets (ABA) -> Brooklyn Nets lineage
+    "NJA": "BKN",   # New Jersey Americans (ABA)
+    "INA": "IND",   # Indiana Pacers (ABA) -> Indiana Pacers
+    "SAA": "SAS",   # San Antonio Spurs (ABA) -> San Antonio Spurs
+    "DNA": "DEN",   # Denver Nuggets (ABA) -> Denver Nuggets
+    "DNR": "DEN",   # Denver Rockets (ABA)
+    "KEN": "KEN",   # Kentucky Colonels (defunct ABA)
+    "UTS": "UTA",   # Utah Stars (ABA) — defunct, Jazz is separate franchise
+    "VIR": "VIR",   # Virginia Squires (defunct ABA)
+    "SSL": "SSL",   # Spirits of St. Louis (defunct ABA)
+    "SDA": "LAC",   # San Diego Conquistadors (ABA) -> loosely Clippers lineage, keep separate
+    "SDS": "SDS",   # San Diego Sails (defunct ABA)
+    "OAK": "GSW",   # Oakland Oaks (ABA) -> Warriors lineage
+    "ANA": "ANA",   # Anaheim Amigos (defunct ABA)
+    "CAR": "CAR",   # Carolina Cougars (defunct ABA)
+    "DLC": "DLC",   # Dallas Chaparrals (ABA) -> San Antonio
+    "FLO": "FLO",   # Floridians (defunct ABA)
+    "HSM": "HSM",   # Houston Mavericks (defunct ABA)
+    "LAS": "LAS",   # Los Angeles Stars (defunct ABA)
+    "MMF": "MEM",   # Memphis Pros/Tams/Sounds -> loose Memphis lineage, keep separate
+    "MMP": "MMP",   # Memphis Pros
+    "MMS": "MMS",   # Memphis Sounds
+    "MMT": "MMT",   # Memphis Tams
+    "MNM": "MNM",   # Minnesota Muskies (defunct ABA)
+    "MNP": "MNP",   # Minnesota Pipers (defunct ABA)
+    "NOB": "NOP",   # New Orleans Buccaneers (ABA) -> loose Pelicans lineage
+    "PTC": "PTC",   # Pittsburgh Condors (defunct ABA)
+    "PTP": "PTP",   # Pittsburgh Pipers (defunct ABA)
+    "TEX": "TEX",   # Texas Chaparrals (defunct ABA)
+    "WSA": "WSA",   # Washington Caps (ABA, distinct from NBA WSC)
+
     # ── SPECIAL ──────────────────────────────────────────────────────────
     "TOT": "TOT",   # BBRef multi-team season placeholder
 }

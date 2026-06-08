@@ -60,6 +60,12 @@ def parse_csv(paths):
             all_paths.append(playoff_path)
             print(f"  + including {Path(playoff_path).name}")
 
+    # Auto-include bbref-aba.csv (ABA 1967-76) if present
+    bbref_aba = Path("data/bbref-aba.csv")
+    if bbref_aba.exists() and str(bbref_aba) not in all_paths:
+        all_paths.append(str(bbref_aba))
+        print(f"  + including data/bbref-aba.csv (ABA 1967-76)")
+
     # If bbref-pre1974.csv exists, EXCLUDE BDL files for those seasons
     # (1946-47 through 1972-73) to avoid duplicate rows with TRB=0 vs real TRB.
     # BBRef data is authoritative for this era.
@@ -110,6 +116,10 @@ def build_elo(df):
     df["GmSc"] = pd.to_numeric(df["GmSc"], errors="coerce")
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     df["MP"]   = pd.to_numeric(df["MP"],   errors="coerce")
+    # Drop rows with unparseable dates
+    nat_count = df["Date"].isna().sum()
+    if nat_count: print(f"  Dropping {nat_count} rows with invalid dates")
+    df = df.dropna(subset=["Date"]).copy()
 
     print(f"  {len(df)} rows, {df['MP'].isna().sum()} rows with no MP data")
     print(f"  Unique players: {df['Player'].nunique()}")
@@ -144,6 +154,7 @@ def build_elo(df):
     games_played = {}
     elo_hist     = defaultdict(list)
     peak_elo     = {}
+    peak_fpr_rank_map = {}  # best global rank ever achieved
     gmsc_hist    = defaultdict(list)
     rank_hist    = defaultdict(list)
     team_map     = {}
@@ -197,12 +208,14 @@ def build_elo(df):
         for rank_pos, p in enumerate(sorted_by_elo, 1):
             rank_hist[p].append([date_str, rank_pos])
 
-    all_players = sorted(elo.keys(), key=lambda p: -elo[p])
+        # Global FPR rank snapshot — sort ALL players after every game
+        # Used for peak FPR rank tracking and day-in-time snapshots
+        global_sorted = sorted(elo.keys(), key=lambda p: -elo[p])
+        for global_rank, p in enumerate(global_sorted, 1):
+            if p not in peak_fpr_rank_map or global_rank < peak_fpr_rank_map[p]:
+                peak_fpr_rank_map[p] = global_rank
 
-    # Compute peak FPR rank for each player:
-    # Sort by peak_elo to get the best rank they ever would have held
-    peak_rank_order = sorted(elo.keys(), key=lambda p: -peak_elo[p])
-    peak_fpr_rank_map = {p: i+1 for i, p in enumerate(peak_rank_order)}
+    all_players = sorted(elo.keys(), key=lambda p: -elo[p])
 
     # FPR eligibility
     team_game_dates = defaultdict(set)

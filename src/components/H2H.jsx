@@ -149,11 +149,11 @@ function MiniChart({ playerA, playerB }) {
           <text key={year} x={x} y={H + 14} fontSize={9} fill="#bbb" textAnchor="middle">{year}</text>
         ))}
         {pathA && <path d={pathA} fill="none" stroke="#1a1a1a" strokeWidth={2} strokeLinejoin="round" />}
-        {pathB && <path d={pathB} fill="none" stroke="#1a5fa8" strokeWidth={2} strokeLinejoin="round" strokeDasharray="4,2" />}
+        {pathB && <path d={pathB} fill="none" stroke="#c94040" strokeWidth={2} strokeLinejoin="round" strokeDasharray="4,2" />}
       </svg>
       <div style={{ display: 'flex', gap: 20, marginTop: 8 }}>
         {playerA && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555' }}><div style={{ width: 20, height: 2, background: '#1a1a1a' }} />{playerA.name}</div>}
-        {playerB && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555' }}><div style={{ width: 20, height: 2, background: '#1a5fa8', borderTop: '2px dashed #1a5fa8' }} />{playerB.name}</div>}
+        {playerB && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555' }}><div style={{ width: 20, height: 2, background: '#c94040', borderTop: '2px dashed #c94040' }} />{playerB.name}</div>}
       </div>
     </div>
   )
