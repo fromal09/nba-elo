@@ -14,15 +14,14 @@ function deltaStr(v) {
 
 function rankDeltaStr(v) {
   if (!v || v === 0) return null
-  // Rank improvement = lower number = positive change
-  if (v < 0) return `▲${Math.abs(v)}`
-  return `▼${v}`
+  if (v > 0) return `▲${v}`   // moved up (rank number decreased) = good
+  return `▼${Math.abs(v)}`    // fell down (rank number increased) = bad
 }
 
 function rankDeltaColor(v) {
   if (!v) return '#aaa'
-  if (v < 0) return '#2d8a5a'  // rank improved (number went down)
-  return '#c94040'              // rank worsened (number went up)
+  if (v > 0) return '#2d8a5a'  // improved = green
+  return '#c94040'              // worsened = red
 }
 
 export default function Daily({ players, onSelectPlayer }) {
