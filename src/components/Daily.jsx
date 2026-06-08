@@ -12,6 +12,19 @@ function deltaStr(v) {
   return `${r}`
 }
 
+function rankDeltaStr(v) {
+  if (!v || v === 0) return null
+  // Rank improvement = lower number = positive change
+  if (v < 0) return `▲${Math.abs(v)}`
+  return `▼${v}`
+}
+
+function rankDeltaColor(v) {
+  if (!v) return '#aaa'
+  if (v < 0) return '#2d8a5a'  // rank improved (number went down)
+  return '#c94040'              // rank worsened (number went up)
+}
+
 export default function Daily({ players, onSelectPlayer }) {
   const mostRecentDate = useMemo(() => {
     let latest = ''
@@ -26,37 +39,75 @@ export default function Daily({ players, onSelectPlayer }) {
 
   const dailyData = useMemo(() => {
     if (!effectiveDate) return []
-    const results = []
+
+    // Step 1: for every player find their Elo on effectiveDate and prev day
+    const withElo = []
     for (const p of players) {
       const hist = p.elo_history || []
       const todayIdx = hist.findIndex(([d]) => d === effectiveDate)
-      if (todayIdx === -1) continue
+      if (todayIdx === -1) continue  // didn't play this day
+
       const todayElo = hist[todayIdx][1]
       const prevElo  = todayIdx > 0 ? hist[todayIdx - 1][1] : todayElo
-      const delta    = todayElo - prevElo
-      results.push({ ...p, day_elo: todayElo, elo_delta: delta })
+      const eloDelta = todayElo - prevElo
+      withElo.push({ ...p, day_elo: todayElo, prev_elo: prevElo, elo_delta: eloDelta })
     }
-    return results.sort((a, b) => b.elo_delta - a.elo_delta)
+
+    // Step 2: global rank on effectiveDate — sort ALL players by their Elo on that date
+    const allWithEloOnDate = []
+    for (const p of players) {
+      const hist = p.elo_history || []
+      let eloOnDate = null
+      for (const [d, v] of hist) {
+        if (d <= effectiveDate) eloOnDate = v
+        else break
+      }
+      if (eloOnDate !== null) allWithEloOnDate.push({ name: p.name, eloOnDate })
+    }
+    allWithEloOnDate.sort((a, b) => b.eloOnDate - a.eloOnDate)
+    const rankOnDate = {}
+    allWithEloOnDate.forEach(({ name }, i) => { rankOnDate[name] = i + 1 })
+
+    // Step 3: previous day rank — Elo before this game
+    const allWithPrevElo = []
+    for (const p of players) {
+      const hist = p.elo_history || []
+      // Find last entry strictly BEFORE effectiveDate
+      let prevEloGlobal = null
+      for (const [d, v] of hist) {
+        if (d < effectiveDate) prevEloGlobal = v
+        else break
+      }
+      // If no prev entry, use starting Elo
+      allWithPrevElo.push({ name: p.name, prevElo: prevEloGlobal ?? 1500 })
+    }
+    allWithPrevElo.sort((a, b) => b.prevElo - a.prevElo)
+    const prevRank = {}
+    allWithPrevElo.forEach(({ name }, i) => { prevRank[name] = i + 1 })
+
+    // Step 4: compute rank delta and attach
+    return withElo
+      .map(p => ({
+        ...p,
+        rank_on_date: rankOnDate[p.name] || p.current_tpr_rank,
+        rank_delta: (prevRank[p.name] || 0) - (rankOnDate[p.name] || 0), // positive = improved
+      }))
+      .sort((a, b) => b.day_elo - a.day_elo)  // sort by current Elo desc
   }, [players, effectiveDate])
 
-  // Group by team, sort teams by best Elo delta
+  // Group by team, sort teams by highest Elo player
   const byTeam = useMemo(() => {
     const groups = {}
     for (const p of dailyData) {
       if (!groups[p.team]) groups[p.team] = []
       groups[p.team].push(p)
     }
-    return Object.entries(groups).sort((a, b) => {
-      const aMax = Math.max(...a[1].map(p => p.elo_delta))
-      const bMax = Math.max(...b[1].map(p => p.elo_delta))
-      return bMax - aMax
-    })
+    return Object.entries(groups).sort((a, b) => b[1][0].day_elo - a[1][0].day_elo)
   }, [dailyData])
 
   const s = {
     wrap:       { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" },
     header:     { padding: '24px 32px 20px', background: '#fff', borderBottom: '0.5px solid #e0ddd6', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' },
-    titleBlock: {},
     pageTitle:  { fontFamily: "'DM Serif Display', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
     pageDesc:   { fontSize: 13, color: '#888' },
     datePicker: { display: 'flex', alignItems: 'center', gap: 10 },
@@ -77,10 +128,10 @@ export default function Daily({ players, onSelectPlayer }) {
   return (
     <div style={s.wrap}>
       <div style={s.header}>
-        <div style={s.titleBlock}>
+        <div>
           <h1 style={s.pageTitle}>Daily Changes</h1>
           <p style={s.pageDesc}>
-            {dailyData.length} players on {effectiveDate} · grouped by team · sorted by Elo gain
+            {dailyData.length} players · {effectiveDate} · sorted by current Elo within each team
           </p>
         </div>
         <div style={s.datePicker}>
@@ -92,10 +143,7 @@ export default function Daily({ players, onSelectPlayer }) {
             onChange={e => setSelectedDate(e.target.value)}
           />
           {selectedDate && selectedDate !== mostRecentDate && (
-            <button
-              onClick={() => setSelectedDate('')}
-              style={{ fontSize: 12, color: '#1a2e1a', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
-            >
+            <button onClick={() => setSelectedDate('')} style={{ fontSize: 12, color: '#1a2e1a', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
               → Latest
             </button>
           )}
@@ -104,9 +152,7 @@ export default function Daily({ players, onSelectPlayer }) {
 
       <div style={s.scroll}>
         {byTeam.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#aaa', padding: 60, fontSize: 14 }}>
-            No games found for this date
-          </div>
+          <div style={{ textAlign: 'center', color: '#aaa', padding: 60, fontSize: 14 }}>No games found for this date</div>
         ) : byTeam.map(([team, teamPlayers]) => (
           <div key={team} style={s.teamSection}>
             <div style={s.teamHeader}>
@@ -117,7 +163,7 @@ export default function Daily({ players, onSelectPlayer }) {
               <thead style={s.thead}>
                 <tr>
                   <th style={s.th}>Player</th>
-                  <th style={{ ...s.th, ...s.thR }}>Elo</th>
+                  <th style={{ ...s.th, ...s.thR }}>Current Elo</th>
                   <th style={{ ...s.th, ...s.thR }}>Δ Elo</th>
                   <th style={{ ...s.th, ...s.thR }}>FPR Rank</th>
                 </tr>
@@ -125,6 +171,8 @@ export default function Daily({ players, onSelectPlayer }) {
               <tbody>
                 {teamPlayers.map(p => {
                   const dc = deltaColor(p.elo_delta)
+                  const rd = rankDeltaStr(p.rank_delta)
+                  const rc = rankDeltaColor(p.rank_delta)
                   return (
                     <tr
                       key={p.name}
@@ -140,13 +188,14 @@ export default function Daily({ players, onSelectPlayer }) {
                       <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 500, color: '#1a1a1a', fontVariantNumeric: 'tabular-nums' }}>
                         {Math.round(p.day_elo).toLocaleString()}
                       </td>
-                      <td style={{ ...s.td, textAlign: 'right' }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: dc, fontVariantNumeric: 'tabular-nums' }}>
-                          {deltaStr(p.elo_delta)}
-                        </span>
+                      <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: dc, fontVariantNumeric: 'tabular-nums' }}>
+                        {deltaStr(p.elo_delta)}
                       </td>
-                      <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>
-                        #{p.current_tpr_rank}
+                      <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ fontSize: 13, color: '#555' }}>#{p.rank_on_date}</span>
+                        {rd && (
+                          <span style={{ fontSize: 11, color: rc, marginLeft: 6 }}>({rd})</span>
+                        )}
                       </td>
                     </tr>
                   )
