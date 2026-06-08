@@ -148,12 +148,12 @@ function MiniChart({ playerA, playerB }) {
         {yearLabels.map(({ x, year }) => (
           <text key={year} x={x} y={H + 14} fontSize={9} fill="#bbb" textAnchor="middle">{year}</text>
         ))}
-        {pathA && <path d={pathA} fill="none" stroke="#1a2e1a" strokeWidth={2} strokeLinejoin="round" />}
-        {pathB && <path d={pathB} fill="none" stroke="#c9920a" strokeWidth={2} strokeLinejoin="round" strokeDasharray="4,2" />}
+        {pathA && <path d={pathA} fill="none" stroke="#1a1a1a" strokeWidth={2} strokeLinejoin="round" />}
+        {pathB && <path d={pathB} fill="none" stroke="#1a5fa8" strokeWidth={2} strokeLinejoin="round" strokeDasharray="4,2" />}
       </svg>
       <div style={{ display: 'flex', gap: 20, marginTop: 8 }}>
-        {playerA && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555' }}><div style={{ width: 20, height: 2, background: '#1a2e1a' }} />{playerA.name}</div>}
-        {playerB && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555' }}><div style={{ width: 20, height: 2, background: '#c9920a', borderTop: '2px dashed #c9920a' }} />{playerB.name}</div>}
+        {playerA && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555' }}><div style={{ width: 20, height: 2, background: '#1a1a1a' }} />{playerA.name}</div>}
+        {playerB && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555' }}><div style={{ width: 20, height: 2, background: '#1a5fa8', borderTop: '2px dashed #1a5fa8' }} />{playerB.name}</div>}
       </div>
     </div>
   )
@@ -201,17 +201,23 @@ export default function H2H({ players }) {
           <>
             {/* Player headers */}
             <div style={{ display: 'flex', background: '#fff', borderBottom: '0.5px solid #e0ddd6' }}>
-              {[playerA, playerB].map((p, i) => (
-                <div key={i} style={{ flex: 1, padding: '20px 32px', borderRight: i === 0 ? '0.5px solid #e0ddd6' : 'none' }}>
-                  <div style={{ fontSize: 22, fontFamily: "'DM Serif Display', serif", color: '#1a1a1a', marginBottom: 4 }}>{p.name}</div>
-                  <div style={{ fontSize: 12, color: '#aaa' }}>{careerRange(p)} · {p.team}</div>
-                  <div style={{ display: 'flex', gap: 20, marginTop: 12 }}>
-                    <div><div style={{ fontSize: 11, color: '#aaa', marginBottom: 2 }}>Peak Elo</div><div style={{ fontSize: 18, fontWeight: 600, color: '#c9920a' }}>{Math.round(p.peak_elo).toLocaleString()}</div></div>
-                    <div><div style={{ fontSize: 11, color: '#aaa', marginBottom: 2 }}>Current Elo</div><div style={{ fontSize: 18, fontWeight: 500, color: '#1a1a1a' }}>{Math.round(p.current_elo).toLocaleString()}</div></div>
-                    <div><div style={{ fontSize: 11, color: '#aaa', marginBottom: 2 }}>FPR Rank</div><div style={{ fontSize: 18, fontWeight: 500, color: '#1a1a1a' }}>#{p.current_tpr_rank}</div></div>
+              {[playerA, playerB].map((p, i) => {
+                const peakFprRank = p.rank_history?.length
+                  ? Math.min(...p.rank_history.map(([, r]) => r))
+                  : p.current_tpr_rank
+                const avg = avgElo(p)
+                return (
+                  <div key={i} style={{ flex: 1, padding: '20px 32px', borderRight: i === 0 ? '0.5px solid #e0ddd6' : 'none' }}>
+                    <div style={{ fontSize: 22, fontFamily: "'DM Serif Display', serif", color: '#1a1a1a', marginBottom: 4 }}>{p.name}</div>
+                    <div style={{ fontSize: 12, color: '#aaa' }}>{careerRange(p)} · {p.team}</div>
+                    <div style={{ display: 'flex', gap: 20, marginTop: 12 }}>
+                      <div><div style={{ fontSize: 11, color: '#aaa', marginBottom: 2 }}>Peak Elo</div><div style={{ fontSize: 18, fontWeight: 600, color: '#c9920a' }}>{Math.round(p.peak_elo).toLocaleString()}</div></div>
+                      <div><div style={{ fontSize: 11, color: '#aaa', marginBottom: 2 }}>Avg Elo</div><div style={{ fontSize: 18, fontWeight: 500, color: '#1a1a1a' }}>{avg.toLocaleString()}</div></div>
+                      <div><div style={{ fontSize: 11, color: '#aaa', marginBottom: 2 }}>Peak FPR Rank</div><div style={{ fontSize: 18, fontWeight: 500, color: '#1a1a1a' }}>#{peakFprRank}</div></div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Elo chart */}
