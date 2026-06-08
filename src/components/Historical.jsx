@@ -13,12 +13,7 @@ const ERAS = [
   { val: '2020s',  label: '2020s',     start: 2020, end: 9999 },
 ]
 
-const SORT_OPTIONS = [
-  { key: 'peak_elo',    label: 'Peak Elo',    asc: false },
-  { key: 'avg_elo',     label: 'Avg Elo',     asc: false },
-  { key: 'era_gmsc',    label: 'Avg GmSc',    asc: false },
-  { key: 'era_gp',      label: 'Games',       asc: false },
-]
+
 
 function peakColor(peak) {
   if (peak >= 3000) return '#c9920a'
@@ -34,9 +29,11 @@ function computeEraStats(p, start, end) {
 
   if (!eloHist.length) return null
 
-  const peak_elo = Math.max(...eloHist.map(([, v]) => v))
-  const avg_elo  = Math.round(eloHist.reduce((s, [, v]) => s + v, 0) / eloHist.length)
-  const era_gp   = eloHist.length
+  const peak_elo     = Math.max(...eloHist.map(([, v]) => v))
+  const peak_date_entry = eloHist.reduce((best, cur) => cur[1] > best[1] ? cur : best, eloHist[0])
+  const peak_date    = peak_date_entry[0]
+  const avg_elo      = Math.round(eloHist.reduce((s, [, v]) => s + v, 0) / eloHist.length)
+  const era_gp       = eloHist.length
   const era_gmsc = gmscHist.length
     ? gmscHist.reduce((s, [, v]) => s + v, 0) / gmscHist.length
     : p.career_gmsc_avg
@@ -46,7 +43,7 @@ function computeEraStats(p, start, end) {
   const y2 = lastDate.slice(0, 4)
   const range = y1 === y2 ? y1 : `${y1}–${y2}`
 
-  return { peak_elo, avg_elo, era_gp, era_gmsc, range }
+  return { peak_elo, peak_date, avg_elo, era_gp, era_gmsc, range }
 }
 
 export default function Historical({ players, onSelectPlayer }) {
@@ -82,7 +79,6 @@ export default function Historical({ players, onSelectPlayer }) {
 
   const slice      = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
   const totalPages = Math.ceil(filtered.length / PER_PAGE)
-  const maxPeak    = useMemo(() => filtered.length ? Math.max(...filtered.map(p => p.peak_elo)) : 3200, [filtered])
 
   const s = {
     wrap:       { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" },
@@ -142,14 +138,6 @@ export default function Historical({ players, onSelectPlayer }) {
           {search && <button style={{ background: 'none', border: 'none', color: '#bbb', fontSize: 11, cursor: 'pointer' }} onClick={() => { setSearch(''); setPage(0) }}>✕</button>}
         </div>
 
-        <div style={s.sortGroup}>
-          {SORT_OPTIONS.map(opt => (
-            <button key={opt.key} style={s.btn(sortKey === opt.key)} onClick={() => setSort(opt.key, opt.asc)}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
         <div style={s.eraGroup}>
           {ERAS.map(e => (
             <button key={e.val} style={s.btn(eraVal === e.val)} onClick={() => { setEraVal(e.val); setPage(0) }}>
@@ -170,6 +158,7 @@ export default function Historical({ players, onSelectPlayer }) {
               <th style={{ ...s.th, ...s.thR }} onClick={() => setSort('peak_elo', sortKey === 'peak_elo' ? !sortAsc : false)}>
                 Peak Elo {sortKey === 'peak_elo' ? (sortAsc ? '↑' : '↓') : ''}
               </th>
+              <th style={{ ...s.th, cursor: 'default' }}>Peak Date</th>
               <th style={{ ...s.th, ...s.thR }} onClick={() => setSort('avg_elo', sortKey === 'avg_elo' ? !sortAsc : false)}>
                 Avg Elo {sortKey === 'avg_elo' ? (sortAsc ? '↑' : '↓') : ''}
               </th>
@@ -185,7 +174,6 @@ export default function Historical({ players, onSelectPlayer }) {
             {slice.map((p, i) => {
               const rank  = page * PER_PAGE + i + 1
               const color = peakColor(p.peak_elo)
-              const barW  = Math.max(2, Math.round((p.peak_elo / maxPeak) * 80))
 
               return (
                 <tr
@@ -204,13 +192,11 @@ export default function Historical({ players, onSelectPlayer }) {
                   <td style={{ ...s.td, ...s.tdMeta }}>{p.team}</td>
                   <td style={{ ...s.td, ...s.tdMeta }}>{p.range}</td>
                   <td style={{ ...s.td, textAlign: 'right' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-                      <div style={{ height: 3, borderRadius: 2, background: color, opacity: 0.4, width: barW, flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, fontWeight: 600, color, minWidth: 48, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                        {Math.round(p.peak_elo).toLocaleString()}
-                      </span>
-                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 600, color, fontVariantNumeric: 'tabular-nums' }}>
+                      {Math.round(p.peak_elo).toLocaleString()}
+                    </span>
                   </td>
+                  <td style={{ ...s.td, ...s.tdMeta }}>{p.peak_date || '—'}</td>
                   <td style={{ ...s.td, ...s.tdNum }}>{p.avg_elo.toLocaleString()}</td>
                   <td style={{ ...s.td, ...s.tdNum }}>{p.era_gmsc.toFixed(1)}</td>
                   <td style={{ ...s.td, ...s.tdNum }}>{p.era_gp.toLocaleString()}</td>
