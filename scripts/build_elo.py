@@ -199,6 +199,11 @@ def build_elo(df):
 
     all_players = sorted(elo.keys(), key=lambda p: -elo[p])
 
+    # Compute peak FPR rank for each player:
+    # Sort by peak_elo to get the best rank they ever would have held
+    peak_rank_order = sorted(elo.keys(), key=lambda p: -peak_elo[p])
+    peak_fpr_rank_map = {p: i+1 for i, p in enumerate(peak_rank_order)}
+
     # FPR eligibility
     team_game_dates = defaultdict(set)
     for pl, games in gmsc_hist.items():
@@ -230,6 +235,7 @@ def build_elo(df):
             "career_gmsc_avg":  round(career_avg, 1),
             "last_played":      lp,
             "is_fpr_eligible":  lp >= team_cutoff.get(team, ""),
+            "peak_fpr_rank":    peak_fpr_rank_map.get(player, 9999),
             "elo_history":      elo_hist[player],
             "gmsc_history":     gmsc_hist[player],
             "rank_history":     rank_hist[player],

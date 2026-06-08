@@ -202,9 +202,7 @@ export default function H2H({ players }) {
             {/* Player headers */}
             <div style={{ display: 'flex', background: '#fff', borderBottom: '0.5px solid #e0ddd6' }}>
               {[playerA, playerB].map((p, i) => {
-                const peakFprRank = p.rank_history?.length
-                  ? Math.min(...p.rank_history.map(([, r]) => r))
-                  : p.current_tpr_rank
+                const peakFprRank = p.peak_fpr_rank || '—'
                 const avg = avgElo(p)
                 return (
                   <div key={i} style={{ flex: 1, padding: '20px 32px', borderRight: i === 0 ? '0.5px solid #e0ddd6' : 'none' }}>
@@ -235,7 +233,7 @@ export default function H2H({ players }) {
               <StatRow label="Peak Elo"         aVal={Math.round(playerA.peak_elo)}    bVal={Math.round(playerB.peak_elo)} />
               <StatRow label="Current Elo"      aVal={Math.round(playerA.current_elo)} bVal={Math.round(playerB.current_elo)} />
               <StatRow label="Average Elo"      aVal={avgElo(playerA)}                  bVal={avgElo(playerB)} />
-              <StatRow label="Peak FPR Rank"    aVal={`#${Math.min(...(playerA.rank_history||[]).map(([,r])=>r))}`} bVal={`#${Math.min(...(playerB.rank_history||[]).map(([,r])=>r))}`} higherIsBetter={false} />
+              <StatRow label="Peak FPR Rank"    aVal={`#${playerA.peak_fpr_rank || '—'}`} bVal={`#${playerB.peak_fpr_rank || '—'}`} higherIsBetter={false} />
               <StatRow label="Games Played"     aVal={playerA.games_played}             bVal={playerB.games_played} />
               <StatRow label="Career"           aVal={careerRange(playerA)}             bVal={careerRange(playerB)} />
             </div>
