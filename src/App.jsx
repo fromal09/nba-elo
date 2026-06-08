@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Rankings from './components/Rankings'
 import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
+import Homepage from './components/Homepage'
 import styles from './App.module.css'
 
 export default function App() {
@@ -9,7 +10,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
-  const [view, setView] = useState('rankings') // 'rankings' | 'methodology'
+  const [view, setView] = useState('home') // 'home' | 'rankings' | 'methodology'
 
   useEffect(() => {
     fetch('/data/elo.json')
@@ -39,16 +40,12 @@ export default function App() {
 
   return (
     <div className={styles.app}>
-      <Nav
-        meta={data}
-        view={view}
-        setView={setView}
-      />
+      {view !== 'home' && (
+        <Nav meta={data} view={view} setView={setView} />
+      )}
+      {view === 'home' && <Homepage data={data} setView={setView} />}
       {view === 'rankings' && (
-        <Rankings
-          players={data.players}
-          onSelectPlayer={setSelectedPlayer}
-        />
+        <Rankings players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
       {view === 'methodology' && <Methodology />}
 
