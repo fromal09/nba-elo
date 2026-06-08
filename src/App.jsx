@@ -4,6 +4,7 @@ import Historical from './components/Historical'
 import Goat from './components/Goat'
 import H2H from './components/H2H'
 import Teams from './components/Teams'
+import Seasons from './components/Seasons'
 import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
 import Homepage from './components/Homepage'
@@ -62,6 +63,9 @@ export default function App() {
       )}
       {view === 'teams' && (
         <Teams players={data.players} onSelectPlayer={setSelectedPlayer} />
+      )}
+      {view === 'seasons' && (
+        <Seasons players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
       {view === 'methodology' && <Methodology />}
 
