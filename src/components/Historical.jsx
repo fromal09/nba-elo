@@ -1,19 +1,24 @@
 import { useState, useMemo, useCallback } from 'react'
 
 const PER_PAGE = 50
-const SORT_OPTIONS = [
-  { key: 'peak_elo',        label: 'Peak Elo',      asc: false },
-  { key: 'current_elo',     label: 'Current Elo',   asc: false },
-  { key: 'career_gmsc_avg', label: 'Career GmSc',   asc: false },
-  { key: 'games_played',    label: 'Games Played',  asc: false },
+
+const ERAS = [
+  { val: 'all',    label: 'All Eras',  start: 0,    end: 9999 },
+  { val: 'pre1970',label: 'Pre-1970',  start: 0,    end: 1969 },
+  { val: '1970s',  label: '1970s',     start: 1970, end: 1979 },
+  { val: '1980s',  label: '1980s',     start: 1980, end: 1989 },
+  { val: '1990s',  label: '1990s',     start: 1990, end: 1999 },
+  { val: '2000s',  label: '2000s',     start: 2000, end: 2009 },
+  { val: '2010s',  label: '2010s',     start: 2010, end: 2019 },
+  { val: '2020s',  label: '2020s',     start: 2020, end: 9999 },
 ]
 
-function eraLabel(firstDate, lastDate) {
-  if (!firstDate || !lastDate) return '—'
-  const y1 = firstDate.slice(0, 4)
-  const y2 = lastDate.slice(0, 4)
-  return y1 === y2 ? y1 : `${y1}–${y2}`
-}
+const SORT_OPTIONS = [
+  { key: 'peak_elo',    label: 'Peak Elo',    asc: false },
+  { key: 'avg_elo',     label: 'Avg Elo',     asc: false },
+  { key: 'era_gmsc',    label: 'Avg GmSc',    asc: false },
+  { key: 'era_gp',      label: 'Games',       asc: false },
+]
 
 function peakColor(peak) {
   if (peak >= 3000) return '#c9920a'
@@ -22,48 +27,62 @@ function peakColor(peak) {
   return '#888'
 }
 
+function computeEraStats(p, start, end) {
+  // Filter elo_history and gmsc_history to era window
+  const eloHist  = (p.elo_history  || []).filter(([d]) => { const y = parseInt(d); return y >= start && y <= end })
+  const gmscHist = (p.gmsc_history || []).filter(([d]) => { const y = parseInt(d); return y >= start && y <= end })
+
+  if (!eloHist.length) return null
+
+  const peak_elo = Math.max(...eloHist.map(([, v]) => v))
+  const avg_elo  = Math.round(eloHist.reduce((s, [, v]) => s + v, 0) / eloHist.length)
+  const era_gp   = eloHist.length
+  const era_gmsc = gmscHist.length
+    ? gmscHist.reduce((s, [, v]) => s + v, 0) / gmscHist.length
+    : p.career_gmsc_avg
+  const firstDate = eloHist[0][0]
+  const lastDate  = eloHist[eloHist.length - 1][0]
+  const y1 = firstDate.slice(0, 4)
+  const y2 = lastDate.slice(0, 4)
+  const range = y1 === y2 ? y1 : `${y1}–${y2}`
+
+  return { peak_elo, avg_elo, era_gp, era_gmsc, range }
+}
+
 export default function Historical({ players, onSelectPlayer }) {
   const [search,  setSearch]  = useState('')
   const [sortKey, setSortKey] = useState('peak_elo')
   const [sortAsc, setSortAsc] = useState(false)
   const [page,    setPage]    = useState(0)
-  const [era,     setEra]     = useState('all')
+  const [eraVal,  setEraVal]  = useState('all')
 
   const setSort = useCallback((key, asc) => {
     setSortKey(key); setSortAsc(asc); setPage(0)
   }, [])
 
-  // Enrich players with first/last year
-  const enriched = useMemo(() => players.map(p => {
-    const hist = p.elo_history || []
-    const first = hist.length ? hist[0][0] : null
-    const last  = hist.length ? hist[hist.length - 1][0] : null
-    const firstYear = first ? parseInt(first.slice(0, 4)) : null
-    const avgElo = hist.length
-      ? Math.round(hist.reduce((s, h) => s + h[1], 0) / hist.length)
-      : Math.round(p.current_elo)
-    return { ...p, firstDate: first, lastDate: last, firstYear, avgElo }
-  }), [players])
+  const era = ERAS.find(e => e.val === eraVal)
+
+  // For each player, compute stats scoped to the selected era
+  const enriched = useMemo(() => {
+    const results = []
+    for (const p of players) {
+      const stats = computeEraStats(p, era.start, era.end)
+      if (!stats) continue  // player didn't play in this era
+      results.push({ ...p, ...stats })
+    }
+    return results
+  }, [players, era])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return enriched
-      .filter(p => {
-        if (q && !p.name.toLowerCase().includes(q) && !p.team.toLowerCase().includes(q)) return false
-        if (era === 'pre1980' && (!p.firstYear || p.firstYear >= 1980)) return false
-        if (era === '1980s'   && (!p.firstYear || p.firstYear < 1980 || p.firstYear >= 1990)) return false
-        if (era === '1990s'   && (!p.firstYear || p.firstYear < 1990 || p.firstYear >= 2000)) return false
-        if (era === '2000s'   && (!p.firstYear || p.firstYear < 2000 || p.firstYear >= 2010)) return false
-        if (era === '2010s'   && (!p.firstYear || p.firstYear < 2010 || p.firstYear >= 2020)) return false
-        if (era === '2020s'   && (!p.firstYear || p.firstYear < 2020)) return false
-        return true
-      })
+      .filter(p => !q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q))
       .sort((a, b) => sortAsc ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey])
-  }, [enriched, search, sortKey, sortAsc, era])
+  }, [enriched, search, sortKey, sortAsc])
 
   const slice      = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
   const totalPages = Math.ceil(filtered.length / PER_PAGE)
-  const maxPeak    = useMemo(() => Math.max(...filtered.map(p => p.peak_elo)), [filtered])
+  const maxPeak    = useMemo(() => filtered.length ? Math.max(...filtered.map(p => p.peak_elo)) : 3200, [filtered])
 
   const s = {
     wrap:       { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" },
@@ -74,7 +93,7 @@ export default function Historical({ players, onSelectPlayer }) {
     searchWrap: { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 8, padding: '0 12px', color: '#aaa', minWidth: 220, flex: 1, maxWidth: 280 },
     search:     { background: 'none', border: 'none', outline: 'none', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", fontSize: 13, padding: '8px 0', width: '100%' },
     sortGroup:  { display: 'flex', gap: 4, flexWrap: 'wrap' },
-    eraGroup:   { display: 'flex', gap: 4, flexWrap: 'wrap', marginLeft: 'auto' },
+    eraGroup:   { display: 'flex', gap: 4, flexWrap: 'wrap' },
     btn:        (active) => ({
       background: active ? '#1a2e1a' : '#fff',
       border: `0.5px solid ${active ? '#1a2e1a' : '#e0ddd6'}`,
@@ -92,7 +111,7 @@ export default function Historical({ players, onSelectPlayer }) {
     td:         { padding: '9px 14px' },
     tdRank:     { fontSize: 12, color: '#bbb', textAlign: 'right', width: 52, fontVariantNumeric: 'tabular-nums' },
     tdName:     { fontWeight: 500, color: '#1a1a1a', whiteSpace: 'nowrap' },
-    tdTeam:     { fontSize: 11, color: '#aaa', whiteSpace: 'nowrap' },
+    tdMeta:     { fontSize: 11, color: '#aaa', whiteSpace: 'nowrap' },
     tdNum:      { textAlign: 'right', fontSize: 13, color: '#555', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' },
     paging:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 32px', borderTop: '0.5px solid #e0ddd6', background: '#faf9f6', flexShrink: 0 },
     pagingInfo: { fontSize: 12, color: '#aaa' },
@@ -105,7 +124,9 @@ export default function Historical({ players, onSelectPlayer }) {
     <div style={s.wrap}>
       <div style={s.pageHeader}>
         <h1 style={s.pageTitle}>Historical Elo</h1>
-        <p style={s.pageDesc}>All-time player rankings by peak Elo · 1946 to present · {players.length.toLocaleString()} players</p>
+        <p style={s.pageDesc}>
+          All-time rankings by peak Elo · stats scoped to selected era · {filtered.length.toLocaleString()} players in {era.label}
+        </p>
       </div>
 
       <div style={s.controls}>
@@ -130,9 +151,9 @@ export default function Historical({ players, onSelectPlayer }) {
         </div>
 
         <div style={s.eraGroup}>
-          {[['all','All Eras'],['pre1980','Pre-1980'],['1980s','1980s'],['1990s','1990s'],['2000s','2000s'],['2010s','2010s'],['2020s','2020s']].map(([val, label]) => (
-            <button key={val} style={s.btn(era === val)} onClick={() => { setEra(val); setPage(0) }}>
-              {label}
+          {ERAS.map(e => (
+            <button key={e.val} style={s.btn(eraVal === e.val)} onClick={() => { setEraVal(e.val); setPage(0) }}>
+              {e.label}
             </button>
           ))}
         </div>
@@ -144,20 +165,19 @@ export default function Historical({ players, onSelectPlayer }) {
             <tr>
               <th style={{ ...s.th, ...s.thR, width: 52, cursor: 'default' }}>#</th>
               <th style={{ ...s.th, cursor: 'default' }}>Player</th>
-              <th style={{ ...s.th, cursor: 'default' }}>Last Team</th>
-              <th style={{ ...s.th, cursor: 'default' }}>Career</th>
+              <th style={{ ...s.th, cursor: 'default' }}>Team</th>
+              <th style={{ ...s.th, cursor: 'default' }}>{eraVal === 'all' ? 'Career' : 'In Era'}</th>
               <th style={{ ...s.th, ...s.thR }} onClick={() => setSort('peak_elo', sortKey === 'peak_elo' ? !sortAsc : false)}>
                 Peak Elo {sortKey === 'peak_elo' ? (sortAsc ? '↑' : '↓') : ''}
               </th>
-              <th style={{ ...s.th, ...s.thR }} onClick={() => setSort('current_elo', sortKey === 'current_elo' ? !sortAsc : false)}>
-                Current Elo {sortKey === 'current_elo' ? (sortAsc ? '↑' : '↓') : ''}
+              <th style={{ ...s.th, ...s.thR }} onClick={() => setSort('avg_elo', sortKey === 'avg_elo' ? !sortAsc : false)}>
+                Avg Elo {sortKey === 'avg_elo' ? (sortAsc ? '↑' : '↓') : ''}
               </th>
-              <th style={{ ...s.th, ...s.thR }}>Avg Elo</th>
-              <th style={{ ...s.th, ...s.thR }} onClick={() => setSort('career_gmsc_avg', sortKey === 'career_gmsc_avg' ? !sortAsc : false)}>
-                Career GmSc {sortKey === 'career_gmsc_avg' ? (sortAsc ? '↑' : '↓') : ''}
+              <th style={{ ...s.th, ...s.thR }} onClick={() => setSort('era_gmsc', sortKey === 'era_gmsc' ? !sortAsc : false)}>
+                Avg GmSc {sortKey === 'era_gmsc' ? (sortAsc ? '↑' : '↓') : ''}
               </th>
-              <th style={{ ...s.th, ...s.thR }} onClick={() => setSort('games_played', sortKey === 'games_played' ? !sortAsc : false)}>
-                GP {sortKey === 'games_played' ? (sortAsc ? '↑' : '↓') : ''}
+              <th style={{ ...s.th, ...s.thR }} onClick={() => setSort('era_gp', sortKey === 'era_gp' ? !sortAsc : false)}>
+                GP {sortKey === 'era_gp' ? (sortAsc ? '↑' : '↓') : ''}
               </th>
             </tr>
           </thead>
@@ -169,7 +189,7 @@ export default function Historical({ players, onSelectPlayer }) {
 
               return (
                 <tr
-                  key={p.name}
+                  key={p.name + eraVal}
                   style={s.row}
                   onClick={() => onSelectPlayer(p)}
                   tabIndex={0}
@@ -181,8 +201,8 @@ export default function Historical({ players, onSelectPlayer }) {
                 >
                   <td style={{ ...s.td, ...s.tdRank }}>{rank}</td>
                   <td style={{ ...s.td, ...s.tdName }}>{p.name}</td>
-                  <td style={{ ...s.td, ...s.tdTeam }}>{p.team}</td>
-                  <td style={{ ...s.td, ...s.tdTeam }}>{eraLabel(p.firstDate, p.lastDate)}</td>
+                  <td style={{ ...s.td, ...s.tdMeta }}>{p.team}</td>
+                  <td style={{ ...s.td, ...s.tdMeta }}>{p.range}</td>
                   <td style={{ ...s.td, textAlign: 'right' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                       <div style={{ height: 3, borderRadius: 2, background: color, opacity: 0.4, width: barW, flexShrink: 0 }} />
@@ -191,10 +211,9 @@ export default function Historical({ players, onSelectPlayer }) {
                       </span>
                     </div>
                   </td>
-                  <td style={{ ...s.td, ...s.tdNum }}>{Math.round(p.current_elo).toLocaleString()}</td>
-                  <td style={{ ...s.td, ...s.tdNum }}>{p.avgElo.toLocaleString()}</td>
-                  <td style={{ ...s.td, ...s.tdNum }}>{p.career_gmsc_avg.toFixed(1)}</td>
-                  <td style={{ ...s.td, ...s.tdNum }}>{p.games_played.toLocaleString()}</td>
+                  <td style={{ ...s.td, ...s.tdNum }}>{p.avg_elo.toLocaleString()}</td>
+                  <td style={{ ...s.td, ...s.tdNum }}>{p.era_gmsc.toFixed(1)}</td>
+                  <td style={{ ...s.td, ...s.tdNum }}>{p.era_gp.toLocaleString()}</td>
                 </tr>
               )
             })}
