@@ -47,6 +47,14 @@ def parse_csv(paths):
             all_paths.append(playoff_path)
             print(f"  + including {Path(playoff_path).name}")
 
+    # Auto-include bbref-pre1974.csv — overrides BDL pre-1974 data with
+    # real rebound totals and correct GmSc formula. Must come AFTER BDL
+    # files so dedup keeps these rows (keep="last").
+    bbref_pre74 = Path("data/bbref-pre1974.csv")
+    if bbref_pre74.exists() and str(bbref_pre74) not in all_paths:
+        all_paths.append(str(bbref_pre74))
+        print(f"  + including data/bbref-pre1974.csv (overrides BDL pre-1974)")
+
     # Auto-include nbaupdates.csv if present
     updates_path = Path("data/nbaupdates.csv")
     if updates_path.exists() and str(updates_path) not in all_paths:
@@ -116,8 +124,8 @@ def build_elo(df):
     last_played  = {}
 
     def k_factor(n):
-        if n < 20:  return 64
-        if n < 100: return 44
+        if n < 20:  return 40
+        if n < 100: return 50
         return 28
 
     def init(player):
@@ -146,7 +154,7 @@ def build_elo(df):
             for b in players:
                 if a == b: continue
                 ea, eb = elo[a], elo[b]
-                exp_a  = 1 / (1 + 10 ** ((eb - ea) / 650))
+                exp_a  = 1 / (1 + 10 ** ((eb - ea) / 620))
                 ga, gb = gmsc[a], gmsc[b]
                 act_a  = 1.0 if ga > gb else (0.5 if ga == gb else 0.0)
                 k_eff  = k_factor(games_played[a]) / (n ** 0.5)
