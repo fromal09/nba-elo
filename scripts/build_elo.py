@@ -23,11 +23,24 @@ except ImportError:
 
 # ── Name aliases ───────────────────────────────────────────────────────────
 NAME_ALIASES = {
+    # Name changes / nicknames
     "Jimmy Butler III":      "Jimmy Butler",
     "Taurean Waller-Prince": "Taurean Prince",
     "Metta World Peace":     "Metta World Peace",
     "Ron Artest":            "Metta World Peace",
     "Jaren Jackson":         "Jaren Jackson Jr.",
+    # Tiny Archibald = Nate Archibald (same player)
+    "Tiny Archibald":        "Nate Archibald",
+    # Other common BBRef vs BDL name variants
+    "Phil Jackson":          "Phil Jackson",   # coach, shouldn't be in data
+    "Gus Williams":          "Gus Williams",
+    "World B. Free":         "World B. Free",
+    "Lloyd Free":            "World B. Free",
+    "Bill Bridges":          "Bill Bridges",
+    "Zelmo Beaty":           "Zelmo Beaty",
+    "Luol Deng":             "Luol Deng",
+    "Nene Hilario":          "Nene",
+    "Nene":                  "Nene",
 }
 
 def normalize_name(name):
