@@ -60,13 +60,26 @@ def parse_csv(paths):
             all_paths.append(playoff_path)
             print(f"  + including {Path(playoff_path).name}")
 
-    # Auto-include bbref-pre1974.csv — overrides BDL pre-1974 data with
-    # real rebound totals and correct GmSc formula. Must come AFTER BDL
-    # files so dedup keeps these rows (keep="last").
+    # If bbref-pre1974.csv exists, EXCLUDE BDL files for those seasons
+    # (1946-47 through 1972-73) to avoid duplicate rows with TRB=0 vs real TRB.
+    # BBRef data is authoritative for this era.
     bbref_pre74 = Path("data/bbref-pre1974.csv")
-    if bbref_pre74.exists() and str(bbref_pre74) not in all_paths:
+    if bbref_pre74.exists():
+        bdl_pre74_years = [str(y) for y in range(1946, 1973)]
+        filtered_paths = []
+        skipped = 0
+        for p in all_paths:
+            pname = Path(p).name
+            is_bdl_pre74 = any(pname.startswith(y) for y in bdl_pre74_years)
+            if is_bdl_pre74:
+                skipped += 1
+            else:
+                filtered_paths.append(p)
+        all_paths = filtered_paths
+        if skipped:
+            print(f"  - excluded {skipped} BDL pre-1974 files (replaced by bbref-pre1974.csv)")
         all_paths.append(str(bbref_pre74))
-        print(f"  + including data/bbref-pre1974.csv (overrides BDL pre-1974)")
+        print(f"  + including data/bbref-pre1974.csv (authoritative pre-1974 source)")
 
     # Auto-include nbaupdates.csv if present
     updates_path = Path("data/nbaupdates.csv")
