@@ -1,27 +1,36 @@
 import styles from './Nav.module.css'
 
+const NAV_ITEMS = [
+  { view: 'rankings',    label: 'Current Rankings' },
+  { view: 'historical',  label: 'Historical Elo' },
+  { view: 'goat',        label: 'GOAT Rankings' },
+  { view: 'h2h',         label: 'Head-to-Head' },
+  { view: 'teams',       label: 'Team Breakdown' },
+  { view: 'seasons',     label: 'Season by Season' },
+  { view: 'daily',       label: 'Daily Changes' },
+  { view: 'methodology', label: 'Methodology' },
+]
+
 export default function Nav({ meta, view, setView }) {
   return (
     <header className={styles.header}>
       <div className={styles.left}>
-        <span className={styles.logo}>🏀 NBA · FPR</span>
-        <span className={styles.meta}>
-          {meta?.total_players} players · {meta?.total_games} games · {meta?.season}
-        </span>
+        <button className={styles.homeBtn} onClick={() => setView('home')}>
+          ← Home
+        </button>
+        <div className={styles.divider} />
+        <span className={styles.logo}>NBA · FPR</span>
       </div>
       <nav className={styles.nav}>
-        <button
-          className={`${styles.navBtn} ${view === 'rankings' ? styles.active : ''}`}
-          onClick={() => setView('rankings')}
-        >
-          Rankings
-        </button>
-        <button
-          className={`${styles.navBtn} ${view === 'methodology' ? styles.active : ''}`}
-          onClick={() => setView('methodology')}
-        >
-          Methodology
-        </button>
+        {NAV_ITEMS.map(item => (
+          <button
+            key={item.view}
+            className={`${styles.navBtn} ${view === item.view ? styles.active : ''}`}
+            onClick={() => setView(item.view)}
+          >
+            {item.label}
+          </button>
+        ))}
       </nav>
       <div className={styles.right}>
         <span className={styles.updated}>Updated {meta?.generated}</span>

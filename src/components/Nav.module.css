@@ -1,68 +1,79 @@
 .header {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  padding: 0 1.5rem;
+  gap: 16px;
+  padding: 0 24px;
   height: 52px;
-  border-bottom: 1px solid var(--nav-border);
-  background: var(--nav-bg);
+  background: #1a2e1a;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 100;
   flex-shrink: 0;
 }
 
 .left {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
-  flex: 1;
+  flex-shrink: 0;
 }
+
+.homeBtn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px;
+  color: #a8c5a8;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.homeBtn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+.divider { width: 1px; height: 20px; background: rgba(255,255,255,0.12); }
 
 .logo {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: var(--nav-text);
+  font-family: 'DM Serif Display', serif;
+  font-size: 15px;
+  color: #fff;
   white-space: nowrap;
-  text-transform: uppercase;
-}
-
-.meta {
-  font-size: 12px;
-  color: var(--nav-text2);
-  white-space: nowrap;
-  font-family: var(--font-mono);
 }
 
 .nav {
   display: flex;
   gap: 2px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
 }
+.nav::-webkit-scrollbar { display: none; }
 
 .navBtn {
   background: none;
   border: none;
-  padding: 6px 16px;
-  font-family: var(--font-display);
-  font-size: 15px;
+  color: #7aaa7a;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.5px;
-  color: var(--nav-text2);
-  border-radius: var(--radius);
-  transition: background 0.15s, color 0.15s;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  letter-spacing: 0.2px;
 }
-.navBtn:hover { background: rgba(255,255,255,0.07); color: var(--nav-text); }
-.navBtn.active {
-  color: var(--nav-active);
-  background: rgba(90,173,255,0.10);
+.navBtn:hover { background: rgba(255,255,255,0.07); color: #fff; }
+.navBtn.active { background: rgba(255,255,255,0.1); color: #fff; }
+
+.right {
+  flex-shrink: 0;
+  margin-left: auto;
 }
-
-.right { flex: 1; display: flex; justify-content: flex-end; }
-
 .updated {
   font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--nav-text2);
+  color: rgba(255,255,255,0.3);
+  white-space: nowrap;
 }

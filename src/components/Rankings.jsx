@@ -12,19 +12,19 @@ const SORT_OPTIONS = [
 ]
 
 function gmscColor(v) {
-  if (v >= 25) return '#22c997'
-  if (v >= 18) return '#5aadff'
-  if (v >= 12) return '#d4960a'
-  if (v >= 6)  return '#8b92a8'
+  if (v >= 25) return '#2d8a5a'
+  if (v >= 18) return '#1a5fa8'
+  if (v >= 12) return '#a87a0a'
+  if (v >= 6)  return '#888'
   return '#c94040'
 }
 
 export default function Rankings({ players, onSelectPlayer }) {
-  const [search,    setSearch]    = useState('')
-  const [sortKey,   setSortKey]   = useState('current_tpr_rank')
-  const [sortAsc,   setSortAsc]   = useState(true)
-  const [minGP,     setMinGP]     = useState(10)
-  const [page,      setPage]      = useState(0)
+  const [search,     setSearch]     = useState('')
+  const [sortKey,    setSortKey]    = useState('current_tpr_rank')
+  const [sortAsc,    setSortAsc]    = useState(true)
+  const [minGP,      setMinGP]      = useState(10)
+  const [page,       setPage]       = useState(0)
   const [activeOnly, setActiveOnly] = useState(true)
 
   const setSort = useCallback((key, asc) => {
@@ -43,16 +43,14 @@ export default function Rankings({ players, onSelectPlayer }) {
       .sort((a, b) => sortAsc ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey])
   }, [players, search, minGP, sortKey, sortAsc, activeOnly])
 
-  // Re-rank within filtered set for display
   const ranked = useMemo(() => {
     if (sortKey !== 'current_tpr_rank') return filtered
     return filtered.map((p, i) => ({ ...p, _displayRank: i + 1 }))
   }, [filtered, sortKey])
 
-  const maxElo  = useMemo(() => Math.max(...filtered.map(p => p.current_elo)), [filtered])
+  const maxElo     = useMemo(() => Math.max(...filtered.map(p => p.current_elo)), [filtered])
   const slice      = ranked.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
   const totalPages = Math.ceil(filtered.length / PER_PAGE)
-
   const activeCount = useMemo(() =>
     players.filter(p => p.games_played >= minGP && p.is_fpr_eligible).length,
     [players, minGP]
@@ -60,9 +58,19 @@ export default function Rankings({ players, onSelectPlayer }) {
 
   return (
     <div className={styles.wrap}>
+
+      {/* Page header */}
+      <div className={styles.pageHeader}>
+        <div>
+          <h1 className={styles.pageTitle}>Current Rankings</h1>
+          <p className={styles.pageDesc}>Active players ranked by Floor Performance Rating · head-to-head dominance</p>
+        </div>
+      </div>
+
+      {/* Controls */}
       <div className={styles.controls}>
         <div className={styles.searchWrap}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input
             className={styles.search}
             type="text"
@@ -79,15 +87,13 @@ export default function Rankings({ players, onSelectPlayer }) {
             className={`${styles.toggleBtn} ${activeOnly ? styles.toggleActive : ''}`}
             onClick={() => { setActiveOnly(true); setPage(0) }}
           >
-            Active
-            <span className={styles.toggleCount}>{activeCount}</span>
+            Active <span className={styles.toggleCount}>{activeCount}</span>
           </button>
           <button
             className={`${styles.toggleBtn} ${!activeOnly ? styles.toggleActive : ''}`}
             onClick={() => { setActiveOnly(false); setPage(0) }}
           >
-            All Players
-            <span className={styles.toggleCount}>{players.filter(p => p.games_played >= minGP).length}</span>
+            All Players <span className={styles.toggleCount}>{players.filter(p => p.games_played >= minGP).length}</span>
           </button>
         </div>
 
@@ -123,7 +129,7 @@ export default function Rankings({ players, onSelectPlayer }) {
       {activeOnly && (
         <div className={styles.activeBanner}>
           <span className={styles.activeDot} />
-          Showing FPR-eligible players · must have played in team's last 20 games
+          FPR-eligible players only · must have appeared in team's last 20 games
           <button className={styles.bannerLink} onClick={() => { setActiveOnly(false); setPage(0) }}>
             Show all →
           </button>
@@ -180,13 +186,13 @@ export default function Rankings({ players, onSelectPlayer }) {
                   <td className={styles.tdElo}>
                     <div className={styles.eloWrap}>
                       <div className={styles.eloBar} style={{ width: barW }} />
-                      <span className={styles.eloVal}>{p.current_elo.toFixed(0)}</span>
+                      <span className={styles.eloVal}>{Math.round(p.current_elo).toLocaleString()}</span>
                     </div>
                   </td>
-                  <td className={styles.tdNum} style={{ color: 'var(--gold)' }}>{p.peak_elo.toFixed(0)}</td>
+                  <td className={styles.tdPeak}>{Math.round(p.peak_elo).toLocaleString()}</td>
                   <td className={styles.tdNum}>{p.games_played}</td>
                   <td className={styles.tdNum}>
-                    <span className={styles.chip} style={{ background: gc + '22', color: gc }}>
+                    <span className={styles.chip} style={{ background: gc + '18', color: gc }}>
                       {p.recent_gmsc_avg.toFixed(1)}
                     </span>
                   </td>
