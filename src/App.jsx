@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Rankings from './components/Rankings'
+import Historical from './components/Historical'
 import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
 import Homepage from './components/Homepage'
@@ -46,6 +47,9 @@ export default function App() {
       {view === 'home' && <Homepage data={data} setView={setView} />}
       {view === 'rankings' && (
         <Rankings players={data.players} onSelectPlayer={setSelectedPlayer} />
+      )}
+      {view === 'historical' && (
+        <Historical players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
       {view === 'methodology' && <Methodology />}
 
