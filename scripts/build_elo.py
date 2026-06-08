@@ -155,8 +155,8 @@ def build_elo(df):
     elo_hist     = defaultdict(list)
     peak_elo     = {}
     peak_fpr_rank_map = {}  # best global rank ever achieved
-    gmsc_hist    = defaultdict(list)
-    rank_hist    = defaultdict(list)
+    gmsc_hist    = defaultdict(list)  # kept for computing recent/career avg scalars
+    team_hist    = defaultdict(list)   # only records team changes
     team_map     = {}
     last_played  = {}
 
@@ -203,11 +203,12 @@ def build_elo(df):
             if elo[p] > peak_elo[p]: peak_elo[p] = elo[p]
             elo_hist[p].append([date_str, round(elo[p], 1)])
             gmsc_hist[p].append([date_str, round(gmsc[p], 1)])
+            # Record team only when it changes
+            cur_team = team_map.get(p, '')
+            if not team_hist[p] or team_hist[p][-1][1] != cur_team:
+                team_hist[p].append([date_str, cur_team])
 
         sorted_by_elo = sorted(players, key=lambda p: -elo[p])
-        for rank_pos, p in enumerate(sorted_by_elo, 1):
-            rank_hist[p].append([date_str, rank_pos])
-
         # Global FPR rank snapshot — sort ALL players after every game
         # Used for peak FPR rank tracking and day-in-time snapshots
         global_sorted = sorted(elo.keys(), key=lambda p: -elo[p])
@@ -250,8 +251,7 @@ def build_elo(df):
             "is_fpr_eligible":  lp >= team_cutoff.get(team, ""),
             "peak_fpr_rank":    peak_fpr_rank_map.get(player, 9999),
             "elo_history":      elo_hist[player],
-            "gmsc_history":     gmsc_hist[player],
-            "rank_history":     rank_hist[player],
+            "team_history":     team_hist[player],
         })
 
     # ── Badge computation ──────────────────────────────────────────────────
@@ -276,7 +276,7 @@ def build_elo(df):
     def compute_badges(p):
         badges = []
         name          = p["name"]
-        rh            = p["rank_history"]
+        rh            = []  # rank_history removed; use peak_fpr_rank scalar
         curr_rank     = p["current_tpr_rank"]
         peak          = p["peak_elo"]
         gp            = p["games_played"]

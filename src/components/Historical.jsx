@@ -40,24 +40,40 @@ function computeEraStats(p, start, end) {
 // For a given date string, find each player's Elo (last entry <= date)
 function computeSnapshotRankings(players, targetDate) {
   if (!targetDate) return []
+
+  // "Active" window: player must have played within ~6 months (180 days) of the target date
+  // This prevents retired players from polluting the snapshot
+  const targetMs = new Date(targetDate).getTime()
+  const windowMs = 180 * 24 * 60 * 60 * 1000  // 180 days
+
   const results = []
   for (const p of players) {
-    const hist = p.elo_history || []
+    const hist     = p.elo_history  || []
+    const teamHist = p.team_history || []
     if (!hist.length) continue
-    // Find last entry on or before targetDate
+
+    // Find last elo entry on or before targetDate
     let elo = null, lastDate = null
     for (const [d, v] of hist) {
       if (d <= targetDate) { elo = v; lastDate = d }
       else break
     }
-    if (elo === null) continue
-    // Active = played within last 20 game entries before targetDate
-    const recentEntries = hist.filter(([d]) => d <= targetDate)
-    if (!recentEntries.length) continue
-    const lastPlayed = recentEntries[recentEntries.length - 1][0]
-    results.push({ ...p, snapshot_elo: elo, snapshot_date: lastDate, last_played_snap: lastPlayed })
+    if (elo === null || lastDate === null) continue
+
+    // Filter: last game must be within 180 days of target date
+    const lastMs = new Date(lastDate).getTime()
+    if (targetMs - lastMs > windowMs) continue
+
+    // Team on date: last team_history entry on or before targetDate
+    let teamOnDate = p.team
+    for (const [d, t] of teamHist) {
+      if (d <= targetDate) teamOnDate = t
+      else break
+    }
+
+    results.push({ ...p, snapshot_elo: elo, snapshot_date: lastDate, team_on_date: teamOnDate })
   }
-  // Sort by snapshot Elo, assign rank
+
   results.sort((a, b) => b.snapshot_elo - a.snapshot_elo)
   return results.map((p, i) => ({ ...p, snapshot_rank: i + 1 }))
 }
@@ -281,14 +297,14 @@ export default function Historical({ players, onSelectPlayer }) {
                   >
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{rank}</td>
                     <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a', whiteSpace: 'nowrap' }}>{p.name}</td>
-                    <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team}</td>
+                    <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team_on_date || p.team}</td>
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#1a2e1a', fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.snapshot_elo).toLocaleString()}
                     </td>
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#c9920a', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.peak_elo).toLocaleString()}
                     </td>
-                    <td style={{ ...s.td, fontSize: 12, color: '#aaa' }}>{p.last_played_snap}</td>
+                    <td style={{ ...s.td, fontSize: 12, color: '#aaa' }}>{p.snapshot_date}</td>
                   </tr>
                 )
               }
