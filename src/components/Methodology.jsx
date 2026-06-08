@@ -186,10 +186,6 @@ export default function Methodology() {
           </div>
         ))}
 
-        <div style={{ paddingLeft: 40, fontSize: 13, color: '#aaa', lineHeight: 1.6 }}>
-          The FPR system is open source. The pipeline, formulas, and data processing are available at{' '}
-          <a href="https://github.com/fromal09/nba-elo" style={{ color: '#1a2e1a' }}>github.com/fromal09/nba-elo</a>.
-        </div>
       </div>
     </div>
   )
