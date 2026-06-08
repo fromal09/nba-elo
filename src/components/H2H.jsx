@@ -73,13 +73,13 @@ function StatRow({ label, aVal, bVal, higherIsBetter = true }) {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: '0.5px solid #f0ede8' }}>
-      <div style={{ flex: 1, textAlign: 'right', fontSize: 14, fontWeight: aWins ? 600 : 400, color: aWins ? '#1a2e1a' : '#555' }}>
+      <div style={{ flex: 1, textAlign: 'right', fontSize: 14, fontWeight: aWins ? 600 : 400, color: aWins ? '#1a1a1a' : '#888' }}>
         {fmt(aVal)}
       </div>
-      <div style={{ width: 160, textAlign: 'center', fontSize: 11, color: '#aaa', textTransform: 'uppercase', letterSpacing: 0.8, flexShrink: 0 }}>
+      <div style={{ width: 160, textAlign: 'center', fontSize: 11, color: '#bbb', textTransform: 'uppercase', letterSpacing: 0.8, flexShrink: 0 }}>
         {label}
       </div>
-      <div style={{ flex: 1, textAlign: 'left', fontSize: 14, fontWeight: bWins ? 600 : 400, color: bWins ? '#1a2e1a' : '#555' }}>
+      <div style={{ flex: 1, textAlign: 'left', fontSize: 14, fontWeight: bWins ? 600 : 400, color: bWins ? '#1a1a1a' : '#888' }}>
         {fmt(bVal)}
       </div>
     </div>
@@ -222,17 +222,15 @@ export default function H2H({ players }) {
             {/* Stat comparison */}
             <div style={{ background: '#fff', margin: '16px 32px', borderRadius: 12, border: '0.5px solid #e0ddd6', padding: '4px 24px' }}>
               <div style={{ display: 'flex', padding: '8px 0 4px', borderBottom: '0.5px solid #e0ddd6' }}>
-                <div style={{ flex: 1, textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#1a2e1a', textTransform: 'uppercase', letterSpacing: 0.5 }}>{playerA.name.split(' ').pop()}</div>
+                <div style={{ flex: 1, textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: 0.5 }}>{playerA.name.split(' ').pop()}</div>
                 <div style={{ width: 160, textAlign: 'center' }} />
-                <div style={{ flex: 1, textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#c9920a', textTransform: 'uppercase', letterSpacing: 0.5 }}>{playerB.name.split(' ').pop()}</div>
+                <div style={{ flex: 1, textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: 0.5 }}>{playerB.name.split(' ').pop()}</div>
               </div>
               <StatRow label="Peak Elo"         aVal={Math.round(playerA.peak_elo)}    bVal={Math.round(playerB.peak_elo)} />
               <StatRow label="Current Elo"      aVal={Math.round(playerA.current_elo)} bVal={Math.round(playerB.current_elo)} />
               <StatRow label="Average Elo"      aVal={avgElo(playerA)}                  bVal={avgElo(playerB)} />
-              <StatRow label="FPR Rank"         aVal={playerA.current_tpr_rank}         bVal={playerB.current_tpr_rank} higherIsBetter={false} />
+              <StatRow label="Peak FPR Rank"    aVal={`#${Math.min(...(playerA.rank_history||[]).map(([,r])=>r))}`} bVal={`#${Math.min(...(playerB.rank_history||[]).map(([,r])=>r))}`} higherIsBetter={false} />
               <StatRow label="Games Played"     aVal={playerA.games_played}             bVal={playerB.games_played} />
-              <StatRow label="Career GmSc"      aVal={playerA.career_gmsc_avg}          bVal={playerB.career_gmsc_avg} />
-              <StatRow label="Recent GmSc"      aVal={playerA.recent_gmsc_avg}          bVal={playerB.recent_gmsc_avg} />
               <StatRow label="Career"           aVal={careerRange(playerA)}             bVal={careerRange(playerB)} />
             </div>
           </>
