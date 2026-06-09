@@ -272,7 +272,7 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
             {[
               { label: 'Current Elo', val: Math.round(player.current_elo).toLocaleString(), color: '#fff' },
               { label: 'Peak Elo',    val: Math.round(player.peak_elo).toLocaleString(),    color: '#ffd700' },
-              { label: 'FPR Rank',    val: `#${player.current_tpr_rank}`,                   color: player.is_fpr_eligible ? '#fff' : '#7aaa7a' },
+              { label: 'FPR Rank',    val: player.is_fpr_eligible ? `#${player.fpr_rank}` : '—', color: player.is_fpr_eligible ? '#fff' : '#7aaa7a' },
               { label: 'Avg Elo',     val: avgElo.toLocaleString(),                          color: '#a8c5a8' },
             ].map(({ label, val, color }) => (
               <div key={label} style={{ padding: '14px 16px', borderRight: '0.5px solid rgba(255,255,255,0.1)', borderBottom: '0.5px solid rgba(255,255,255,0.1)' }}>

@@ -289,6 +289,7 @@ def build_elo(df):
         career_avg = sum(all_gs) / len(all_gs) if all_gs else 0
         team       = team_map.get(player, "")
         lp         = last_played.get(player, "")
+        eligible   = (team in ACTIVE_NBA_TEAMS) and (lp >= team_cutoff.get(team, ""))
 
         players_out.append({
             "name":             player,
@@ -296,17 +297,26 @@ def build_elo(df):
             "current_elo":      round(elo[player], 1),
             "peak_elo":         round(peak_elo[player], 1),
             "current_tpr_rank": rank,  # global rank among all players
+            "fpr_rank":         0,     # filled in below — rank among eligible only
             "games_played":     games_played[player],
             "recent_gmsc_avg":  round(recent_avg, 1),
             "career_gmsc_avg":  round(career_avg, 1),
             "last_played":      lp,
-            "is_fpr_eligible":  lp >= team_cutoff.get(team, ""),
+            "is_fpr_eligible":  eligible,
             "peak_fpr_rank":    peak_fpr_rank_map.get(player, 9999),
             "_games_at_1":      games_at_1_map.get(player, 0),
             "_max_streak":      max_streak_map.get(player, 0),
             "elo_history":      elo_hist[player],
             "team_history":     team_hist[player],
         })
+
+    # ── Assign clean FPR rank among eligible players only ─────────────────
+    eligible_sorted = sorted(
+        [p for p in players_out if p["is_fpr_eligible"]],
+        key=lambda p: -p["current_elo"]
+    )
+    for fpr_rank, p in enumerate(eligible_sorted, 1):
+        p["fpr_rank"] = fpr_rank
 
     # ── Badge computation ──────────────────────────────────────────────────
     peak_elo_ranking  = sorted(players_out, key=lambda p: -p["peak_elo"])
@@ -344,7 +354,7 @@ def build_elo(df):
     def compute_badges(p):
         badges = []
         name         = p["name"]
-        curr_rank    = p["current_tpr_rank"]
+        curr_rank    = p["fpr_rank"] if p["is_fpr_eligible"] else 9999
         peak         = p["peak_elo"]
         gp           = p["games_played"]
         fpr_eligible = p["is_fpr_eligible"]

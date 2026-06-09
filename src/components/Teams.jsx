@@ -45,17 +45,6 @@ export default function Teams({ players, onSelectPlayer }) {
   const [sortKey, setSortKey] = useState('current_elo')
   const [sortAsc, setSortAsc] = useState(false)
 
-  const activePlayers = useMemo(() =>
-    players.filter(p => p.is_fpr_eligible), [players]
-  )
-
-  const activeRankMap = useMemo(() => {
-    const sorted = [...activePlayers].sort((a, b) => b.current_elo - a.current_elo)
-    const map = {}
-    sorted.forEach((p, i) => { map[p.name] = i + 1 })
-    return map
-  }, [activePlayers])
-
   const teamPlayers = useMemo(() => {
     if (!selectedTeam) return []
     return players
@@ -161,7 +150,7 @@ export default function Teams({ players, onSelectPlayer }) {
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       >
                         <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>
-                          #{activeRankMap[p.name] || '—'}
+                          #{p.fpr_rank || '—'}
                         </td>
                         <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a' }}>{p.name}</td>
                         <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 500, color: '#1a1a1a', fontVariantNumeric: 'tabular-nums' }}>
