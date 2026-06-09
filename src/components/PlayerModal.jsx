@@ -112,11 +112,12 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode) {
 }
 
 function SpagChart({ playerIndex, playerName, eloHist }) {
-  const svgRef     = useRef(null)
-  const wrapRef    = useRef(null)
-  const [loaded,   setLoaded]   = useState(false)
+  const svgRef       = useRef(null)
+  const wrapRef      = useRef(null)
+  const eloHistRef   = useRef(eloHist)
+  const [loaded,     setLoaded]     = useState(false)
   const [careerMode, setCareerMode] = useState(false)
-  const [spagData,  setSpagData]  = useState(null)
+  const [spagData,   setSpagData]   = useState(null)
 
   // Load spaghetti data once
   useEffect(() => {
@@ -127,15 +128,14 @@ function SpagChart({ playerIndex, playerName, eloHist }) {
     return () => { cancelled = true }
   }, [])
 
-  // Draw whenever data or mode changes, using ResizeObserver to get real width
+  // Draw whenever data or mode changes
   useEffect(() => {
     if (!spagData || !svgRef.current || !wrapRef.current) return
-    // Use container width, falling back to 560
     const w = wrapRef.current.clientWidth || 560
     svgRef.current.style.width = w + 'px'
-    drawChart(spagData, playerIndex, svgRef.current, eloHist, careerMode)
+    drawChart(spagData, playerIndex, svgRef.current, eloHistRef.current, careerMode)
     setLoaded(true)
-  }, [spagData, playerIndex, careerMode, eloHist])
+  }, [spagData, playerIndex, careerMode])
 
   return (
     <div>
