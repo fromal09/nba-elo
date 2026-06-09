@@ -187,7 +187,6 @@ def build_elo(df):
     gmsc_hist    = defaultdict(list)  # kept for computing recent/career avg scalars
     team_hist    = defaultdict(list)   # only records team changes
     team_map     = {}
-    opp_map      = {}                  # opponent per game (transient)
     last_played  = {}
 
     def k_factor(n):
@@ -213,9 +212,7 @@ def build_elo(df):
 
         for p in players:
             init(p)
-            prow           = group[group["Player"] == p].iloc[0]
-            team_map[p]    = prow["Team"]
-            opp_map[p]     = prow["Opp"] if "Opp" in prow and str(prow["Opp"]).strip() else prow["Team"]
+            team_map[p]    = group[group["Player"] == p]["Team"].iloc[0]
             last_played[p] = date_str
 
         deltas = defaultdict(float)
@@ -233,7 +230,7 @@ def build_elo(df):
             elo[p]          += deltas[p]
             games_played[p] += 1
             if elo[p] > peak_elo[p]: peak_elo[p] = elo[p]
-            elo_hist[p].append([date_str, round(elo[p], 1), opp_map.get(p, "")])
+            elo_hist[p].append([date_str, round(elo[p], 1)])
             gmsc_hist[p].append([date_str, round(gmsc[p], 1)])
             # Record team only when it changes
             cur_team = team_map.get(p, '')
@@ -260,7 +257,7 @@ def build_elo(df):
 
     all_players = sorted(elo.keys(), key=lambda p: -elo[p])
 
-    # FPR eligibility — current season only, active NBA teams only
+    # FPR eligibility — current season only, active NBA franchises only
     CURRENT_SEASON_START = "2025-10-01"
     ACTIVE_NBA_TEAMS = {
         "ATL","BOS","BKN","CHA","CHI","CLE","DAL","DEN","DET","GSW",
@@ -296,8 +293,8 @@ def build_elo(df):
             "team":             team,
             "current_elo":      round(elo[player], 1),
             "peak_elo":         round(peak_elo[player], 1),
-            "current_tpr_rank": rank,  # global rank among all players
-            "fpr_rank":         0,     # filled in below — rank among eligible only
+            "current_tpr_rank": rank,
+            "fpr_rank":         0,
             "games_played":     games_played[player],
             "recent_gmsc_avg":  round(recent_avg, 1),
             "career_gmsc_avg":  round(career_avg, 1),
@@ -310,7 +307,7 @@ def build_elo(df):
             "team_history":     team_hist[player],
         })
 
-    # ── Assign clean FPR rank among eligible players only ─────────────────
+    # ── Assign clean FPR rank among eligible players ─────────────────────────
     eligible_sorted = sorted(
         [p for p in players_out if p["is_fpr_eligible"]],
         key=lambda p: -p["current_elo"]
@@ -354,7 +351,7 @@ def build_elo(df):
     def compute_badges(p):
         badges = []
         name         = p["name"]
-        curr_rank    = p["fpr_rank"] if p["is_fpr_eligible"] else 9999
+        curr_rank    = p["current_tpr_rank"]
         peak         = p["peak_elo"]
         gp           = p["games_played"]
         fpr_eligible = p["is_fpr_eligible"]
@@ -395,8 +392,6 @@ def build_elo(df):
         # ── FPR: Games at #1 and streak (both shown if qualified) ───────
         if games_at_1 >= 1:
             badges.append({"cat":"fpr","id":"games_at_1","label":f"{games_at_1}× FPR #1","emoji":"👑"})
-        if streak >= 5:
-            badges.append({"cat":"fpr","id":"streak_at_1","label":f"{streak}-Game FPR #1 Streak","emoji":"🔥"})
 
         # ── Elo Club (exclusive — highest threshold only) ────────────────
         for threshold in [3000, 2900, 2700, 2500, 2200, 2000]:

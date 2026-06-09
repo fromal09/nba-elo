@@ -341,7 +341,6 @@ for rank, name in enumerate(all_player_names, 1):
         "current_elo":      round(elo[name], 1),
         "peak_elo":         round(peak_elo[name], 1),
         "current_tpr_rank": rank,
-            "fpr_rank":         0,  # filled in below
         "games_played":     games_played[name],
         "recent_gmsc_avg":  round(recent_avg, 1),
         "career_gmsc_avg":  round(career_avg, 1),
@@ -352,14 +351,6 @@ for rank, name in enumerate(all_player_names, 1):
         "team_history":     team_hist[name],
         "badges":           compute_badges(name, rank, peak_elo[name], games_played[name], eligible),
     })
-
-# ── Assign clean FPR rank among eligible players only ────────────────────
-    eligible_sorted = sorted(
-        [p for p in new_players_out if p["is_fpr_eligible"]],
-        key=lambda p: -p["current_elo"]
-    )
-    for fpr_rank, p in enumerate(eligible_sorted, 1):
-        p["fpr_rank"] = fpr_rank
 
 # ── Write elo.json ────────────────────────────────────────────────────────
 output = {
