@@ -122,41 +122,41 @@ export default function Homepage({ data, setView }) {
                 onClick={() => setView('rankings')}
                 style={{
                   display: 'flex', alignItems: 'center',
-                  padding: '13px 16px', borderRadius: 10, marginBottom: 6,
-                  cursor: 'pointer', transition: 'background 0.15s',
+                  padding: '7px 10px', borderRadius: 8, marginBottom: 2,
+                  cursor: 'pointer',
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
                 <div style={{
-                  width: 44, height: 44, borderRadius: 10,
+                  width: 32, height: 32, borderRadius: 7,
                   background: badgeBg, color: '#fff',
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', justifyContent: 'center',
-                  marginRight: 16, flexShrink: 0,
+                  marginRight: 12, flexShrink: 0,
                 }}>
-                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, opacity: 0.7, lineHeight: 1 }}>
+                  <div style={{ fontSize: 7, textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.7, lineHeight: 1 }}>
                     Ranked
                   </div>
-                  <div style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.2 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>
                     #{i + 1}
                   </div>
                 </div>
-                <div style={{ flex: 1, textAlign: 'left' }}>
-                  <div style={{ fontSize: 17, fontWeight: 500, color: '#fff' }}>{p.name}</div>
-                  <div style={{ fontSize: 12, color: '#7aaa7a', marginTop: 2 }}>{p.team} · Active</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#fff' }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: '#7aaa7a' }}>{p.team}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 22, fontWeight: 300, color: '#e8f0e8', letterSpacing: '-0.5px' }}>
+                  <div style={{ fontSize: 17, fontWeight: 300, color: '#e8f0e8', letterSpacing: '-0.5px' }}>
                     {fmt(p.current_elo)}
                   </div>
-                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#7aaa7a' }}>ELO</div>
+                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#7aaa7a' }}>ELO</div>
                 </div>
               </div>
             )
           })}
 
-          <div style={{ height: 1, background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent)', margin: '24px 0' }} />
+          <div style={{ height: 1, background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent)', margin: '12px 0' }} />
           <button
             onClick={() => setView('rankings')}
             style={{ background: 'none', border: 'none', color: '#7aaa7a', fontSize: 13, cursor: 'pointer', letterSpacing: '0.5px' }}
