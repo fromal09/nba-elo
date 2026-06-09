@@ -20,12 +20,18 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode) {
   const ns = 'http://www.w3.org/2000/svg'
   const { dates, players } = data
 
+  if (!players || focusIdx < 0 || focusIdx >= players.length) return
+
   // If careerMode, find date range from player's elo_history
   let dateStart = 0, dateEnd = dates.length - 1
   if (careerMode && eloHist && eloHist.length) {
     const first = eloHist[0][0], last = eloHist[eloHist.length - 1][0]
     const si = dates.findIndex(d => d >= first)
-    const ei = dates.findLastIndex(d => d <= last)
+    // findLastIndex polyfill
+    let ei = -1
+    for (let i = dates.length - 1; i >= 0; i--) {
+      if (dates[i] <= last) { ei = i; break }
+    }
     if (si !== -1) dateStart = si
     if (ei !== -1) dateEnd = ei
   }
@@ -116,6 +122,9 @@ function SpagChart({ playerIndex, playerName, eloHist }) {
       if (cancelled || !svgRef.current) return
       drawChart(data, playerIndex, svgRef.current, eloHist, careerMode)
       setLoaded(true)
+    }).catch(err => {
+      console.error('Failed to load spaghetti.json:', err)
+      if (!cancelled) setLoaded(true)  // stop spinner at least
     })
     return () => { cancelled = true }
   }, [playerIndex, careerMode])
