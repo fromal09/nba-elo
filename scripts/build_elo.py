@@ -155,6 +155,9 @@ def build_elo(df):
     elo_hist     = defaultdict(list)
     peak_elo     = {}
     peak_fpr_rank_map = {}  # best global rank ever achieved
+    games_at_1_map    = {}  # total games held global #1
+    cur_streak_map    = {}  # current streak at #1
+    max_streak_map    = {}  # best streak at #1
     gmsc_hist    = defaultdict(list)  # kept for computing recent/career avg scalars
     team_hist    = defaultdict(list)   # only records team changes
     team_map     = {}
@@ -210,11 +213,18 @@ def build_elo(df):
 
         sorted_by_elo = sorted(players, key=lambda p: -elo[p])
         # Global FPR rank snapshot — sort ALL players after every game
-        # Used for peak FPR rank tracking and day-in-time snapshots
         global_sorted = sorted(elo.keys(), key=lambda p: -elo[p])
         for global_rank, p in enumerate(global_sorted, 1):
             if p not in peak_fpr_rank_map or global_rank < peak_fpr_rank_map[p]:
                 peak_fpr_rank_map[p] = global_rank
+            # Track games at #1 and streak
+            if global_rank == 1:
+                games_at_1_map[p] = games_at_1_map.get(p, 0) + 1
+                cur_streak_map[p] = cur_streak_map.get(p, 0) + 1
+                if cur_streak_map[p] > max_streak_map.get(p, 0):
+                    max_streak_map[p] = cur_streak_map[p]
+            else:
+                cur_streak_map[p] = 0
 
     all_players = sorted(elo.keys(), key=lambda p: -elo[p])
 
@@ -250,6 +260,8 @@ def build_elo(df):
             "last_played":      lp,
             "is_fpr_eligible":  lp >= team_cutoff.get(team, ""),
             "peak_fpr_rank":    peak_fpr_rank_map.get(player, 9999),
+            "_games_at_1":      games_at_1_map.get(player, 0),
+            "_max_streak":      max_streak_map.get(player, 0),
             "elo_history":      elo_hist[player],
             "team_history":     team_hist[player],
         })
@@ -273,101 +285,119 @@ def build_elo(df):
         players_in_decade.sort(key=lambda x: -x[1])
         decade_rank_map[decade] = {name: i+1 for i, (name, _) in enumerate(players_in_decade)}
 
+    # Avg Elo by decade for era badges
+    decade_avg = defaultdict(lambda: defaultdict(list))
+    for p in players_out:
+        for date_str, elo_val in p["elo_history"]:
+            yr     = int(date_str[:4])
+            decade = (yr // 10) * 10
+            decade_avg[p["name"]][decade].append(elo_val)
+    decade_avg_rank_map = {}
+    for decade in all_decades:
+        avgs = [(name, sum(vals)/len(vals)) for name, d in decade_avg.items()
+                if decade in d for vals in [d[decade]]]
+        avgs.sort(key=lambda x: -x[1])
+        decade_avg_rank_map[decade] = {name: i+1 for i, (name, _) in enumerate(avgs)}
+
     def compute_badges(p):
         badges = []
-        name          = p["name"]
-        rh            = []  # rank_history removed; use peak_fpr_rank scalar
-        curr_rank     = p["current_tpr_rank"]
-        peak          = p["peak_elo"]
-        gp            = p["games_played"]
-        fpr_eligible  = p["is_fpr_eligible"]
+        name         = p["name"]
+        curr_rank    = p["current_tpr_rank"]
+        peak         = p["peak_elo"]
+        gp           = p["games_played"]
+        fpr_eligible = p["is_fpr_eligible"]
+        pfpr         = peak_fpr_rank_map.get(name, 9999)
+        games_at_1   = p.get("_games_at_1", 0)
+        streak       = p.get("_max_streak", 0)
 
-        games_at_1  = sum(1 for _, r in rh if r == 1)
-        max_streak  = cur_streak = 0
-        for _, r in rh:
-            if r == 1: cur_streak += 1; max_streak = max(max_streak, cur_streak)
-            else:      cur_streak = 0
-        best_rank_ever = min((r for _, r in rh), default=9999)
+        def rank_tier(r):
+            if r == 1: return 0
+            if r <= 5: return 1
+            if r <= 10: return 2
+            if r <= 25: return 3
+            if r <= 50: return 4
+            if r <= 100: return 5
+            return 6
 
+        # ── FPR: Current rank (exclusive) ───────────────────────────────
         if fpr_eligible:
-            if curr_rank == 1:
-                badges.append({"cat":"fpr","id":"current_1","label":"Current FPR #1","emoji":"🏆"})
-            if curr_rank <= 5:
-                badges.append({"cat":"fpr","id":"current_top5","label":f"Current FPR Top 5 (#{curr_rank})","emoji":"⭐"})
-            elif curr_rank <= 10:
-                badges.append({"cat":"fpr","id":"current_top10","label":f"Current FPR Top 10 (#{curr_rank})","emoji":"⭐"})
-            elif curr_rank <= 25:
-                badges.append({"cat":"fpr","id":"current_top25","label":f"Current FPR Top 25 (#{curr_rank})","emoji":"📈"})
-            elif curr_rank <= 50:
-                badges.append({"cat":"fpr","id":"current_top50","label":f"Current FPR Top 50 (#{curr_rank})","emoji":"📈"})
-            elif curr_rank <= 100:
-                badges.append({"cat":"fpr","id":"current_top100","label":f"Current FPR Top 100 (#{curr_rank})","emoji":"📈"})
+            t = rank_tier(curr_rank)
+            if t == 0:   badges.append({"cat":"fpr","id":"current_1",     "label":"Current FPR #1",              "emoji":"🏆"})
+            elif t == 1: badges.append({"cat":"fpr","id":"current_top5",  "label":f"Current FPR Top 5 (#{curr_rank})", "emoji":"⭐"})
+            elif t == 2: badges.append({"cat":"fpr","id":"current_top10", "label":f"Current FPR Top 10 (#{curr_rank})","emoji":"⭐"})
+            elif t == 3: badges.append({"cat":"fpr","id":"current_top25", "label":f"Current FPR Top 25 (#{curr_rank})","emoji":"📈"})
+            elif t == 4: badges.append({"cat":"fpr","id":"current_top50", "label":f"Current FPR Top 50 (#{curr_rank})","emoji":"📈"})
+            elif t == 5: badges.append({"cat":"fpr","id":"current_top100","label":f"Current FPR Top 100 (#{curr_rank})","emoji":"📈"})
 
-        if best_rank_ever == 1 and not (fpr_eligible and curr_rank == 1):
-            badges.append({"cat":"fpr","id":"former_1","label":"Former FPR #1","emoji":"🔱"})
-        elif best_rank_ever <= 5 and not (fpr_eligible and curr_rank <= 5):
-            badges.append({"cat":"fpr","id":"former_top5","label":f"Former FPR Top 5 (#{best_rank_ever})","emoji":"🔱"})
-        elif best_rank_ever <= 10 and not (fpr_eligible and curr_rank <= 10):
-            badges.append({"cat":"fpr","id":"former_top10","label":f"Former FPR Top 10 (#{best_rank_ever})","emoji":"🔱"})
-        elif best_rank_ever <= 25 and not (fpr_eligible and curr_rank <= 25):
-            badges.append({"cat":"fpr","id":"former_top25","label":f"Former FPR Top 25 (#{best_rank_ever})","emoji":"🏅"})
-        elif best_rank_ever <= 50 and not (fpr_eligible and curr_rank <= 50):
-            badges.append({"cat":"fpr","id":"former_top50","label":f"Former FPR Top 50 (#{best_rank_ever})","emoji":"🏅"})
-        elif best_rank_ever <= 100 and not (fpr_eligible and curr_rank <= 100):
-            badges.append({"cat":"fpr","id":"former_top100","label":f"Former FPR Top 100 (#{best_rank_ever})","emoji":"🏅"})
+        # ── FPR: Former rank (only if more impressive than current) ─────
+        curr_tier = rank_tier(curr_rank) if fpr_eligible else 6
+        peak_tier = rank_tier(pfpr)
+        if peak_tier < curr_tier:
+            if pfpr == 1:      badges.append({"cat":"fpr","id":"former_1",     "label":"Former FPR #1",              "emoji":"🔱"})
+            elif pfpr <= 5:    badges.append({"cat":"fpr","id":"former_top5",  "label":f"Former FPR Top 5 (#{pfpr})", "emoji":"🔱"})
+            elif pfpr <= 10:   badges.append({"cat":"fpr","id":"former_top10", "label":f"Former FPR Top 10 (#{pfpr})","emoji":"🏅"})
+            elif pfpr <= 25:   badges.append({"cat":"fpr","id":"former_top25", "label":f"Former FPR Top 25 (#{pfpr})","emoji":"🏅"})
+            elif pfpr <= 50:   badges.append({"cat":"fpr","id":"former_top50", "label":f"Former FPR Top 50 (#{pfpr})","emoji":"🏅"})
+            elif pfpr <= 100:  badges.append({"cat":"fpr","id":"former_top100","label":f"Former FPR Top 100 (#{pfpr})","emoji":"🏅"})
 
+        # ── FPR: Games at #1 and streak (both shown if qualified) ───────
         if games_at_1 >= 1:
-            badges.append({"cat":"fpr","id":"games_at_1","label":f"{games_at_1}-Game FPR #1","emoji":"👑"})
-        if max_streak >= 10:
-            badges.append({"cat":"fpr","id":"streak_at_1","label":f"{max_streak}-Game FPR #1 Streak","emoji":"🔥"})
+            badges.append({"cat":"fpr","id":"games_at_1","label":f"{games_at_1}× FPR #1","emoji":"👑"})
+        if streak >= 5:
+            badges.append({"cat":"fpr","id":"streak_at_1","label":f"{streak}-Game FPR #1 Streak","emoji":"🔥"})
 
-        for threshold in range(1800, 3100, 100):
+        # ── Elo Club (exclusive — highest threshold only) ────────────────
+        for threshold in [3000, 2900, 2700, 2500, 2200, 2000]:
             if peak >= threshold:
                 badges.append({"cat":"elo","id":f"club_{threshold}","label":f"{threshold:,} Elo Club","emoji":"⚡"})
-
-        peak_rank = peak_elo_rank_map.get(name, 9999)
-        if peak_rank == 1:
-            badges.append({"cat":"elo","id":"peak_alltime_1","label":"All-Time Peak Elo #1","emoji":"🐐"})
-        elif peak_rank <= 5:
-            badges.append({"cat":"elo","id":"peak_alltime_top5","label":f"Top 5 All-Time Peak Elo (#{peak_rank})","emoji":"🐐"})
-        elif peak_rank <= 10:
-            badges.append({"cat":"elo","id":"peak_alltime_top10","label":f"Top 10 All-Time Peak Elo (#{peak_rank})","emoji":"⚡"})
-        elif peak_rank <= 25:
-            badges.append({"cat":"elo","id":"peak_alltime_top25","label":f"Top 25 All-Time Peak Elo (#{peak_rank})","emoji":"⚡"})
-        elif peak_rank <= 50:
-            badges.append({"cat":"elo","id":"peak_alltime_top50","label":f"Top 50 All-Time Peak Elo (#{peak_rank})","emoji":"⚡"})
-        elif peak_rank <= 100:
-            badges.append({"cat":"elo","id":"peak_alltime_top100","label":f"Top 100 All-Time Peak Elo (#{peak_rank})","emoji":"⚡"})
-
-        for threshold, emoji in [(1000,"💎"),(750,"🏀"),(500,"🏀")]:
-            if gp >= threshold:
-                badges.append({"cat":"longevity","id":f"games_{threshold}","label":f"{threshold:,} Games Played","emoji":emoji})
                 break
 
+        # ── All-time peak rank (exclusive) ───────────────────────────────
+        atr = peak_elo_rank_map.get(name, 9999)
+        if atr == 1:       badges.append({"cat":"elo","id":"peak_1",      "label":"All-Time Peak #1",              "emoji":"🐐"})
+        elif atr <= 5:     badges.append({"cat":"elo","id":"peak_top5",   "label":f"All-Time Peak Top 5 (#{atr})", "emoji":"🐐"})
+        elif atr <= 10:    badges.append({"cat":"elo","id":"peak_top10",  "label":f"All-Time Peak Top 10 (#{atr})","emoji":"⚡"})
+        elif atr <= 25:    badges.append({"cat":"elo","id":"peak_top25",  "label":f"All-Time Peak Top 25 (#{atr})","emoji":"⚡"})
+        elif atr <= 50:    badges.append({"cat":"elo","id":"peak_top50",  "label":f"All-Time Peak Top 50 (#{atr})","emoji":"⚡"})
+
+        # ── Longevity (exclusive — highest tier only) ────────────────────
+        for threshold, emoji in [(1500,"💎"),(1000,"💎"),(750,"🏀"),(500,"🏀")]:
+            if gp >= threshold:
+                badges.append({"cat":"longevity","id":f"games_{threshold}","label":f"{threshold:,} Games","emoji":emoji})
+                break
+
+        # ── Era badges (per decade, exclusive within peak and avg) ───────
         era_emojis = {1940:"📼",1950:"📼",1960:"📼",1970:"📺",1980:"📺",
                       1990:"💿",2000:"💿",2010:"📱",2020:"📱"}
-        for decade, player_decade_rank in sorted(decade_rank_map.items(), reverse=True):
-            rank_in_decade = player_decade_rank.get(name)
-            if not rank_in_decade: continue
-            decade_str = f"{decade}s"
+        for decade in all_decades:
             emoji = era_emojis.get(decade, "🏀")
-            if rank_in_decade == 1:
-                badges.append({"cat":"era","id":f"era_{decade}_1","label":f"{decade_str} FPR #1","emoji":emoji})
-            elif rank_in_decade <= 5:
-                badges.append({"cat":"era","id":f"era_{decade}_top5","label":f"{decade_str} Top 5 (#{rank_in_decade})","emoji":emoji})
-            elif rank_in_decade <= 10:
-                badges.append({"cat":"era","id":f"era_{decade}_top10","label":f"{decade_str} Top 10 (#{rank_in_decade})","emoji":emoji})
-            elif rank_in_decade <= 25:
-                badges.append({"cat":"era","id":f"era_{decade}_top25","label":f"{decade_str} Top 25 (#{rank_in_decade})","emoji":emoji})
-            elif rank_in_decade <= 50:
-                badges.append({"cat":"era","id":f"era_{decade}_top50","label":f"{decade_str} Top 50 (#{rank_in_decade})","emoji":emoji})
-            elif rank_in_decade <= 100:
-                badges.append({"cat":"era","id":f"era_{decade}_top100","label":f"{decade_str} Top 100 (#{rank_in_decade})","emoji":emoji})
+            ds    = f"{decade}s"
+
+            # Peak in decade (exclusive)
+            pr = decade_rank_map.get(decade, {}).get(name)
+            if pr:
+                if pr == 1:       badges.append({"cat":"era","id":f"d{decade}_p1",   "label":f"{ds} Peak #1",             "emoji":emoji})
+                elif pr <= 5:     badges.append({"cat":"era","id":f"d{decade}_p5",   "label":f"{ds} Peak Top 5 (#{pr})",  "emoji":emoji})
+                elif pr <= 10:    badges.append({"cat":"era","id":f"d{decade}_p10",  "label":f"{ds} Peak Top 10 (#{pr})", "emoji":emoji})
+                elif pr <= 25:    badges.append({"cat":"era","id":f"d{decade}_p25",  "label":f"{ds} Peak Top 25 (#{pr})", "emoji":emoji})
+                elif pr <= 50:    badges.append({"cat":"era","id":f"d{decade}_p50",  "label":f"{ds} Peak Top 50 (#{pr})", "emoji":emoji})
+                elif pr <= 100:   badges.append({"cat":"era","id":f"d{decade}_p100", "label":f"{ds} Peak Top 100 (#{pr})","emoji":emoji})
+
+            # Avg in decade (exclusive)
+            ar = decade_avg_rank_map.get(decade, {}).get(name)
+            if ar:
+                if ar == 1:       badges.append({"cat":"era","id":f"d{decade}_a1",   "label":f"{ds} Avg #1",             "emoji":emoji})
+                elif ar <= 5:     badges.append({"cat":"era","id":f"d{decade}_a5",   "label":f"{ds} Avg Top 5 (#{ar})",  "emoji":emoji})
+                elif ar <= 10:    badges.append({"cat":"era","id":f"d{decade}_a10",  "label":f"{ds} Avg Top 10 (#{ar})", "emoji":emoji})
+                elif ar <= 25:    badges.append({"cat":"era","id":f"d{decade}_a25",  "label":f"{ds} Avg Top 25 (#{ar})", "emoji":emoji})
+                elif ar <= 50:    badges.append({"cat":"era","id":f"d{decade}_a50",  "label":f"{ds} Avg Top 50 (#{ar})", "emoji":emoji})
+                elif ar <= 100:   badges.append({"cat":"era","id":f"d{decade}_a100", "label":f"{ds} Avg Top 100 (#{ar})","emoji":emoji})
 
         return badges
-
     for p in players_out:
         p["badges"] = compute_badges(p)
+        p.pop("_games_at_1", None)
+        p.pop("_max_streak", None)
 
     return {
         "season":        "2025-26",

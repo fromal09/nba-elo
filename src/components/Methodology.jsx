@@ -67,21 +67,9 @@ New players' ratings converge quickly toward their true level. The mid-career ti
 
 This window is intentionally team-relative rather than calendar-relative. A player whose team has been eliminated from the playoffs remains eligible if they appeared regularly through their team's final games. A player who missed the final stretch of their team's season due to injury falls outside the eligibility window regardless of calendar date.
 
-The 20-game window represents roughly one quarter of a regular season — enough to establish recent form while remaining sensitive to extended absences. Ineligible players retain their full cumulative Elo rating and appear in Historical Elo and GOAT Rankings; they simply do not appear on the active leaderboard.`,
-  },
-  {
-    title: 'Data Sources and Coverage',
-    body: `The FPR database spans NBA history from 1946–47 through the current season, plus the ABA from 1967–68 through 1975–76.
+The 20-game window represents roughly one quarter of a regular season — enough to establish recent form while remaining sensitive to extended absences. Ineligible players retain their full cumulative Elo rating and appear in Historical Elo and GOAT Rankings; they simply do not appear on the active leaderboard.
 
-1946–47 to 1972–73: Basketball Reference player game logs (authoritative source with complete rebound data). Pre-1974 players use the era-adjusted Game Score formula described above.
-
-1967–68 to 1975–76 (ABA): Basketball Reference ABA player game logs. Players who appeared in both leagues accumulate a single unified Elo rating across their combined career.
-
-1973–74 to 1995–96: BallDontLie API supplemented by Basketball Reference opponent data for game identification.
-
-1996–97 to present: NBA official stats API (nba_api) for complete box scores including blocks, steals, and turnovers.
-
-All seasons include both regular season and playoff games. Playoff games carry the same weight as regular season games — the system does not apply a separate multiplier for postseason performance.`,
+Both regular season and playoff games count toward eligibility and Elo accumulation. Playoff games carry the same weight as regular season games — the system does not apply a separate multiplier for postseason performance.`,
   },
   {
     title: 'Peak FPR Rank',
