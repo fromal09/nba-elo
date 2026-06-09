@@ -187,6 +187,7 @@ def build_elo(df):
     gmsc_hist    = defaultdict(list)  # kept for computing recent/career avg scalars
     team_hist    = defaultdict(list)   # only records team changes
     team_map     = {}
+    opp_map      = {}                  # opponent per game (transient)
     last_played  = {}
 
     def k_factor(n):
@@ -212,7 +213,9 @@ def build_elo(df):
 
         for p in players:
             init(p)
-            team_map[p]    = group[group["Player"] == p]["Team"].iloc[0]
+            prow           = group[group["Player"] == p].iloc[0]
+            team_map[p]    = prow["Team"]
+            opp_map[p]     = prow["Opp"] if "Opp" in prow and str(prow["Opp"]).strip() else prow["Team"]
             last_played[p] = date_str
 
         deltas = defaultdict(float)
@@ -230,7 +233,7 @@ def build_elo(df):
             elo[p]          += deltas[p]
             games_played[p] += 1
             if elo[p] > peak_elo[p]: peak_elo[p] = elo[p]
-            elo_hist[p].append([date_str, round(elo[p], 1)])
+            elo_hist[p].append([date_str, round(elo[p], 1), opp_map.get(p, "")])
             gmsc_hist[p].append([date_str, round(gmsc[p], 1)])
             # Record team only when it changes
             cur_team = team_map.get(p, '')

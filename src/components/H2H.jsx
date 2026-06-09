@@ -178,21 +178,42 @@ export default function H2H({ players }) {
 
   const bothSelected = playerA && playerB
 
-  // Shared games: dates where both players have an elo_history entry
+  // Shared games: dates where A's opponent was B's team AND B's opponent was A's team
   const sharedGames = useMemo(() => {
     if (!playerA || !playerB) return []
-    const histA = Object.fromEntries((playerA.elo_history || []).map(([d, v], i, arr) => [d, { elo: v, prev: i > 0 ? arr[i-1][1] : v }]))
-    const histB = Object.fromEntries((playerB.elo_history || []).map(([d, v], i, arr) => [d, { elo: v, prev: i > 0 ? arr[i-1][1] : v }]))
+
+    // Build lookup: date -> {elo, prev, team, opp} for each player
+    const buildLookup = (p) => {
+      const hist = p.elo_history || []
+      const map = {}
+      for (let i = 0; i < hist.length; i++) {
+        const entry = hist[i]
+        const date = entry[0], eloVal = entry[1], opp = entry[2] || ''
+        const prev = i > 0 ? hist[i-1][1] : eloVal
+        // team_history lookup for this date
+        let team = p.team
+        for (const [d, t] of (p.team_history || [])) {
+          if (d <= date) team = t
+          else break
+        }
+        map[date] = { elo: eloVal, prev, delta: eloVal - prev, team, opp }
+      }
+      return map
+    }
+
+    const lookupA = buildLookup(playerA)
+    const lookupB = buildLookup(playerB)
+
     const shared = []
-    for (const [date, a] of Object.entries(histA)) {
-      if (!histB[date]) continue
-      const b = histB[date]
-      const aDelta = a.elo - a.prev
-      const bDelta = b.elo - b.prev
-      // A "wins" the shared game if they gained more Elo (or lost less)
-      const aWon = aDelta > bDelta
-      const tied = aDelta === bDelta
-      shared.push({ date, aElo: a.elo, bElo: b.elo, aDelta, bDelta, aWon, tied })
+    for (const [date, a] of Object.entries(lookupA)) {
+      const b = lookupB[date]
+      if (!b) continue
+      // They actually faced each other if A's opp = B's team OR B's opp = A's team
+      const facedEachOther = (a.opp && a.opp === b.team) || (b.opp && b.opp === a.team)
+      if (!facedEachOther) continue
+      const aWon = a.delta > b.delta
+      const tied = a.delta === b.delta
+      shared.push({ date, aElo: a.elo, bElo: b.elo, aDelta: a.delta, bDelta: b.delta, aWon, tied })
     }
     return shared.sort((a, b) => b.date.localeCompare(a.date))
   }, [playerA, playerB])
