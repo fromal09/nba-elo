@@ -3,7 +3,7 @@ import styles from './Rankings.module.css'
 
 const PER_PAGE = 50
 const SORT_OPTIONS = [
-  { key: 'current_tpr_rank', label: 'FPR Rank',     asc: true  },
+  { key: 'fpr_rank', label: 'FPR Rank', asc: true },
   { key: 'current_elo',      label: 'Current Elo',  asc: false },
   { key: 'peak_elo',         label: 'Peak Elo',     asc: false },
   { key: 'recent_gmsc_avg',  label: 'Recent GmSc',  asc: false },
@@ -21,7 +21,7 @@ function gmscColor(v) {
 
 export default function Rankings({ players, onSelectPlayer }) {
   const [search,     setSearch]     = useState('')
-  const [sortKey,    setSortKey]    = useState('current_tpr_rank')
+  const [sortKey, setSortKey] = useState('fpr_rank')
   const [sortAsc,    setSortAsc]    = useState(true)
   const [minGP,      setMinGP]      = useState(10)
   const [page,       setPage]       = useState(0)
@@ -44,7 +44,7 @@ export default function Rankings({ players, onSelectPlayer }) {
   }, [players, search, minGP, sortKey, sortAsc, activeOnly])
 
   const ranked = useMemo(() => {
-    if (sortKey !== 'current_tpr_rank') return filtered
+    if (sortKey !== 'fpr_rank') return filtered
     return filtered.map((p, i) => ({ ...p, _displayRank: i + 1 }))
   }, [filtered, sortKey])
 
@@ -163,8 +163,8 @@ export default function Rankings({ players, onSelectPlayer }) {
           </thead>
           <tbody>
             {slice.map((p, i) => {
-              const displayRank = sortKey === 'current_tpr_rank'
-                ? (p._displayRank ?? p.current_tpr_rank)
+              const displayRank = sortKey === 'fpr_rank'
+                ? (p.fpr_rank || p.current_tpr_rank)
                 : page * PER_PAGE + i + 1
               const barW    = Math.max(2, Math.round((p.current_elo / maxElo) * 90))
               const gc      = gmscColor(p.recent_gmsc_avg)
