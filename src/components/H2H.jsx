@@ -178,6 +178,34 @@ export default function H2H({ players }) {
 
   const bothSelected = playerA && playerB
 
+  // Shared games: dates where both players have an elo_history entry
+  const sharedGames = useMemo(() => {
+    if (!playerA || !playerB) return []
+    const histA = Object.fromEntries((playerA.elo_history || []).map(([d, v], i, arr) => [d, { elo: v, prev: i > 0 ? arr[i-1][1] : v }]))
+    const histB = Object.fromEntries((playerB.elo_history || []).map(([d, v], i, arr) => [d, { elo: v, prev: i > 0 ? arr[i-1][1] : v }]))
+    const shared = []
+    for (const [date, a] of Object.entries(histA)) {
+      if (!histB[date]) continue
+      const b = histB[date]
+      const aDelta = a.elo - a.prev
+      const bDelta = b.elo - b.prev
+      // A "wins" the shared game if they gained more Elo (or lost less)
+      const aWon = aDelta > bDelta
+      const tied = aDelta === bDelta
+      shared.push({ date, aElo: a.elo, bElo: b.elo, aDelta, bDelta, aWon, tied })
+    }
+    return shared.sort((a, b) => b.date.localeCompare(a.date))
+  }, [playerA, playerB])
+
+  const sharedRecord = useMemo(() => {
+    const aWins = sharedGames.filter(g => g.aWon).length
+    const bWins = sharedGames.filter(g => !g.aWon && !g.tied).length
+    const ties  = sharedGames.filter(g => g.tied).length
+    const aTotal = sharedGames.reduce((s, g) => s + g.aDelta, 0)
+    const bTotal = sharedGames.reduce((s, g) => s + g.bDelta, 0)
+    return { aWins, bWins, ties, total: sharedGames.length, aTotal, bTotal }
+  }, [sharedGames])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" }}>
 
@@ -237,6 +265,92 @@ export default function H2H({ players }) {
               <StatRow label="Games Played"     aVal={playerA.games_played}             bVal={playerB.games_played} />
               <StatRow label="Career"           aVal={careerRange(playerA)}             bVal={careerRange(playerB)} />
             </div>
+
+            {/* Shared games */}
+            {sharedGames.length > 0 && (
+              <div style={{ margin: '16px 32px' }}>
+                {/* Record summary */}
+                <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                  <div style={{ flex: 1, background: '#1a2e1a', borderRadius: 12, padding: '16px 20px' }}>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#7aaa7a', marginBottom: 4 }}>
+                      {playerA.name.split(' ').pop()} in shared games
+                    </div>
+                    <div style={{ fontSize: 28, fontWeight: 600, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>
+                      {sharedRecord.aWins}–{sharedRecord.bWins}{sharedRecord.ties > 0 ? `–${sharedRecord.ties}` : ''}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#7aaa7a', marginTop: 4 }}>
+                      {sharedRecord.aTotal >= 0 ? '+' : ''}{Math.round(sharedRecord.aTotal)} cumulative Elo
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px', fontSize: 12, color: '#aaa' }}>
+                    {sharedRecord.total} shared games
+                  </div>
+                  <div style={{ flex: 1, background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 12, padding: '16px 20px' }}>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa', marginBottom: 4 }}>
+                      {playerB.name.split(' ').pop()} in shared games
+                    </div>
+                    <div style={{ fontSize: 28, fontWeight: 600, color: '#1a1a1a', fontVariantNumeric: 'tabular-nums' }}>
+                      {sharedRecord.bWins}–{sharedRecord.aWins}{sharedRecord.ties > 0 ? `–${sharedRecord.ties}` : ''}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>
+                      {sharedRecord.bTotal >= 0 ? '+' : ''}{Math.round(sharedRecord.bTotal)} cumulative Elo
+                    </div>
+                  </div>
+                </div>
+
+                {/* Game-by-game table */}
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa', marginBottom: 8 }}>
+                  Game-by-game breakdown
+                </div>
+                <div style={{ background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 12, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead style={{ background: '#faf9f6', borderBottom: '0.5px solid #e0ddd6' }}>
+                      <tr>
+                        <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Date</th>
+                        <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'right', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                          {playerA.name.split(' ').pop()} Elo
+                        </th>
+                        <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'right', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Δ</th>
+                        <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'center', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Result</th>
+                        <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Δ</th>
+                        <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                          {playerB.name.split(' ').pop()} Elo
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sharedGames.slice(0, 50).map(g => {
+                        const aColor = g.aDelta > 0 ? '#2d8a5a' : g.aDelta < 0 ? '#c94040' : '#aaa'
+                        const bColor = g.bDelta > 0 ? '#2d8a5a' : g.bDelta < 0 ? '#c94040' : '#aaa'
+                        const result = g.tied ? '—' : g.aWon ? 'A' : 'B'
+                        const resultColor = g.tied ? '#aaa' : g.aWon ? '#1a1a1a' : '#c94040'
+                        return (
+                          <tr key={g.date} style={{ borderBottom: '0.5px solid #f0ede8' }}>
+                            <td style={{ padding: '8px 14px', fontSize: 12, color: '#aaa' }}>{g.date}</td>
+                            <td style={{ padding: '8px 14px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{Math.round(g.aElo).toLocaleString()}</td>
+                            <td style={{ padding: '8px 14px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: 12, fontWeight: 600, color: aColor }}>
+                              {g.aDelta >= 0 ? '+' : ''}{Math.round(g.aDelta)}
+                            </td>
+                            <td style={{ padding: '8px 14px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: resultColor }}>
+                              {result}
+                            </td>
+                            <td style={{ padding: '8px 14px', textAlign: 'left', fontVariantNumeric: 'tabular-nums', fontSize: 12, fontWeight: 600, color: bColor }}>
+                              {g.bDelta >= 0 ? '+' : ''}{Math.round(g.bDelta)}
+                            </td>
+                            <td style={{ padding: '8px 14px', fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{Math.round(g.bElo).toLocaleString()}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  {sharedGames.length > 50 && (
+                    <div style={{ padding: '10px 14px', fontSize: 12, color: '#aaa', borderTop: '0.5px solid #e0ddd6', background: '#faf9f6' }}>
+                      Showing 50 of {sharedGames.length} shared games
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

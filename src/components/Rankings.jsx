@@ -45,7 +45,7 @@ export default function Rankings({ players, onSelectPlayer }) {
 
   const ranked = useMemo(() => {
     if (sortKey !== 'current_tpr_rank') return filtered
-    return filtered.map((p, i) => ({ ...p, _displayRank: i + 1 }))
+    return filtered  // use current_tpr_rank directly, don't re-number
   }, [filtered, sortKey])
 
   const maxElo     = useMemo(() => Math.max(...filtered.map(p => p.current_elo)), [filtered])
@@ -164,7 +164,7 @@ export default function Rankings({ players, onSelectPlayer }) {
           <tbody>
             {slice.map((p, i) => {
               const displayRank = sortKey === 'current_tpr_rank'
-                ? (p._displayRank ?? p.current_tpr_rank)
+                ? p.current_tpr_rank
                 : page * PER_PAGE + i + 1
               const barW    = Math.max(2, Math.round((p.current_elo / maxElo) * 90))
               const gc      = gmscColor(p.recent_gmsc_avg)

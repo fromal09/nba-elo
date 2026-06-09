@@ -10,15 +10,15 @@ export default function Homepage({ data, setView }) {
     {
       icon: '🏅',
       title: 'Current Rankings',
-      desc: 'Active players ranked by FPR. Filter by team, sort by Elo or recent GmSc.',
+      desc: 'Active players ranked by Floor Performance Rating. Filter by team, sort by Elo.',
       meta: `${data.players.filter(p => p.is_fpr_eligible).length} active players`,
       view: 'rankings',
       color: '#e8f0e0', iconColor: '#2d5a1a',
     },
     {
       icon: '📊',
-      title: 'Historical Elo',
-      desc: 'All-time career rankings sorted by peak Elo. Covers 1946 to present.',
+      title: 'Historical Elo Snapshots',
+      desc: 'All-time rankings sorted by peak Elo, plus rankings on any day in league history. Covers 1946 to present.',
       meta: `${data.total_players.toLocaleString()} career profiles`,
       view: 'historical',
       color: '#e0eaf8', iconColor: '#1a3a6e',
@@ -26,8 +26,8 @@ export default function Homepage({ data, setView }) {
     {
       icon: '🐐',
       title: 'GOAT Rankings',
-      desc: 'Customizable composite rankings with adjustable weights across peak, longevity, and consistency.',
-      meta: '9 dimensions · adjustable weights',
+      desc: 'Customizable composite rankings with adjustable weights across peak Elo, average Elo, and longevity.',
+      meta: '3 dimensions · adjustable weights',
       view: 'goat',
       color: '#faf0dc', iconColor: '#7a4f0a',
     },
@@ -103,13 +103,13 @@ export default function Homepage({ data, setView }) {
           borderRadius: 16, padding: '28px 32px',
           maxWidth: 680, margin: '0 auto',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 6 }}>
             <span style={{ fontSize: 22 }}>🏆</span>
             <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 22, color: '#fff' }}>
-              Current Rankings
+              Current FPR
             </h2>
           </div>
-          <div style={{ fontSize: 11, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#7aaa7a', marginBottom: 24 }}>
+          <div style={{ fontSize: 11, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#7aaa7a', marginBottom: 16, textAlign: 'center' }}>
             Elo-calibrated · Head-to-head dominance · Updated {data.generated}
           </div>
 
@@ -122,22 +122,35 @@ export default function Homepage({ data, setView }) {
                 onClick={() => setView('rankings')}
                 style={{
                   display: 'flex', alignItems: 'center',
-                  padding: '5px 10px', borderRadius: 7, marginBottom: 1,
+                  padding: '7px 10px', borderRadius: 8, marginBottom: 2,
                   cursor: 'pointer',
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
                 <div style={{
-                  fontSize: 11, fontWeight: 600, color: i === 0 ? '#ffd700' : 'rgba(255,255,255,0.4)',
-                  minWidth: 28, flexShrink: 0,
+                  width: 32, height: 32, borderRadius: 7,
+                  background: badgeBg, color: '#fff',
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                  marginRight: 12, flexShrink: 0,
                 }}>
-                  #{i + 1}
+                  <div style={{ fontSize: 7, textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.7, lineHeight: 1 }}>
+                    Ranked
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>
+                    #{i + 1}
+                  </div>
                 </div>
-                <div style={{ flex: 1, fontSize: 14, fontWeight: 500, color: '#fff' }}>{p.name}</div>
-                <div style={{ fontSize: 13, fontWeight: 400, color: '#e8f0e8', letterSpacing: '-0.3px', fontVariantNumeric: 'tabular-nums' }}>
-                  <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#7aaa7a', marginRight: 4 }}>ELO</span>
-                  {fmt(p.current_elo)}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#fff' }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: '#7aaa7a' }}>{p.team}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 17, fontWeight: 300, color: '#e8f0e8', letterSpacing: '-0.5px' }}>
+                    {fmt(p.current_elo)}
+                  </div>
+                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#7aaa7a' }}>ELO</div>
                 </div>
               </div>
             )

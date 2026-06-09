@@ -32,9 +32,19 @@ function computeEraStats(p, start, end) {
   const era_gmsc  = gmscHist.length
     ? gmscHist.reduce((s, [, v]) => s + v, 0) / gmscHist.length
     : p.career_gmsc_avg
+
+  // Team at end of era: last team_history entry within era window
+  const teamHist = p.team_history || []
+  const endDateStr = `${end}-12-31`
+  let eraTeam = p.team  // fallback to current team
+  for (const [d, t] of teamHist) {
+    if (d <= endDateStr) eraTeam = t
+    else break
+  }
+
   const y1 = eloHist[0][0].slice(0, 4)
   const y2 = eloHist[eloHist.length - 1][0].slice(0, 4)
-  return { peak_elo, peak_date, avg_elo, era_gp, era_gmsc, range: y1 === y2 ? y1 : `${y1}–${y2}` }
+  return { peak_elo, peak_date, avg_elo, era_gp, era_gmsc, era_team: eraTeam, range: y1 === y2 ? y1 : `${y1}–${y2}` }
 }
 
 // For a given date string, find each player's Elo (last entry <= date)
@@ -319,7 +329,7 @@ export default function Historical({ players, onSelectPlayer }) {
                 >
                   <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{rank}</td>
                   <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a', whiteSpace: 'nowrap' }}>{p.name}</td>
-                  <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team}</td>
+                  <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.era_team || p.team}</td>
                   <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.range}</td>
                   <td style={{ ...s.td, textAlign: 'right' }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color, fontVariantNumeric: 'tabular-nums' }}>

@@ -257,13 +257,21 @@ def build_elo(df):
 
     all_players = sorted(elo.keys(), key=lambda p: -elo[p])
 
-    # FPR eligibility — current season only prevents retired players qualifying
+    # FPR eligibility — current season only, active NBA teams only
     CURRENT_SEASON_START = "2025-10-01"
+    ACTIVE_NBA_TEAMS = {
+        "ATL","BOS","BKN","CHA","CHI","CLE","DAL","DEN","DET","GSW",
+        "HOU","IND","LAC","LAL","MEM","MIA","MIL","MIN","NOP","NYK",
+        "OKC","ORL","PHI","PHO","POR","SAC","SAS","TOR","UTA","WAS"
+    }
     team_game_dates = defaultdict(set)
     for pl, games in gmsc_hist.items():
+        team = team_map.get(pl, "")
+        if team not in ACTIVE_NBA_TEAMS:
+            continue
         for d, _ in games:
             if d >= CURRENT_SEASON_START:
-                team_game_dates[team_map.get(pl, "")].add(d)
+                team_game_dates[team].add(d)
 
     team_cutoff = {}
     for team, dates in team_game_dates.items():
@@ -284,7 +292,7 @@ def build_elo(df):
             "team":             team,
             "current_elo":      round(elo[player], 1),
             "peak_elo":         round(peak_elo[player], 1),
-            "current_tpr_rank": rank,
+            "current_tpr_rank": rank,  # global rank among all players
             "games_played":     games_played[player],
             "recent_gmsc_avg":  round(recent_avg, 1),
             "career_gmsc_avg":  round(career_avg, 1),
