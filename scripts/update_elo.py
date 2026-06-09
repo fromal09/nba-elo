@@ -285,7 +285,6 @@ def compute_badges(name, curr_rank, peak, gp, fpr_eligible):
         elif pfpr<=100:  badges.append({"cat":"fpr","id":"former_top100","label":f"Former FPR Top 100 (#{pfpr})","emoji":"🏅"})
 
     if g1 >= 1: badges.append({"cat":"fpr","id":"games_at_1","label":f"{g1}× FPR #1","emoji":"👑"})
-    if streak >= 5: badges.append({"cat":"fpr","id":"streak_at_1","label":f"{streak}-Game FPR #1 Streak","emoji":"🔥"})
 
     for t in [3000,2900,2700,2500,2200,2000]:
         if peak >= t:

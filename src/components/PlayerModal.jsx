@@ -39,17 +39,16 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode) {
   const focusPts = (players[focusIdx] || []).filter(([i]) => i >= dateStart && i <= dateEnd)
   if (!focusPts.length) return
 
-  // Compute min/max without spread (spread on huge arrays blows the stack)
+  // Min/max across ALL players in window (career mode still shows all players)
   let minV = Infinity, maxV = -Infinity
-  for (const [, v] of focusPts) { if (v < minV) minV = v; if (v > maxV) maxV = v }
-  if (!careerMode) {
-    for (const pts of players) {
-      for (const [i, v] of pts) {
-        if (i < dateStart || i > dateEnd) continue
-        if (v < minV) minV = v; if (v > maxV) maxV = v
-      }
+  for (const pts of players) {
+    for (const [i, v] of pts) {
+      if (i < dateStart || i > dateEnd) continue
+      if (v < minV) minV = v
+      if (v > maxV) maxV = v
     }
   }
+  if (!isFinite(minV)) return
   minV -= 30; maxV += 30
   const xScale = i => ((i - dateStart) / Math.max(dateEnd - dateStart, 1)) * W
   const yScale = v => H - ((v - minV) / (maxV - minV)) * H
@@ -71,35 +70,41 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode) {
     svg.appendChild(txt)
   }
 
-  // Year labels
-  let lastYr = null
+  // Dynamic x-axis labels — step size based on visible year range
+  const yr0 = parseInt(dates[dateStart]?.slice(0,4) || '1946')
+  const yr1 = parseInt(dates[dateEnd]?.slice(0,4) || '2026')
+  const yearSpan = yr1 - yr0 || 1
+  const maxLabels = Math.floor(W / 52)
+  let labelStep = 1
+  for (const step of [1,2,3,5,10,15,20,25,30,40,50]) {
+    if (Math.ceil(yearSpan / step) <= maxLabels) { labelStep = step; break }
+  }
+  let lastLabelX = -999
   dates.slice(dateStart, dateEnd + 1).forEach((d, idx) => {
-    const yr = d.slice(0, 4)
-    if (yr !== lastYr && parseInt(yr) % 3 === 0) {
-      const txt = document.createElementNS(ns, 'text')
-      txt.setAttribute('x', xScale(dateStart + idx))
-      txt.setAttribute('y', H + 14)
-      txt.setAttribute('font-size', '9'); txt.setAttribute('fill', 'rgba(0,0,0,0.3)')
-      txt.setAttribute('font-family', 'sans-serif'); txt.setAttribute('text-anchor', 'middle')
-      txt.textContent = yr
-      svg.appendChild(txt)
-      lastYr = yr
-    }
+    const yr = parseInt(d.slice(0, 4))
+    if (yr % labelStep !== 0) return
+    const x = xScale(dateStart + idx)
+    if (x - lastLabelX < 48) return
+    lastLabelX = x
+    const txt = document.createElementNS(ns, 'text')
+    txt.setAttribute('x', x); txt.setAttribute('y', H + 14)
+    txt.setAttribute('font-size', '9'); txt.setAttribute('fill', 'rgba(0,0,0,0.3)')
+    txt.setAttribute('font-family', 'sans-serif'); txt.setAttribute('text-anchor', 'middle')
+    txt.textContent = yr
+    svg.appendChild(txt)
   })
 
-  // Background players
-  if (!careerMode) {
-    players.forEach((pts, idx) => {
-      if (idx === focusIdx) return
-      const filtered = pts.filter(([i]) => i >= dateStart && i <= dateEnd)
-      if (filtered.length < 2) return
-      const d = filtered.map(([i, v], k) => `${k === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ')
-      const path = document.createElementNS(ns, 'path')
-      path.setAttribute('d', d); path.setAttribute('fill', 'none')
-      path.setAttribute('stroke', 'rgba(150,175,210,0.12)'); path.setAttribute('stroke-width', '1')
-      svg.appendChild(path)
-    })
-  }
+  // Background players — always shown in both modes
+  players.forEach((pts, idx) => {
+    if (idx === focusIdx) return
+    const filtered = pts.filter(([i]) => i >= dateStart && i <= dateEnd)
+    if (filtered.length < 2) return
+    const d = filtered.map(([i, v], k) => `${k === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ')
+    const path = document.createElementNS(ns, 'path')
+    path.setAttribute('d', d); path.setAttribute('fill', 'none')
+    path.setAttribute('stroke', 'rgba(150,175,210,0.12)'); path.setAttribute('stroke-width', '1')
+    svg.appendChild(path)
+  })
 
   // Focus player
   if (focusPts.length >= 2) {
@@ -147,7 +152,7 @@ function SpagChart({ playerIndex, playerName, eloHist }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa' }}>
-          {careerMode ? `${playerName} only` : `All players in gray · ${playerName} in green`}
+          {careerMode ? `Career view · all players in gray` : `All players in gray · ${playerName} highlighted`}
         </div>
         <div style={{ display: 'flex', border: '0.5px solid #e0ddd6', borderRadius: 6, overflow: 'hidden' }}>
           {[['All-Time', false],['Career', true]].map(([label, mode]) => (
