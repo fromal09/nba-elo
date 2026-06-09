@@ -37,14 +37,20 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode) {
   }
 
   const focusPts = (players[focusIdx] || []).filter(([i]) => i >= dateStart && i <= dateEnd)
-  const allVals = [
-    ...focusPts.map(([, v]) => v),
-    ...(careerMode ? [] : players.flatMap(pts => pts.filter(([i]) => i >= dateStart && i <= dateEnd).map(([, v]) => v)))
-  ]
-  if (!allVals.length) return
+  if (!focusPts.length) return
 
-  const minV = Math.min(...allVals) - 30
-  const maxV = Math.max(...allVals) + 30
+  // Compute min/max without spread (spread on huge arrays blows the stack)
+  let minV = Infinity, maxV = -Infinity
+  for (const [, v] of focusPts) { if (v < minV) minV = v; if (v > maxV) maxV = v }
+  if (!careerMode) {
+    for (const pts of players) {
+      for (const [i, v] of pts) {
+        if (i < dateStart || i > dateEnd) continue
+        if (v < minV) minV = v; if (v > maxV) maxV = v
+      }
+    }
+  }
+  minV -= 30; maxV += 30
   const xScale = i => ((i - dateStart) / Math.max(dateEnd - dateStart, 1)) * W
   const yScale = v => H - ((v - minV) / (maxV - minV)) * H
 
