@@ -116,6 +116,31 @@ def build_elo(df):
     df["GmSc"] = pd.to_numeric(df["GmSc"], errors="coerce")
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     df["MP"]   = pd.to_numeric(df["MP"],   errors="coerce")
+
+    # Compute GmSc from raw stats wherever it's missing
+    stat_cols = ["PTS","FG","FGA","FT","FTA","ORB","DRB","TRB","STL","BLK","AST","TOV","PF"]
+    for col in stat_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        else:
+            df[col] = 0.0
+
+    missing_gmsc = df["GmSc"].isna()
+    if missing_gmsc.sum() > 0:
+        yr = df.loc[missing_gmsc, "Date"].dt.year.fillna(0).astype(int)
+        pre74 = yr < 1974
+        # Modern formula
+        df.loc[missing_gmsc & ~pre74, "GmSc"] = (
+            df["PTS"] + 0.4*df["FG"] - 0.7*df["FGA"] - 0.4*(df["FTA"]-df["FT"])
+            + 0.7*df["ORB"] + 0.3*df["DRB"] + df["STL"] + 0.7*df["AST"]
+            + 0.7*df["BLK"] - 0.4*df["PF"] - df["TOV"]
+        ).loc[missing_gmsc & ~pre74]
+        # Pre-1974 formula (no STL/BLK)
+        df.loc[missing_gmsc & pre74, "GmSc"] = (
+            df["PTS"] + 0.4*df["FG"] - 0.7*df["FGA"] - 0.4*(df["FTA"]-df["FT"])
+            + 0.7*df["TRB"] + 0.7*df["AST"] - 0.4*df["PF"]
+        ).loc[missing_gmsc & pre74]
+        print(f"  Computed GmSc for {missing_gmsc.sum()} rows from raw stats")
     # Drop rows with unparseable dates
     nat_count = df["Date"].isna().sum()
     if nat_count: print(f"  Dropping {nat_count} rows with invalid dates")
@@ -232,11 +257,13 @@ def build_elo(df):
 
     all_players = sorted(elo.keys(), key=lambda p: -elo[p])
 
-    # FPR eligibility
+    # FPR eligibility — current season only prevents retired players qualifying
+    CURRENT_SEASON_START = "2025-10-01"
     team_game_dates = defaultdict(set)
     for pl, games in gmsc_hist.items():
         for d, _ in games:
-            team_game_dates[team_map.get(pl, "")].add(d)
+            if d >= CURRENT_SEASON_START:
+                team_game_dates[team_map.get(pl, "")].add(d)
 
     team_cutoff = {}
     for team, dates in team_game_dates.items():
