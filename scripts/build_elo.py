@@ -351,7 +351,7 @@ def build_elo(df):
     def compute_badges(p):
         badges = []
         name         = p["name"]
-        curr_rank    = p["current_tpr_rank"]
+        curr_rank    = p["fpr_rank"] if p["is_fpr_eligible"] and p["fpr_rank"] > 0 else 9999
         peak         = p["peak_elo"]
         gp           = p["games_played"]
         fpr_eligible = p["is_fpr_eligible"]

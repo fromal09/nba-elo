@@ -88,7 +88,7 @@ export default function Daily({ players, onSelectPlayer }) {
     return withElo
       .map(p => ({
         ...p,
-        rank_on_date: rankOnDate[p.name] || p.fpr_rank || p.current_tpr_rank,
+        rank_on_date: rankOnDate[p.name] || p.current_tpr_rank,
         rank_delta: (prevRank[p.name] || 0) - (rankOnDate[p.name] || 0), // positive = improved
       }))
       .sort((a, b) => b.day_elo - a.day_elo)  // sort by current Elo desc
