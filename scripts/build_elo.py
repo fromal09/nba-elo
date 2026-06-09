@@ -390,8 +390,7 @@ def build_elo(df):
             elif pfpr <= 100:  badges.append({"cat":"fpr","id":"former_top100","label":f"Former FPR Top 100 (#{pfpr})","emoji":"🏅"})
 
         # ── FPR: Games at #1 and streak (both shown if qualified) ───────
-        if games_at_1 >= 1:
-            badges.append({"cat":"fpr","id":"games_at_1","label":f"{games_at_1}× FPR #1","emoji":"👑"})
+
 
         # ── Elo Club (exclusive — highest threshold only) ────────────────
         for threshold in [3000, 2900, 2700, 2500, 2200, 2000]:
