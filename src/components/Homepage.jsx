@@ -122,35 +122,22 @@ export default function Homepage({ data, setView }) {
                 onClick={() => setView('rankings')}
                 style={{
                   display: 'flex', alignItems: 'center',
-                  padding: '7px 10px', borderRadius: 8, marginBottom: 2,
+                  padding: '5px 10px', borderRadius: 7, marginBottom: 1,
                   cursor: 'pointer',
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
                 <div style={{
-                  width: 32, height: 32, borderRadius: 7,
-                  background: badgeBg, color: '#fff',
-                  display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center',
-                  marginRight: 12, flexShrink: 0,
+                  fontSize: 11, fontWeight: 600, color: i === 0 ? '#ffd700' : 'rgba(255,255,255,0.4)',
+                  minWidth: 28, flexShrink: 0,
                 }}>
-                  <div style={{ fontSize: 7, textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.7, lineHeight: 1 }}>
-                    Ranked
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>
-                    #{i + 1}
-                  </div>
+                  #{i + 1}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500, color: '#fff' }}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: '#7aaa7a' }}>{p.team}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 17, fontWeight: 300, color: '#e8f0e8', letterSpacing: '-0.5px' }}>
-                    {fmt(p.current_elo)}
-                  </div>
-                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#7aaa7a' }}>ELO</div>
+                <div style={{ flex: 1, fontSize: 14, fontWeight: 500, color: '#fff' }}>{p.name}</div>
+                <div style={{ fontSize: 13, fontWeight: 400, color: '#e8f0e8', letterSpacing: '-0.3px', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#7aaa7a', marginRight: 4 }}>ELO</span>
+                  {fmt(p.current_elo)}
                 </div>
               </div>
             )
