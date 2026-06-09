@@ -10,15 +10,15 @@ export default function Homepage({ data, setView }) {
     {
       icon: '🏅',
       title: 'Current Rankings',
-      desc: 'Active players ranked by FPR. Filter by team, sort by Elo or recent GmSc.',
+      desc: 'Active players ranked by Floor Performance Rating. Filter by team, sort by Elo.',
       meta: `${data.players.filter(p => p.is_fpr_eligible).length} active players`,
       view: 'rankings',
       color: '#e8f0e0', iconColor: '#2d5a1a',
     },
     {
       icon: '📊',
-      title: 'Historical Elo',
-      desc: 'All-time career rankings sorted by peak Elo. Covers 1946 to present.',
+      title: 'Historical Elo Snapshots',
+      desc: 'All-time rankings sorted by peak Elo, plus rankings on any day in league history. Covers 1946 to present.',
       meta: `${data.total_players.toLocaleString()} career profiles`,
       view: 'historical',
       color: '#e0eaf8', iconColor: '#1a3a6e',
@@ -26,8 +26,8 @@ export default function Homepage({ data, setView }) {
     {
       icon: '🐐',
       title: 'GOAT Rankings',
-      desc: 'Customizable composite rankings with adjustable weights across peak, longevity, and consistency.',
-      meta: '9 dimensions · adjustable weights',
+      desc: 'Customizable composite rankings with adjustable weights across peak Elo, average Elo, and longevity.',
+      meta: '3 dimensions · adjustable weights',
       view: 'goat',
       color: '#faf0dc', iconColor: '#7a4f0a',
     },
@@ -58,7 +58,7 @@ export default function Homepage({ data, setView }) {
     {
       icon: '📆',
       title: 'Daily Changes',
-      desc: 'Most recent day\'s GmSc, Elo delta, and FPR shift for every player who appeared.',
+      desc: 'Most recent day\'s Elo delta and FPR rank change for every player who appeared.',
       meta: 'Updated after every game',
       view: 'daily',
       color: '#f8e8e8', iconColor: '#7a1a1a',
@@ -66,7 +66,7 @@ export default function Homepage({ data, setView }) {
     {
       icon: '📐',
       title: 'Methodology',
-      desc: 'Full technical documentation covering K-factors, era GmSc formulas, Elo calibration, and FPR eligibility.',
+      desc: 'Full technical documentation covering K-factors, era adjustments, Elo calibration, and FPR eligibility.',
       meta: 'Open and transparent',
       view: 'methodology',
       color: '#e8e8e8', iconColor: '#2a2a2a',
@@ -103,16 +103,12 @@ export default function Homepage({ data, setView }) {
           borderRadius: 16, padding: '28px 32px',
           maxWidth: 680, margin: '0 auto',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 12 }}>
             <span style={{ fontSize: 22 }}>🏆</span>
             <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 22, color: '#fff' }}>
-              Current Rankings
+              Current FPR
             </h2>
           </div>
-          <div style={{ fontSize: 11, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#7aaa7a', marginBottom: 24 }}>
-            Elo-calibrated · Head-to-head dominance · Updated {data.generated}
-          </div>
-
           {active.map((p, i) => {
             const isTop3 = i < 3
             const badgeBg = i === 0 ? '#c9920a' : 'rgba(255,255,255,0.12)'

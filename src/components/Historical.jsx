@@ -32,9 +32,16 @@ function computeEraStats(p, start, end) {
   const era_gmsc  = gmscHist.length
     ? gmscHist.reduce((s, [, v]) => s + v, 0) / gmscHist.length
     : p.career_gmsc_avg
+  const endDateStr = `${end}-12-31`
+  const teamHist = p.team_history || []
+  let era_team = p.team
+  for (const [d, t] of teamHist) {
+    if (d <= endDateStr) era_team = t
+    else break
+  }
   const y1 = eloHist[0][0].slice(0, 4)
   const y2 = eloHist[eloHist.length - 1][0].slice(0, 4)
-  return { peak_elo, peak_date, avg_elo, era_gp, era_gmsc, range: y1 === y2 ? y1 : `${y1}–${y2}` }
+  return { peak_elo, peak_date, avg_elo, era_gp, era_gmsc, era_team, range: y1 === y2 ? y1 : `${y1}–${y2}` }
 }
 
 // For a given date string, find each player's Elo (last entry <= date)
