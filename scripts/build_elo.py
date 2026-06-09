@@ -155,9 +155,10 @@ def build_elo(df):
     elo_hist     = defaultdict(list)
     peak_elo     = {}
     peak_fpr_rank_map = {}  # best global rank ever achieved
-    games_at_1_map    = {}  # total games held global #1
-    cur_streak_map    = {}  # current streak at #1
+    games_at_1_map    = {}  # total game-days held global #1
+    cur_streak_map    = {}  # current streak (game-days) at #1
     max_streak_map    = {}  # best streak at #1
+    last_date_at_1    = {}  # last date each player was #1 (dedup per day)
     gmsc_hist    = defaultdict(list)  # kept for computing recent/career avg scalars
     team_hist    = defaultdict(list)   # only records team changes
     team_map     = {}
@@ -214,12 +215,15 @@ def build_elo(df):
         sorted_by_elo = sorted(players, key=lambda p: -elo[p])
         # Global FPR rank snapshot — sort ALL players after every game
         global_sorted = sorted(elo.keys(), key=lambda p: -elo[p])
+        top_player = global_sorted[0]
         for global_rank, p in enumerate(global_sorted, 1):
             if p not in peak_fpr_rank_map or global_rank < peak_fpr_rank_map[p]:
                 peak_fpr_rank_map[p] = global_rank
-            # Track games at #1 and streak
+            # Track game-days at #1 (once per calendar date, not per game)
             if global_rank == 1:
-                games_at_1_map[p] = games_at_1_map.get(p, 0) + 1
+                if last_date_at_1.get(p) != date_str:
+                    games_at_1_map[p] = games_at_1_map.get(p, 0) + 1
+                    last_date_at_1[p] = date_str
                 cur_streak_map[p] = cur_streak_map.get(p, 0) + 1
                 if cur_streak_map[p] > max_streak_map.get(p, 0):
                     max_streak_map[p] = cur_streak_map[p]

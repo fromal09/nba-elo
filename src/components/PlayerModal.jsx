@@ -112,22 +112,30 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode) {
 }
 
 function SpagChart({ playerIndex, playerName, eloHist }) {
-  const svgRef = useRef(null)
-  const [loaded, setLoaded] = useState(false)
+  const svgRef     = useRef(null)
+  const wrapRef    = useRef(null)
+  const [loaded,   setLoaded]   = useState(false)
   const [careerMode, setCareerMode] = useState(false)
+  const [spagData,  setSpagData]  = useState(null)
 
+  // Load spaghetti data once
   useEffect(() => {
     let cancelled = false
-    getSpagData().then(data => {
-      if (cancelled || !svgRef.current) return
-      drawChart(data, playerIndex, svgRef.current, eloHist, careerMode)
-      setLoaded(true)
-    }).catch(err => {
-      console.error('Failed to load spaghetti.json:', err)
-      if (!cancelled) setLoaded(true)  // stop spinner at least
-    })
+    getSpagData()
+      .then(d => { if (!cancelled) setSpagData(d) })
+      .catch(err => console.error('spaghetti load failed:', err))
     return () => { cancelled = true }
-  }, [playerIndex, careerMode])
+  }, [])
+
+  // Draw whenever data or mode changes, using ResizeObserver to get real width
+  useEffect(() => {
+    if (!spagData || !svgRef.current || !wrapRef.current) return
+    // Use container width, falling back to 560
+    const w = wrapRef.current.clientWidth || 560
+    svgRef.current.style.width = w + 'px'
+    drawChart(spagData, playerIndex, svgRef.current, eloHist, careerMode)
+    setLoaded(true)
+  }, [spagData, playerIndex, careerMode, eloHist])
 
   return (
     <div>
@@ -150,9 +158,9 @@ function SpagChart({ playerIndex, playerName, eloHist }) {
           ))}
         </div>
       </div>
-      <div style={{ background: '#fafaf8', borderRadius: 8, border: '0.5px solid #e8e5e0', padding: '8px 4px 0' }}>
+      <div ref={wrapRef} style={{ background: '#fafaf8', borderRadius: 8, border: '0.5px solid #e8e5e0', padding: '8px 4px 0', minHeight: 188 }}>
         {!loaded && <div style={{ textAlign: 'center', padding: 20, fontSize: 12, color: '#aaa' }}>Loading…</div>}
-        <svg ref={svgRef} style={{ width: '100%', display: 'block' }} />
+        <svg ref={svgRef} style={{ width: '100%', display: loaded ? 'block' : 'none' }} />
       </div>
     </div>
   )
