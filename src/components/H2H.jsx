@@ -1,5 +1,123 @@
 import { useState, useMemo } from 'react'
 
+function CumulativeChart({ sharedGames, playerA, playerB }) {
+  const svgRef = useRef(null)
+  const wrapRef = useRef(null)
+
+  useEffect(() => {
+    if (!sharedGames.length || !svgRef.current || !wrapRef.current) return
+    const svg = svgRef.current
+    while (svg.firstChild) svg.removeChild(svg.firstChild)
+    const W = wrapRef.current.clientWidth || 600
+    const H = 140
+    const PAD = { top: 16, right: 16, bottom: 24, left: 40 }
+    const ns = 'http://www.w3.org/2000/svg'
+    svg.setAttribute('viewBox', `0 0 ${W} ${H + PAD.top + PAD.bottom}`)
+
+    // Build cumulative series (chronological order)
+    const games = [...sharedGames].sort((a, b) => a.date.localeCompare(b.date))
+    let cumA = 0, cumB = 0
+    const pointsA = [], pointsB = []
+    games.forEach((g, i) => {
+      cumA += g.aDelta
+      cumB += g.bDelta
+      pointsA.push({ x: i, y: cumA })
+      pointsB.push({ x: i, y: cumB })
+    })
+
+    const n = games.length
+    const allY = [...pointsA.map(p => p.y), ...pointsB.map(p => p.y), 0]
+    const minY = Math.min(...allY), maxY = Math.max(...allY)
+    const yRange = maxY - minY || 1
+
+    const xScale = i => PAD.left + (i / Math.max(n - 1, 1)) * (W - PAD.left - PAD.right)
+    const yScale = v => PAD.top + H - ((v - minY) / yRange) * H
+
+    // Zero line
+    const zeroY = yScale(0)
+    const zeroline = document.createElementNS(ns, 'line')
+    zeroline.setAttribute('x1', PAD.left); zeroline.setAttribute('x2', W - PAD.right)
+    zeroline.setAttribute('y1', zeroY); zeroline.setAttribute('y2', zeroY)
+    zeroline.setAttribute('stroke', 'rgba(0,0,0,0.1)'); zeroline.setAttribute('stroke-dasharray', '3,3'); zeroline.setAttribute('stroke-width', '1')
+    svg.appendChild(zeroline)
+
+    // Y axis labels
+    for (const v of [minY, 0, maxY]) {
+      if (Math.abs(maxY - minY) < 5) continue
+      const t = document.createElementNS(ns, 'text')
+      t.setAttribute('x', PAD.left - 4); t.setAttribute('y', yScale(v) + 4)
+      t.setAttribute('font-size', '9'); t.setAttribute('fill', 'rgba(0,0,0,0.3)')
+      t.setAttribute('font-family', 'sans-serif'); t.setAttribute('text-anchor', 'end')
+      t.textContent = (v >= 0 ? '+' : '') + Math.round(v)
+      svg.appendChild(t)
+    }
+
+    // Draw filled area under each line
+    const drawArea = (pts, color) => {
+      const z = yScale(0)
+      const area = ['M', xScale(pts[0].x), z]
+      pts.forEach(p => area.push('L', xScale(p.x), yScale(p.y)))
+      area.push('L', xScale(pts[pts.length-1].x), z, 'Z')
+      const path = document.createElementNS(ns, 'path')
+      path.setAttribute('d', area.join(' '))
+      path.setAttribute('fill', color); path.setAttribute('opacity', '0.12')
+      svg.appendChild(path)
+    }
+
+    // Draw line
+    const drawLine = (pts, color, dashed = false) => {
+      const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${xScale(p.x).toFixed(1)},${yScale(p.y).toFixed(1)}`).join(' ')
+      const path = document.createElementNS(ns, 'path')
+      path.setAttribute('d', d); path.setAttribute('fill', 'none')
+      path.setAttribute('stroke', color); path.setAttribute('stroke-width', '2')
+      path.setAttribute('stroke-linecap', 'round'); path.setAttribute('stroke-linejoin', 'round')
+      if (dashed) path.setAttribute('stroke-dasharray', '4,2')
+      svg.appendChild(path)
+      // End dot
+      const last = pts[pts.length - 1]
+      const dot = document.createElementNS(ns, 'circle')
+      dot.setAttribute('cx', xScale(last.x)); dot.setAttribute('cy', yScale(last.y))
+      dot.setAttribute('r', '3.5'); dot.setAttribute('fill', color)
+      svg.appendChild(dot)
+    }
+
+    // X axis game labels (sparse)
+    const maxLabels = Math.floor((W - PAD.left - PAD.right) / 60)
+    const step = Math.max(1, Math.ceil(n / maxLabels))
+    games.forEach((g, i) => {
+      if (i % step !== 0 && i !== n - 1) return
+      const t = document.createElementNS(ns, 'text')
+      t.setAttribute('x', xScale(i)); t.setAttribute('y', H + PAD.top + 16)
+      t.setAttribute('font-size', '9'); t.setAttribute('fill', 'rgba(0,0,0,0.3)')
+      t.setAttribute('font-family', 'sans-serif'); t.setAttribute('text-anchor', 'middle')
+      t.textContent = g.date.slice(0, 7)
+      svg.appendChild(t)
+    })
+
+    drawArea(pointsA, '#1a1a1a')
+    drawArea(pointsB, '#c94040')
+    drawLine(pointsA, '#1a1a1a', false)
+    drawLine(pointsB, '#c94040', true)
+  }, [sharedGames])
+
+  return (
+    <div ref={wrapRef} style={{ background: '#fafaf8', borderRadius: 10, border: '0.5px solid #e8e5e0', padding: '12px 8px 4px' }}>
+      <div style={{ display: 'flex', gap: 16, paddingLeft: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#555' }}>
+          <div style={{ width: 12, height: 2, background: '#1a1a1a', borderRadius: 1 }} />
+          {playerA.name.split(' ').pop()}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#555' }}>
+          <div style={{ width: 12, height: 0, borderTop: '2px dashed #c94040' }} />
+          {playerB.name.split(' ').pop()}
+        </div>
+      </div>
+      <svg ref={svgRef} style={{ width: '100%', display: 'block' }} />
+    </div>
+  )
+}
+
+
 function PlayerSearch({ label, value, onChange, players }) {
   const [query, setQuery] = useState('')
   const [open,  setOpen]  = useState(false)
@@ -356,6 +474,12 @@ export default function H2H({ players }) {
                     Showing 50 of {sharedGames.length} shared games
                   </div>
                 )}
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa', marginBottom: 8 }}>
+                    Cumulative Elo in H2H matchups
+                  </div>
+                  <CumulativeChart sharedGames={sharedGames} playerA={playerA} playerB={playerB} />
+                </div>
               </div>
             )}
           </>
