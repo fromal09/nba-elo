@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 
 function CumulativeChart({ sharedGames, playerA, playerB }) {
   const svgRef = useRef(null)
