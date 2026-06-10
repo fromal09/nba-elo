@@ -187,6 +187,7 @@ def build_elo(df):
     gmsc_hist    = defaultdict(list)  # kept for computing recent/career avg scalars
     team_hist    = defaultdict(list)   # only records team changes
     opp_map      = {}                  # opponent per game (transient)
+    won_map      = {}                  # game result per player (transient)
     team_map     = {}
     last_played  = {}
 
@@ -216,6 +217,8 @@ def build_elo(df):
             prow           = group[group["Player"] == p].iloc[0]
             team_map[p]    = prow["Team"]
             opp_map[p]     = str(prow["Opp"]).strip() if "Opp" in group.columns and str(prow.get("Opp","")).strip() not in ("","nan") else str(prow["Team"])
+            result_str     = str(prow.get("Result","")).strip()
+            won_map[p]     = result_str.startswith("W") if result_str else None
             last_played[p] = date_str
 
         deltas = defaultdict(float)
@@ -233,7 +236,7 @@ def build_elo(df):
             elo[p]          += deltas[p]
             games_played[p] += 1
             if elo[p] > peak_elo[p]: peak_elo[p] = elo[p]
-            elo_hist[p].append([date_str, round(elo[p], 1), opp_map.get(p, "")])
+            elo_hist[p].append([date_str, round(elo[p], 1), opp_map.get(p, ""), won_map.get(p)])
             gmsc_hist[p].append([date_str, round(gmsc[p], 1)])
             # Record team only when it changes
             cur_team = team_map.get(p, '')
