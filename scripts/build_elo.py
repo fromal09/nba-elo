@@ -186,6 +186,7 @@ def build_elo(df):
     last_date_at_1    = {}  # last date each player was #1 (dedup per day)
     gmsc_hist    = defaultdict(list)  # kept for computing recent/career avg scalars
     team_hist    = defaultdict(list)   # only records team changes
+    opp_map      = {}                  # opponent per game (transient)
     team_map     = {}
     last_played  = {}
 
@@ -212,7 +213,9 @@ def build_elo(df):
 
         for p in players:
             init(p)
-            team_map[p]    = group[group["Player"] == p]["Team"].iloc[0]
+            prow           = group[group["Player"] == p].iloc[0]
+            team_map[p]    = prow["Team"]
+            opp_map[p]     = str(prow["Opp"]).strip() if "Opp" in group.columns and str(prow.get("Opp","")).strip() not in ("","nan") else str(prow["Team"])
             last_played[p] = date_str
 
         deltas = defaultdict(float)
@@ -230,7 +233,7 @@ def build_elo(df):
             elo[p]          += deltas[p]
             games_played[p] += 1
             if elo[p] > peak_elo[p]: peak_elo[p] = elo[p]
-            elo_hist[p].append([date_str, round(elo[p], 1)])
+            elo_hist[p].append([date_str, round(elo[p], 1), opp_map.get(p, "")])
             gmsc_hist[p].append([date_str, round(gmsc[p], 1)])
             # Record team only when it changes
             cur_team = team_map.get(p, '')
@@ -321,7 +324,8 @@ def build_elo(df):
 
     decade_best = defaultdict(lambda: defaultdict(float))
     for p in players_out:
-        for date_str, elo_val in p["elo_history"]:
+        for _entry in p["elo_history"]:
+            date_str, elo_val = _entry[0], _entry[1]
             yr     = int(date_str[:4])
             decade = (yr // 10) * 10
             if elo_val > decade_best[p["name"]][decade]:
@@ -337,7 +341,8 @@ def build_elo(df):
     # Avg Elo by decade for era badges
     decade_avg = defaultdict(lambda: defaultdict(list))
     for p in players_out:
-        for date_str, elo_val in p["elo_history"]:
+        for _e in p["elo_history"]:
+            date_str, elo_val = _e[0], _e[1]
             yr     = int(date_str[:4])
             decade = (yr // 10) * 10
             decade_avg[p["name"]][decade].append(elo_val)
@@ -472,7 +477,7 @@ if __name__ == "__main__":
 
     all_dates = sorted(set(h[0] for p in output["players"] for h in p["elo_history"]))
     date_idx  = {d: i for i, d in enumerate(all_dates)}
-    sparse_players = [[[date_idx[d], v] for d, v in p["elo_history"]] for p in output["players"]]
+    sparse_players = [[[date_idx[e[0]], e[1]] for e in p["elo_history"]] for p in output["players"]]
     spag = {"dates": all_dates, "players": sparse_players}
     spag_path = Path("public/data/spaghetti.json")
     spag_path.write_text(json.dumps(spag, separators=(",", ":")), encoding="utf-8")
