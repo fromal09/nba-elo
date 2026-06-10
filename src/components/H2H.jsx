@@ -321,13 +321,13 @@ export default function H2H({ players }) {
                     <div style={{ fontSize: 11, color: '#aaa' }}>{sharedRecord.bTotal >= 0 ? '+' : ''}{Math.round(sharedRecord.bTotal)} cumulative Elo</div>
                   </div>
                 </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, background: '#fff', borderRadius: 12, overflow: 'hidden', border: '0.5px solid #e0ddd6' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, background: '#fff', borderRadius: 12, overflow: 'hidden', border: '0.5px solid #e0ddd6', tableLayout: 'fixed' }}>
                   <thead style={{ background: '#faf9f6', borderBottom: '0.5px solid #e0ddd6' }}>
                     <tr>
-                      <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Date</th>
+                      <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase', width: 110 }}>Date</th>
                       <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'right', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{playerA.name.split(' ').pop()} Elo</th>
                       <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'right', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Δ</th>
-                      <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'center', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Result</th>
+                      <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'center', letterSpacing: '0.8px', textTransform: 'uppercase', width: 80 }}>Result</th>
                       <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{playerB.name.split(' ').pop()} Elo</th>
                       <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Δ</th>
                     </tr>
@@ -341,7 +341,7 @@ export default function H2H({ players }) {
                           <td style={{ padding: '8px 14px', fontSize: 12, color: '#aaa' }}>{g.date}</td>
                           <td style={{ padding: '8px 14px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{Math.round(g.aElo).toLocaleString()}</td>
                           <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 600, color: ac, fontVariantNumeric: 'tabular-nums' }}>{g.aDelta >= 0 ? '+' : ''}{Math.round(g.aDelta)}</td>
-                          <td style={{ padding: '8px 14px', textAlign: 'center', fontSize: 14 }}>
+                          <td style={{ padding: '8px 14px', textAlign: 'center', fontSize: 16, color: '#555', width: 80 }}>
                             {g.aTeamWon ? '←' : g.bTeamWon ? '→' : '·'}
                           </td>
                           <td style={{ padding: '8px 14px', fontVariantNumeric: 'tabular-nums' }}>{Math.round(g.bElo).toLocaleString()}</td>
