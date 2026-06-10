@@ -317,8 +317,8 @@ export default function H2H({ players }) {
                       <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'right', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{playerA.name.split(' ').pop()} Elo</th>
                       <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'right', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Δ</th>
                       <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'center', letterSpacing: '0.8px', textTransform: 'uppercase' }}>W</th>
-                      <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Δ</th>
                       <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{playerB.name.split(' ').pop()} Elo</th>
+                      <th style={{ padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Δ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -333,8 +333,8 @@ export default function H2H({ players }) {
                           <td style={{ padding: '8px 14px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{Math.round(g.aElo).toLocaleString()}</td>
                           <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 600, color: ac, fontVariantNumeric: 'tabular-nums' }}>{g.aDelta >= 0 ? '+' : ''}{Math.round(g.aDelta)}</td>
                           <td style={{ padding: '8px 14px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: wc }}>{winner}</td>
-                          <td style={{ padding: '8px 14px', fontWeight: 600, color: bc, fontVariantNumeric: 'tabular-nums' }}>{g.bDelta >= 0 ? '+' : ''}{Math.round(g.bDelta)}</td>
                           <td style={{ padding: '8px 14px', fontVariantNumeric: 'tabular-nums' }}>{Math.round(g.bElo).toLocaleString()}</td>
+                          <td style={{ padding: '8px 14px', fontWeight: 600, color: bc, fontVariantNumeric: 'tabular-nums' }}>{g.bDelta >= 0 ? '+' : ''}{Math.round(g.bDelta)}</td>
                         </tr>
                       )
                     })}
