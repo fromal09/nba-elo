@@ -92,8 +92,17 @@ Longevity — total games played. Rewards durability and sustained career length
 Each dimension is normalized to a 0–1 scale relative to all eligible players (minimum 200 games), then combined using user-defined weights. The resulting composite score is scaled 0–100. Because the weights sum to 100 automatically, users can freely adjust the emphasis without worrying about the total.`,
   },
   {
-    title: 'Relationship to Traditional Metrics',
-    body: `FPR and traditional per-game statistics answer different questions.
+    title: 'Franchise Tenures & Legend Score',
+    body: `The Franchise Tenures page plots every player's time with a given franchise as a scatterplot — games played on the X axis, average Elo during those games on the Y axis. Players in the top-right quadrant combined elite performance with long franchise commitment.
+
+To rank these tenures we compute a Legend Score:
+
+    Legend Score = avgElo^0.6 × GP^0.4
+
+The exponents reflect a deliberate design choice: Elo quality (0.6) matters slightly more than longevity (0.4), but both are required for a high score. The geometric structure means neither dimension can fully compensate for weakness in the other. Minimum 50 games to qualify.`,
+  },
+  {
+    title: 'Relationship to Traditional Metrics',y: `FPR and traditional per-game statistics answer different questions.
 
 Points per game asks: how much does this player produce? FPR asks: based on head-to-head competitive results across their full history, how dominant has this player been relative to specific opponents in the same game?
 

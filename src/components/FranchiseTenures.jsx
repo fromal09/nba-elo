@@ -226,7 +226,7 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
     pageDesc:  { fontSize: 13, color: '#888' },
     body:      { flex: 1, display: 'flex', overflow: 'hidden' },
     plotArea:  { flex: 1, padding: '20px 24px', overflow: 'auto' },
-    rankPanel: { width: 220, flexShrink: 0, borderLeft: '0.5px solid #e0ddd6', overflow: 'auto', background: '#fff' },
+    rankPanel: { width: 280, flexShrink: 0, borderLeft: '0.5px solid #e0ddd6', overflow: 'auto', background: '#fff' },
     rankHead:  { padding: '12px 16px', borderBottom: '0.5px solid #e0ddd6', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#bbb' },
     rankRow:   (active) => ({
       padding: '9px 16px', borderBottom: '0.5px solid #f0ede8', cursor: 'pointer',
@@ -256,12 +256,8 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
             ))}
           </div>
         </div>
-        <div style={{ padding: '12px 16px', fontSize: 12, color: '#aaa', lineHeight: 1.7 }}>
-          <div style={{ marginBottom: 4, fontWeight: 500, color: '#888' }}>Legend Score formula</div>
-          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
-            avgElo<sup>0.6</sup> × GP<sup>0.4</sup>
-          </div>
-          <div style={{ marginTop: 6, fontSize: 11 }}>Min {MIN_GP} games. Click dot to open player modal.</div>
+        <div style={{ padding: '12px 16px', fontSize: 11, color: '#aaa', lineHeight: 1.7 }}>
+          Min {MIN_GP} GP to qualify. Click any dot to open player modal.
         </div>
       </div>
 
@@ -307,7 +303,9 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
               >
                 <span style={s.rankNum}>{p.rank}</span>
                 <span style={s.rankName}>{p.name}</span>
-                <span style={s.rankScore}>{p.avgElo.toLocaleString()}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: teamColor, fontVariantNumeric: 'tabular-nums' }}>
+                  {Math.round(p.legendScore).toLocaleString()}
+                </span>
               </div>
             ))}
           </div>
