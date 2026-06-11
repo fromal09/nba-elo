@@ -157,7 +157,20 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode, onTooltip = () => {
       hit.setAttribute('cx', cx); hit.setAttribute('cy', cy)
       hit.setAttribute('r', '8'); hit.setAttribute('fill', 'transparent')
       hit.setAttribute('style', 'cursor:crosshair')
-      hit.addEventListener('mouseenter', () => onTooltip({ x: cx, y: cy, date, elo: Math.round(elo), team }))
+      hit.addEventListener('mouseenter', () => {
+        // Compute rank on this date from spaghetti data
+        let rank = 1
+        for (let pi = 0; pi < players.length; pi++) {
+          if (pi === focusIdx) continue
+          // Find this player's elo on this date via binary search
+          const pts = players[pi]
+          for (const [si, sv] of pts) {
+            if (si === pt[0]) { if (sv > elo) rank++; break }
+            if (si > pt[0]) break
+          }
+        }
+        onTooltip({ x: cx, y: cy, date, elo: Math.round(elo), team, rank })
+      })
       hit.addEventListener('mouseleave', () => onTooltip(null))
       svg.appendChild(hit)
     }
@@ -235,6 +248,7 @@ function SpagChart({ playerIndex, playerName, eloHist }) {
               <div style={{ fontWeight: 600, marginBottom: 2 }}>{tooltip.date}</div>
               <div>Elo <span style={{ color: '#ffd700', fontWeight: 600 }}>{tooltip.elo.toLocaleString()}</span></div>
               <div>Team <span style={{ color: '#ccc' }}>{tooltip.team || '—'}</span></div>
+              {tooltip.rank && <div>FPR <span style={{ color: '#7aaa7a', fontWeight: 600 }}>#{tooltip.rank}</span></div>}
             </div>
           )
         })()}
