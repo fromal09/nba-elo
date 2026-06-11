@@ -315,7 +315,7 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
                     <td style={{ ...s.td, textAlign: 'right', color: '#888', fontVariantNumeric: 'tabular-nums' }}>
                       {p.gp}
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
+                    <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#1a2e1a' }}>
                       {p.gamesAbove}
                     </td>
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#aaa', fontFamily: "'DM Mono', monospace" }}>

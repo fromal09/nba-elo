@@ -219,6 +219,11 @@ def build_elo(df):
             opp_map[p]     = str(prow["Opp"]).strip() if "Opp" in group.columns and str(prow.get("Opp","")).strip() not in ("","nan") else str(prow["Team"])
             result_str     = str(prow.get("Result","")).strip()
             won_map[p]     = result_str.startswith("W") if result_str else None
+            # BDL used NOP for Charlotte Hornets before 2013; remap to CHO
+            if team_map.get(p) == 'NOP' and date_str < '2013-10-01':
+                team_map[p] = 'CHO'
+            if opp_map.get(p) == 'NOP' and date_str < '2013-10-01':
+                opp_map[p] = 'CHO'
             last_played[p] = date_str
 
         deltas = defaultdict(float)
