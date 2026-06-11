@@ -5,7 +5,7 @@ const FRANCHISE_ALIASES = {
   ATL: ['ATL','STL','TRI','BOM'],                  // Hawks: Atlanta, St Louis, Tri-Cities (NOT MIL — those are Bucks)
   BOS: ['BOS'],
   BKN: ['BKN','BRK','NJN','NJA'],                 // Nets: Brooklyn, New Jersey
-  CHA: ['CHA','CHO'],                              // Hornets: Charlotte only (Bobcats=CHO, Hornets=CHA)
+  CHA: ['CHA','CHO','CHH'],                              // Hornets: Charlotte only (Bobcats=CHO, Hornets=CHA)
   CHI: ['CHI'],
   CLE: ['CLE'],
   DAL: ['DAL'],
@@ -153,14 +153,21 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
         })
       })
       .map(p => {
-        const ranges = franchiseThresholdRanges(p, franchise, effectiveThreshold)
+        const hist = p.elo_history || []
         const peak = franchisePeak(p, franchise)
         const gp = franchiseGames(p, franchise)
-        const totalDays = ranges.reduce((s, r) => {
-          const d1 = new Date(r.start), d2 = new Date(r.end)
-          return s + Math.max(1, Math.round((d2 - d1) / 86400000))
-        }, 0)
-        return { ...p, ranges, peak, gp, totalDays }
+        // Games above threshold while on this franchise
+        const gamesAbove = hist.filter(e => {
+          const team = teamAtDate(p, e[0])
+          return aliases.includes(team) && e[1] >= effectiveThreshold
+        }).length
+        // First and last date above threshold
+        const aboveDates = hist
+          .filter(e => aliases.includes(teamAtDate(p, e[0])) && e[1] >= effectiveThreshold)
+          .map(e => e[0])
+        const firstDate = aboveDates[0] || ''
+        const lastDate  = aboveDates[aboveDates.length - 1] || ''
+        return { ...p, peak, gp, gamesAbove, firstDate, lastDate }
       })
       .sort((a, b) => b.peak - a.peak)
   }, [players, franchise, effectiveThreshold])
