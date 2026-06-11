@@ -60,11 +60,11 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode) {
     const line = document.createElementNS(ns, 'line')
     line.setAttribute('x1', 0); line.setAttribute('y1', y)
     line.setAttribute('x2', W); line.setAttribute('y2', y)
-    line.setAttribute('stroke', 'rgba(0,0,0,0.05)'); line.setAttribute('stroke-width', '0.5')
+    line.setAttribute('stroke', 'rgba(0,0,0,0.06)'); line.setAttribute('stroke-width', '0.5')
     svg.appendChild(line)
     const txt = document.createElementNS(ns, 'text')
     txt.setAttribute('x', 4); txt.setAttribute('y', y - 3)
-    txt.setAttribute('font-size', '8'); txt.setAttribute('fill', 'rgba(0,0,0,0.25)')
+    txt.setAttribute('font-size', '8'); txt.setAttribute('fill', 'rgba(0,0,0,0.18)')
     txt.setAttribute('font-family', 'sans-serif')
     txt.textContent = v
     svg.appendChild(txt)
@@ -106,18 +106,45 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode) {
     svg.appendChild(path)
   })
 
-  // Focus player
+  // Team colors
+  const TEAM_COLORS = {
+    ATL:'#C8102E', BOS:'#007A33', BKN:'#000000', CHA:'#00788C', CHO:'#00788C',
+    CHI:'#CE1141', CLE:'#860038', DAL:'#00538C', DEN:'#0E2240', DET:'#C8102E',
+    GSW:'#1D428A', HOU:'#CE1141', IND:'#002D62', LAC:'#C8102E', LAL:'#552583',
+    MEM:'#5D76A9', MIA:'#98002E', MIL:'#00471B', MIN:'#0C2340', NOP:'#0C2340',
+    NOH:'#0C2340', NOK:'#0C2340', NYK:'#006BB6', OKC:'#007AC1', ORL:'#0077C0',
+    PHI:'#006BB6', PHO:'#1D1160', POR:'#E03A3E', SAC:'#5A2D81', SAS:'#C4CED3',
+    SEA:'#00653A', TOR:'#CE1141', UTA:'#002B5C', WAS:'#002B5C', MNL:'#552583',
+    FTW:'#C8102E', SYR:'#006BB6', ROC:'#5A2D81', NOJ:'#002B5C',
+  }
+  const dateToTeam = {}
+  if (eloHist) { for (const e of eloHist) { if (e[0] && e[4]) dateToTeam[e[0]] = e[4] } }
+
   if (focusPts.length >= 2) {
-    const d = focusPts.map(([i, v], k) => `${k === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ')
-    const path = document.createElementNS(ns, 'path')
-    path.setAttribute('d', d); path.setAttribute('fill', 'none')
-    path.setAttribute('stroke', '#1a2e1a'); path.setAttribute('stroke-width', '2.5')
-    path.setAttribute('stroke-linecap', 'round')
-    svg.appendChild(path)
+    let segPts = [], segTeam = null
+    const flushSeg = () => {
+      if (segPts.length < 2) { segPts = []; return }
+      const color = TEAM_COLORS[segTeam] || '#1a2e1a'
+      const d = segPts.map(([i, v], k) => `${k === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ')
+      const path = document.createElementNS(ns, 'path')
+      path.setAttribute('d', d); path.setAttribute('fill', 'none')
+      path.setAttribute('stroke', color); path.setAttribute('stroke-width', '2.5')
+      path.setAttribute('stroke-linecap', 'round'); path.setAttribute('stroke-linejoin', 'round')
+      svg.appendChild(path)
+      segPts = []
+    }
+    for (const pt of focusPts) {
+      const team = dateToTeam[dates[pt[0]]] || null
+      if (team !== segTeam && segPts.length > 0) {
+        segPts.push(pt); flushSeg(); segTeam = team; segPts = [pt]
+      } else { segTeam = team; segPts.push(pt) }
+    }
+    flushSeg()
     const last = focusPts[focusPts.length - 1]
+    const lastTeam = dateToTeam[dates[last[0]]] || null
     const dot = document.createElementNS(ns, 'circle')
     dot.setAttribute('cx', xScale(last[0])); dot.setAttribute('cy', yScale(last[1]))
-    dot.setAttribute('r', '4'); dot.setAttribute('fill', '#1a2e1a')
+    dot.setAttribute('r', '4'); dot.setAttribute('fill', TEAM_COLORS[lastTeam] || '#1a2e1a')
     svg.appendChild(dot)
   }
 }
