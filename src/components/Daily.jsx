@@ -83,8 +83,18 @@ export default function Daily({ players, onSelectPlayer }) {
       allWithPrevElo.push({ name: p.name, prevElo: prevEloGlobal ?? 1500 })
     }
     allWithPrevElo.sort((a, b) => b.prevElo - a.prevElo)
+    // Build prev fpr rank: sort eligible players by their pre-game Elo
+    const eligiblePrev = players
+      .filter(p => p.is_fpr_eligible)
+      .map(p => {
+        const hist = p.elo_history || []
+        const prevEntry = hist.find(e => e[0] === selectedDate)
+        const prevElo = prevEntry ? (hist[hist.indexOf(prevEntry) - 1]?.[1] ?? prevEntry[1]) : p.current_elo
+        return { name: p.name, prevElo }
+      })
+      .sort((a, b) => b.prevElo - a.prevElo)
     const prevRank = {}
-    allWithPrevElo.forEach(({ name }, i) => { prevRank[name] = i + 1 })
+    eligiblePrev.forEach(({ name }, i) => { prevRank[name] = i + 1 })
 
     // Step 4: compute rank delta and attach
     return withElo
