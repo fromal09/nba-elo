@@ -3,7 +3,7 @@ import styles from './Nav.module.css'
 const NAV_ITEMS = [
   { view: 'rankings',    label: 'Current Rankings' },
   { view: 'historical',  label: 'Historical Elo' },
-  { view: 'goat',        label: 'GOAT Rankings' },
+  { view: 'franchise', label: "Who's Been Here?" },
   { view: 'h2h',         label: 'Head-to-Head' },
   { view: 'teams',       label: 'Team Breakdown' },
   { view: 'seasons',     label: 'Season by Season' },

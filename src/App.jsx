@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import Rankings from './components/Rankings'
 import Historical from './components/Historical'
-import Goat from './components/Goat'
+import FranchiseThreshold from './components/FranchiseThreshold'
 import H2H from './components/H2H'
 import Teams from './components/Teams'
 import Seasons from './components/Seasons'
