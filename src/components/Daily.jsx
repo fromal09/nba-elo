@@ -53,6 +53,8 @@ export default function Daily({ players, onSelectPlayer }) {
     }
 
     // Step 2: global rank on effectiveDate — sort ALL players by their Elo on that date
+    const fprRankMap = {}
+    players.forEach(p => { fprRankMap[p.name] = p.fpr_rank || p.current_tpr_rank })
     const allWithEloOnDate = []
     for (const p of players) {
       const hist = p.elo_history || []
@@ -88,8 +90,8 @@ export default function Daily({ players, onSelectPlayer }) {
     return withElo
       .map(p => ({
         ...p,
-        rank_on_date: rankOnDate[p.name] || p.current_tpr_rank,
-        rank_delta: (prevRank[p.name] || 0) - (rankOnDate[p.name] || 0), // positive = improved
+        rank_on_date: fprRankMap[p.name] || p.fpr_rank || p.current_tpr_rank,
+        rank_delta: (prevRank[p.name] || 0) - (fprRankMap[p.name] || 0), // positive = improved
       }))
       .sort((a, b) => b.day_elo - a.day_elo)  // sort by current Elo desc
   }, [players, effectiveDate])
