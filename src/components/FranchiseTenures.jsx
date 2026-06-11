@@ -152,16 +152,17 @@ function ScatterPlot({ points, franchise, onHover, hoveredName, onSelectPlayer }
             <g key={p.name}>
               <circle
                 cx={cx} cy={cy}
-                r={(() => {
+                r={isHovered ? 8 : 6}
+                fill={(() => {
                   const minP = Math.min(...points.map(x => x.peakElo))
                   const maxP = Math.max(...points.map(x => x.peakElo))
-                  const base = 4 + ((p.peakElo - minP) / (maxP - minP || 1)) * 14
-                  return isHovered ? base + 3 : base
+                  const t = (p.peakElo - minP) / (maxP - minP || 1)
+                  const opacity = isHovered ? 1 : 0.25 + t * 0.75
+                  return teamColor + Math.round(opacity * 255).toString(16).padStart(2,'0')
                 })()}
-                fill={isHovered ? teamColor : teamColor + '88'}
-                stroke={isHovered ? '#fff' : teamColor + 'cc'}
-                strokeWidth={isHovered ? 2 : 0.5}
-                style={{ cursor: 'pointer', transition: 'r 0.15s' }}
+                stroke={isHovered ? '#fff' : 'none'}
+                strokeWidth={isHovered ? 2 : 0}
+                style={{ cursor: 'pointer', transition: 'fill 0.15s' }}
                 onMouseEnter={() => onHover(p)}
                 onMouseLeave={() => onHover(null)}
                 onClick={() => onSelectPlayer(p)}
@@ -299,7 +300,7 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
           <div style={s.rankPanel}>
             <div style={s.rankHead}>Franchise Elo Legends</div>
             <div style={{ padding: '8px 16px', borderBottom: '0.5px solid #f0ede8', fontSize: 11, color: '#aaa' }}>
-              Bubble size = franchise peak Elo
+              Color intensity = franchise peak Elo
             </div>
             {points.slice(0, 30).map(p => (
               <div
