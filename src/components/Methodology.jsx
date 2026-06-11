@@ -97,7 +97,7 @@ Each dimension is normalized to a 0–1 scale relative to all eligible players (
 
 To rank these tenures we compute a Legend Score:
 
-    Legend Score = avgElo^0.6 × GP^0.4
+    Legend Score = avgElo^0.45 × peakElo^0.25 × GP^0.30
 
 The exponents reflect a deliberate design choice: Elo quality (0.6) matters slightly more than longevity (0.4), but both are required for a high score. The geometric structure means neither dimension can fully compensate for weakness in the other. Minimum 50 games to qualify.`,
   },
