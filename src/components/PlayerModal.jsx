@@ -102,7 +102,7 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode, onTooltip = () => {
     const d = filtered.map(([i, v], k) => `${k === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ')
     const path = document.createElementNS(ns, 'path')
     path.setAttribute('d', d); path.setAttribute('fill', 'none')
-    path.setAttribute('stroke', 'rgba(150,175,210,0.12)'); path.setAttribute('stroke-width', '1')
+    path.setAttribute('stroke', 'rgba(150,150,150,0.1)'); path.setAttribute('stroke-width', '1')
     svg.appendChild(path)
   })
 
@@ -113,7 +113,7 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode, onTooltip = () => {
     GSW:'#1D428A', HOU:'#CE1141', IND:'#002D62', LAC:'#C8102E', LAL:'#552583',
     MEM:'#5D76A9', MIA:'#98002E', MIL:'#00471B', MIN:'#0C2340', NOP:'#0C2340',
     NOH:'#0C2340', NOK:'#0C2340', NYK:'#006BB6', OKC:'#007AC1', ORL:'#0077C0',
-    PHI:'#006BB6', PHO:'#1D1160', POR:'#E03A3E', SAC:'#5A2D81', SAS:'#C4CED3',
+    PHI:'#006BB6', PHO:'#1D1160', POR:'#E03A3E', SAC:'#5A2D81', SAS:'#000000',
     SEA:'#00653A', TOR:'#CE1141', UTA:'#002B5C', WAS:'#002B5C', MNL:'#552583',
     FTW:'#C8102E', SYR:'#006BB6', ROC:'#5A2D81', NOJ:'#002B5C',
   }
