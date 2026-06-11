@@ -57,8 +57,8 @@ export default function App() {
       {view === 'historical' && (
         <Historical players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {view === 'goat' && (
-        <Goat players={data.players} onSelectPlayer={setSelectedPlayer} />
+      {view === 'franchise' && (
+        <FranchiseThreshold players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
       {view === 'h2h' && (
         <H2H players={data.players} />
