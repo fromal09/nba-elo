@@ -24,6 +24,14 @@ export default function Homepage({ data, setView }) {
       color: '#e0eaf8', iconColor: '#1a3a6e',
     },
     {
+      icon: '📈',
+      title: 'Franchise Tenures',
+      desc: 'Scatterplot of avg Elo vs games played for any franchise. Identifies all-time Elo Legends.',
+      meta: 'Legend Score · avgElo⁰⋅⁶ × GP⁰⋅⁴',
+      view: 'tenures',
+      color: '#e8f0e8', iconColor: '#1a4a1a',
+    },
+    {
       icon: '🐐',
       title: "Who's Been Here?",
       desc: 'Pick a franchise and an Elo threshold — see every player who reached that level and when.',
