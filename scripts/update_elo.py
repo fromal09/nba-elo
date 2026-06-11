@@ -64,7 +64,8 @@ player_map = {p["name"]: p for p in players_out}
 # Find the last date already in the data
 all_dates_in_data = set()
 for p in players_out:
-    for d, _ in (p.get("elo_history") or []):
+    for _e in (p.get("elo_history") or []):
+        d = _e[0]
         all_dates_in_data.add(d)
 
 last_date = max(all_dates_in_data) if all_dates_in_data else "1900-01-01"
@@ -224,7 +225,8 @@ peak_elo_rank_map = {p: i+1 for i, p in enumerate(peak_rank_order)}
 # For simplicity, recompute decade_best and decade_rank_map from full elo_hist
 decade_best = defaultdict(lambda: defaultdict(float))
 for name in elo.keys():
-    for d_str, elo_val in elo_hist[name]:
+    for _e in elo_hist[name]:
+        d_str, elo_val = _e[0], _e[1]
         yr = int(d_str[:4]); decade = (yr // 10) * 10
         if elo_val > decade_best[name][decade]:
             decade_best[name][decade] = elo_val
@@ -238,7 +240,8 @@ for decade in all_decades:
 
 decade_avg = defaultdict(lambda: defaultdict(list))
 for name in elo.keys():
-    for d_str, elo_val in elo_hist[name]:
+    for _e in elo_hist[name]:
+        d_str, elo_val = _e[0], _e[1]
         yr = int(d_str[:4]); decade = (yr // 10) * 10
         decade_avg[name][decade].append(elo_val)
 decade_avg_rank_map = {}
@@ -366,7 +369,7 @@ print(f"  Written {ELO_JSON} ({ELO_JSON.stat().st_size/1024:.0f} KB)")
 # ── Write spaghetti.json ──────────────────────────────────────────────────
 all_dates_sorted = sorted(set(h[0] for p in new_players_out for h in p["elo_history"]))
 date_idx = {d: i for i, d in enumerate(all_dates_sorted)}
-sparse = [[[date_idx[d], v] for d, v in p["elo_history"]] for p in new_players_out]
+sparse = [[[date_idx[e[0]], e[1]] for e in p["elo_history"]] for p in new_players_out]
 spag = {"dates": all_dates_sorted, "players": sparse}
 SPAG_JSON.write_text(json.dumps(spag, separators=(",", ":")), encoding="utf-8")
 print(f"  Written {SPAG_JSON} ({SPAG_JSON.stat().st_size/1024:.0f} KB)")
