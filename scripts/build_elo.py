@@ -219,7 +219,9 @@ def build_elo(df):
             opp_map[p]     = str(prow["Opp"]).strip() if "Opp" in group.columns and str(prow.get("Opp","")).strip() not in ("","nan") else str(prow["Team"])
             result_str     = str(prow.get("Result","")).strip()
             won_map[p]     = result_str.startswith("W") if result_str else None
-            # BDL used NOP for Charlotte Hornets before 2013; remap to CHO
+            # Remap to CHO if confirmed Charlotte player via franchise CSV
+            if (p, date_str) in charlotte_keys:
+                team_map[p] = 'CHO' 
             if team_map.get(p) == 'NOP' and date_str < '2013-10-01':
                 team_map[p] = 'CHO'
             if opp_map.get(p) == 'NOP' and date_str < '2013-10-01':
@@ -475,6 +477,18 @@ if __name__ == "__main__":
     df = parse_csv(csv_paths)
     print(f"  {len(df)} raw rows")
     print("Running Elo pipeline…")
+
+import csv as _csv
+_charlotte_csv = _os.path.join(_os.path.dirname(__file__), '..', 'data', 'charlotte.csv')
+charlotte_keys = set()
+if _os.path.exists(_charlotte_csv):
+    with open(_charlotte_csv) as _f:
+        for row in _csv.DictReader(_f):
+            p, d = row.get('Player','').strip(), row.get('Date','').strip()
+            if p and d:
+                charlotte_keys.add((p, d))
+    print(f"  Loaded {len(charlotte_keys)} Charlotte game-player keys")
+
     output = build_elo(df)
     print(f"  {output['total_players']} players · {output['total_games']} games")
 
