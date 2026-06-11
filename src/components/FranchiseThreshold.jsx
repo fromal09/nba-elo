@@ -47,6 +47,11 @@ const FRANCHISE_NAMES = {
 
 // Determine what team a player was on at a given date
 function teamAtDate(player, date) {
+  // First try the stored team in elo_history entry (index 4)
+  const hist = player.elo_history || []
+  const entry = hist.find(e => e[0] === date)
+  if (entry && entry[4]) return entry[4]
+  // Fall back to team_history
   const th = player.team_history || []
   if (!th.length) return player.team
   let team = player.team
@@ -147,27 +152,29 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
     return players
       .filter(p => {
         const hist = p.elo_history || []
-        return hist.some(e => {
-          const team = teamAtDate(p, e[0])
-          return aliases.includes(team) && e[1] >= effectiveThreshold
-        })
+        return hist.some(e => aliases.includes(e[4] || teamAtDate(p, e[0])) && e[1] >= effectiveThreshold)
       })
       .map(p => {
         const hist = p.elo_history || []
         const peak = franchisePeak(p, franchise)
         const gp = franchiseGames(p, franchise)
+        // Use e[4] (stored team) for accuracy; fall back to teamAtDate
+        const onFranchise = e => aliases.includes(e[4] || teamAtDate(p, e[0]))
         // Games above threshold while on this franchise
-        const gamesAbove = hist.filter(e => {
-          const team = teamAtDate(p, e[0])
-          return aliases.includes(team) && e[1] >= effectiveThreshold
-        }).length
+        const gamesAbove = hist.filter(e => onFranchise(e) && e[1] >= effectiveThreshold).length
         // First and last date above threshold
         const aboveDates = hist
-          .filter(e => aliases.includes(teamAtDate(p, e[0])) && e[1] >= effectiveThreshold)
+          .filter(e => onFranchise(e) && e[1] >= effectiveThreshold)
           .map(e => e[0])
         const firstDate = aboveDates[0] || ''
         const lastDate  = aboveDates[aboveDates.length - 1] || ''
-        return { ...p, peak, gp, gamesAbove, firstDate, lastDate }
+        // Find date of peak Elo on this franchise
+        let peakDate = '', peakVal = 0
+        hist.forEach(e => {
+          const team = e[4] || teamAtDate(p, e[0])
+          if (aliases.includes(team) && e[1] > peakVal) { peakVal = e[1]; peakDate = e[0] }
+        })
+        return { ...p, peak, gp, gamesAbove, peakDate }
       })
       .sort((a, b) => b.peak - a.peak)
   }, [players, franchise, effectiveThreshold])
@@ -311,8 +318,8 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
                     <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
                       {p.gamesAbove}
                     </td>
-                    <td style={{ ...s.td, fontSize: 12, color: '#888', fontFamily: "'DM Mono', monospace" }}>
-                      {p.firstDate ? `${p.firstDate.slice(5,7)}/${p.firstDate.slice(8,10)}/${p.firstDate.slice(0,4)} – ${p.lastDate.slice(5,7)}/${p.lastDate.slice(8,10)}/${p.lastDate.slice(0,4)}` : '—'}
+                    <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#aaa', fontFamily: "'DM Mono', monospace" }}>
+                      {p.peakDate ? `${p.peakDate.slice(5,7)}/${p.peakDate.slice(8,10)}/${p.peakDate.slice(0,4)}` : '—'}
                     </td>
                   </tr>
                 ))}

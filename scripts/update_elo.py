@@ -181,7 +181,7 @@ for game_id in game_order:
         elo[p]          += deltas[p]
         games_played[p] += 1
         if elo[p] > peak_elo[p]: peak_elo[p] = elo[p]
-        elo_hist[p].append([date_str, round(elo[p], 1)])
+        elo_hist[p].append([date_str, round(elo[p], 1), opp_map.get(p, ""), won_map.get(p), team_map.get(p, "")])
         gmsc_hist[p].append([date_str, round(gmsc[p], 1)])
         cur_team = team_map.get(p, "")
         if not team_hist[p] or team_hist[p][-1][1] != cur_team:
