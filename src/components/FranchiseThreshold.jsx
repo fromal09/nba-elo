@@ -308,23 +308,11 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
                     <td style={{ ...s.td, textAlign: 'right', color: '#888', fontVariantNumeric: 'tabular-nums' }}>
                       {p.gp}
                     </td>
-                    <td style={s.td}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-                    {p.ranges.map((r, ri) => (
-                        <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{
-                            display: 'inline-block', background: '#1a2e1a', color: '#fff',
-                            borderRadius: 5, padding: '2px 8px', fontSize: 11,
-                            fontFamily: "'DM Mono', monospace", whiteSpace: 'nowrap',
-                          }}>
-                            {r.start.slice(5,7)}/{r.start.slice(8,10)}/{r.start.slice(0,4)} – {r.end.slice(5,7)}/{r.end.slice(8,10)}/{r.end.slice(0,4)}
-                          </span>
-                          <span style={{ fontSize: 11, color: '#aaa' }}>
-                            peak {Math.round(r.peak).toLocaleString()}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
+                      {p.gamesAbove}
+                    </td>
+                    <td style={{ ...s.td, fontSize: 12, color: '#888', fontFamily: "'DM Mono', monospace" }}>
+                      {p.firstDate ? `${p.firstDate.slice(5,7)}/${p.firstDate.slice(8,10)}/${p.firstDate.slice(0,4)} – ${p.lastDate.slice(5,7)}/${p.lastDate.slice(8,10)}/${p.lastDate.slice(0,4)}` : '—'}
                     </td>
                   </tr>
                 ))}
