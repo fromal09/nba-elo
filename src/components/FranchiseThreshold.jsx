@@ -2,10 +2,10 @@ import { useState, useMemo } from 'react'
 
 // Complete franchise → all historical abbreviations used in BBRef data
 const FRANCHISE_ALIASES = {
-  ATL: ['ATL','STL','TRI','BOM'],           // Hawks: Atlanta, Milwaukee, St Louis, Tri-Cities, Bombers
+  ATL: ['ATL','STL','TRI','BOM'],                  // Hawks: Atlanta, St Louis, Tri-Cities (NOT MIL — those are Bucks)
   BOS: ['BOS'],
-  BKN: ['BKN','BRK','NJN','NJA'],                 // Nets: Brooklyn, Newark, New Jersey
-  CHA: ['CHA','CHO'],                  // Hornets: Charlotte, New Orleans
+  BKN: ['BKN','BRK','NJN','NJA'],                 // Nets: Brooklyn, New Jersey
+  CHA: ['CHA','CHO'],                              // Hornets: Charlotte only (Bobcats=CHO, Hornets=CHA)
   CHI: ['CHI'],
   CLE: ['CLE'],
   DAL: ['DAL'],
@@ -18,9 +18,9 @@ const FRANCHISE_ALIASES = {
   LAL: ['LAL','MNL'],                              // Lakers: LA, Minneapolis
   MEM: ['MEM','VAN'],                              // Grizzlies: Memphis, Vancouver
   MIA: ['MIA'],
-  MIL: ['MIL'],
+  MIL: ['MIL'],                                   // Bucks only (Hawks were in MIL before 1951 under ATL)
   MIN: ['MIN'],
-  NOP: ['NOP','NOH','NOK','NOM'],                  // Pelicans/Hornets: New Orleans
+  NOP: ['NOP','NOH','NOK','NOM'],                  // Pelicans: New Orleans (NOH/NOK = pre-Katrina Hornets who became Pelicans)
   NYK: ['NYK'],
   OKC: ['OKC','SEA'],                              // Thunder: OKC, Seattle SuperSonics
   ORL: ['ORL'],
@@ -58,6 +58,24 @@ function teamAtDate(player, date) {
 }
 
 // Get date ranges when player was above threshold FOR a specific franchise
+function mergeRanges(ranges, gapDays = 60) {
+  if (!ranges.length) return ranges
+  const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start))
+  const merged = [{ ...sorted[0] }]
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = merged[merged.length - 1]
+    const curr = sorted[i]
+    const gap = (new Date(curr.start) - new Date(prev.end)) / 86400000
+    if (gap <= gapDays) {
+      prev.end = curr.end > prev.end ? curr.end : prev.end
+      prev.peak = Math.max(prev.peak, curr.peak)
+    } else {
+      merged.push({ ...curr })
+    }
+  }
+  return merged
+}
+
 function franchiseThresholdRanges(player, franchise, threshold) {
   const aliases = FRANCHISE_ALIASES[franchise] || [franchise]
   const hist = player.elo_history || []
@@ -90,7 +108,7 @@ function franchiseThresholdRanges(player, franchise, threshold) {
       return aliases.includes(t) && e[1] >= threshold
     }).map(e => e[1])) })
   }
-  return ranges
+  return mergeRanges(ranges)
 }
 
 // Get peak Elo for player while on franchise
@@ -116,6 +134,7 @@ const ELO_PRESETS = [1800, 2000, 2200, 2400, 2500, 2600, 2700, 2800, 2900]
 
 export default function FranchiseThreshold({ players, onSelectPlayer }) {
   const [franchise,  setFranchise]  = useState('LAL')
+  const [expanded,   setExpanded]   = useState({})
   const [threshold,  setThreshold]  = useState(2200)
   const [customElo,  setCustomElo]  = useState('')
   const [showPicker, setShowPicker] = useState(false)
@@ -283,8 +302,9 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
                       {p.gp}
                     </td>
                     <td style={s.td}>
-                      {p.ranges.map((r, ri) => (
-                        <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: ri < p.ranges.length - 1 ? 5 : 0 }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                    {p.ranges.map((r, ri) => (
+                        <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{
                             display: 'inline-block', background: '#1a2e1a', color: '#fff',
                             borderRadius: 5, padding: '2px 8px', fontSize: 11,
@@ -297,6 +317,7 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
                           </span>
                         </div>
                       ))}
+                    </div>
                     </td>
                   </tr>
                 ))}
