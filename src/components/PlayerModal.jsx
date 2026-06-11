@@ -12,7 +12,7 @@ function getSpagData() {
   return spagPromise
 }
 
-function drawChart(data, focusIdx, svg, eloHist, careerMode) {
+function drawChart(data, focusIdx, svg, eloHist, careerMode, onTooltip = () => {}) {
   while (svg.firstChild) svg.removeChild(svg.firstChild)
   const W = svg.clientWidth || 560
   const H = 160
@@ -146,6 +146,21 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode) {
     dot.setAttribute('cx', xScale(last[0])); dot.setAttribute('cy', yScale(last[1]))
     dot.setAttribute('r', '4'); dot.setAttribute('fill', TEAM_COLORS[lastTeam] || '#1a2e1a')
     svg.appendChild(dot)
+
+    // Invisible hit targets for tooltip
+    for (const pt of focusPts) {
+      const date = dates[pt[0]]
+      const team = dateToTeam[date] || ''
+      const elo  = pt[1]
+      const cx = xScale(pt[0]), cy = yScale(elo)
+      const hit = document.createElementNS(ns, 'circle')
+      hit.setAttribute('cx', cx); hit.setAttribute('cy', cy)
+      hit.setAttribute('r', '8'); hit.setAttribute('fill', 'transparent')
+      hit.setAttribute('style', 'cursor:crosshair')
+      hit.addEventListener('mouseenter', () => onTooltip({ x: cx, y: cy, date, elo: Math.round(elo), team }))
+      hit.addEventListener('mouseleave', () => onTooltip(null))
+      svg.appendChild(hit)
+    }
   }
 }
 
@@ -156,6 +171,7 @@ function SpagChart({ playerIndex, playerName, eloHist }) {
   const [loaded,     setLoaded]     = useState(false)
   const [careerMode, setCareerMode] = useState(false)
   const [spagData,   setSpagData]   = useState(null)
+  const [tooltip,    setTooltip]    = useState(null)
 
   // Load spaghetti data once
   useEffect(() => {
@@ -171,7 +187,7 @@ function SpagChart({ playerIndex, playerName, eloHist }) {
     if (!spagData || !svgRef.current || !wrapRef.current) return
     const w = wrapRef.current.clientWidth || 560
     svgRef.current.style.width = w + 'px'
-    drawChart(spagData, playerIndex, svgRef.current, eloHistRef.current, careerMode)
+    drawChart(spagData, playerIndex, svgRef.current, eloHistRef.current, careerMode, setTooltip)
     setLoaded(true)
   }, [spagData, playerIndex, careerMode])
 
@@ -196,9 +212,32 @@ function SpagChart({ playerIndex, playerName, eloHist }) {
           ))}
         </div>
       </div>
-      <div ref={wrapRef} style={{ background: '#fafaf8', borderRadius: 8, border: '0.5px solid #e8e5e0', padding: '8px 4px 0', minHeight: 188 }}>
+      <div ref={wrapRef} style={{ background: '#fafaf8', borderRadius: 8, border: '0.5px solid #e8e5e0', padding: '8px 4px 0', minHeight: 188, position: 'relative' }}>
         {!loaded && <div style={{ textAlign: 'center', padding: 20, fontSize: 12, color: '#aaa' }}>Loading…</div>}
         <svg ref={svgRef} style={{ width: '100%', display: loaded ? 'block' : 'none' }} />
+        {tooltip && (() => {
+          const svgW = svgRef.current?.clientWidth || 560
+          const svgH = svgRef.current?.clientHeight || 188
+          const isRight = tooltip.x > svgW * 0.65
+          return (
+            <div style={{
+              position: 'absolute',
+              left: `${(tooltip.x / svgW) * 100}%`,
+              top: `${(tooltip.y / svgH) * 100}%`,
+              transform: isRight ? 'translate(-110%,-50%)' : 'translate(10%,-50%)',
+              background: '#1a1a1a', color: '#fff',
+              borderRadius: 8, padding: '8px 12px',
+              fontSize: 12, lineHeight: 1.7,
+              pointerEvents: 'none', zIndex: 10,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+              whiteSpace: 'nowrap',
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: 2 }}>{tooltip.date}</div>
+              <div>Elo <span style={{ color: '#ffd700', fontWeight: 600 }}>{tooltip.elo.toLocaleString()}</span></div>
+              <div>Team <span style={{ color: '#ccc' }}>{tooltip.team || '—'}</span></div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
