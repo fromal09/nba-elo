@@ -4,6 +4,7 @@ const NAV_ITEMS = [
   { view: 'rankings',    label: 'Current Rankings' },
   { view: 'historical',  label: 'Historical Elo' },
   { view: 'franchise', label: "Who's Been Here?" },
+  { view: 'tenures',   label: 'Franchise Tenures' },
   { view: 'h2h',         label: 'Head-to-Head' },
   { view: 'teams',       label: 'Team Breakdown' },
   { view: 'seasons',     label: 'Season by Season' },

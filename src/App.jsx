@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Rankings from './components/Rankings'
 import Historical from './components/Historical'
 import FranchiseThreshold from './components/FranchiseThreshold'
+import FranchiseTenures from './components/FranchiseTenures'
 import H2H from './components/H2H'
 import Teams from './components/Teams'
 import Seasons from './components/Seasons'
@@ -59,6 +60,9 @@ export default function App() {
       )}
       {view === 'franchise' && (
         <FranchiseThreshold players={data.players} onSelectPlayer={setSelectedPlayer} />
+      )}
+      {view === 'tenures' && (
+        <FranchiseTenures players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
       {view === 'h2h' && (
         <H2H players={data.players} />
