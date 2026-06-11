@@ -64,7 +64,7 @@ function computeTenure(player, franchise) {
   const avgElo = entries.reduce((s, e) => s + e[1], 0) / gp
   const peakElo = Math.max(...entries.map(e => e[1]))
   // Legend score: geometric mean weighted 60% avg Elo, 40% games
-  const legendScore = Math.pow(avgElo, 0.45) * Math.pow(peakElo, 0.25) * Math.pow(gp, 0.30)
+  const legendScore = Math.pow(avgElo, 0.40) * Math.pow(peakElo, 0.40) * Math.pow(gp, 0.20)
   return { gp, avgElo: Math.round(avgElo), peakElo: Math.round(peakElo), legendScore }
 }
 
