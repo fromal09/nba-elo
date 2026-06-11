@@ -88,7 +88,7 @@ export default function Daily({ players, onSelectPlayer }) {
       .filter(p => p.is_fpr_eligible)
       .map(p => {
         const hist = p.elo_history || []
-        const prevEntry = hist.find(e => e[0] === selectedDate)
+        const prevEntry = hist.find(e => e[0] === effectiveDate)
         const prevElo = prevEntry ? (hist[hist.indexOf(prevEntry) - 1]?.[1] ?? prevEntry[1]) : p.current_elo
         return { name: p.name, prevElo }
       })
