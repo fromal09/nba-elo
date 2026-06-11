@@ -25,10 +25,10 @@ export default function Homepage({ data, setView }) {
     },
     {
       icon: '🐐',
-      title: 'GOAT Rankings',
-      desc: 'Customizable composite rankings with adjustable weights across peak Elo, average Elo, and longevity.',
-      meta: '3 dimensions · adjustable weights',
-      view: 'goat',
+      title: "Who's Been Here?",
+      desc: 'Pick a franchise and an Elo threshold — see every player who reached that level and when.',
+      meta: 'All historical franchise names · date ranges',
+      view: 'franchise',
       color: '#faf0dc', iconColor: '#7a4f0a',
     },
     {

@@ -2,10 +2,10 @@ import { useState, useMemo } from 'react'
 
 // Complete franchise → all historical abbreviations used in BBRef data
 const FRANCHISE_ALIASES = {
-  ATL: ['ATL','MIL','STL','TRI','BOM'],           // Hawks: Atlanta, Milwaukee, St Louis, Tri-Cities, Bombers
+  ATL: ['ATL','STL','TRI','BOM'],           // Hawks: Atlanta, Milwaukee, St Louis, Tri-Cities, Bombers
   BOS: ['BOS'],
   BKN: ['BKN','BRK','NJN','NJA'],                 // Nets: Brooklyn, Newark, New Jersey
-  CHA: ['CHA','CHO','NOH','NOK'],                  // Hornets: Charlotte, New Orleans
+  CHA: ['CHA','CHO'],                  // Hornets: Charlotte, New Orleans
   CHI: ['CHI'],
   CLE: ['CLE'],
   DAL: ['DAL'],
@@ -290,7 +290,7 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
                             borderRadius: 5, padding: '2px 8px', fontSize: 11,
                             fontFamily: "'DM Mono', monospace", whiteSpace: 'nowrap',
                           }}>
-                            {r.start.slice(0,7)} → {r.end.slice(0,7)}
+                            {r.start.slice(5,7)}/{r.start.slice(8,10)}/{r.start.slice(0,4)} – {r.end.slice(5,7)}/{r.end.slice(8,10)}/{r.end.slice(0,4)}
                           </span>
                           <span style={{ fontSize: 11, color: '#aaa' }}>
                             peak {Math.round(r.peak).toLocaleString()}
