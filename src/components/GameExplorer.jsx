@@ -205,19 +205,7 @@ function GameDetail({ game, onClose }) {
             <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa', marginBottom: 12 }}>{game.teamB} Roster</div>
             {(game.playersB || []).map(p => <PlayerRow key={p.n} p={p} side="B" />)}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#aaa' }}>Franchise</span>
-            <select
-              value={franchise}
-              onChange={e => { setFranchise(e.target.value); setPage(0) }}
-              style={{ border: '0.5px solid #e0ddd6', borderRadius: 6, padding: '6px 10px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans', sans-serif", background: '#fff' }}
-            >
-              <option value="">All Franchises</option>
-              {Object.entries(FRANCHISE_NAMES).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
-          </div>
+
         </div>
       </div>
     </div>
@@ -294,6 +282,19 @@ export default function GameExplorer() {
               ← All Games
             </button>
           )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: '#aaa' }}>Franchise</span>
+            <select
+              value={franchise}
+              onChange={e => { setFranchise(e.target.value); setPage(0) }}
+              style={{ border: '0.5px solid #e0ddd6', borderRadius: 6, padding: '6px 10px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans', sans-serif", background: '#fff' }}
+            >
+              <option value="">All Franchises</option>
+              {Object.entries(FRANCHISE_NAMES).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 12, color: '#aaa' }}>Browse by date</span>
             <input
