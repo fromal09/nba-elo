@@ -1,5 +1,51 @@
 import { useState, useEffect, useMemo } from 'react'
 
+
+// Historical team abbrev -> current franchise key
+const TEAM_TO_FRANCHISE = {
+  ATL:'ATL',STL:'ATL',TRI:'ATL',BOM:'ATL',
+  BOS:'BOS',
+  BKN:'BKN',BRK:'BKN',NJN:'BKN',NJA:'BKN',
+  CHA:'CHA',CHO:'CHA',CHH:'CHA',
+  CHI:'CHI',
+  CLE:'CLE',
+  DAL:'DAL',
+  DEN:'DEN',DNR:'DEN',
+  DET:'DET',FTW:'DET',
+  GSW:'GSW',SFW:'GSW',PHW:'GSW',
+  HOU:'HOU',SDR:'HOU',
+  IND:'IND',
+  LAC:'LAC',SDC:'LAC',BUF:'LAC',
+  LAL:'LAL',MNL:'LAL',
+  MEM:'MEM',VAN:'MEM',
+  MIA:'MIA',
+  MIL:'MIL',
+  MIN:'MIN',
+  NOP:'NOP',NOH:'NOP',NOK:'NOP',NOM:'NOP',
+  NYK:'NYK',
+  OKC:'OKC',SEA:'OKC',
+  ORL:'ORL',
+  PHI:'PHI',SYR:'PHI',
+  PHO:'PHO',
+  POR:'POR',
+  SAC:'SAC',KCK:'SAC',CIN:'SAC',ROC:'SAC',
+  SAS:'SAS',SAA:'SAS',
+  TOR:'TOR',
+  UTA:'UTA',NOJ:'UTA',
+  WAS:'WAS',WSB:'WAS',BAL:'WAS',CAP:'WAS',
+}
+
+const FRANCHISE_NAMES = {
+  ATL:'Atlanta Hawks',BOS:'Boston Celtics',BKN:'Brooklyn Nets',CHA:'Charlotte Hornets',
+  CHI:'Chicago Bulls',CLE:'Cleveland Cavaliers',DAL:'Dallas Mavericks',DEN:'Denver Nuggets',
+  DET:'Detroit Pistons',GSW:'Golden State Warriors',HOU:'Houston Rockets',IND:'Indiana Pacers',
+  LAC:'LA Clippers',LAL:'LA Lakers',MEM:'Memphis Grizzlies',MIA:'Miami Heat',
+  MIL:'Milwaukee Bucks',MIN:'Minnesota Timberwolves',NOP:'New Orleans Pelicans',NYK:'New York Knicks',
+  OKC:'Oklahoma City Thunder',ORL:'Orlando Magic',PHI:'Philadelphia 76ers',PHO:'Phoenix Suns',
+  POR:'Portland Trail Blazers',SAC:'Sacramento Kings',SAS:'San Antonio Spurs',TOR:'Toronto Raptors',
+  UTA:'Utah Jazz',WAS:'Washington Wizards',
+}
+
 const TEAM_COLORS = {
   ATL:'#C8102E',BOS:'#007A33',BKN:'#000000',CHA:'#00788C',CHO:'#00788C',
   CHI:'#CE1141',CLE:'#860038',DAL:'#00538C',DEN:'#0E2240',DET:'#C8102E',
@@ -55,11 +101,9 @@ function GameBox({ game, onClick, size = 'normal' }) {
       <div style={{ textAlign: 'center', fontSize: isSmall ? 18 : 24, fontWeight: 800, color: '#fff', lineHeight: 1, fontFamily: "'DM Serif Display', serif" }}>
         {game.score.toFixed(1)}
       </div>
-      {!isSmall && (
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', textAlign: 'center', fontFamily: "'DM Mono', monospace" }}>
-          {game.date.slice(5,7)}/{game.date.slice(8,10)}/{game.date.slice(0,4)}
-        </div>
-      )}
+      <div style={{ fontSize: isSmall ? 8 : 10, color: 'rgba(255,255,255,0.55)', textAlign: 'center', fontFamily: "'DM Mono', monospace" }}>
+        {game.date.slice(5,7)}/{game.date.slice(8,10)}/{game.date.slice(0,4)}
+      </div>
     </div>
   )
 }
@@ -161,6 +205,19 @@ function GameDetail({ game, onClose }) {
             <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa', marginBottom: 12 }}>{game.teamB} Roster</div>
             {(game.playersB || []).map(p => <PlayerRow key={p.n} p={p} side="B" />)}
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: '#aaa' }}>Franchise</span>
+            <select
+              value={franchise}
+              onChange={e => { setFranchise(e.target.value); setPage(0) }}
+              style={{ border: '0.5px solid #e0ddd6', borderRadius: 6, padding: '6px 10px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans', sans-serif", background: '#fff' }}
+            >
+              <option value="">All Franchises</option>
+              {Object.entries(FRANCHISE_NAMES).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
     </div>
@@ -173,6 +230,7 @@ export default function GameExplorer() {
   const [selected,  setSelected]  = useState(null)
   const [date,      setDate]      = useState('')
   const [page,      setPage]      = useState(0)
+  const [franchise, setFranchise] = useState('')
 
   const PER_PAGE = 100  // 10 rows × 10 cols
 
@@ -185,9 +243,15 @@ export default function GameExplorer() {
 
   const filtered = useMemo(() => {
     if (!games) return []
-    if (date) return games.filter(g => g.date === date).sort((a,b) => b.score - a.score)
-    return games  // already sorted by score desc from pipeline
-  }, [games, date])
+    let result = games
+    if (franchise) {
+      result = result.filter(g =>
+        TEAM_TO_FRANCHISE[g.teamA] === franchise || TEAM_TO_FRANCHISE[g.teamB] === franchise
+      )
+    }
+    if (date) return result.filter(g => g.date === date).sort((a,b) => b.score - a.score)
+    return result
+  }, [games, date, franchise])
 
   const totalPages = Math.ceil(filtered.length / PER_PAGE)
   const slice = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
@@ -219,8 +283,8 @@ export default function GameExplorer() {
           <h1 style={s.title}>Game Explorer</h1>
           <p style={s.desc}>
             {date
-              ? `${dateGames?.length || 0} games on ${date.slice(5,7)}/${date.slice(8,10)}/${date.slice(0,4)}`
-              : `${filtered.length.toLocaleString()} games sorted by Elo Strength Rating`}
+              ? `${filtered.filter(g=>g.date===date).length} games on ${date.slice(5,7)}/${date.slice(8,10)}/${date.slice(0,4)}${franchise ? ` · ${FRANCHISE_NAMES[franchise]}` : ''}`
+              : `${filtered.length.toLocaleString()} games sorted by Elo Strength Rating${franchise ? ` · ${FRANCHISE_NAMES[franchise]}` : ''}`}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
