@@ -5,6 +5,8 @@ const NAV_ITEMS = [
   { view: 'historical',  label: 'Historical Elo' },
   { view: 'franchise', label: "Who's Been Here?" },
   { view: 'tenures',   label: 'Franchise Tenures' },
+  { view: 'bestx',     label: 'Best Through X' },
+  { view: 'mystery',   label: 'Mystery Player' },
   { view: 'h2h',         label: 'Head-to-Head' },
   { view: 'teams',       label: 'Team Breakdown' },
   { view: 'seasons',     label: 'Season by Season' },
