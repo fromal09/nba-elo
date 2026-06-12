@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { view: 'tenures',   label: 'Franchise Tenures' },
   { view: 'bestx',     label: 'Best Through X' },
   { view: 'mystery',   label: 'Mystery Player' },
+  { view: 'games',     label: 'Game Explorer' },
   { view: 'h2h',         label: 'Head-to-Head' },
   { view: 'teams',       label: 'Team Breakdown' },
   { view: 'seasons',     label: 'Season by Season' },

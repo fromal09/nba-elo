@@ -24,6 +24,14 @@ export default function Homepage({ data, setView }) {
       color: '#e0eaf8', iconColor: '#1a3a6e',
     },
     {
+      icon: '🎮',
+      title: 'Game Explorer',
+      desc: 'Browse every NBA game by Elo Strength Rating. Heat-mapped rosters show how talent was distributed.',
+      meta: 'Strength-sorted · Date picker · Roster heatmap',
+      view: 'games',
+      color: '#f0ede8', iconColor: '#3a2a1a',
+    },
+    {
       icon: '🔢',
       title: 'Best Through X',
       desc: 'The Elo leader at each career game milestone — who had the highest rating through exactly N games played.',

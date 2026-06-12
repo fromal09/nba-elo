@@ -5,6 +5,7 @@ import FranchiseThreshold from './components/FranchiseThreshold'
 import FranchiseTenures from './components/FranchiseTenures'
 import BestThroughX from './components/BestThroughX'
 import MysteryPlayer from './components/MysteryPlayer'
+import GameExplorer from './components/GameExplorer'
 import H2H from './components/H2H'
 import Teams from './components/Teams'
 import Seasons from './components/Seasons'
@@ -71,6 +72,9 @@ export default function App() {
       )}
       {view === 'mystery' && (
         <MysteryPlayer players={data.players} onSelectPlayer={setSelectedPlayer} />
+      )}
+      {view === 'games' && (
+        <GameExplorer />
       )}
       {view === 'h2h' && (
         <H2H players={data.players} />
