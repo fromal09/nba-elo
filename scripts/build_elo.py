@@ -115,8 +115,8 @@ def build_elo(df):
 
     # Disambiguate duplicate player names
     # Eddie A. Johnson (rookie 1981-82, Sacramento/Phoenix) vs Eddie L. Johnson (ATL, rookie 1977-78)
-    mask_a = (df["Player"] == "Eddie Johnson") & (df["Date"].dt.year >= 1981) & (df["Team"].isin(["KCK","SAC","PHO","IND","HOU","SEA","CHH"]))
-    mask_l = (df["Player"] == "Eddie Johnson") & (df["Date"].dt.year >= 1977) & (df["Team"].isin(["ATL","CLE","SEA"]))
+    mask_a = (df["Player"] == "Eddie Johnson") & (df["Date"].astype(str) >= "1981") & (df["Team"].isin(["KCK","SAC","PHO","IND","HOU","SEA","CHH"]))
+    mask_l = (df["Player"] == "Eddie Johnson") & (df["Date"].astype(str) >= "1977") & (df["Team"].isin(["ATL","CLE","SEA"]))
     df.loc[mask_a, "Player"] = "Eddie A. Johnson"
     df.loc[mask_l, "Player"] = "Eddie L. Johnson"
 
