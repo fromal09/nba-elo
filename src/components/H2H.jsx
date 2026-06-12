@@ -141,6 +141,7 @@ function MiniChart({ playerA, playerB }) {
   const dotB = curB ? { x: xS(dates.indexOf(curB[0])), y: yS(curB[1]) } : null
   const curDate = [curA?.[0], curB?.[0]].filter(Boolean).sort().pop()
   const currentYear = curDate?.slice(0, 4)
+  const currentFrame = frame !== null ? Math.min(frame, dates.length - 1) : dates.length - 1
   // Animation: always 10 seconds total
   const animate = useCallback(() => {
     const total = Math.max(histA.length, histB.length)
@@ -206,7 +207,7 @@ function MiniChart({ playerA, playerB }) {
               fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
             }}
           >
-            {playing ? '■ Stop' : frame !== null ? '▶ Resume' : '▶ Replay'}
+            {playing ? '■ Stop' : frame !== null ? '▶ Resume' : '▶ Play'}
           </button>
         </div>
       </div>
