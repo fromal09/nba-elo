@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 
 function CumulativeChart({ sharedGames, playerA, playerB }) {
   const svgRef = useRef(null)
@@ -207,75 +207,136 @@ function StatRow({ label, aVal, bVal, higherIsBetter = true }) {
 function MiniChart({ playerA, playerB }) {
   if (!playerA?.elo_history?.length && !playerB?.elo_history?.length) return null
 
-  const allDates = new Set()
-  ;(playerA?.elo_history || []).forEach(([d]) => allDates.add(d))
-  ;(playerB?.elo_history || []).forEach(([d]) => allDates.add(d))
-  const dates = [...allDates].sort()
-  if (!dates.length) return null
+  const animRef = useRef(null)
+  const [frame, setFrame] = useState(null)
+  const [playing, setPlaying] = useState(false)
+
+  const dates = useMemo(() => {
+    const s = new Set()
+    ;(playerA?.elo_history || []).forEach(e => s.add(e[0]))
+    ;(playerB?.elo_history || []).forEach(e => s.add(e[0]))
+    return [...s].sort()
+  }, [playerA, playerB])
+
+  const eloA = useMemo(() => Object.fromEntries((playerA?.elo_history || []).map(e => [e[0], e[1]])), [playerA])
+  const eloB = useMemo(() => Object.fromEntries((playerB?.elo_history || []).map(e => [e[0], e[1]])), [playerB])
 
   const allVals = [
-    ...(playerA?.elo_history || []).map(([, v]) => v),
-    ...(playerB?.elo_history || []).map(([, v]) => v),
+    ...(playerA?.elo_history || []).map(e => e[1]),
+    ...(playerB?.elo_history || []).map(e => e[1]),
   ]
   const minV = Math.min(...allVals) - 50
   const maxV = Math.max(...allVals) + 50
-  const range = maxV - minV
-
   const W = 700, H = 180
+  const xS = i => (i / Math.max(dates.length - 1, 1)) * W
+  const yS = v => H - ((v - minV) / (maxV - minV)) * H
 
-  function buildPath(hist) {
-    if (!hist?.length) return ''
-    const dateIdx = Object.fromEntries(dates.map((d, i) => [d, i]))
-    const pts = hist
-      .filter(([d]) => dateIdx[d] !== undefined)
-      .map(([d, v]) => {
-        const x = (dateIdx[d] / (dates.length - 1)) * W
-        const y = H - ((v - minV) / range) * H
-        return `${x.toFixed(1)},${y.toFixed(1)}`
-      })
-    return pts.length ? `M${pts.join('L')}` : ''
+  function buildPath(eloMap, upTo) {
+    const pts = []
+    for (let i = 0; i <= upTo; i++) {
+      const v = eloMap[dates[i]]
+      if (v !== undefined) pts.push(`${pts.length === 0 ? 'M' : 'L'}${xS(i).toFixed(1)},${yS(v).toFixed(1)}`)
+    }
+    return pts.join(' ')
   }
 
-  const pathA = buildPath(playerA?.elo_history)
-  const pathB = buildPath(playerB?.elo_history)
+  const currentFrame = frame ?? dates.length - 1
+  const pathA = buildPath(eloA, currentFrame)
+  const pathB = buildPath(eloB, currentFrame)
 
-  // Year labels
-  const yearLabels = []
-  let lastYear = null
-  dates.forEach((d, i) => {
-    const y = d.slice(0, 4)
-    if (y !== lastYear && parseInt(y) % 5 === 0) {
-      yearLabels.push({ x: (i / (dates.length - 1)) * W, year: y })
-      lastYear = y
+  const dotA = (() => { for (let i = currentFrame; i >= 0; i--) { if (eloA[dates[i]] !== undefined) return { x: xS(i), y: yS(eloA[dates[i]]) } } return null })()
+  const dotB = (() => { for (let i = currentFrame; i >= 0; i--) { if (eloB[dates[i]] !== undefined) return { x: xS(i), y: yS(eloB[dates[i]]) } } return null })()
+  const currentYear = dates[currentFrame]?.slice(0, 4)
+
+  const animate = useCallback(() => {
+    const total = dates.length
+    const duration = 10000
+    const startTime = performance.now()
+    const tick = now => {
+      const progress = Math.min((now - startTime) / duration, 1)
+      setFrame(Math.floor(progress * (total - 1)))
+      if (progress < 1) {
+        animRef.current = requestAnimationFrame(tick)
+      } else {
+        setFrame(null)
+        setPlaying(false)
+      }
     }
-  })
+    animRef.current = requestAnimationFrame(tick)
+  }, [dates.length])
+
+  const handlePlay = () => {
+    if (animRef.current) cancelAnimationFrame(animRef.current)
+    setFrame(0); setPlaying(true); animate()
+  }
+  const handleStop = () => {
+    if (animRef.current) cancelAnimationFrame(animRef.current)
+    setFrame(null); setPlaying(false)
+  }
+
+  useEffect(() => () => { if (animRef.current) cancelAnimationFrame(animRef.current) }, [])
+
+  const yearLabels = useMemo(() => {
+    const labels = []; let lastY = null
+    dates.forEach((d, i) => {
+      const y = d.slice(0, 4)
+      if (y !== lastY && parseInt(y) % 5 === 0) { labels.push({ x: xS(i), year: y }); lastY = y }
+    })
+    return labels
+  }, [dates])
+
+  const gridLines = [1600,1800,2000,2200,2400,2600,2800,3000].filter(v => v >= minV && v <= maxV)
 
   return (
     <div style={{ padding: '0 32px 24px' }}>
-      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa', marginBottom: 12 }}>Elo Rating History</div>
-      <svg viewBox={`0 0 ${W} ${H + 20}`} style={{ width: '100%', overflow: 'visible' }}>
-        {[1600, 1800, 2000, 2200, 2400, 2600, 2800, 3000].filter(v => v >= minV && v <= maxV).map(v => {
-          const y = H - ((v - minV) / range) * H
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+        <div style={{ fontSize:11, textTransform:'uppercase', letterSpacing:1, color:'#aaa' }}>Elo Rating History</div>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          {frame !== null && (
+            <span style={{ fontFamily:"'DM Mono', monospace", fontSize:13, color:'#1a2e1a', fontWeight:600 }}>
+              {currentYear}
+            </span>
+          )}
+          <button
+            onClick={playing ? handleStop : handlePlay}
+            style={{
+              background:'#1a2e1a', color:'#fff', border:'none', borderRadius:6,
+              padding:'5px 14px', fontSize:11, cursor:'pointer',
+              fontFamily:"'DM Sans', sans-serif", fontWeight:500,
+            }}
+          >{playing ? '■ Stop' : frame !== null ? '▶ Resume' : '▶ Play'}</button>
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H + 20}`} style={{ width:'100%', overflow:'visible' }}>
+        {gridLines.map(v => {
+          const y = yS(v)
           return (
             <g key={v}>
               <line x1={0} y1={y} x2={W} y2={y} stroke="#e0ddd6" strokeWidth={0.5} />
-              <text x={-8} y={y + 4} fontSize={9} fill="#bbb" textAnchor="end">{v}</text>
+              <text x={-8} y={y+4} fontSize={9} fill="#bbb" textAnchor="end">{v}</text>
             </g>
           )
         })}
-        {yearLabels.map(({ x, year }) => (
-          <text key={year} x={x} y={H + 14} fontSize={9} fill="#bbb" textAnchor="middle">{year}</text>
+        {yearLabels.map(({x, year}) => (
+          <text key={year} x={x} y={H+14} fontSize={9} fill="#bbb" textAnchor="middle">{year}</text>
         ))}
         {pathA && <path d={pathA} fill="none" stroke="#1a1a1a" strokeWidth={2} strokeLinejoin="round" />}
         {pathB && <path d={pathB} fill="none" stroke="#c94040" strokeWidth={2} strokeLinejoin="round" strokeDasharray="4,2" />}
+        {dotA && <circle cx={dotA.x} cy={dotA.y} r={4} fill="#1a1a1a" />}
+        {dotB && <circle cx={dotB.x} cy={dotB.y} r={4} fill="#c94040" />}
+        {frame !== null && (
+          <line x1={xS(currentFrame)} y1={0} x2={xS(currentFrame)} y2={H}
+            stroke="rgba(0,0,0,0.1)" strokeWidth={1} strokeDasharray="3,2" />
+        )}
       </svg>
-      <div style={{ display: 'flex', gap: 20, marginTop: 8 }}>
-        {playerA && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555' }}><div style={{ width: 20, height: 2, background: '#1a1a1a' }} />{playerA.name}</div>}
-        {playerB && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555' }}><div style={{ width: 20, height: 2, background: '#c94040', borderTop: '2px dashed #c94040' }} />{playerB.name}</div>}
+      <div style={{ display:'flex', gap:20, marginTop:8 }}>
+        {playerA && <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#555' }}><div style={{ width:20, height:2, background:'#1a1a1a' }} />{playerA.name}</div>}
+        {playerB && <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#555' }}><div style={{ width:20, height:0, borderTop:'2px dashed #c94040' }} />{playerB.name}</div>}
       </div>
     </div>
   )
 }
+
 
 export default function H2H({ players }) {
   const [playerA, setPlayerA] = useState(null)
