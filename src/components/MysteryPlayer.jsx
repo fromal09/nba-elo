@@ -156,79 +156,93 @@ function DiffArrow({ diff }) {
 
 // ── Transition Screen ─────────────────────────────────────────────────────────
 
+function eloDesc(diff) {
+  const abs = Math.abs(diff)
+  const dir = diff > 0 ? 'higher' : 'lower'
+  if (abs < 50)  return `a very similar Elo profile to`
+  if (abs < 150) return `a slightly ${dir} Elo profile than`
+  if (abs < 300) return `a ${dir} Elo profile than`
+  return `a much ${dir} Elo profile than`
+}
+
+function gpDesc(ratio) {
+  if (ratio > 0.85) return 'a similar length career to'
+  if (ratio > 0.6)  return ratio < 1 ? 'a shorter career than' : 'a longer career than'
+  return ratio < 1 ? 'a much shorter career than' : 'a much longer career than'
+}
+
 function RoundTransition({ guess, mystery, round, onContinue }) {
-  const eraGrade   = gradeEra(guess, mystery)
-  const teamGrade  = gradeTeam(guess, mystery)
-  const qualGrade  = gradeQuality(guess, mystery)
-  const gName      = guess?.name || 'No guess'
+  const eraGrade  = gradeEra(guess, mystery)
+  const teamGrade = gradeTeam(guess, mystery)
+  const qualGrade = gradeQuality(guess, mystery)
+  const gName     = guess?.name || 'your guess'
+
+  const mHist = mystery.elo_history || []
+  const gHist = guess?.elo_history  || []
+  const mAvg  = Math.round(mHist.reduce((s,e) => s+e[1], 0) / (mHist.length||1))
+  const gAvg  = Math.round(gHist.reduce((s,e) => s+e[1], 0) / (gHist.length||1))
+  const gpRatio = gHist.length / (mHist.length||1)
 
   return (
     <div style={{
       display:'flex', flex:1, flexDirection:'column', alignItems:'center',
-      justifyContent:'center', padding:'32px 24px', gap:20,
-      background:'#f5f3ee', fontFamily:"'DM Sans', sans-serif",
+      justifyContent:'center', padding:'32px 24px', gap:18,
+      background:'#f5f3ee', fontFamily:"'DM Sans', sans-serif", overflow:'auto',
     }}>
-      <div style={{ textAlign:'center', marginBottom:4 }}>
-        <div style={{ fontSize:28, marginBottom:6 }}>❌</div>
+      <div style={{ textAlign:'center' }}>
+        <div style={{ fontSize:26, marginBottom:6 }}>❌</div>
         <div style={{ fontFamily:"'DM Serif Display', serif", fontSize:22, color:'#1a1a1a', marginBottom:4 }}>
-          Not quite — that was {gName}
+          Not {gName}
         </div>
-        <div style={{ fontSize:13, color:'#aaa' }}>Round {round} complete · Here's how close you were</div>
+        <div style={{ fontSize:13, color:'#aaa' }}>Round {round} complete · Here's what you know</div>
       </div>
 
-      <div style={{ width:'100%', maxWidth:520, display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{ width:'100%', maxWidth:500, display:'flex', flexDirection:'column', gap:10 }}>
 
         {/* Era */}
-        <div style={{ background:'#fff', borderRadius:12, padding:'16px 20px', border:'0.5px solid #e0ddd6' }}>
-          <div style={{ fontSize:11, textTransform:'uppercase', letterSpacing:1, color:'#bbb', marginBottom:10 }}>Era Match</div>
+        <div style={{ background:'#fff', borderRadius:12, padding:'14px 18px', border:'0.5px solid #e0ddd6' }}>
+          <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:1, color:'#bbb', marginBottom:8 }}>Era</div>
           <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-            <GradePill grade={eraGrade.grade} label="Era" />
+            <GradePill grade={eraGrade.grade} label="Era match" />
             <span style={{ fontSize:13, color:'#555' }}>{eraGrade.desc}</span>
           </div>
         </div>
 
-        {/* Team */}
-        <div style={{ background:'#fff', borderRadius:12, padding:'16px 20px', border:'0.5px solid #e0ddd6' }}>
-          <div style={{ fontSize:11, textTransform:'uppercase', letterSpacing:1, color:'#bbb', marginBottom:10 }}>Franchise Match</div>
-          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-            <PassPill pass={teamGrade.pass} label="Team" />
-            <span style={{ fontSize:13, color:'#555' }}>{teamGrade.desc}</span>
+        {/* Franchise — no team names revealed */}
+        <div style={{ background:'#fff', borderRadius:12, padding:'14px 18px', border:'0.5px solid #e0ddd6' }}>
+          <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:1, color:'#bbb', marginBottom:8 }}>Franchise</div>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <PassPill pass={teamGrade.pass} label="Franchise overlap" />
+            <span style={{ fontSize:13, color:'#555' }}>
+              {teamGrade.pass
+                ? 'The mystery player shared a franchise with ' + gName
+                : 'The mystery player has no franchise overlap with ' + gName}
+            </span>
           </div>
         </div>
 
-        {/* Quality */}
-        {qualGrade && (
-          <div style={{ background:'#fff', borderRadius:12, padding:'16px 20px', border:'0.5px solid #e0ddd6' }}>
-            <div style={{ fontSize:11, textTransform:'uppercase', letterSpacing:1, color:'#bbb', marginBottom:12 }}>Player Quality Match</div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              {[
-                { label:'Avg Elo', q:qualGrade.avg },
-                { label:'Peak Elo', q:qualGrade.peak },
-                { label:'Career GP', q:qualGrade.gp },
-              ].map(({ label, q }) => (
-                <div key={label} style={{ textAlign:'center' }}>
-                  <GradePill grade={q.grade} label={label} />
-                  <div style={{ fontSize:12, color:'#aaa', marginTop:6 }}>
-                    Your guess: {q.val.toLocaleString()}
-                  </div>
-                  <div style={{ fontSize:12, color:'#888' }}>
-                    <DiffArrow diff={q.diff} />
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* Comparative quality — no raw numbers revealed */}
+        <div style={{ background:'#fff', borderRadius:12, padding:'14px 18px', border:'0.5px solid #e0ddd6' }}>
+          <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:1, color:'#bbb', marginBottom:8 }}>Player Profile</div>
+          <div style={{ fontSize:13, color:'#555', lineHeight:1.8 }}>
+            The mystery player has <strong>{eloDesc(mAvg - gAvg)}</strong> {gName}
+            {' '}and <strong>{gpDesc(mHist.length / (gHist.length||1))}</strong> {gName}.
           </div>
-        )}
+          {qualGrade && (
+            <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
+              <GradePill grade={qualGrade.avg.grade}  label="Avg Elo match" />
+              <GradePill grade={qualGrade.peak.grade} label="Peak Elo match" />
+              <GradePill grade={qualGrade.gp.grade}   label="Career length match" />
+            </div>
+          )}
+        </div>
       </div>
 
-      <button
-        onClick={onContinue}
-        style={{
-          background:'#1a2e1a', color:'#fff', border:'none', borderRadius:10,
-          padding:'13px 36px', fontSize:15, fontWeight:600, cursor:'pointer',
-          fontFamily:"'DM Sans', sans-serif",
-        }}
-      >
+      <button onClick={onContinue} style={{
+        background:'#1a2e1a', color:'#fff', border:'none', borderRadius:10,
+        padding:'13px 36px', fontSize:15, fontWeight:600, cursor:'pointer',
+        fontFamily:"'DM Sans', sans-serif",
+      }}>
         Round {round + 1} →
       </button>
     </div>
@@ -237,7 +251,7 @@ function RoundTransition({ guess, mystery, round, onContinue }) {
 
 // ── Mystery Chart ─────────────────────────────────────────────────────────────
 
-function drawChart(svg, hist, round, W, H) {
+function drawChart(svg, hist, round, W, H, spagData) {
   while (svg.firstChild) svg.removeChild(svg.firstChild)
   const ns = 'http://www.w3.org/2000/svg'
   const PAD = { top:16, right:16, bottom: round >= 2 ? 28 : 8, left:44 }
@@ -282,6 +296,31 @@ function drawChart(svg, hist, round, W, H) {
     })
   }
 
+  // Background spaghetti — light gray context lines
+  if (spagData) {
+    const { dates: spagDates, players: spagPlayers } = spagData
+    const startDate = hist[0][0], endDate = hist[hist.length-1][0]
+    spagPlayers.forEach(pts => {
+      const filtered = pts.filter(([si]) => spagDates[si] >= startDate && spagDates[si] <= endDate)
+      if (filtered.length < 2) return
+      const elos2 = hist.map(e=>e[1])
+      const min2 = Math.min(...elos2)-60, max2 = Math.max(...elos2)+60
+      const spagN = spagDates.filter(d => d >= startDate && d <= endDate).length || 1
+      // Map each spaghetti point to x by its position in the date range
+      const startIdx = spagDates.indexOf(startDate)
+      const d = filtered.map(([si, sv], k) => {
+        const relIdx = si - startIdx
+        const x = PAD.left + (relIdx / Math.max(spagN-1,1)) * plotW
+        const y = PAD.top + plotH - ((sv - min2)/(max2-min2+0.001))*plotH
+        return `${k===0?'M':'L'}${x.toFixed(1)},${Math.max(PAD.top, Math.min(PAD.top+plotH, y)).toFixed(1)}`
+      }).join(' ')
+      const p = document.createElementNS(ns, 'path')
+      p.setAttribute('d', d); p.setAttribute('fill','none')
+      p.setAttribute('stroke','rgba(150,150,150,0.08)'); p.setAttribute('stroke-width','1')
+      svg.appendChild(p)
+    })
+  }
+
   // Line — team-colored in round 3, single dark color otherwise
   const drawSeg = (pts, startIdx, color) => {
     if (pts.length < 2) return
@@ -320,8 +359,15 @@ function MysteryChart({ player, round, onReady }) {
   const svgRef  = useRef(null)
   const wrapRef = useRef(null)
   const [tooltip, setTooltip] = useState(null)
+  const [spag,    setSpag]    = useState(null)
   const animRef = useRef(null)
   const hist = player?.elo_history || []
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/data/spaghetti.json').then(r=>r.json()).then(d => { if (!cancelled) setSpag(d) }).catch(()=>{})
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     if (!svgRef.current || !wrapRef.current || !hist.length) return
@@ -336,7 +382,7 @@ function MysteryChart({ player, round, onReady }) {
     const animate = () => {
       if (!svgRef.current) return
       if (frame >= FRAMES) {
-        drawChart(svgRef.current, hist, round, W, H)
+        drawChart(svgRef.current, hist, round, W, H, spag)
         onReady?.()
         // Add hit targets
         addHitTargets(svgRef.current, hist, round, W, H)
@@ -345,7 +391,7 @@ function MysteryChart({ player, round, onReady }) {
       const t = frame / FRAMES
       const ease = 1 - Math.pow(1 - t, 3)
       const noisy = hist.map(e => [e[0], e[1] + (Math.random() - 0.5) * 150 * (1 - ease), ...e.slice(2)])
-      drawChart(svgRef.current, noisy, round, W, H)
+      drawChart(svgRef.current, noisy, round, W, H, null)
       frame++
       animRef.current = requestAnimationFrame(animate)
     }
