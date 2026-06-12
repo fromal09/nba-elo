@@ -102,7 +102,8 @@ To rank these tenures we compute a Legend Score:
 The exponents reflect a deliberate design choice: Elo quality (0.6) matters slightly more than longevity (0.4), but both are required for a high score. The geometric structure means neither dimension can fully compensate for weakness in the other. Minimum 50 games to qualify.`,
   },
   {
-    title: 'Relationship to Traditional Metrics',y: `FPR and traditional per-game statistics answer different questions.
+    title: 'Relationship to Traditional Metrics',
+    body: `FPR and traditional per-game statistics answer different questions.
 
 Points per game asks: how much does this player produce? FPR asks: based on head-to-head competitive results across their full history, how dominant has this player been relative to specific opponents in the same game?
 

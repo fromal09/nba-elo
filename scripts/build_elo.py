@@ -113,13 +113,6 @@ def build_elo(df):
     if "Unnamed: 6" in df.columns:
         df.rename(columns={"Unnamed: 6": "home_away"}, inplace=True)
 
-    # Disambiguate duplicate player names
-    # Eddie A. Johnson (rookie 1981-82, Sacramento/Phoenix) vs Eddie L. Johnson (ATL, rookie 1977-78)
-    mask_a = (df["Player"] == "Eddie Johnson") & (df["Date"].astype(str) >= "1981") & (df["Team"].isin(["KCK","SAC","PHO","IND","HOU","SEA","CHH"]))
-    mask_l = (df["Player"] == "Eddie Johnson") & (df["Date"].astype(str) >= "1977") & (df["Team"].isin(["ATL","CLE","SEA"]))
-    df.loc[mask_a, "Player"] = "Eddie A. Johnson"
-    df.loc[mask_l, "Player"] = "Eddie L. Johnson"
-
     df["GmSc"] = pd.to_numeric(df["GmSc"], errors="coerce")
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     df["MP"]   = pd.to_numeric(df["MP"],   errors="coerce")
@@ -193,8 +186,6 @@ def build_elo(df):
     last_date_at_1    = {}  # last date each player was #1 (dedup per day)
     gmsc_hist    = defaultdict(list)  # kept for computing recent/career avg scalars
     team_hist    = defaultdict(list)   # only records team changes
-    opp_map      = {}                  # opponent per game (transient)
-    won_map      = {}                  # game result per player (transient)
     team_map     = {}
     last_played  = {}
 
@@ -221,16 +212,7 @@ def build_elo(df):
 
         for p in players:
             init(p)
-            prow           = group[group["Player"] == p].iloc[0]
-            team_map[p]    = prow["Team"]
-            opp_map[p]     = str(prow["Opp"]).strip() if "Opp" in group.columns and str(prow.get("Opp","")).strip() not in ("","nan") else str(prow["Team"])
-            result_str     = str(prow.get("Result","")).strip()
-            won_map[p]     = result_str.startswith("W") if result_str else None
-            # Use Charlotte franchise CSV to correctly tag team
-            if (p, date_str) in charlotte_keys:
-                team_map[p] = 'CHO'   # confirmed Charlotte
-            elif team_map.get(p) == 'CHO':
-                team_map[p] = 'NOH'   # BDL CHO but not in Charlotte CSV = New Orleans
+            team_map[p]    = group[group["Player"] == p]["Team"].iloc[0]
             last_played[p] = date_str
 
         deltas = defaultdict(float)
@@ -248,7 +230,7 @@ def build_elo(df):
             elo[p]          += deltas[p]
             games_played[p] += 1
             if elo[p] > peak_elo[p]: peak_elo[p] = elo[p]
-            elo_hist[p].append([date_str, round(elo[p], 1), opp_map.get(p, ""), won_map.get(p), team_map.get(p, "")])
+            elo_hist[p].append([date_str, round(elo[p], 1)])
             gmsc_hist[p].append([date_str, round(gmsc[p], 1)])
             # Record team only when it changes
             cur_team = team_map.get(p, '')
@@ -275,21 +257,13 @@ def build_elo(df):
 
     all_players = sorted(elo.keys(), key=lambda p: -elo[p])
 
-    # FPR eligibility — current season only, active NBA franchises only
+    # FPR eligibility — current season only prevents retired players qualifying
     CURRENT_SEASON_START = "2025-10-01"
-    ACTIVE_NBA_TEAMS = {
-        "ATL","BOS","BKN","CHA","CHI","CLE","DAL","DEN","DET","GSW",
-        "HOU","IND","LAC","LAL","MEM","MIA","MIL","MIN","NOP","NYK",
-        "OKC","ORL","PHI","PHO","POR","SAC","SAS","TOR","UTA","WAS"
-    }
     team_game_dates = defaultdict(set)
     for pl, games in gmsc_hist.items():
-        team = team_map.get(pl, "")
-        if team not in ACTIVE_NBA_TEAMS:
-            continue
         for d, _ in games:
             if d >= CURRENT_SEASON_START:
-                team_game_dates[team].add(d)
+                team_game_dates[team_map.get(pl, "")].add(d)
 
     team_cutoff = {}
     for team, dates in team_game_dates.items():
@@ -304,7 +278,6 @@ def build_elo(df):
         career_avg = sum(all_gs) / len(all_gs) if all_gs else 0
         team       = team_map.get(player, "")
         lp         = last_played.get(player, "")
-        eligible   = (team in ACTIVE_NBA_TEAMS) and (lp >= team_cutoff.get(team, ""))
 
         players_out.append({
             "name":             player,
@@ -312,12 +285,11 @@ def build_elo(df):
             "current_elo":      round(elo[player], 1),
             "peak_elo":         round(peak_elo[player], 1),
             "current_tpr_rank": rank,
-            "fpr_rank":         0,
             "games_played":     games_played[player],
             "recent_gmsc_avg":  round(recent_avg, 1),
             "career_gmsc_avg":  round(career_avg, 1),
             "last_played":      lp,
-            "is_fpr_eligible":  eligible,
+            "is_fpr_eligible":  lp >= team_cutoff.get(team, ""),
             "peak_fpr_rank":    peak_fpr_rank_map.get(player, 9999),
             "_games_at_1":      games_at_1_map.get(player, 0),
             "_max_streak":      max_streak_map.get(player, 0),
@@ -325,22 +297,13 @@ def build_elo(df):
             "team_history":     team_hist[player],
         })
 
-    # ── Assign clean FPR rank among eligible players ─────────────────────────
-    eligible_sorted = sorted(
-        [p for p in players_out if p["is_fpr_eligible"]],
-        key=lambda p: -p["current_elo"]
-    )
-    for fpr_rank, p in enumerate(eligible_sorted, 1):
-        p["fpr_rank"] = fpr_rank
-
     # ── Badge computation ──────────────────────────────────────────────────
     peak_elo_ranking  = sorted(players_out, key=lambda p: -p["peak_elo"])
     peak_elo_rank_map = {p["name"]: i+1 for i, p in enumerate(peak_elo_ranking)}
 
     decade_best = defaultdict(lambda: defaultdict(float))
     for p in players_out:
-        for _entry in p["elo_history"]:
-            date_str, elo_val = _entry[0], _entry[1]
+        for date_str, elo_val in p["elo_history"]:
             yr     = int(date_str[:4])
             decade = (yr // 10) * 10
             if elo_val > decade_best[p["name"]][decade]:
@@ -356,8 +319,7 @@ def build_elo(df):
     # Avg Elo by decade for era badges
     decade_avg = defaultdict(lambda: defaultdict(list))
     for p in players_out:
-        for _e in p["elo_history"]:
-            date_str, elo_val = _e[0], _e[1]
+        for date_str, elo_val in p["elo_history"]:
             yr     = int(date_str[:4])
             decade = (yr // 10) * 10
             decade_avg[p["name"]][decade].append(elo_val)
@@ -371,7 +333,7 @@ def build_elo(df):
     def compute_badges(p):
         badges = []
         name         = p["name"]
-        curr_rank    = p["fpr_rank"] if p["is_fpr_eligible"] and p["fpr_rank"] > 0 else 9999
+        curr_rank    = p["current_tpr_rank"]
         peak         = p["peak_elo"]
         gp           = p["games_played"]
         fpr_eligible = p["is_fpr_eligible"]
@@ -410,7 +372,10 @@ def build_elo(df):
             elif pfpr <= 100:  badges.append({"cat":"fpr","id":"former_top100","label":f"Former FPR Top 100 (#{pfpr})","emoji":"🏅"})
 
         # ── FPR: Games at #1 and streak (both shown if qualified) ───────
-
+        if games_at_1 >= 1:
+            badges.append({"cat":"fpr","id":"games_at_1","label":f"{games_at_1}× FPR #1","emoji":"👑"})
+        if streak >= 5:
+            badges.append({"cat":"fpr","id":"streak_at_1","label":f"{streak}-Game FPR #1 Streak","emoji":"🔥"})
 
         # ── Elo Club (exclusive — highest threshold only) ────────────────
         for threshold in [3000, 2900, 2700, 2500, 2200, 2000]:
@@ -482,18 +447,6 @@ if __name__ == "__main__":
     df = parse_csv(csv_paths)
     print(f"  {len(df)} raw rows")
     print("Running Elo pipeline…")
-
-import csv as _csv
-_charlotte_csv = _os.path.join(_os.path.dirname(__file__), '..', 'data', 'charlotte.csv')
-charlotte_keys = set()
-if _os.path.exists(_charlotte_csv):
-    with open(_charlotte_csv) as _f:
-        for row in _csv.DictReader(_f):
-            p, d = row.get('Player','').strip(), row.get('Date','').strip()
-            if p and d:
-                charlotte_keys.add((p, d))
-    print(f"  Loaded {len(charlotte_keys)} Charlotte game-player keys")
-
     output = build_elo(df)
     print(f"  {output['total_players']} players · {output['total_games']} games")
 
@@ -509,4 +462,59 @@ if _os.path.exists(_charlotte_csv):
     spag_path = Path("public/data/spaghetti.json")
     spag_path.write_text(json.dumps(spag, separators=(",", ":")), encoding="utf-8")
     print(f"  Written {spag_path} ({spag_path.stat().st_size/1024:.0f} KB)")
+    # ── Build games.json ─────────────────────────────────────────────────────
+    print("  Building games index...")
+    from collections import defaultdict
+    # Build lookup: player name -> list of elo_history entries
+    player_hist = {p["name"]: p["elo_history"] for p in output["players"]}
+
+    # Group all game entries by (date, team) to reconstruct games
+    # Each elo_history entry: [date, elo, opp, won, team]
+    game_map = defaultdict(lambda: defaultdict(list))  # date -> frozenset(teamA,teamB) -> [entries]
+    for p in output["players"]:
+        for e in p["elo_history"]:
+            if len(e) >= 5 and e[2] and e[4]:
+                key = frozenset([e[4], e[2]])  # team vs opp
+                game_map[e[0]][key].append({"name": p["name"], "elo": round(e[1], 1), "team": e[4], "won": e[3]})
+
+    # Normalize Elo range for 0-100 score
+    ELO_MIN, ELO_MAX = 1400, 3100
+
+    def elo_score(elo):
+        return round(max(0, min(100, (elo - ELO_MIN) / (ELO_MAX - ELO_MIN) * 100)), 1)
+
+    games_list = []
+    for date, keys in game_map.items():
+        for teams_key, players in keys.items():
+            teams = list(teams_key)
+            if len(teams) != 2: continue
+            teamA, teamB = sorted(teams)
+            pA = [p for p in players if p["team"] == teamA]
+            pB = [p for p in players if p["team"] == teamB]
+            if not pA or not pB: continue
+            avgA = sum(p["elo"] for p in pA) / len(pA)
+            avgB = sum(p["elo"] for p in pB) / len(pB)
+            overall = (avgA * len(pA) + avgB * len(pB)) / (len(pA) + len(pB))
+            # Sort players by elo desc, keep top 12 per team for size
+            pA_sorted = sorted(pA, key=lambda x: -x["elo"])[:12]
+            pB_sorted = sorted(pB, key=lambda x: -x["elo"])[:12]
+            games_list.append({
+                "date":    date,
+                "teamA":   teamA,
+                "teamB":   teamB,
+                "scoreA":  elo_score(avgA),
+                "scoreB":  elo_score(avgB),
+                "score":   elo_score(overall),
+                "playersA": [{"n": p["name"], "e": round(p["elo"]), "w": p["won"]} for p in pA_sorted],
+                "playersB": [{"n": p["name"], "e": round(p["elo"]), "w": p["won"]} for p in pB_sorted],
+            })
+
+    # Sort by overall strength descending
+    games_list.sort(key=lambda g: -g["score"])
+
+    games_out = {"games": games_list}
+    games_path = Path("public/data/games.json")
+    games_path.write_text(json.dumps(games_out, separators=(",", ":")), encoding="utf-8")
+    print(f"  Written {games_path} ({games_path.stat().st_size/1024:.0f} KB, {len(games_list):,} games)")
+
     print("Done.")
