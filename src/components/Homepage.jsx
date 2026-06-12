@@ -24,6 +24,22 @@ export default function Homepage({ data, setView }) {
       color: '#e0eaf8', iconColor: '#1a3a6e',
     },
     {
+      icon: '🔢',
+      title: 'Best Through X',
+      desc: 'The Elo leader at each career game milestone — who had the highest rating through exactly N games played.',
+      meta: 'Live leaderboard · #1, #2, #3 at every milestone',
+      view: 'bestx',
+      color: '#e8f0f5', iconColor: '#0a3a5a',
+    },
+    {
+      icon: '🕵️',
+      title: 'Mystery Player',
+      desc: 'Guess the player from their Elo career chart. Three rounds, each revealing more clues.',
+      meta: 'Filter by franchise · era · career length',
+      view: 'mystery',
+      color: '#f0e8f5', iconColor: '#3a0a5a',
+    },
+    {
       icon: '📈',
       title: 'Franchise Tenures',
       desc: 'Scatterplot of avg Elo vs games played for any franchise. Identifies all-time Elo Legends.',
