@@ -212,9 +212,11 @@ def build_elo(df):
         date_str = group["Date"].iloc[0].strftime("%Y-%m-%d")
         n        = len(players)
 
+        group_by_player = {row["Player"]: row for _, row in group.iterrows()}
         for p in players:
             init(p)
-            prow           = group[group["Player"] == p].iloc[0]
+            prow           = group_by_player.get(p)
+            if prow is None: continue
             team_map[p]    = prow["Team"]
             opp_map[p]     = str(prow["Opp"]).strip() if "Opp" in group.columns and str(prow.get("Opp","")).strip() not in ("","nan") else str(prow["Team"])
             result_str     = str(prow.get("Result","")).strip()
@@ -298,7 +300,7 @@ def build_elo(df):
             "recent_gmsc_avg":  round(recent_avg, 1),
             "career_gmsc_avg":  round(career_avg, 1),
             "last_played":      lp,
-            "is_fpr_eligible":  lp >= team_cutoff.get(team, ""),
+            "is_fpr_eligible":  team in team_cutoff and lp >= team_cutoff[team],
             "peak_fpr_rank":    peak_fpr_rank_map.get(player, 9999),
             "_games_at_1":      games_at_1_map.get(player, 0),
             "_max_streak":      max_streak_map.get(player, 0),

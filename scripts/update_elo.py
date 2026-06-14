@@ -129,6 +129,8 @@ games_at_1_map    = {}
 cur_streak_map    = {}
 max_streak_map    = {}
 team_map     = {}
+opp_map      = {}
+won_map      = {}
 last_played  = {}
 
 for p in players_out:
@@ -149,6 +151,18 @@ for p in players_out:
             max_streak_map[name] = int(b["label"].split("-")[0])
     peak_fpr_rank_map[name] = p.get("peak_fpr_rank", 9999)
 
+# Build team_cutoff from full loaded elo_history
+team_game_dates_full = defaultdict(set)
+for name, hist in elo_hist.items():
+    for e in hist:
+        t = e[4] if len(e) >= 5 and e[4] else team_map.get(name, "")
+        if t: team_game_dates_full[t].add(e[0])
+team_cutoff = {}
+for team, dates in team_game_dates_full.items():
+    sorted_dates = sorted(dates, reverse=True)
+    team_cutoff[team] = sorted_dates[min(19, len(sorted_dates) - 1)]
+
+
 # ── Run Elo pipeline for new games ───────────────────────────────────────
 print("Running incremental Elo update…")
 game_order  = new_df.drop_duplicates("game_id").sort_values("Date")["game_id"].tolist()
@@ -164,7 +178,11 @@ for game_id in game_order:
     for p in players:
         if p not in elo:
             elo[p] = 1500; games_played[p] = 0; peak_elo[p] = 1500
-        team_map[p]    = group[group["Player"] == p]["Team"].iloc[0]
+        prow           = group[group["Player"] == p].iloc[0]
+        team_map[p]    = prow["Team"]
+        opp_map[p]     = str(prow["Opp"]).strip() if "Opp" in group.columns and str(prow.get("Opp","")).strip() not in ("","nan") else ""
+        result_str     = str(prow.get("Result","")).strip()
+        won_map[p]     = result_str.startswith("W") if result_str else None
         last_played[p] = date_str
 
     deltas = defaultdict(float)
@@ -212,10 +230,6 @@ for pl, games in gmsc_hist.items():
     for d, _ in games:
         team_game_dates[team_map.get(pl, "")].add(d)
 
-team_cutoff = {}
-for team, dates in team_game_dates.items():
-    sorted_dates = sorted(dates, reverse=True)
-    team_cutoff[team] = sorted_dates[min(19, len(sorted_dates) - 1)]
 
 # Rebuild peak Elo rank map
 peak_rank_order = sorted(elo.keys(), key=lambda p: -peak_elo[p])
@@ -336,7 +350,7 @@ for rank, name in enumerate(all_player_names, 1):
     career_avg = sum(all_gs) / len(all_gs) if all_gs else 0
     team    = team_map.get(name, "")
     lp      = last_played.get(name, "")
-    eligible = lp >= team_cutoff.get(team, "")
+    eligible = team in team_cutoff and lp >= team_cutoff[team]
 
     new_players_out.append({
         "name":             name,
