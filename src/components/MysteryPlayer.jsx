@@ -245,11 +245,11 @@ function MysteryChart({ player, round }) {
           left:`${(tooltip.x/(tooltip.svgW||640))*100}%`,
           top:`${(tooltip.y/230)*100}%`,
           transform:tooltip.x>(tooltip.svgW||640)*0.65?'translate(-110%,-50%)':'translate(10%,-50%)',
-          background:'#0a0a1a',color:'#1a1a1a',borderRadius:8,padding:'8px 12px',
+          background:'#fff',color:'#1a1a1a',borderRadius:8,padding:'8px 12px',border:'0.5px solid #e0ddd6',
           fontSize:12,lineHeight:1.7,pointerEvents:'none',zIndex:10,
           boxShadow:'0 4px 16px rgba(0,0,0,0.8)',whiteSpace:'nowrap',border:'0.5px solid #e0ddd6',
         }}>
-          <div>Elo <span style={{color:'#ffd700',fontWeight:600}}>{tooltip.elo.toLocaleString()}</span></div>
+          <div>Elo <span style={{color:'#c9920a',fontWeight:600}}>{tooltip.elo.toLocaleString()}</span></div>
           {tooltip.date&&<div style={{color:'#888'}}>{tooltip.date.slice(5,7)}/{tooltip.date.slice(8,10)}/{tooltip.date.slice(0,4)}</div>}
           {tooltip.team&&<div style={{color:TEAM_COLORS[tooltip.team]||'#ccc'}}>{tooltip.team}</div>}
         </div>
@@ -487,15 +487,15 @@ function LandingScreen({ onQuick, onFilter }) {
             </div>
           ))}
         </div>
-        <button onClick={onQuick} style={{background:'#1a2e1a',color:'#fff',border:'none',borderRadius:12,
+        <button onClick={onFilter} style={{background:'#1a2e1a',color:'#fff',border:'none',borderRadius:12,
           padding:'16px 48px',fontSize:16,fontWeight:700,cursor:'pointer',
           fontFamily:"'DM Sans', sans-serif",marginBottom:12,display:'block',width:'100%'}}>
-          Quick Start →
+          Filter the Suspect Pool →
         </button>
-        <button onClick={onFilter} style={{background:'transparent',color:'#888',border:'0.5px solid #e0ddd6',borderRadius:12,
+        <button onClick={onQuick} style={{background:'transparent',color:'#888',border:'0.5px solid #e0ddd6',borderRadius:12,
           padding:'14px 48px',fontSize:14,cursor:'pointer',
           fontFamily:"'DM Sans', sans-serif",display:'block',width:'100%'}}>
-          Filter the suspect pool
+          Quick Start (random)
         </button>
       </div>
     </div>
