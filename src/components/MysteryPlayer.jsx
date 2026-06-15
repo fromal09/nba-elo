@@ -551,6 +551,7 @@ export default function MysteryPlayer({ players, onSelectPlayer }) {
   const [mystery,setMystery]  = useState(null)
   const [guesses,setGuesses]  = useState([])
   const [result, setResult]   = useState(null)
+  const [visibleGuesses, setVisibleGuesses] = useState(new Set())
 
   const round = useMemo(()=>{
     const w = guesses.filter(g=>!g.correct).length
