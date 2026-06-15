@@ -296,6 +296,7 @@ def build_elo(df):
             "current_elo":      round(elo[player], 1),
             "peak_elo":         round(peak_elo[player], 1),
             "current_tpr_rank": rank,
+            "fpr_rank":         None,  # assigned below after eligibility is known
             "games_played":     games_played[player],
             "recent_gmsc_avg":  round(recent_avg, 1),
             "career_gmsc_avg":  round(career_avg, 1),
@@ -463,6 +464,15 @@ if __name__ == "__main__":
     output = build_elo(df)
     print(f"  {output['total_players']} players · {output['total_games']} games")
 
+    # Assign fpr_rank — rank among eligible players only, sorted by current Elo
+    eligible_sorted = sorted(
+        [p for p in output["players"] if p.get("is_fpr_eligible")],
+        key=lambda p: -p["current_elo"]
+    )
+    fpr_rank_map = {p["name"]: i + 1 for i, p in enumerate(eligible_sorted)}
+    for p in output["players"]:
+        p["fpr_rank"] = fpr_rank_map.get(p["name"])
+
     out_path = Path("public/data/elo.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(output, separators=(",", ":")), encoding="utf-8")
@@ -523,6 +533,13 @@ if __name__ == "__main__":
             })
 
     # Sort by overall strength descending
+    # Normalize scores so max = 100
+    if games_list:
+        max_s = max(g["score"] for g in games_list)
+        for g in games_list:
+            g["score"]  = round(g["score"]  / max_s * 100, 1)
+            g["scoreA"] = round(g["scoreA"] / max_s * 100, 1)
+            g["scoreB"] = round(g["scoreB"] / max_s * 100, 1)
     games_list.sort(key=lambda g: -g["score"])
 
     games_out = {"games": games_list}
