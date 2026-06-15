@@ -8,6 +8,17 @@ Usage:
 Pass multiple CSVs to concatenate. Output: public/data/elo.json + spaghetti.json
 """
 
+# ═══════════════════════════════════════════════════════════════════════════
+# OUTPUT CONTRACT — do not change these without updating all consumers
+#
+# elo_history entry: [date, elo, opp_team, won_bool, team]  (5 elements)
+# player fields: name, current_elo, peak_elo, games_played, team,
+#                last_played, is_fpr_eligible, fpr_rank, current_tpr_rank,
+#                peak_fpr_rank, elo_history, team_history, badges,
+#                career_gmsc_avg, recent_gmsc_avg
+# games.json score: normalized 0-100 (max game = 100)
+# fpr_rank: rank among is_fpr_eligible players only (None if ineligible)
+# ═══════════════════════════════════════════════════════════════════════════
 import sys, json, io, os as _os
 from pathlib import Path
 from datetime import date
