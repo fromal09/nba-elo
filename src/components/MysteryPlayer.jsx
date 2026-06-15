@@ -336,7 +336,7 @@ function GuessInput({ players, onGuess, disabled, usedNames }) {
   )
 }
 
-function CluesSidebar({ guesses, mystery, round }) {
+function CluesSidebar({ guesses, mystery, round, visibleGuesses = new Set(), onToggle }) {
   if (!mystery) return null
   const wrongGuesses = guesses.filter(g=>!g.correct)
   const clues = buildClues(wrongGuesses, mystery)
@@ -375,7 +375,19 @@ function CluesSidebar({ guesses, mystery, round }) {
           const avgClr  = mAvg>gAvg?'#ff9944':mAvg<gAvg?'#44aaff':'#4a9a4a'
           return (
             <div key={i} style={{background:'#fff5f5',border:'0.5px solid #f0d0d0',borderRadius:8,padding:'10px 12px',marginBottom:8}}>
-              <div style={{fontSize:13,color:'#c94040',fontWeight:600,marginBottom:6}}>✗ {g.name}</div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                <div style={{fontSize:13,color:'#c94040',fontWeight:600}}>✗ {g.name}</div>
+                <button
+                  onClick={()=>onToggle(g.name)}
+                  style={{
+                    background: visibleGuesses.has(g.name) ? '#c9404022' : 'transparent',
+                    border: `0.5px solid ${visibleGuesses.has(g.name) ? '#c94040' : '#e0ddd6'}`,
+                    borderRadius:6, padding:'2px 8px', fontSize:10, cursor:'pointer',
+                    color: visibleGuesses.has(g.name) ? '#c94040' : '#aaa',
+                    fontFamily:"'DM Sans', sans-serif", whiteSpace:'nowrap',
+                  }}
+                >{visibleGuesses.has(g.name) ? '● Hide' : '○ Show'}</button>
+              </div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:6}}>
                 <div style={{fontSize:11}}>
                   <span style={{color:'#888'}}>Peak </span>
@@ -556,6 +568,15 @@ export default function MysteryPlayer({ players, onSelectPlayer }) {
     startGame(pool[Math.floor(Math.random()*pool.length)])
   }
 
+  const toggleGuess = name => {
+    setVisibleGuesses(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
   const handleGuess = name => {
     const gp = players.find(p=>normalize(p.name)===normalize(name))
     const correct = normalize(name)===normalize(mystery.name)
@@ -607,7 +628,7 @@ export default function MysteryPlayer({ players, onSelectPlayer }) {
         </div>
 
         <div style={{padding:'16px 20px',flexShrink:0}}>
-          <MysteryChart player={mystery} round={result?3:round} wrongGuesses={wrongGuesses.filter(g=>!g.correct)} />
+          <MysteryChart player={mystery} round={result?3:round} wrongGuesses={wrongGuesses.filter(g=>!g.correct&&visibleGuesses.has(g.name))} />
         </div>
 
         <div style={{padding:'0 20px 20px',flex:1,overflow:'auto'}}>
@@ -650,7 +671,7 @@ export default function MysteryPlayer({ players, onSelectPlayer }) {
         <div style={{padding:'12px 14px 10px',borderBottom:'1px solid #1a1a2e',flexShrink:0}}>
           <div style={{fontSize:11,fontWeight:600,color:'#aaa',textTransform:'uppercase',letterSpacing:1}}>🗂 Case File</div>
         </div>
-        <CluesSidebar guesses={guesses} mystery={mystery} round={round} />
+        <CluesSidebar guesses={guesses} mystery={mystery} round={round} visibleGuesses={visibleGuesses} onToggle={toggleGuess} />
       </div>
     </div>
   )
