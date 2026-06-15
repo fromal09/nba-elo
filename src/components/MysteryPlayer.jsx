@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 
 const TEAM_COLORS = {
   ATL:'#C8102E',BOS:'#007A33',BKN:'#000000',CHA:'#00788C',CHO:'#00788C',
@@ -30,485 +30,272 @@ const FRANCHISE_NAMES = {
   POR:'Portland',SAC:'Sacramento',SAS:'San Antonio',TOR:'Toronto',UTA:'Utah',WAS:'Washington',
 }
 
-const ERAS = [
-  { id:'early', label:'Early NBA', desc:'Pre-1974', test: e => e[0] < '1974-01-01' },
-  { id:'aba',   label:'ABA Era',   desc:'1967–76',  test: e => e[0] >= '1967-01-01' && e[0] < '1977-01-01' },
-  { id:'modern',label:'Modern',    desc:'1974+',    test: e => e[0] >= '1974-01-01' },
-]
+const ALL_FRANCHISES = Object.keys(FRANCHISE_NAMES)
+const MAX_GUESSES = 5
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function playerEra(hist) {
-  // Returns the dominant era of a player's career
-  const early  = hist.filter(e => e[0] < '1974-01-01').length
-  const modern = hist.filter(e => e[0] >= '1974-01-01').length
-  const aba    = hist.filter(e => e[0] >= '1967-01-01' && e[0] < '1977-01-01').length
-  if (early > modern && early > aba) return 'early'
-  if (aba > early && aba > modern)   return 'aba'
-  return 'modern'
+function normalize(s) {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
 }
 
-function playerTeams(hist) {
-  return new Set(hist.map(e => e[4] || '').filter(Boolean))
-}
-
-function gradeEra(guess, mystery) {
-  if (!guess) return { grade:'F', desc:'No guess made' }
-  const mHist = mystery.elo_history || []
-  const gHist = guess.elo_history   || []
-  const mEra  = playerEra(mHist)
-  const gEra  = playerEra(gHist)
-
-  // Start and end years
-  const mStart = parseInt(mHist[0]?.[0]?.slice(0,4) || 2000)
-  const mEnd   = parseInt(mHist[mHist.length-1]?.[0]?.slice(0,4) || 2000)
-  const gStart = parseInt(gHist[0]?.[0]?.slice(0,4) || 2000)
-  const gEnd   = parseInt(gHist[gHist.length-1]?.[0]?.slice(0,4) || 2000)
-
-  if (mEra !== gEra) return { grade:'F', desc:`Wrong era entirely — mystery player is ${mEra === 'early' ? 'pre-1974' : mEra === 'aba' ? 'ABA era' : 'modern era'}` }
-  const overlap = Math.max(0, Math.min(mEnd, gEnd) - Math.max(mStart, gStart))
-  const span    = Math.max(mEnd - mStart, 1)
-  const pct     = overlap / span
-  if (pct > 0.7) return { grade:'A', desc:`Great era match — careers overlapped ${overlap} years` }
-  if (pct > 0.4) return { grade:'B', desc:`Good era match — careers overlapped ${overlap} years` }
-  if (pct > 0.15) return { grade:'C', desc:`Partial era match — careers overlapped ${overlap} years` }
-  return { grade:'D', desc:`Same era but careers barely overlapped` }
-}
-
-function gradeTeam(guess, mystery) {
-  if (!guess) return { pass: false, desc: 'No guess made' }
-  const mTeams = playerTeams(mystery.elo_history || [])
-  const gTeams = playerTeams(guess.elo_history   || [])
-  const overlap = [...mTeams].filter(t => gTeams.has(t))
-  if (overlap.length > 0) return { pass: true,  desc: `Shared franchise: ${overlap.join(', ')}` }
-  // Check franchise aliases
-  for (const [, aliases] of Object.entries(FRANCHISE_ALIASES)) {
-    const mHas = [...mTeams].some(t => aliases.includes(t))
-    const gHas = [...gTeams].some(t => aliases.includes(t))
-    if (mHas && gHas) return { pass: true, desc: 'Shared franchise (different eras)' }
+function playerFranchises(hist) {
+  const teams = new Set(hist.map(e => e[4]||'').filter(Boolean))
+  const out = new Set()
+  for (const [fk, aliases] of Object.entries(FRANCHISE_ALIASES)) {
+    if ([...teams].some(t => aliases.includes(t))) out.add(fk)
   }
-  return { pass: false, desc: 'No franchise overlap' }
+  return out
 }
 
-function gradeQuality(guess, mystery) {
-  if (!guess) return null
-  const mHist = mystery.elo_history || []
-  const gHist = guess.elo_history   || []
+function playerRookieYear(hist) { return hist[0]?.[0]?.slice(0,4) }
+function playerAvgElo(hist) {
+  if (!hist.length) return 0
+  return Math.round(hist.reduce((s,e) => s+e[1], 0) / hist.length)
+}
 
-  const mAvg  = Math.round(mHist.reduce((s,e) => s+e[1], 0) / (mHist.length||1))
-  const gAvg  = Math.round(gHist.reduce((s,e) => s+e[1], 0) / (gHist.length||1))
-  const mPeak = Math.round(Math.max(...mHist.map(e=>e[1])))
-  const gPeak = Math.round(Math.max(...gHist.map(e=>e[1])))
-  const mGP   = mHist.length
-  const gGP   = gHist.length
+function buildClues(wrongGuesses, mystery) {
+  const mHist   = mystery.elo_history || []
+  const mPeak   = Math.round(Math.max(...mHist.map(e=>e[1])))
+  const mAvg    = playerAvgElo(mHist)
+  const mStart  = parseInt(playerRookieYear(mHist)||0)
+  const mFranch = playerFranchises(mHist)
+  let peakMin = 0, peakMax = 99999, startMin = 0, startMax = 99999
+  const ruledOut = new Set(), confirmed = new Set()
 
-  const avgDiff  = Math.abs(mAvg  - gAvg)
-  const peakDiff = Math.abs(mPeak - gPeak)
-  const gpRatio  = Math.min(mGP, gGP) / Math.max(mGP, gGP)
-
-  const avgGrade  = avgDiff  < 50  ? 'A' : avgDiff  < 150 ? 'B' : avgDiff  < 300 ? 'C' : 'D'
-  const peakGrade = peakDiff < 50  ? 'A' : peakDiff < 150 ? 'B' : peakDiff < 300 ? 'C' : 'D'
-  const gpGrade   = gpRatio  > 0.8 ? 'A' : gpRatio  > 0.6 ? 'B' : gpRatio  > 0.4 ? 'C' : 'D'
-
-  return {
-    avg:  { val: gAvg,  mystery: mAvg,  diff: gAvg  - mAvg,  grade: avgGrade },
-    peak: { val: gPeak, mystery: mPeak, diff: gPeak - mPeak, grade: peakGrade },
-    gp:   { val: gGP,   mystery: mGP,   diff: gGP   - mGP,   grade: gpGrade },
+  for (const g of wrongGuesses) {
+    if (!g.player) continue
+    const gHist   = g.player.elo_history || []
+    const gPeak   = Math.round(Math.max(...gHist.map(e=>e[1])))
+    const gStart  = parseInt(playerRookieYear(gHist)||0)
+    const gFranch = playerFranchises(gHist)
+    if (mPeak > gPeak) peakMin = Math.max(peakMin, gPeak+1)
+    if (mPeak < gPeak) peakMax = Math.min(peakMax, gPeak-1)
+    if (mStart > gStart) startMin = Math.max(startMin, gStart+1)
+    if (mStart < gStart) startMax = Math.min(startMax, gStart-1)
+    for (const f of ALL_FRANCHISES) {
+      if (gFranch.has(f) && !mFranch.has(f)) ruledOut.add(f)
+      if (gFranch.has(f) && mFranch.has(f))  confirmed.add(f)
+    }
   }
+  return { peakMin, peakMax, startMin, startMax, ruledOut, confirmed }
 }
 
-const GRADE_COLOR = { A:'#2d8a5a', B:'#5a8a2d', C:'#c9920a', D:'#c94040', F:'#c94040' }
-
-function GradePill({ grade, label }) {
-  return (
-    <span style={{
-      display:'inline-flex', alignItems:'center', gap:5,
-      background: GRADE_COLOR[grade] + '18',
-      border: `0.5px solid ${GRADE_COLOR[grade]}40`,
-      borderRadius:6, padding:'3px 10px', fontSize:12,
-    }}>
-      <span style={{ fontWeight:700, color: GRADE_COLOR[grade] }}>{grade}</span>
-      <span style={{ color:'#555' }}>{label}</span>
-    </span>
-  )
-}
-
-function PassPill({ pass, label }) {
-  return (
-    <span style={{
-      display:'inline-flex', alignItems:'center', gap:5,
-      background: pass ? '#2d8a5a18' : '#c9404018',
-      border: `0.5px solid ${pass ? '#2d8a5a40' : '#c9404040'}`,
-      borderRadius:6, padding:'3px 10px', fontSize:12,
-    }}>
-      <span style={{ fontWeight:700, color: pass ? '#2d8a5a' : '#c94040' }}>{pass ? 'PASS' : 'FAIL'}</span>
-      <span style={{ color:'#555' }}>{label}</span>
-    </span>
-  )
-}
-
-function DiffArrow({ diff }) {
-  if (diff === 0) return <span style={{ color:'#2d8a5a' }}>exact</span>
-  const sign = diff > 0 ? '▲' : '▼'
-  const color = '#555'
-  return <span style={{ color }}>{sign}{Math.abs(diff).toLocaleString()}</span>
-}
-
-// ── Transition Screen ─────────────────────────────────────────────────────────
-
-function eloDesc(diff) {
-  const abs = Math.abs(diff)
-  const dir = diff > 0 ? 'higher' : 'lower'
-  if (abs < 50)  return `a very similar Elo profile to`
-  if (abs < 150) return `a slightly ${dir} Elo profile than`
-  if (abs < 300) return `a ${dir} Elo profile than`
-  return `a much ${dir} Elo profile than`
-}
-
-function gpDesc(ratio) {
-  if (ratio > 0.85) return 'a similar length career to'
-  if (ratio > 0.6)  return ratio < 1 ? 'a shorter career than' : 'a longer career than'
-  return ratio < 1 ? 'a much shorter career than' : 'a much longer career than'
-}
-
-function RoundTransition({ guess, mystery, round, onContinue }) {
-  const eraGrade  = gradeEra(guess, mystery)
-  const teamGrade = gradeTeam(guess, mystery)
-  const qualGrade = gradeQuality(guess, mystery)
-  const gName     = guess?.name || 'your guess'
-
-  const mHist = mystery.elo_history || []
-  const gHist = guess?.elo_history  || []
-  const mAvg  = Math.round(mHist.reduce((s,e) => s+e[1], 0) / (mHist.length||1))
-  const gAvg  = Math.round(gHist.reduce((s,e) => s+e[1], 0) / (gHist.length||1))
-  const gpRatio = gHist.length / (mHist.length||1)
-
-  return (
-    <div style={{
-      display:'flex', flex:1, flexDirection:'column', alignItems:'center',
-      justifyContent:'center', padding:'32px 24px', gap:18,
-      background:'#f5f3ee', fontFamily:"'DM Sans', sans-serif", overflow:'auto',
-    }}>
-      <div style={{ textAlign:'center' }}>
-        <div style={{ fontSize:26, marginBottom:6 }}>❌</div>
-        <div style={{ fontFamily:"'DM Serif Display', serif", fontSize:22, color:'#1a1a1a', marginBottom:4 }}>
-          Not {gName}
-        </div>
-        <div style={{ fontSize:13, color:'#aaa' }}>Round {round} complete · Here's what you know</div>
-      </div>
-
-      <div style={{ width:'100%', maxWidth:500, display:'flex', flexDirection:'column', gap:10 }}>
-
-        {/* Era */}
-        <div style={{ background:'#fff', borderRadius:12, padding:'14px 18px', border:'0.5px solid #e0ddd6' }}>
-          <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:1, color:'#bbb', marginBottom:8 }}>Era</div>
-          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-            <GradePill grade={eraGrade.grade} label="Era match" />
-            <span style={{ fontSize:13, color:'#555' }}>{eraGrade.desc}</span>
-          </div>
-        </div>
-
-        {/* Franchise — no team names revealed */}
-        <div style={{ background:'#fff', borderRadius:12, padding:'14px 18px', border:'0.5px solid #e0ddd6' }}>
-          <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:1, color:'#bbb', marginBottom:8 }}>Franchise</div>
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <PassPill pass={teamGrade.pass} label="Franchise overlap" />
-            <span style={{ fontSize:13, color:'#555' }}>
-              {teamGrade.pass
-                ? 'The mystery player shared a franchise with ' + gName
-                : 'The mystery player has no franchise overlap with ' + gName}
-            </span>
-          </div>
-        </div>
-
-        {/* Comparative quality — no raw numbers revealed */}
-        <div style={{ background:'#fff', borderRadius:12, padding:'14px 18px', border:'0.5px solid #e0ddd6' }}>
-          <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:1, color:'#bbb', marginBottom:8 }}>Player Profile</div>
-          <div style={{ fontSize:13, color:'#555', lineHeight:1.8 }}>
-            The mystery player has <strong>{eloDesc(mAvg - gAvg)}</strong> {gName}
-            {' '}and <strong>{gpDesc(mHist.length / (gHist.length||1))}</strong> {gName}.
-          </div>
-          {qualGrade && (
-            <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
-              <GradePill grade={qualGrade.avg.grade}  label="Avg Elo match" />
-              <GradePill grade={qualGrade.peak.grade} label="Peak Elo match" />
-              <GradePill grade={qualGrade.gp.grade}   label="Career length match" />
-            </div>
-          )}
-        </div>
-      </div>
-
-      <button onClick={onContinue} style={{
-        background:'#1a2e1a', color:'#fff', border:'none', borderRadius:10,
-        padding:'13px 36px', fontSize:15, fontWeight:600, cursor:'pointer',
-        fontFamily:"'DM Sans', sans-serif",
-      }}>
-        Round {round + 1} →
-      </button>
-    </div>
-  )
-}
-
-// ── Mystery Chart ─────────────────────────────────────────────────────────────
+// ── Chart ─────────────────────────────────────────────────────────────────────
 
 function drawChart(svg, hist, round, W, H, spagData) {
   while (svg.firstChild) svg.removeChild(svg.firstChild)
   const ns = 'http://www.w3.org/2000/svg'
-  const PAD = { top:16, right:16, bottom: round >= 2 ? 28 : 8, left:44 }
+  const PAD = { top:16, right:16, bottom: round>=2 ? 28 : 8, left:44 }
   const plotW = W - PAD.left - PAD.right
   const plotH = H - PAD.top - PAD.bottom
-  const elos = hist.map(e => e[1])
-  const minE = Math.min(...elos) - 60
-  const maxE = Math.max(...elos) + 60
+  const elos  = hist.map(e=>e[1])
+  const minE  = Math.min(...elos)-60, maxE = Math.max(...elos)+60
   const n = hist.length
-  const xS = i  => PAD.left + (i / (n - 1)) * plotW
-  const yS = v  => PAD.top + plotH - ((v - minE) / (maxE - minE)) * plotH
+  const xS = i => PAD.left + (i/(n-1))*plotW
+  const yS = v => PAD.top + plotH - ((v-minE)/(maxE-minE))*plotH
 
-  // Grid
+  if (spagData) {
+    const {dates:sd, players:sp} = spagData
+    const startDate = hist[0][0], endDate = hist[hist.length-1][0]
+    const si = sd.findIndex(d=>d>=startDate)
+    const ei = sd.findLastIndex ? sd.findLastIndex(d=>d<=endDate) : sd.reduce((a,d,i)=>d<=endDate?i:a,-1)
+    if (si>=0 && ei>si) {
+      sp.forEach(pts => {
+        const filtered = pts.filter(([idx])=>idx>=si&&idx<=ei)
+        if (filtered.length<2) return
+        const d = filtered.map(([idx,sv],k)=>{
+          const x = PAD.left+(idx-si)/(ei-si)*plotW
+          const y = PAD.top+plotH-((sv-minE)/(maxE-minE))*plotH
+          return `${k===0?'M':'L'}${x.toFixed(1)},${Math.max(PAD.top,Math.min(PAD.top+plotH,y)).toFixed(1)}`
+        }).join(' ')
+        const p = document.createElementNS(ns,'path')
+        p.setAttribute('d',d); p.setAttribute('fill','none')
+        p.setAttribute('stroke','rgba(200,200,255,0.05)'); p.setAttribute('stroke-width','1')
+        svg.appendChild(p)
+      })
+    }
+  }
+
   for (const v of [1500,1700,1900,2100,2300,2500,2700,2900,3100]) {
-    if (v < minE || v > maxE) continue
+    if (v<minE||v>maxE) continue
     const y = yS(v)
-    const l = document.createElementNS(ns, 'line')
-    l.setAttribute('x1', PAD.left); l.setAttribute('y1', y)
-    l.setAttribute('x2', W - PAD.right); l.setAttribute('y2', y)
-    l.setAttribute('stroke', 'rgba(0,0,0,0.06)'); l.setAttribute('stroke-width','0.5')
+    const l = document.createElementNS(ns,'line')
+    l.setAttribute('x1',PAD.left); l.setAttribute('y1',y)
+    l.setAttribute('x2',W-PAD.right); l.setAttribute('y2',y)
+    l.setAttribute('stroke','rgba(255,255,255,0.05)'); l.setAttribute('stroke-width','0.5')
     svg.appendChild(l)
-    const t = document.createElementNS(ns, 'text')
-    t.setAttribute('x', PAD.left - 4); t.setAttribute('y', y + 4)
-    t.setAttribute('font-size','9'); t.setAttribute('fill','rgba(0,0,0,0.25)')
+    const t = document.createElementNS(ns,'text')
+    t.setAttribute('x',PAD.left-4); t.setAttribute('y',y+4)
+    t.setAttribute('font-size','9'); t.setAttribute('fill','rgba(255,255,255,0.2)')
     t.setAttribute('text-anchor','end'); t.setAttribute('font-family','sans-serif')
     t.textContent = v; svg.appendChild(t)
   }
 
-  // X axis years (round 2+)
-  if (round >= 2) {
+  if (round>=2) {
     let lastYr = null
-    hist.forEach((e, i) => {
+    hist.forEach((e,i)=>{
       const yr = e[0].slice(0,4)
-      if (yr === lastYr) return
-      lastYr = yr
-      if (parseInt(yr) % 3 !== 0) return
-      const t = document.createElementNS(ns, 'text')
-      t.setAttribute('x', xS(i)); t.setAttribute('y', H - 4)
-      t.setAttribute('font-size','9'); t.setAttribute('fill','rgba(0,0,0,0.3)')
+      if (yr===lastYr) return; lastYr=yr
+      if (parseInt(yr)%3!==0) return
+      const t = document.createElementNS(ns,'text')
+      t.setAttribute('x',xS(i)); t.setAttribute('y',H-4)
+      t.setAttribute('font-size','9'); t.setAttribute('fill','rgba(255,255,255,0.3)')
       t.setAttribute('text-anchor','middle'); t.setAttribute('font-family','sans-serif')
-      t.textContent = yr; svg.appendChild(t)
+      t.textContent=yr; svg.appendChild(t)
     })
   }
 
-  // Background spaghetti — light gray context lines
-  if (spagData) {
-    const { dates: spagDates, players: spagPlayers } = spagData
-    const startDate = hist[0][0], endDate = hist[hist.length-1][0]
-    spagPlayers.forEach(pts => {
-      const filtered = pts.filter(([si]) => spagDates[si] >= startDate && spagDates[si] <= endDate)
-      if (filtered.length < 2) return
-      const elos2 = hist.map(e=>e[1])
-      const min2 = Math.min(...elos2)-60, max2 = Math.max(...elos2)+60
-      const spagN = spagDates.filter(d => d >= startDate && d <= endDate).length || 1
-      // Map each spaghetti point to x by its position in the date range
-      const startIdx = spagDates.indexOf(startDate)
-      const d = filtered.map(([si, sv], k) => {
-        const relIdx = si - startIdx
-        const x = PAD.left + (relIdx / Math.max(spagN-1,1)) * plotW
-        const y = PAD.top + plotH - ((sv - min2)/(max2-min2+0.001))*plotH
-        return `${k===0?'M':'L'}${x.toFixed(1)},${Math.max(PAD.top, Math.min(PAD.top+plotH, y)).toFixed(1)}`
-      }).join(' ')
-      const p = document.createElementNS(ns, 'path')
-      p.setAttribute('d', d); p.setAttribute('fill','none')
-      p.setAttribute('stroke','rgba(150,150,150,0.08)'); p.setAttribute('stroke-width','1')
-      svg.appendChild(p)
-    })
-  }
-
-  // Line — team-colored in round 3, single dark color otherwise
-  const drawSeg = (pts, startIdx, color) => {
-    if (pts.length < 2) return
-    const d = pts.map((e, k) => `${k===0?'M':'L'}${xS(startIdx+k).toFixed(1)},${yS(e[1]).toFixed(1)}`).join(' ')
-    const p = document.createElementNS(ns, 'path')
-    p.setAttribute('d', d); p.setAttribute('fill','none')
-    p.setAttribute('stroke', color); p.setAttribute('stroke-width','2.5')
+  const drawSeg = (pts, s0, color) => {
+    if (pts.length<2) return
+    const d = pts.map((e,k)=>`${k===0?'M':'L'}${xS(s0+k).toFixed(1)},${yS(e[1]).toFixed(1)}`).join(' ')
+    const p = document.createElementNS(ns,'path')
+    p.setAttribute('d',d); p.setAttribute('fill','none')
+    p.setAttribute('stroke',color); p.setAttribute('stroke-width','2.5')
     p.setAttribute('stroke-linecap','round'); p.setAttribute('stroke-linejoin','round')
     svg.appendChild(p)
   }
 
-  if (round >= 3) {
-    let seg = [], segStart = 0, curTeam = hist[0]?.[4] || ''
-    hist.forEach((e, i) => {
-      const team = e[4] || ''
-      if (team !== curTeam) {
-        seg.push(e); drawSeg(seg, segStart, TEAM_COLORS[curTeam] || '#1a2e1a')
-        seg = [e]; segStart = i; curTeam = team
-      } else { seg.push(e) }
+  if (round>=3) {
+    let seg=[],s0=0,curT=hist[0]?.[4]||''
+    hist.forEach((e,i)=>{
+      const t=e[4]||''
+      if (t!==curT){ seg.push(e); drawSeg(seg,s0,TEAM_COLORS[curT]||'#4a9a4a'); seg=[e]; s0=i; curT=t } else seg.push(e)
     })
-    drawSeg(seg, segStart, TEAM_COLORS[curTeam] || '#1a2e1a')
+    drawSeg(seg,s0,TEAM_COLORS[curT]||'#4a9a4a')
   } else {
-    drawSeg(hist, 0, '#1a2e1a')
+    drawSeg(hist,0,'#4a9a4a')
   }
 
-  // End dot
-  const last = hist[hist.length - 1]
-  const dot = document.createElementNS(ns, 'circle')
-  dot.setAttribute('cx', xS(n-1)); dot.setAttribute('cy', yS(last[1]))
+  const last=hist[hist.length-1]
+  const dot=document.createElementNS(ns,'circle')
+  dot.setAttribute('cx',xS(n-1)); dot.setAttribute('cy',yS(last[1]))
   dot.setAttribute('r','4')
-  dot.setAttribute('fill', round >= 3 ? (TEAM_COLORS[last[4]||''] || '#1a2e1a') : '#1a2e1a')
+  dot.setAttribute('fill',round>=3?(TEAM_COLORS[last[4]||'']||'#4a9a4a'):'#4a9a4a')
   svg.appendChild(dot)
 }
 
-function MysteryChart({ player, round, onReady }) {
+function MysteryChart({ player, round }) {
   const svgRef  = useRef(null)
   const wrapRef = useRef(null)
-  const [tooltip, setTooltip] = useState(null)
-  const [spag,    setSpag]    = useState(null)
+  const [tooltip,setTooltip] = useState(null)
+  const [spag,setSpag]       = useState(null)
   const animRef = useRef(null)
   const hist = player?.elo_history || []
 
-  useEffect(() => {
-    let cancelled = false
-    fetch('/data/spaghetti.json').then(r=>r.json()).then(d => { if (!cancelled) setSpag(d) }).catch(()=>{})
-    return () => { cancelled = true }
-  }, [])
+  useEffect(()=>{
+    let c=false
+    fetch('/data/spaghetti.json').then(r=>r.json()).then(d=>{if(!c)setSpag(d)}).catch(()=>{})
+    return ()=>{c=true}
+  },[])
 
-  useEffect(() => {
-    if (!svgRef.current || !wrapRef.current || !hist.length) return
-    const W = wrapRef.current.clientWidth || 640
-    const H = 230
-    svgRef.current.setAttribute('viewBox', `0 0 ${W} ${H}`)
+  useEffect(()=>{
+    if (!svgRef.current||!wrapRef.current||!hist.length) return
+    const W = wrapRef.current.clientWidth||640, H=230
+    svgRef.current.setAttribute('viewBox',`0 0 ${W} ${H}`)
     setTooltip(null)
-
-    let frame = 0
-    const FRAMES = 45
-
-    const animate = () => {
+    let frame=0
+    const animate=()=>{
       if (!svgRef.current) return
-      if (frame >= FRAMES) {
-        drawChart(svgRef.current, hist, round, W, H, spag)
-        onReady?.()
-        // Add hit targets
-        addHitTargets(svgRef.current, hist, round, W, H)
+      if (frame>=45){
+        drawChart(svgRef.current,hist,round,W,H,spag)
+        addHits(svgRef.current,hist,round,W,H)
         return
       }
-      const t = frame / FRAMES
-      const ease = 1 - Math.pow(1 - t, 3)
-      const noisy = hist.map(e => [e[0], e[1] + (Math.random() - 0.5) * 150 * (1 - ease), ...e.slice(2)])
-      drawChart(svgRef.current, noisy, round, W, H, null)
+      const t=frame/45, ease=1-Math.pow(1-t,3)
+      const noisy=hist.map(e=>[e[0],e[1]+(Math.random()-.5)*150*(1-ease),...e.slice(2)])
+      drawChart(svgRef.current,noisy,round,W,H,null)
       frame++
-      animRef.current = requestAnimationFrame(animate)
+      animRef.current=requestAnimationFrame(animate)
     }
-
     if (animRef.current) cancelAnimationFrame(animRef.current)
-    animRef.current = requestAnimationFrame(animate)
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current) }
-  }, [player?.name, round])
+    animRef.current=requestAnimationFrame(animate)
+    return ()=>{if(animRef.current)cancelAnimationFrame(animRef.current)}
+  },[player?.name,round,spag])
 
-  const addHitTargets = (svg, hist, round, W, H) => {
-    const ns = 'http://www.w3.org/2000/svg'
-    const PAD = { top:16, right:16, bottom: round >= 2 ? 28 : 8, left:44 }
-    const plotH = H - PAD.top - PAD.bottom
-    const n = hist.length
-    const xS = i => PAD.left + (i / (n-1)) * (W - PAD.left - PAD.right)
-    const elos = hist.map(e => e[1])
-    const minE = Math.min(...elos) - 60, maxE = Math.max(...elos) + 60
-    const yS = v => PAD.top + plotH - ((v - minE) / (maxE - minE)) * plotH
-
-    hist.forEach((e, i) => {
-      if (i % 4 !== 0) return
-      const hit = document.createElementNS(ns, 'circle')
-      hit.setAttribute('cx', xS(i)); hit.setAttribute('cy', yS(e[1]))
+  const addHits=(svg,hist,round,W,H)=>{
+    const ns='http://www.w3.org/2000/svg'
+    const PAD={top:16,right:16,bottom:round>=2?28:8,left:44}
+    const plotH=H-PAD.top-PAD.bottom, n=hist.length
+    const xS=i=>PAD.left+(i/(n-1))*(W-PAD.left-PAD.right)
+    const elos=hist.map(e=>e[1])
+    const minE=Math.min(...elos)-60,maxE=Math.max(...elos)+60
+    const yS=v=>PAD.top+plotH-((v-minE)/(maxE-minE))*plotH
+    hist.forEach((e,i)=>{
+      if (i%4!==0) return
+      const hit=document.createElementNS(ns,'circle')
+      hit.setAttribute('cx',xS(i)); hit.setAttribute('cy',yS(e[1]))
       hit.setAttribute('r','10'); hit.setAttribute('fill','transparent')
       hit.setAttribute('style','cursor:crosshair')
-      hit.addEventListener('mouseenter', () => {
-        const info = { elo: Math.round(e[1]) }
-        if (round >= 2) info.date = e[0]
-        if (round >= 3) info.team = e[4] || ''
-        setTooltip({ x: xS(i), y: yS(e[1]), svgW: W, ...info })
+      hit.addEventListener('mouseenter',()=>{
+        const info={elo:Math.round(e[1])}
+        if (round>=2) info.date=e[0]
+        if (round>=3) info.team=e[4]||''
+        setTooltip({x:xS(i),y:yS(e[1]),svgW:W,...info})
       })
-      hit.addEventListener('mouseleave', () => setTooltip(null))
+      hit.addEventListener('mouseleave',()=>setTooltip(null))
       svg.appendChild(hit)
     })
   }
 
   return (
-    <div ref={wrapRef} style={{ background:'#fafaf8', borderRadius:10, border:'0.5px solid #e8e5e0', padding:'12px 8px 4px', position:'relative' }}>
-      <svg ref={svgRef} style={{ width:'100%', display:'block', height:230 }} />
-      {tooltip && (
+    <div ref={wrapRef} style={{background:'#0d0d1e',borderRadius:12,border:'1px solid #1a1a3a',padding:'12px 8px 4px',position:'relative'}}>
+      <svg ref={svgRef} style={{width:'100%',display:'block',height:230}} />
+      {tooltip&&(
         <div style={{
           position:'absolute',
-          left:`${(tooltip.x / (tooltip.svgW||640)) * 100}%`,
-          top:`${(tooltip.y / 230) * 100}%`,
-          transform: tooltip.x > (tooltip.svgW||640)*0.65 ? 'translate(-110%,-50%)' : 'translate(10%,-50%)',
-          background:'#1a1a1a', color:'#fff', borderRadius:8, padding:'8px 12px',
-          fontSize:12, lineHeight:1.7, pointerEvents:'none', zIndex:10,
-          boxShadow:'0 4px 16px rgba(0,0,0,0.25)', whiteSpace:'nowrap',
+          left:`${(tooltip.x/(tooltip.svgW||640))*100}%`,
+          top:`${(tooltip.y/230)*100}%`,
+          transform:tooltip.x>(tooltip.svgW||640)*0.65?'translate(-110%,-50%)':'translate(10%,-50%)',
+          background:'#0a0a1a',color:'#fff',borderRadius:8,padding:'8px 12px',
+          fontSize:12,lineHeight:1.7,pointerEvents:'none',zIndex:10,
+          boxShadow:'0 4px 16px rgba(0,0,0,0.8)',whiteSpace:'nowrap',border:'1px solid #333',
         }}>
-          <div>Elo <span style={{ color:'#ffd700', fontWeight:600 }}>{tooltip.elo.toLocaleString()}</span></div>
-          {tooltip.date && <div style={{ color:'#aaa' }}>{tooltip.date.slice(5,7)}/{tooltip.date.slice(8,10)}/{tooltip.date.slice(0,4)}</div>}
-          {tooltip.team && <div style={{ color:'#ccc' }}>{tooltip.team}</div>}
+          <div>Elo <span style={{color:'#ffd700',fontWeight:600}}>{tooltip.elo.toLocaleString()}</span></div>
+          {tooltip.date&&<div style={{color:'#aaa'}}>{tooltip.date.slice(5,7)}/{tooltip.date.slice(8,10)}/{tooltip.date.slice(0,4)}</div>}
+          {tooltip.team&&<div style={{color:TEAM_COLORS[tooltip.team]||'#ccc'}}>{tooltip.team}</div>}
         </div>
       )}
     </div>
   )
 }
 
-// ── Autocomplete guess input ──────────────────────────────────────────────────
-
-function normalize(s) {
-  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-}
-
-function GuessInput({ players, onGuess, disabled, placeholder }) {
-  const [val, setVal] = useState('')
-  const [suggs, setSuggs] = useState([])
-
-  const onChange = e => {
-    const q = e.target.value
-    setVal(q)
-    if (q.length < 2) { setSuggs([]); return }
-    const nq = normalize(q)
-    setSuggs(players.filter(p => normalize(p.name).includes(nq)).slice(0,7))
+function GuessInput({ players, onGuess, disabled, usedNames }) {
+  const [val,setVal]=useState('')
+  const [suggs,setSuggs]=useState([])
+  const onChange=e=>{
+    const q=e.target.value; setVal(q)
+    if (q.length<2){setSuggs([]);return}
+    const nq=normalize(q)
+    setSuggs(players.filter(p=>normalize(p.name).includes(nq)&&!usedNames.has(p.name)).slice(0,7))
   }
-
-  const submit = name => {
-    const n = name || val
-    if (!n.trim()) return
-    setVal(''); setSuggs([])
-    onGuess(n.trim())
+  const submit=name=>{
+    const n=name||val; if(!n.trim()) return
+    setVal(''); setSuggs([]); onGuess(n.trim())
   }
-
   return (
-    <div style={{ position:'relative', width:'100%', maxWidth:420 }}>
-      <div style={{ display:'flex', gap:8 }}>
-        <input
-          value={val} onChange={onChange} disabled={disabled}
-          onKeyDown={e => e.key==='Enter' && val && submit()}
-          placeholder={placeholder || 'Type a player name...'}
-          style={{
-            flex:1, border:'0.5px solid #e0ddd6', borderRadius:8,
-            padding:'11px 14px', fontSize:14, fontFamily:"'DM Sans', sans-serif",
-            outline:'none', background:'#fff',
-          }}
+    <div style={{position:'relative',width:'100%'}}>
+      <div style={{display:'flex',gap:8}}>
+        <input value={val} onChange={onChange} disabled={disabled}
+          onKeyDown={e=>e.key==='Enter'&&val&&submit()}
+          placeholder="Name your suspect..."
+          style={{flex:1,border:'1px solid #333',borderRadius:8,padding:'12px 16px',fontSize:14,
+            fontFamily:"'DM Sans', sans-serif",outline:'none',background:'#1a1a2e',color:'#fff'}}
         />
-        <button
-          onClick={() => submit()}
-          disabled={disabled || !val.trim()}
-          style={{
-            background:'#1a2e1a', color:'#fff', border:'none', borderRadius:8,
-            padding:'11px 22px', fontSize:14, fontWeight:600, cursor:'pointer',
-            fontFamily:"'DM Sans', sans-serif", opacity: (disabled||!val.trim()) ? 0.5 : 1,
-          }}
-        >Guess</button>
+        <button onClick={()=>submit()} disabled={disabled||!val.trim()}
+          style={{background:disabled||!val.trim()?'#2a2a3a':'#ffd700',color:disabled||!val.trim()?'#555':'#1a1a1a',
+            border:'none',borderRadius:8,padding:'12px 24px',fontSize:14,fontWeight:700,cursor:'pointer',
+            fontFamily:"'DM Sans', sans-serif"}}>
+          Accuse
+        </button>
       </div>
-      {suggs.length > 0 && (
-        <div style={{
-          position:'absolute', top:'100%', left:0, right:52, zIndex:30,
-          background:'#fff', border:'0.5px solid #e0ddd6', borderRadius:8,
-          boxShadow:'0 4px 16px rgba(0,0,0,0.12)', marginTop:4, overflow:'hidden',
-        }}>
-          {suggs.map(p => (
-            <div key={p.name} onClick={() => submit(p.name)}
-              style={{ padding:'10px 14px', cursor:'pointer', fontSize:14, borderBottom:'0.5px solid #f0ede8' }}
-              onMouseEnter={e => e.currentTarget.style.background='#f5f3ee'}
-              onMouseLeave={e => e.currentTarget.style.background='#fff'}
+      {suggs.length>0&&(
+        <div style={{position:'absolute',top:'100%',left:0,right:80,zIndex:30,
+          background:'#1a1a2e',border:'1px solid #333',borderRadius:8,
+          boxShadow:'0 8px 24px rgba(0,0,0,0.8)',marginTop:4,overflow:'hidden'}}>
+          {suggs.map(p=>(
+            <div key={p.name} onClick={()=>submit(p.name)}
+              style={{padding:'10px 14px',cursor:'pointer',fontSize:14,borderBottom:'0.5px solid #333',color:'#fff'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#2a2a3e'}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}
             >{p.name}</div>
           ))}
         </div>
@@ -517,210 +304,371 @@ function GuessInput({ players, onGuess, disabled, placeholder }) {
   )
 }
 
-// ── Filter Screen ─────────────────────────────────────────────────────────────
+function CluesSidebar({ guesses, mystery, round }) {
+  if (!mystery) return null
+  const wrongGuesses = guesses.filter(g=>!g.correct)
+  const clues = buildClues(wrongGuesses, mystery)
+  const mFranch = playerFranchises(mystery.elo_history||[])
+  const mPeak   = Math.round(Math.max(...(mystery.elo_history||[]).map(e=>e[1])))
+  const mAvg    = playerAvgElo(mystery.elo_history||[])
 
-function FilterScreen({ players, onSelect }) {
-  const [franchises, setFranchises] = useState([])
-  const [eras,       setEras]       = useState([])
-  const [minGP,      setMinGP]      = useState(100)
-
-  const toggle = (arr, set, v) => set(arr.includes(v) ? arr.filter(x=>x!==v) : [...arr, v])
-
-  const pool = useMemo(() => players.filter(p => {
-    const h = p.elo_history || []
-    if (h.length < minGP) return false
-    if (eras.length > 0 && !h.some(e => eras.some(id => ERAS.find(x=>x.id===id)?.test(e)))) return false
-    if (franchises.length > 0) {
-      const al = franchises.flatMap(f => FRANCHISE_ALIASES[f]||[f])
-      if (!h.some(e => al.includes(e[4]||''))) return false
-    }
-    return true
-  }), [players, franchises, eras, minGP])
-
-  const s = {
-    wrap:  { display:'flex', flex:1, flexDirection:'column', alignItems:'center', justifyContent:'center', padding:32, background:'#f5f3ee' },
-    card:  { background:'#fff', borderRadius:14, padding:32, width:'100%', maxWidth:620, boxShadow:'0 2px 16px rgba(0,0,0,0.08)' },
-    lbl:   { fontSize:11, textTransform:'uppercase', letterSpacing:1, color:'#bbb', marginBottom:10, display:'block' },
-    grid:  { display:'flex', flexWrap:'wrap', gap:6, marginBottom:22 },
-    chip:  (active) => ({
-      background: active ? '#1a2e1a' : 'transparent',
-      border:`0.5px solid ${active ? '#1a2e1a' : '#e0ddd6'}`,
-      borderRadius:20, padding:'5px 12px', fontSize:12,
-      fontWeight: active ? 600 : 400, color: active ? '#fff' : '#555',
-      cursor:'pointer', fontFamily:"'DM Sans', sans-serif",
-    }),
-    btn:   { width:'100%', background:'#1a2e1a', color:'#fff', border:'none', borderRadius:10, padding:'14px 0', fontSize:16, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans', sans-serif", marginTop:4 },
-  }
+  if (!wrongGuesses.length) return (
+    <div style={{padding:'20px 16px',color:'#444',fontSize:13,textAlign:'center'}}>
+      <div style={{fontSize:28,marginBottom:8}}>🗂</div>
+      <div>Make a guess to start building the case file</div>
+    </div>
+  )
 
   return (
-    <div style={s.wrap}>
-      <div style={s.card}>
-        <h1 style={{ fontFamily:"'DM Serif Display', serif", fontSize:28, color:'#1a1a1a', marginBottom:6 }}>Mystery Player</h1>
-        <p style={{ fontSize:14, color:'#888', marginBottom:28, lineHeight:1.6 }}>
-          Guess the player from their Elo career chart. Three rounds, each revealing more clues. Wrong guesses earn a report card.
-        </p>
+    <div style={{display:'flex',flexDirection:'column',gap:0,overflow:'auto',flex:1}}>
+      <div style={{padding:'12px 14px 0'}}>
+        <div style={{fontSize:10,textTransform:'uppercase',letterSpacing:1,color:'#444',marginBottom:10}}>Ruled Out</div>
+        {wrongGuesses.map((g,i)=>{
+          if (!g.player) return (
+            <div key={i} style={{background:'#1a0a0a',border:'1px solid #3a1a1a',borderRadius:8,padding:'10px 12px',marginBottom:8}}>
+              <div style={{fontSize:13,color:'#c94040',fontWeight:600}}>✗ {g.name}</div>
+              <div style={{fontSize:11,color:'#555'}}>Not found</div>
+            </div>
+          )
+          const gHist  = g.player.elo_history||[]
+          const gPeak  = Math.round(Math.max(...gHist.map(e=>e[1])))
+          const gAvg   = playerAvgElo(gHist)
+          const gStart = playerRookieYear(gHist)
+          const gEnd   = gHist[gHist.length-1]?.[0]?.slice(0,4)
+          const gFranch= playerFranchises(gHist)
+          const mStart = mystery.elo_history[0]?.[0]?.slice(0,4)
+          const peakDir = mPeak>gPeak?'↑ Higher':mPeak<gPeak?'↓ Lower':'= Same'
+          const peakClr = mPeak>gPeak?'#ff9944':mPeak<gPeak?'#44aaff':'#4a9a4a'
+          const avgDir  = mAvg>gAvg?'↑ Higher':mAvg<gAvg?'↓ Lower':'= Same'
+          const avgClr  = mAvg>gAvg?'#ff9944':mAvg<gAvg?'#44aaff':'#4a9a4a'
+          return (
+            <div key={i} style={{background:'#1a0a0a',border:'1px solid #3a1a1a',borderRadius:8,padding:'10px 12px',marginBottom:8}}>
+              <div style={{fontSize:13,color:'#c94040',fontWeight:600,marginBottom:6}}>✗ {g.name}</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:6}}>
+                <div style={{fontSize:11}}>
+                  <span style={{color:'#555'}}>Peak </span>
+                  <span style={{color:'#ffd700'}}>{gPeak.toLocaleString()}</span>
+                  <span style={{color:peakClr,marginLeft:4,fontSize:10}}>{peakDir}</span>
+                </div>
+                <div style={{fontSize:11}}>
+                  <span style={{color:'#555'}}>Avg </span>
+                  <span style={{color:'#aaa'}}>{gAvg.toLocaleString()}</span>
+                  <span style={{color:avgClr,marginLeft:4,fontSize:10}}>{avgDir}</span>
+                </div>
+              </div>
+              {round>=2&&(
+                <div style={{fontSize:11,color:'#888',marginBottom:6}}>
+                  {gStart}–{gEnd}
+                  {mStart&&<span style={{marginLeft:6,color:mStart>gStart?'#ff9944':mStart<gStart?'#44aaff':'#4a9a4a',fontSize:10}}>
+                    {mStart>gStart?'↑ Later start':mStart<gStart?'↓ Earlier start':'= Same era'}
+                  </span>}
+                </div>
+              )}
+              {round>=3&&(
+                <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+                  {[...gFranch].map(f=>{
+                    const shared=mFranch.has(f)
+                    return (
+                      <span key={f} style={{
+                        fontSize:10,padding:'1px 5px',borderRadius:4,fontWeight:600,
+                        background:shared?(TEAM_COLORS[f]||'#555')+'22':'#0f0f0f',
+                        color:shared?(TEAM_COLORS[f]||'#aaa'):'#333',
+                        border:`0.5px solid ${shared?(TEAM_COLORS[f]||'#555')+'44':'#222'}`,
+                        textDecoration:shared?'none':'line-through',opacity:shared?1:0.5,
+                      }}>{f}</span>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
 
-        <span style={s.lbl}>Filter by Franchise <span style={{ color:'#ccc', fontWeight:400 }}>(optional)</span></span>
-        <div style={s.grid}>
-          {Object.keys(FRANCHISE_NAMES).map(f => (
-            <button key={f} style={s.chip(franchises.includes(f))} onClick={() => toggle(franchises, setFranchises, f)}>
-              {FRANCHISE_NAMES[f]}
-            </button>
+      {wrongGuesses.filter(g=>g.player).length>0&&(
+        <div style={{padding:'0 14px 14px'}}>
+          <div style={{fontSize:10,textTransform:'uppercase',letterSpacing:1,color:'#444',marginBottom:10,marginTop:8}}>Deduced Clues</div>
+
+          <div style={{background:'#0f0f1e',border:'1px solid #1a1a3a',borderRadius:8,padding:'10px 12px',marginBottom:8}}>
+            <div style={{fontSize:10,color:'#555',marginBottom:4}}>PEAK ELO</div>
+            <div style={{fontSize:13,color:'#ffd700',fontWeight:600}}>
+              {clues.peakMin>0&&clues.peakMax<99999?`${clues.peakMin.toLocaleString()} – ${clues.peakMax.toLocaleString()}`
+               :clues.peakMin>0?`Above ${clues.peakMin.toLocaleString()}`
+               :clues.peakMax<99999?`Below ${clues.peakMax.toLocaleString()}`
+               :'Unknown'}
+            </div>
+          </div>
+
+          {round>=2&&(
+            <div style={{background:'#0f0f1e',border:'1px solid #1a1a3a',borderRadius:8,padding:'10px 12px',marginBottom:8}}>
+              <div style={{fontSize:10,color:'#555',marginBottom:4}}>ROOKIE YEAR</div>
+              <div style={{fontSize:13,color:'#44aaff',fontWeight:600}}>
+                {clues.startMin>0&&clues.startMax<99999?`${clues.startMin} – ${clues.startMax}`
+                 :clues.startMin>0?`After ${clues.startMin}`
+                 :clues.startMax<99999?`Before ${clues.startMax}`
+                 :'Unknown'}
+              </div>
+            </div>
+          )}
+
+          {round>=3&&(
+            <div style={{background:'#0f0f1e',border:'1px solid #1a1a3a',borderRadius:8,padding:'10px 12px'}}>
+              <div style={{fontSize:10,color:'#555',marginBottom:8}}>FRANCHISES</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                {ALL_FRANCHISES.map(f=>{
+                  const conf = clues.confirmed.has(f)
+                  const out  = clues.ruledOut.has(f)
+                  const color= TEAM_COLORS[f]||'#555'
+                  return (
+                    <span key={f} title={FRANCHISE_NAMES[f]} style={{
+                      fontSize:10,padding:'2px 6px',borderRadius:4,fontWeight:600,
+                      background:conf?color+'22':out?'#0a0a0a':'#0f0f1e',
+                      color:conf?color:out?'#2a2a2a':'#444',
+                      border:`0.5px solid ${conf?color+'55':out?'#1a1a1a':'#252535'}`,
+                      textDecoration:out?'line-through':'none',opacity:out?0.35:1,
+                    }}>
+                      {conf&&'✓ '}{f}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FiltersScreen({ players, onSelect, onBack }) {
+  const [rookieYear,setRookieYear] = useState('')
+  const [minPeak,setMinPeak]       = useState('')
+  const [minGP,setMinGP]           = useState(100)
+  const [franchises,setFranchises] = useState([])
+  const toggle=(arr,set,v)=>set(arr.includes(v)?arr.filter(x=>x!==v):[...arr,v])
+
+  const pool = useMemo(()=>players.filter(p=>{
+    const h=p.elo_history||[]
+    if (h.length<minGP) return false
+    if (rookieYear&&parseInt(playerRookieYear(h)||0)<parseInt(rookieYear)) return false
+    if (minPeak&&(p.peak_elo||0)<parseInt(minPeak)) return false
+    if (franchises.length>0){
+      const pf=playerFranchises(h)
+      if (!franchises.some(f=>pf.has(f))) return false
+    }
+    return true
+  }),[players,rookieYear,minPeak,minGP,franchises])
+
+  return (
+    <div style={{display:'flex',flex:1,flexDirection:'column',overflow:'hidden',background:'#0a0a14',fontFamily:"'DM Sans', sans-serif"}}>
+      <div style={{padding:'16px 24px',borderBottom:'1px solid #1a1a2e',display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+        <button onClick={onBack} style={{background:'none',border:'none',color:'#555',cursor:'pointer',fontSize:13}}>← Back</button>
+        <div style={{fontFamily:"'DM Serif Display', serif",fontSize:20,color:'#fff'}}>Filter the Suspect Pool</div>
+      </div>
+      <div style={{flex:1,overflow:'auto',padding:24}}>
+        <div style={{marginBottom:24}}>
+          <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:1,color:'#555',marginBottom:10}}>Franchise Filter <span style={{color:'#333',fontWeight:400}}>(optional)</span></div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+            {ALL_FRANCHISES.map(f=>(
+              <button key={f}
+                style={{background:franchises.includes(f)?'#ffd700':'transparent',
+                  border:`1px solid ${franchises.includes(f)?'#ffd700':'#333'}`,
+                  borderRadius:20,padding:'4px 10px',fontSize:11,
+                  fontWeight:franchises.includes(f)?700:400,
+                  color:franchises.includes(f)?'#1a1a1a':'#555',
+                  cursor:'pointer',fontFamily:"'DM Sans', sans-serif"}}
+                onClick={()=>toggle(franchises,setFranchises,f)}>{FRANCHISE_NAMES[f]}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:24,marginBottom:32}}>
+          {[
+            {label:'Min Rookie Year',val:rookieYear,set:setRookieYear,ph:'e.g. 1984'},
+            {label:'Min Peak Elo',val:minPeak,set:setMinPeak,ph:'e.g. 2200'},
+          ].map(({label,val,set,ph})=>(
+            <div key={label}>
+              <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:1,color:'#555',marginBottom:8}}>{label}</div>
+              <input type="number" value={val} onChange={e=>set(e.target.value)} placeholder={ph}
+                style={{background:'#1a1a2e',border:'1px solid #333',borderRadius:8,padding:'10px 14px',
+                  fontSize:14,color:'#fff',outline:'none',fontFamily:"'DM Mono', monospace",width:120}} />
+            </div>
           ))}
+          <div>
+            <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:1,color:'#555',marginBottom:8}}>Min Career Games</div>
+            <input type="number" value={minGP} onChange={e=>setMinGP(Math.max(1,parseInt(e.target.value)||1))}
+              style={{background:'#1a1a2e',border:'1px solid #333',borderRadius:8,padding:'10px 14px',
+                fontSize:14,color:'#fff',outline:'none',fontFamily:"'DM Mono', monospace",width:80}} />
+          </div>
         </div>
 
-        <span style={s.lbl}>Filter by Era <span style={{ color:'#ccc', fontWeight:400 }}>(optional, multi-select)</span></span>
-        <div style={s.grid}>
-          {ERAS.map(e => (
-            <button key={e.id} style={s.chip(eras.includes(e.id))} onClick={() => toggle(eras, setEras, e.id)}>
-              {e.label} <span style={{ opacity:0.55 }}>· {e.desc}</span>
-            </button>
-          ))}
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:24 }}>
-          <span style={{ ...s.lbl, margin:0 }}>Min career games</span>
-          <input
-            type="number" value={minGP}
-            onChange={e => setMinGP(Math.max(1, parseInt(e.target.value)||1))}
-            style={{ width:80, border:'0.5px solid #e0ddd6', borderRadius:6, padding:'6px 10px', fontSize:13, fontFamily:"'DM Mono', monospace", color:'#333', outline:'none' }}
-          />
-          <span style={{ fontSize:12, color:'#aaa' }}>{pool.length} players eligible</span>
-        </div>
-
-        <button style={s.btn} onClick={() => pool.length && onSelect(pool[Math.floor(Math.random()*pool.length)])} disabled={!pool.length}>
-          {pool.length ? 'Pick a Mystery Player →' : 'No players match filters'}
+        <button onClick={()=>pool.length&&onSelect(pool[Math.floor(Math.random()*pool.length)])} disabled={!pool.length}
+          style={{background:pool.length?'#ffd700':'#1a1a2e',color:pool.length?'#1a1a1a':'#444',
+            border:'none',borderRadius:12,padding:'16px 40px',fontSize:16,fontWeight:700,
+            cursor:pool.length?'pointer':'not-allowed',fontFamily:"'DM Sans', sans-serif"}}>
+          {pool.length?`Pick from ${pool.length.toLocaleString()} suspects →`:'No players match'}
         </button>
       </div>
     </div>
   )
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
-
-export default function MysteryPlayer({ players, onSelectPlayer }) {
-  const [mystery,    setMystery]    = useState(null)
-  const [round,      setRound]      = useState(1)
-  const [guesses,    setGuesses]    = useState([])  // {name, player, correct}
-  const [result,     setResult]     = useState(null) // 'win'|'lose'
-  const [showTrans,  setShowTrans]  = useState(false) // transition screen
-
-  const reset = () => { setMystery(null); setRound(1); setGuesses([]); setResult(null); setShowTrans(false) }
-
-  const handleGuess = name => {
-    const guessPlayer = players.find(p => normalize(p.name) === normalize(name))
-    const correct = normalize(name) === normalize(mystery.name)
-    const newGuesses = [...guesses, { name, player: guessPlayer, correct }]
-    setGuesses(newGuesses)
-
-    if (correct) {
-      setResult('win')
-    } else if (round < 3) {
-      setShowTrans(true) // show transition/grade screen
-    } else {
-      setResult('lose')
-    }
-  }
-
-  const continueToNextRound = () => {
-    setShowTrans(false)
-    setRound(r => r + 1)
-  }
-
-  if (!mystery) return <FilterScreen players={players} onSelect={p => { setMystery(p); setRound(1); setGuesses([]); setResult(null); setShowTrans(false) }} />
-
-  // Transition screen between rounds
-  if (showTrans) {
-    const lastGuess = guesses[guesses.length - 1]
-    return (
-      <RoundTransition
-        guess={lastGuess?.player}
-        mystery={mystery}
-        round={round}
-        onContinue={continueToNextRound}
-      />
-    )
-  }
-
-  const ROUND_HINTS = [
-    'No years · No team colors',
-    'Years now visible on the x-axis',
-    'Team colors now revealed — final round',
-  ]
-
-  const s = {
-    wrap:   { display:'flex', flex:1, flexDirection:'column', overflow:'hidden', background:'#f5f3ee', fontFamily:"'DM Sans', sans-serif" },
-    header: { padding:'16px 28px', borderBottom:'0.5px solid #e0ddd6', background:'#fff', flexShrink:0, display:'flex', justifyContent:'space-between', alignItems:'center' },
-    body:   { flex:1, overflow:'auto', padding:'24px 32px', display:'flex', flexDirection:'column', alignItems:'center', gap:20 },
-    dot:    (filled) => ({ width:10, height:10, borderRadius:'50%', background: filled ? '#1a2e1a' : '#e0ddd6' }),
-  }
-
+function LandingScreen({ onQuick, onFilter }) {
   return (
-    <div style={s.wrap}>
-      <div style={s.header}>
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          <div style={{ display:'flex', gap:6 }}>
-            {[1,2,3].map(r => <div key={r} style={s.dot(r <= round)} />)}
-          </div>
-          <div>
-            <span style={{ fontWeight:600, fontSize:14 }}>Round {round}</span>
-            <span style={{ fontSize:13, color:'#aaa', marginLeft:10 }}>{ROUND_HINTS[round-1]}</span>
-          </div>
+    <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+      padding:40,background:'#0a0a14',fontFamily:"'DM Sans', sans-serif"}}>
+      <div style={{textAlign:'center',maxWidth:500}}>
+        <div style={{fontSize:72,marginBottom:16}}>🔍</div>
+        <h1 style={{fontFamily:"'DM Serif Display', serif",fontSize:40,color:'#fff',marginBottom:12,letterSpacing:-1}}>
+          Mystery Player
+        </h1>
+        <p style={{fontSize:15,color:'#666',lineHeight:1.7,marginBottom:36}}>
+          A mystery player's Elo career chart is hidden behind the fog. Study the shape, cross-reference the evidence, and name your suspect. You have <span style={{color:'#ffd700',fontWeight:600}}>5 guesses</span>.
+        </p>
+        <div style={{display:'flex',gap:12,justifyContent:'center',marginBottom:32,flexWrap:'wrap'}}>
+          {[
+            {round:'Round 1',desc:'Shape only — no years, no teams'},
+            {round:'Round 2',desc:'Years revealed on x-axis'},
+            {round:'Rounds 3–5',desc:'Team colors fully revealed'},
+          ].map(({round,desc})=>(
+            <div key={round} style={{background:'#0f0f1e',border:'1px solid #1a1a3a',borderRadius:10,padding:'12px 16px',fontSize:12,color:'#555',textAlign:'left',flex:1,minWidth:130}}>
+              <div style={{color:'#ffd700',fontWeight:600,marginBottom:4}}>{round}</div>
+              <div>{desc}</div>
+            </div>
+          ))}
         </div>
-        <button onClick={reset} style={{ background:'none', border:'0.5px solid #e0ddd6', borderRadius:6, padding:'6px 14px', fontSize:12, cursor:'pointer', color:'#888' }}>
-          New Player
+        <button onClick={onQuick} style={{background:'#ffd700',color:'#1a1a1a',border:'none',borderRadius:12,
+          padding:'16px 48px',fontSize:16,fontWeight:700,cursor:'pointer',
+          fontFamily:"'DM Sans', sans-serif",marginBottom:12,display:'block',width:'100%'}}>
+          Quick Start →
+        </button>
+        <button onClick={onFilter} style={{background:'transparent',color:'#555',border:'1px solid #1a1a3a',borderRadius:12,
+          padding:'14px 48px',fontSize:14,cursor:'pointer',
+          fontFamily:"'DM Sans', sans-serif",display:'block',width:'100%'}}>
+          Filter the suspect pool
         </button>
       </div>
+    </div>
+  )
+}
 
-      <div style={s.body}>
-        <div style={{ width:'100%', maxWidth:700 }}>
-          <MysteryChart player={mystery} round={result ? 3 : round} />
+export default function MysteryPlayer({ players, onSelectPlayer }) {
+  const [screen, setScreen]   = useState('landing')
+  const [mystery,setMystery]  = useState(null)
+  const [guesses,setGuesses]  = useState([])
+  const [result, setResult]   = useState(null)
+
+  const round = useMemo(()=>{
+    const w = guesses.filter(g=>!g.correct).length
+    return w===0?1:w===1?2:3
+  },[guesses])
+
+  const usedNames = useMemo(()=>new Set(guesses.map(g=>g.name)),[guesses])
+
+  const startGame = p => {
+    setMystery(p); setGuesses([]); setResult(null); setScreen('game')
+  }
+
+  const quickStart = () => {
+    const pool = players.filter(p=>(p.elo_history||[]).length>=100)
+    startGame(pool[Math.floor(Math.random()*pool.length)])
+  }
+
+  const handleGuess = name => {
+    const gp = players.find(p=>normalize(p.name)===normalize(name))
+    const correct = normalize(name)===normalize(mystery.name)
+    const newG = [...guesses,{name,player:gp,correct}]
+    setGuesses(newG)
+    if (correct) setResult('win')
+    else if (newG.filter(g=>!g.correct).length>=MAX_GUESSES) setResult('lose')
+  }
+
+  const reset = () => { setScreen('landing'); setMystery(null); setGuesses([]); setResult(null) }
+
+  if (screen==='landing') return (
+    <div style={{display:'flex',flex:1,overflow:'hidden'}}>
+      <LandingScreen onQuick={quickStart} onFilter={()=>setScreen('filters')} />
+    </div>
+  )
+
+  if (screen==='filters') return (
+    <FiltersScreen players={players} onSelect={startGame} onBack={()=>setScreen('landing')} />
+  )
+
+  const wrongGuesses = guesses.filter(g=>!g.correct)
+  const guessesLeft  = MAX_GUESSES - wrongGuesses.length
+  const HINTS = ['Elo shape only — no years, no teams','Years visible on x-axis','Team colors revealed']
+
+  return (
+    <div style={{display:'flex',flex:1,overflow:'hidden',background:'#0a0a14',fontFamily:"'DM Sans', sans-serif"}}>
+      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        <div style={{padding:'12px 20px',borderBottom:'1px solid #1a1a2e',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0,background:'#0d0d1a'}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <span style={{fontSize:18}}>🔍</span>
+            <div>
+              <div style={{fontFamily:"'DM Serif Display', serif",fontSize:17,color:'#fff'}}>Mystery Player</div>
+              <div style={{fontSize:11,color:'#444'}}>{HINTS[Math.min(round-1,2)]}</div>
+            </div>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <div style={{display:'flex',gap:5,alignItems:'center'}}>
+              {Array.from({length:MAX_GUESSES}).map((_,i)=>(
+                <div key={i} style={{width:9,height:9,borderRadius:'50%',
+                  background:i<wrongGuesses.length?'#c94040':'#1a1a2e',
+                  border:'1px solid #333'}} />
+              ))}
+              <span style={{fontSize:11,color:'#444',marginLeft:4}}>{guessesLeft} left</span>
+            </div>
+            <button onClick={reset} style={{background:'none',border:'1px solid #222',borderRadius:6,
+              padding:'4px 10px',fontSize:11,cursor:'pointer',color:'#555'}}>New Case</button>
+          </div>
         </div>
 
-        {/* Wrong guesses */}
-        {guesses.filter(g => !g.correct).map((g, i) => (
-          <div key={i} style={{ background:'#fff5f5', border:'0.5px solid #f0d0d0', borderRadius:8, padding:'8px 16px', fontSize:13, color:'#c94040', display:'flex', gap:8 }}>
-            <span>✗</span><span>{g.name}</span><span style={{ color:'#aaa', fontSize:11 }}>— not correct</span>
-          </div>
-        ))}
+        <div style={{padding:'16px 20px',flexShrink:0}}>
+          <MysteryChart player={mystery} round={result?3:round} />
+        </div>
 
-        {/* Win */}
-        {result === 'win' && (
-          <div style={{ background:'#f0f7f0', border:'0.5px solid #c0d8c0', borderRadius:14, padding:28, textAlign:'center', width:'100%', maxWidth:480 }}>
-            <div style={{ fontSize:32, marginBottom:8 }}>🎉</div>
-            <div style={{ fontFamily:"'DM Serif Display', serif", fontSize:22, color:'#1a2e1a', marginBottom:4 }}>{mystery.name}</div>
-            <div style={{ fontSize:13, color:'#888', marginBottom:20 }}>Solved in round {round} · {guesses.length === 1 ? '1 guess' : `${guesses.length} guesses`}</div>
-            <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
-              <button onClick={() => onSelectPlayer(mystery)} style={{ background:'#1a2e1a', color:'#fff', border:'none', borderRadius:8, padding:'10px 20px', fontSize:13, fontWeight:600, cursor:'pointer' }}>View Player →</button>
-              <button onClick={reset} style={{ background:'#fff', border:'0.5px solid #e0ddd6', borderRadius:8, padding:'10px 20px', fontSize:13, cursor:'pointer', color:'#555' }}>Play Again</button>
+        <div style={{padding:'0 20px 20px',flex:1,overflow:'auto'}}>
+          {result==='win'&&(
+            <div style={{background:'#0a1a0a',border:'1px solid #1a3a1a',borderRadius:12,padding:24,textAlign:'center',marginBottom:16}}>
+              <div style={{fontSize:36,marginBottom:8}}>🎉</div>
+              <div style={{fontFamily:"'DM Serif Display', serif",fontSize:24,color:'#4a9a4a',marginBottom:4}}>{mystery.name}</div>
+              <div style={{fontSize:13,color:'#555',marginBottom:16}}>Case solved in {guesses.length===1?'1 guess':`${guesses.length} guesses`}</div>
+              <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+                <button onClick={()=>onSelectPlayer(mystery)} style={{background:'#4a9a4a',color:'#fff',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:600,cursor:'pointer'}}>View Player →</button>
+                <button onClick={reset} style={{background:'transparent',border:'1px solid #333',borderRadius:8,padding:'10px 20px',fontSize:13,cursor:'pointer',color:'#aaa'}}>New Case</button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+          {result==='lose'&&(
+            <div style={{background:'#1a0a0a',border:'1px solid #3a1a1a',borderRadius:12,padding:24,textAlign:'center',marginBottom:16}}>
+              <div style={{fontSize:36,marginBottom:8}}>💀</div>
+              <div style={{fontSize:13,color:'#666',marginBottom:4}}>The mystery player was</div>
+              <div style={{fontFamily:"'DM Serif Display', serif",fontSize:24,color:'#c94040',marginBottom:16}}>{mystery.name}</div>
+              <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+                <button onClick={()=>onSelectPlayer(mystery)} style={{background:'#c94040',color:'#fff',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:600,cursor:'pointer'}}>View Player →</button>
+                <button onClick={reset} style={{background:'transparent',border:'1px solid #333',borderRadius:8,padding:'10px 20px',fontSize:13,cursor:'pointer',color:'#aaa'}}>New Case</button>
+              </div>
+            </div>
+          )}
+          {!result&&(
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              <div style={{fontSize:12,color:'#444'}}>
+                {round===1&&'Study the Elo shape. Who could this player be?'}
+                {round===2&&'The timeline is now visible. Narrow your suspects.'}
+                {round>=3&&'Team colors revealed. Make your final accusation.'}
+              </div>
+              <GuessInput players={players} onGuess={handleGuess} disabled={!!result} usedNames={usedNames} />
+            </div>
+          )}
+        </div>
+      </div>
 
-        {/* Lose */}
-        {result === 'lose' && (
-          <div style={{ background:'#fff5f5', border:'0.5px solid #f0d0d0', borderRadius:14, padding:28, textAlign:'center', width:'100%', maxWidth:480 }}>
-            <div style={{ fontSize:32, marginBottom:8 }}>😔</div>
-            <div style={{ fontFamily:"'DM Serif Display', serif", fontSize:22, color:'#c94040', marginBottom:4 }}>The answer was {mystery.name}</div>
-            <div style={{ fontSize:13, color:'#888', marginBottom:20 }}>Better luck next time</div>
-            <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
-              <button onClick={() => onSelectPlayer(mystery)} style={{ background:'#1a2e1a', color:'#fff', border:'none', borderRadius:8, padding:'10px 20px', fontSize:13, fontWeight:600, cursor:'pointer' }}>View Player →</button>
-              <button onClick={reset} style={{ background:'#fff', border:'0.5px solid #e0ddd6', borderRadius:8, padding:'10px 20px', fontSize:13, cursor:'pointer', color:'#555' }}>Play Again</button>
-            </div>
-          </div>
-        )}
-
-        {/* Guess input */}
-        {!result && (
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8, width:'100%' }}>
-            <div style={{ fontSize:13, color:'#888' }}>
-              {round === 1 && 'Who is this player? No years, no team colors yet.'}
-              {round === 2 && 'The years are visible now. Take another look.'}
-              {round === 3 && 'Team colors revealed. This is your last chance.'}
-            </div>
-            <GuessInput players={players} onGuess={handleGuess} disabled={!!result} />
-          </div>
-        )}
+      <div style={{width:260,flexShrink:0,borderLeft:'1px solid #1a1a2e',background:'#0d0d1a',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        <div style={{padding:'12px 14px 10px',borderBottom:'1px solid #1a1a2e',flexShrink:0}}>
+          <div style={{fontSize:11,fontWeight:600,color:'#444',textTransform:'uppercase',letterSpacing:1}}>🗂 Case File</div>
+        </div>
+        <CluesSidebar guesses={guesses} mystery={mystery} round={round} />
       </div>
     </div>
   )
