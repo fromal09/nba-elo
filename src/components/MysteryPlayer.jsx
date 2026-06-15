@@ -81,7 +81,7 @@ function buildClues(wrongGuesses, mystery) {
 
 // ── Chart ─────────────────────────────────────────────────────────────────────
 
-function drawChart(svg, hist, round, W, H, spagData) {
+function drawChart(svg, hist, round, W, H, spagData, wrongGuesses = []) {
   while (svg.firstChild) svg.removeChild(svg.firstChild)
   const ns = 'http://www.w3.org/2000/svg'
   const PAD = { top:16, right:16, bottom: round>=2 ? 28 : 8, left:44 }
@@ -144,6 +144,38 @@ function drawChart(svg, hist, round, W, H, spagData) {
     })
   }
 
+  // Wrong guess overlay lines
+  if (wrongGuesses.length > 0) {
+    const WRONG_COLORS = ['#c94040','#e07020','#9040c9','#207090','#809040']
+    wrongGuesses.forEach((g, gi) => {
+      const gh = g.player?.elo_history
+      if (!gh?.length) return
+      const color = WRONG_COLORS[gi % WRONG_COLORS.length]
+      const pts = []
+      gh.forEach(e => {
+        // Map date to x position by finding closest date in mystery hist
+        let best = 0, bestDiff = Infinity
+        hist.forEach((me, mi) => {
+          const diff = Math.abs(new Date(e[0]) - new Date(me[0]))
+          if (diff < bestDiff) { bestDiff = diff; best = mi }
+        })
+        if (bestDiff < 90 * 86400000) {  // within 90 days
+          pts.push([best, e[1]])
+        }
+      })
+      if (pts.length < 2) return
+      // Sort by x
+      pts.sort((a,b) => a[0]-b[0])
+      const d = pts.map(([xi,v],k) => `${k===0?'M':'L'}${xS(xi).toFixed(1)},${yS(v).toFixed(1)}`).join(' ')
+      const p = document.createElementNS(ns,'path')
+      p.setAttribute('d',d); p.setAttribute('fill','none')
+      p.setAttribute('stroke',color); p.setAttribute('stroke-width','1.5')
+      p.setAttribute('stroke-dasharray','3,3')
+      p.setAttribute('opacity','0.5')
+      svg.appendChild(p)
+    })
+  }
+
   const drawSeg = (pts, s0, color) => {
     if (pts.length<2) return
     const d = pts.map((e,k)=>`${k===0?'M':'L'}${xS(s0+k).toFixed(1)},${yS(e[1]).toFixed(1)}`).join(' ')
@@ -173,7 +205,7 @@ function drawChart(svg, hist, round, W, H, spagData) {
   svg.appendChild(dot)
 }
 
-function MysteryChart({ player, round }) {
+function MysteryChart({ player, round, wrongGuesses = [] }) {
   const svgRef  = useRef(null)
   const wrapRef = useRef(null)
   const [tooltip,setTooltip] = useState(null)
@@ -196,7 +228,7 @@ function MysteryChart({ player, round }) {
     const animate=()=>{
       if (!svgRef.current) return
       if (frame>=45){
-        drawChart(svgRef.current,hist,round,W,H,spag)
+        drawChart(svgRef.current,hist,round,W,H,spag,wrongGuesses)
         addHits(svgRef.current,hist,round,W,H)
         return
       }
@@ -209,7 +241,7 @@ function MysteryChart({ player, round }) {
     if (animRef.current) cancelAnimationFrame(animRef.current)
     animRef.current=requestAnimationFrame(animate)
     return ()=>{if(animRef.current)cancelAnimationFrame(animRef.current)}
-  },[player?.name,round,spag])
+  },[player?.name,round,spag,wrongGuesses.length])
 
   const addHits=(svg,hist,round,W,H)=>{
     const ns='http://www.w3.org/2000/svg'
@@ -575,7 +607,7 @@ export default function MysteryPlayer({ players, onSelectPlayer }) {
         </div>
 
         <div style={{padding:'16px 20px',flexShrink:0}}>
-          <MysteryChart player={mystery} round={result?3:round} />
+          <MysteryChart player={mystery} round={result?3:round} wrongGuesses={wrongGuesses.filter(g=>!g.correct)} />
         </div>
 
         <div style={{padding:'0 20px 20px',flex:1,overflow:'auto'}}>
