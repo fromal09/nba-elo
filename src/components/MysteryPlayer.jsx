@@ -281,7 +281,7 @@ function MysteryChart({ player, round, wrongGuesses = [] }) {
           fontSize:12,lineHeight:1.7,pointerEvents:'none',zIndex:10,
           boxShadow:'0 4px 16px rgba(0,0,0,0.8)',whiteSpace:'nowrap',border:'0.5px solid #e0e0e0',
         }}>
-          <div>Elo <span style={{color:'#d4002a',fontWeight:600}}>{tooltip.elo.toLocaleString()}</span></div>
+          <div>Elo <span style={{color:'#6896bd',fontWeight:600}}>{tooltip.elo.toLocaleString()}</span></div>
           {tooltip.date&&<div style={{color:'#888'}}>{tooltip.date.slice(5,7)}/{tooltip.date.slice(8,10)}/{tooltip.date.slice(0,4)}</div>}
           {tooltip.team&&<div style={{color:TEAM_COLORS[tooltip.team]||'#ccc'}}>{tooltip.team}</div>}
         </div>

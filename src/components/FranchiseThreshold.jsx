@@ -309,7 +309,7 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
                   >
                     <td style={{ ...s.td, fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{i + 1}</td>
                     <td style={{ ...s.td, fontWeight: 500, whiteSpace: 'nowrap' }}>{p.name}</td>
-                    <td style={{ ...s.td, textAlign: 'right', color: '#d4002a', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ ...s.td, textAlign: 'right', color: '#6896bd', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.peak).toLocaleString()}
                     </td>
                     <td style={{ ...s.td, textAlign: 'right', color: '#888', fontVariantNumeric: 'tabular-nums' }}>

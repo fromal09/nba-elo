@@ -356,7 +356,7 @@ export default function H2H({ players }) {
                   <div style={{ fontSize:22, fontFamily:"'Georgia', serif", color:"#1a1a1a", marginBottom:4 }}>{p.name}</div>
                   <div style={{ fontSize:12, color:"#aaa" }}>{careerRange(p)} · {p.team}</div>
                   <div style={{ display:"flex", gap:20, marginTop:12 }}>
-                    <div><div style={{ fontSize:11, color:"#aaa", marginBottom:2 }}>Peak Elo</div><div style={{ fontSize:18, fontWeight:600, color:"#d4002a" }}>{Math.round(p.peak_elo).toLocaleString()}</div></div>
+                    <div><div style={{ fontSize:11, color:"#aaa", marginBottom:2 }}>Peak Elo</div><div style={{ fontSize:18, fontWeight:600, color:"#6896bd" }}>{Math.round(p.peak_elo).toLocaleString()}</div></div>
                     <div><div style={{ fontSize:11, color:"#aaa", marginBottom:2 }}>Avg Elo</div><div style={{ fontSize:18, fontWeight:500 }}>{avgElo(p).toLocaleString()}</div></div>
                     <div><div style={{ fontSize:11, color:"#aaa", marginBottom:2 }}>Peak FPR</div><div style={{ fontSize:18, fontWeight:500 }}>#{p.peak_fpr_rank || "—"}</div></div>
                   </div>

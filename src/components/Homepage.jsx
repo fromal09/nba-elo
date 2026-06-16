@@ -143,7 +143,7 @@ export default function Homepage({ data, setView }) {
           </div>
           {active.map((p, i) => {
             const isTop3 = i < 3
-            const badgeBg = i === 0 ? '#d4002a' : 'rgba(255,255,255,0.12)'
+            const badgeBg = i === 0 ? '#6896bd' : 'rgba(255,255,255,0.12)'
             return (
               <div
                 key={p.name}

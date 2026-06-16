@@ -14,7 +14,7 @@ const ERAS = [
 ]
 
 function peakColor(peak) {
-  if (peak >= 3000) return '#d4002a'
+  if (peak >= 3000) return '#6896bd'
   if (peak >= 2800) return '#173657'
   if (peak >= 2600) return '#1a5fa8'
   return '#888'
@@ -308,7 +308,7 @@ export default function Historical({ players, onSelectPlayer }) {
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#173657', fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.snapshot_elo).toLocaleString()}
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#d4002a', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#6896bd', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.peak_elo).toLocaleString()}
                     </td>
                     <td style={{ ...s.td, fontSize: 12, color: '#aaa' }}>{p.snapshot_date}</td>

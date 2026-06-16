@@ -326,7 +326,7 @@ export default function Goat({ players, onSelectPlayer }) {
               {slice.map((p, i) => {
                 const rank     = page * PER_PAGE + i + 1
                 const score    = p.goat_score
-                const barColor = rank === 1 ? '#d4002a' : rank <= 5 ? '#173657' : rank <= 25 ? '#1a5fa8' : '#bbb'
+                const barColor = rank === 1 ? '#6896bd' : rank <= 5 ? '#173657' : rank <= 25 ? '#1a5fa8' : '#bbb'
 
                 return (
                   <tr
@@ -350,7 +350,7 @@ export default function Goat({ players, onSelectPlayer }) {
                         </span>
                       </div>
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#d4002a', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#6896bd', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                       {(peakEloMap[p.name] || 0).toLocaleString()}
                     </td>
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#555', fontVariantNumeric: 'tabular-nums' }}>

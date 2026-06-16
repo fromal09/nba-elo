@@ -167,7 +167,7 @@ export default function Teams({ players, onSelectPlayer }) {
                         <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 500, color: '#1a1a1a', fontVariantNumeric: 'tabular-nums' }}>
                           {Math.round(p.current_elo).toLocaleString()}
                         </td>
-                        <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#d4002a', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                        <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#6896bd', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                           {Math.round(p.peak_elo).toLocaleString()}
                         </td>
                         <td style={{ ...s.td, textAlign: 'right' }}>

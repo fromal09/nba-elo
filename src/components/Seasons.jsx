@@ -11,7 +11,7 @@ for (let y = 1946; y <= 2025; y++) {
 SEASONS.reverse() // most recent first
 
 function medalColor(rank) {
-  if (rank === 1) return '#d4002a'
+  if (rank === 1) return '#6896bd'
   if (rank === 2) return '#888'
   if (rank === 3) return '#a0522d'
   return '#bbb'
@@ -207,7 +207,7 @@ export default function Seasons({ players, onSelectPlayer }) {
                     onMouseLeave={e => e.currentTarget.style.background = selectedSeason.label === season.label ? '#f0f5f0' : 'transparent'}
                   >
                     <td style={s.td}>{season.label}</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#d4002a', fontVariantNumeric: 'tabular-nums' }}>{Math.round(peak).toLocaleString()}</td>
+                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#6896bd', fontVariantNumeric: 'tabular-nums' }}>{Math.round(peak).toLocaleString()}</td>
                     <td style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{gp}</td>
                   </tr>
                 ))}
@@ -245,7 +245,7 @@ export default function Seasons({ players, onSelectPlayer }) {
                     <div style={{ display: 'flex', gap: 16 }}>
                       <div>
                         <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: isFirst ? '#6896bd' : '#bbb', marginBottom: 2 }}>Peak Elo</div>
-                        <div style={{ fontSize: isFirst ? 24 : 18, fontWeight: 600, color: isFirst ? '#ffd700' : '#d4002a', fontVariantNumeric: 'tabular-nums' }}>
+                        <div style={{ fontSize: isFirst ? 24 : 18, fontWeight: 600, color: isFirst ? '#ffd700' : '#6896bd', fontVariantNumeric: 'tabular-nums' }}>
                           {Math.round(p.season_peak).toLocaleString()}
                         </div>
                       </div>
@@ -289,7 +289,7 @@ export default function Seasons({ players, onSelectPlayer }) {
                       <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{p.season_rank}</td>
                       <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a' }}>{p.name}</td>
                       <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team_in_season}</td>
-                      <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#d4002a', fontVariantNumeric: 'tabular-nums' }}>{Math.round(p.season_peak).toLocaleString()}</td>
+                      <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#6896bd', fontVariantNumeric: 'tabular-nums' }}>{Math.round(p.season_peak).toLocaleString()}</td>
                       <td style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.season_avg.toLocaleString()}</td>
                       <td style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.season_gp}</td>
                     </tr>
