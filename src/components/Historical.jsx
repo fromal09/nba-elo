@@ -15,7 +15,7 @@ const ERAS = [
 
 function peakColor(peak) {
   if (peak >= 3000) return '#d4002a'
-  if (peak >= 2800) return '#003594'
+  if (peak >= 2800) return '#173657'
   if (peak >= 2600) return '#1a5fa8'
   return '#888'
 }
@@ -160,8 +160,8 @@ export default function Historical({ players, onSelectPlayer }) {
   const totalPages    = Math.ceil(filtered.length / PER_PAGE)
 
   const btn = (active) => ({
-    background: active ? '#003594' : '#fff',
-    border: `0.5px solid ${active ? '#003594' : '#e0e0e0'}`,
+    background: active ? '#173657' : '#fff',
+    border: `0.5px solid ${active ? '#173657' : '#e0e0e0'}`,
     borderRadius: 8, padding: '7px 12px',
     fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 12, fontWeight: 500,
     color: active ? '#fff' : '#888',
@@ -305,7 +305,7 @@ export default function Historical({ players, onSelectPlayer }) {
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{rank}</td>
                     <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a', whiteSpace: 'nowrap' }}>{p.name}</td>
                     <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team_on_date || p.team}</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#003594', fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#173657', fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.snapshot_elo).toLocaleString()}
                     </td>
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#d4002a', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>

@@ -102,7 +102,7 @@ export default function Seasons({ players, onSelectPlayer }) {
     seasonBtn:  (active) => ({
       display: 'block', width: '100%', textAlign: 'left',
       padding: '8px 14px', border: 'none', borderBottom: '0.5px solid #f4f4f4',
-      background: active ? '#003594' : 'transparent',
+      background: active ? '#173657' : 'transparent',
       color: active ? '#fff' : '#555', fontSize: 13, fontWeight: active ? 500 : 400,
       cursor: 'pointer',
     }),
@@ -115,7 +115,7 @@ export default function Seasons({ players, onSelectPlayer }) {
     searchInput:{ background: 'none', border: 'none', outline: 'none', color: '#1a1a1a', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 13, padding: '9px 0', width: '100%' },
     dropdown:   { position: 'absolute', top: '100%', left: 0, width: 320, background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 8, marginTop: 4, zIndex: 100, overflow: 'hidden' },
     podium:     { display: 'flex', gap: 16, padding: '0 32px 32px' },
-    card1:      { flex: 1.2, background: '#003594', borderRadius: 14, padding: '24px', color: '#fff' },
+    card1:      { flex: 1.2, background: '#173657', borderRadius: 14, padding: '24px', color: '#fff' },
     card2:      { flex: 1, background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 14, padding: '20px' },
     rankBadge:  (rank) => ({
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -239,18 +239,18 @@ export default function Seasons({ players, onSelectPlayer }) {
                     <div style={{ fontSize: isFirst ? 20 : 16, fontFamily: "'Georgia', serif", color: isFirst ? '#fff' : '#1a1a1a', marginBottom: 4 }}>
                       {p.name}
                     </div>
-                    <div style={{ fontSize: 11, color: isFirst ? '#6b8fd4' : '#aaa', marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, color: isFirst ? '#6896bd' : '#aaa', marginBottom: 12 }}>
                       {p.team_in_season} · {p.season_gp} games
                     </div>
                     <div style={{ display: 'flex', gap: 16 }}>
                       <div>
-                        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: isFirst ? '#6b8fd4' : '#bbb', marginBottom: 2 }}>Peak Elo</div>
+                        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: isFirst ? '#6896bd' : '#bbb', marginBottom: 2 }}>Peak Elo</div>
                         <div style={{ fontSize: isFirst ? 24 : 18, fontWeight: 600, color: isFirst ? '#ffd700' : '#d4002a', fontVariantNumeric: 'tabular-nums' }}>
                           {Math.round(p.season_peak).toLocaleString()}
                         </div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: isFirst ? '#6b8fd4' : '#bbb', marginBottom: 2 }}>Avg Elo</div>
+                        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: isFirst ? '#6896bd' : '#bbb', marginBottom: 2 }}>Avg Elo</div>
                         <div style={{ fontSize: isFirst ? 20 : 15, fontWeight: 400, color: isFirst ? '#e0e0e0' : '#555', fontVariantNumeric: 'tabular-nums' }}>
                           {p.season_avg.toLocaleString()}
                         </div>

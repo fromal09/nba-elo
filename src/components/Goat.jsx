@@ -186,8 +186,8 @@ export default function Goat({ players, onSelectPlayer }) {
     sectionLbl: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#bbb', marginBottom: 10 },
     presetGrid: { display: 'flex', flexDirection: 'column', gap: 5 },
     btn:        (active) => ({
-      background: active ? '#003594' : '#f4f4f4',
-      border: `0.5px solid ${active ? '#003594' : '#e0e0e0'}`,
+      background: active ? '#173657' : '#f4f4f4',
+      border: `0.5px solid ${active ? '#173657' : '#e0e0e0'}`,
       borderRadius: 7, padding: '7px 12px',
       fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 12, fontWeight: 500,
       color: active ? '#fff' : '#555', cursor: 'pointer', textAlign: 'left',
@@ -195,8 +195,8 @@ export default function Goat({ players, onSelectPlayer }) {
     }),
     franchiseGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 },
     fBtn:       (active) => ({
-      background: active ? '#003594' : 'transparent',
-      border: `0.5px solid ${active ? '#003594' : '#e0e0e0'}`,
+      background: active ? '#173657' : 'transparent',
+      border: `0.5px solid ${active ? '#173657' : '#e0e0e0'}`,
       borderRadius: 6, padding: '5px 8px',
       fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 11, fontWeight: active ? 600 : 400,
       color: active ? '#fff' : '#555', cursor: 'pointer', textAlign: 'left',
@@ -207,10 +207,10 @@ export default function Goat({ players, onSelectPlayer }) {
     sliderTop:  { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 },
     sliderLabel:{ fontSize: 13, fontWeight: 500, color: '#333' },
     sliderDesc: { fontSize: 11, color: '#aaa', marginBottom: 7 },
-    sliderVal:  { fontSize: 13, fontWeight: 600, color: '#003594' },
+    sliderVal:  { fontSize: 13, fontWeight: 600, color: '#173657' },
     totalRow:   { padding: '12px 20px', borderTop: '0.5px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 },
     totalLabel: { fontSize: 11, color: '#aaa' },
-    totalVal:   (ok) => ({ fontSize: 13, fontWeight: 600, color: ok ? '#003594' : '#c94040' }),
+    totalVal:   (ok) => ({ fontSize: 13, fontWeight: 600, color: ok ? '#173657' : '#c94040' }),
     pageHeader: { padding: '24px 32px 16px' },
     pageTitle:  { fontFamily: "'Georgia', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
     pageDesc:   { fontSize: 13, color: '#888' },
@@ -283,7 +283,7 @@ export default function Goat({ players, onSelectPlayer }) {
                 type="range" min={0} max={100} step={5}
                 value={weights[dim.key]}
                 onChange={e => updateWeight(dim.key, Number(e.target.value))}
-                style={{ width: '100%', accentColor: '#003594' }}
+                style={{ width: '100%', accentColor: '#173657' }}
               />
             </div>
           ))}
@@ -326,7 +326,7 @@ export default function Goat({ players, onSelectPlayer }) {
               {slice.map((p, i) => {
                 const rank     = page * PER_PAGE + i + 1
                 const score    = p.goat_score
-                const barColor = rank === 1 ? '#d4002a' : rank <= 5 ? '#003594' : rank <= 25 ? '#1a5fa8' : '#bbb'
+                const barColor = rank === 1 ? '#d4002a' : rank <= 5 ? '#173657' : rank <= 25 ? '#1a5fa8' : '#bbb'
 
                 return (
                   <tr

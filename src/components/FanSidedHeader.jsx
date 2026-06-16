@@ -13,7 +13,7 @@ export default function FanSidedHeader({ currentView, onNavigate }) {
 
   return (
     <header style={{
-      background: '#003594',
+      background: '#173657',
       borderBottom: '3px solid #d4002a',
       flexShrink: 0,
       fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
@@ -28,7 +28,7 @@ export default function FanSidedHeader({ currentView, onNavigate }) {
           <a href="https://fansided.com" target="_blank" rel="noopener" style={{ textDecoration: 'none' }}>
             <div style={{
               background: '#fff', borderRadius: 4, padding: '4px 10px',
-              fontWeight: 900, fontSize: 18, color: '#003594',
+              fontWeight: 900, fontSize: 18, color: '#173657',
               letterSpacing: -0.5, lineHeight: 1,
             }}>
               FAN<span style={{ color: '#d4002a' }}>SIDED</span>

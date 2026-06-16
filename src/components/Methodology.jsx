@@ -120,7 +120,7 @@ export default function Methodology() {
 
         {/* Header */}
         <div style={{ marginBottom: 40 }}>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 2, color: '#6b8fd4', marginBottom: 10 }}>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 2, color: '#6896bd', marginBottom: 10 }}>
             Technical Reference
           </div>
           <h1 style={{ fontFamily: "'Georgia', serif", fontSize: 40, color: '#1a1a1a', marginBottom: 12, lineHeight: 1.1 }}>
@@ -139,7 +139,7 @@ export default function Methodology() {
               <a
                 key={s.title}
                 href={`#section-${i}`}
-                style={{ fontSize: 13, color: '#003594', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}
+                style={{ fontSize: 13, color: '#173657', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}
               >
                 <span style={{ fontSize: 10, color: '#bbb', minWidth: 20 }}>{i + 1}.</span>
                 {s.title}
@@ -166,7 +166,7 @@ export default function Methodology() {
                 const isFormula = para.includes('=') && (para.includes('×') || para.includes('^') || para.includes('Σ') || para.startsWith('K =') || para.startsWith('GmSc') || para.startsWith('E(') || para.startsWith('ΔR'))
                 return isFormula ? (
                   <pre key={j} style={{
-                    background: '#003594', color: '#a8c5a8',
+                    background: '#173657', color: '#a8c5a8',
                     borderRadius: 8, padding: '14px 18px',
                     fontSize: 13, lineHeight: 1.8,
                     fontFamily: 'monospace', margin: '12px 0',

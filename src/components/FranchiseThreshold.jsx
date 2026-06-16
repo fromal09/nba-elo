@@ -192,16 +192,16 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
     sectionLbl:{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#bbb', marginBottom: 10 },
     teamGrid:  { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 },
     teamBtn:   (active) => ({
-      background: active ? '#003594' : 'transparent',
-      border: `0.5px solid ${active ? '#003594' : '#e0e0e0'}`,
+      background: active ? '#173657' : 'transparent',
+      border: `0.5px solid ${active ? '#173657' : '#e0e0e0'}`,
       borderRadius: 6, padding: '5px 4px',
       fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 11, fontWeight: active ? 600 : 400,
       color: active ? '#fff' : '#555', cursor: 'pointer', textAlign: 'center',
     }),
     eloGrid:   { display: 'flex', flexWrap: 'wrap', gap: 5 },
     eloBtn:    (active) => ({
-      background: active ? '#003594' : 'transparent',
-      border: `0.5px solid ${active ? '#003594' : '#e0e0e0'}`,
+      background: active ? '#173657' : 'transparent',
+      border: `0.5px solid ${active ? '#173657' : '#e0e0e0'}`,
       borderRadius: 6, padding: '5px 10px',
       fontFamily: "'Consolas', 'Monaco', monospace", fontSize: 11, fontWeight: active ? 600 : 400,
       color: active ? '#fff' : '#555', cursor: 'pointer',
@@ -315,7 +315,7 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
                     <td style={{ ...s.td, textAlign: 'right', color: '#888', fontVariantNumeric: 'tabular-nums' }}>
                       {p.gp}
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#003594' }}>
+                    <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#173657' }}>
                       {p.gamesAbove}
                     </td>
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#aaa', fontFamily: "'Consolas', 'Monaco', monospace" }}>

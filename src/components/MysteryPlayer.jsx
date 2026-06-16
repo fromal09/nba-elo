@@ -190,18 +190,18 @@ function drawChart(svg, hist, round, W, H, spagData, wrongGuesses = []) {
     let seg=[],s0=0,curT=hist[0]?.[4]||''
     hist.forEach((e,i)=>{
       const t=e[4]||''
-      if (t!==curT){ seg.push(e); drawSeg(seg,s0,TEAM_COLORS[curT]||'#003594'); seg=[e]; s0=i; curT=t } else seg.push(e)
+      if (t!==curT){ seg.push(e); drawSeg(seg,s0,TEAM_COLORS[curT]||'#173657'); seg=[e]; s0=i; curT=t } else seg.push(e)
     })
-    drawSeg(seg,s0,TEAM_COLORS[curT]||'#003594')
+    drawSeg(seg,s0,TEAM_COLORS[curT]||'#173657')
   } else {
-    drawSeg(hist,0,'#003594')
+    drawSeg(hist,0,'#173657')
   }
 
   const last=hist[hist.length-1]
   const dot=document.createElementNS(ns,'circle')
   dot.setAttribute('cx',xS(n-1)); dot.setAttribute('cy',yS(last[1]))
   dot.setAttribute('r','4')
-  dot.setAttribute('fill',round>=3?(TEAM_COLORS[last[4]||'']||'#003594'):'#003594')
+  dot.setAttribute('fill',round>=3?(TEAM_COLORS[last[4]||'']||'#173657'):'#173657')
   svg.appendChild(dot)
 }
 
@@ -313,7 +313,7 @@ function GuessInput({ players, onGuess, disabled, usedNames }) {
             fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif",outline:'none',background:'#f0f0f0',color:'#1a1a1a'}}
         />
         <button onClick={()=>submit()} disabled={disabled||!val.trim()}
-          style={{background:disabled||!val.trim()?'#e0e0e0':'#003594',color:disabled||!val.trim()?'#aaa':'#fff',
+          style={{background:disabled||!val.trim()?'#e0e0e0':'#173657',color:disabled||!val.trim()?'#aaa':'#fff',
             border:'none',borderRadius:8,padding:'12px 24px',fontSize:14,fontWeight:700,cursor:'pointer',
             fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif"}}>
           Accuse
@@ -370,9 +370,9 @@ function CluesSidebar({ guesses, mystery, round, visibleGuesses = new Set(), onT
           const gFranch= playerFranchises(gHist)
           const mStart = mystery.elo_history[0]?.[0]?.slice(0,4)
           const peakDir = mPeak>gPeak?'↑ Higher':mPeak<gPeak?'↓ Lower':'= Same'
-          const peakClr = mPeak>gPeak?'#ff9944':mPeak<gPeak?'#44aaff':'#003594'
+          const peakClr = mPeak>gPeak?'#ff9944':mPeak<gPeak?'#44aaff':'#173657'
           const avgDir  = mAvg>gAvg?'↑ Higher':mAvg<gAvg?'↓ Lower':'= Same'
-          const avgClr  = mAvg>gAvg?'#ff9944':mAvg<gAvg?'#44aaff':'#003594'
+          const avgClr  = mAvg>gAvg?'#ff9944':mAvg<gAvg?'#44aaff':'#173657'
           return (
             <div key={i} style={{background:'#fff5f5',border:'0.5px solid #f0d0d0',borderRadius:8,padding:'10px 12px',marginBottom:8}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
@@ -403,7 +403,7 @@ function CluesSidebar({ guesses, mystery, round, visibleGuesses = new Set(), onT
               {round>=2&&(
                 <div style={{fontSize:11,color:'#888',marginBottom:6}}>
                   {gStart}–{gEnd}
-                  {mStart&&<span style={{marginLeft:6,color:mStart>gStart?'#ff9944':mStart<gStart?'#44aaff':'#003594',fontSize:10}}>
+                  {mStart&&<span style={{marginLeft:6,color:mStart>gStart?'#ff9944':mStart<gStart?'#44aaff':'#173657',fontSize:10}}>
                     {mStart>gStart?'↑ Later start':mStart<gStart?'↓ Earlier start':'= Same era'}
                   </span>}
                 </div>
@@ -465,8 +465,8 @@ function FiltersScreen({ players, onSelect, onBack }) {
           <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
             {ALL_FRANCHISES.map(f=>(
               <button key={f}
-                style={{background:franchises.includes(f)?'#003594':'transparent',
-                  border:`0.5px solid ${franchises.includes(f)?'#003594':'#e0e0e0'}`,
+                style={{background:franchises.includes(f)?'#173657':'transparent',
+                  border:`0.5px solid ${franchises.includes(f)?'#173657':'#e0e0e0'}`,
                   borderRadius:20,padding:'4px 10px',fontSize:11,
                   fontWeight:franchises.includes(f)?700:400,
                   color:franchises.includes(f)?'#fff':'#555',
@@ -497,7 +497,7 @@ function FiltersScreen({ players, onSelect, onBack }) {
         </div>
 
         <button onClick={()=>pool.length&&onSelect(pool[Math.floor(Math.random()*pool.length)])} disabled={!pool.length}
-          style={{background:pool.length?'#003594':'#e0e0e0',color:pool.length?'#fff':'#aaa',
+          style={{background:pool.length?'#173657':'#e0e0e0',color:pool.length?'#fff':'#aaa',
             border:'none',borderRadius:12,padding:'16px 40px',fontSize:16,fontWeight:700,
             cursor:pool.length?'pointer':'not-allowed',fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif"}}>
           {pool.length?`Pick from ${pool.length.toLocaleString()} suspects →`:'No players match'}
@@ -526,12 +526,12 @@ function LandingScreen({ onQuick, onFilter }) {
             {round:'Rounds 3–5',desc:'Team colors fully revealed'},
           ].map(({round,desc})=>(
             <div key={round} style={{background:'#f4f4f4',border:'0.5px solid #e0e0e0',borderRadius:10,padding:'12px 16px',fontSize:12,color:'#888',textAlign:'left',flex:1,minWidth:130}}>
-              <div style={{color:'#003594',fontWeight:600,marginBottom:4}}>{round}</div>
+              <div style={{color:'#173657',fontWeight:600,marginBottom:4}}>{round}</div>
               <div>{desc}</div>
             </div>
           ))}
         </div>
-        <button onClick={onFilter} style={{background:'#003594',color:'#fff',border:'none',borderRadius:12,
+        <button onClick={onFilter} style={{background:'#173657',color:'#fff',border:'none',borderRadius:12,
           padding:'16px 48px',fontSize:16,fontWeight:700,cursor:'pointer',
           fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif",marginBottom:12,display:'block',width:'100%'}}>
           Filter the Suspect Pool →
@@ -636,10 +636,10 @@ export default function MysteryPlayer({ players, onSelectPlayer }) {
           {result==='win'&&(
             <div style={{background:'#f0f7f0',border:'0.5px solid #c0d8c0',borderRadius:12,padding:24,textAlign:'center',marginBottom:16}}>
               <div style={{fontSize:36,marginBottom:8}}>🎉</div>
-              <div style={{fontFamily:"'Georgia', serif",fontSize:24,color:'#003594',marginBottom:4}}>{mystery.name}</div>
+              <div style={{fontFamily:"'Georgia', serif",fontSize:24,color:'#173657',marginBottom:4}}>{mystery.name}</div>
               <div style={{fontSize:13,color:'#888',marginBottom:16}}>Case solved in {guesses.length===1?'1 guess':`${guesses.length} guesses`}</div>
               <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-                <button onClick={()=>onSelectPlayer(mystery)} style={{background:'#003594',color:'#1a1a1a',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:600,cursor:'pointer'}}>View Player →</button>
+                <button onClick={()=>onSelectPlayer(mystery)} style={{background:'#173657',color:'#1a1a1a',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:600,cursor:'pointer'}}>View Player →</button>
                 <button onClick={reset} style={{background:'transparent',border:'0.5px solid #e0e0e0',borderRadius:8,padding:'10px 20px',fontSize:13,cursor:'pointer',color:'#888'}}>New Case</button>
               </div>
             </div>

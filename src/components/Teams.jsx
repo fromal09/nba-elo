@@ -34,7 +34,7 @@ const NBA_TEAMS = [
 ]
 
 function gmscColor(v) {
-  if (v >= 25) return '#003594'
+  if (v >= 25) return '#173657'
   if (v >= 18) return '#1a5fa8'
   if (v >= 12) return '#a87a0a'
   return '#888'
@@ -77,7 +77,7 @@ export default function Teams({ players, onSelectPlayer }) {
     teamBtn:  (active) => ({
       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       padding: '9px 16px', cursor: 'pointer', borderBottom: '0.5px solid #f4f4f4',
-      background: active ? '#003594' : 'transparent',
+      background: active ? '#173657' : 'transparent',
       border: 'none', width: '100%', textAlign: 'left', transition: 'background 0.1s',
     }),
     main:       { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
@@ -87,7 +87,7 @@ export default function Teams({ players, onSelectPlayer }) {
     tableWrap:  { flex: 1, overflow: 'auto', background: '#fff' },
     table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
     thead:      { position: 'sticky', top: 0, zIndex: 10, background: '#f8f8f8', borderBottom: '0.5px solid #e0e0e0' },
-    th:         (active) => ({ padding: '10px 14px', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 11, fontWeight: 600, color: active ? '#003594' : '#aaa', textAlign: 'left', whiteSpace: 'nowrap', letterSpacing: '0.8px', textTransform: 'uppercase', cursor: 'pointer', userSelect: 'none' }),
+    th:         (active) => ({ padding: '10px 14px', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 11, fontWeight: 600, color: active ? '#173657' : '#aaa', textAlign: 'left', whiteSpace: 'nowrap', letterSpacing: '0.8px', textTransform: 'uppercase', cursor: 'pointer', userSelect: 'none' }),
     thR:        { textAlign: 'right' },
     row:        { borderBottom: '0.5px solid #f0f0f0', cursor: 'pointer' },
     td:         { padding: '10px 14px' },
@@ -106,7 +106,7 @@ export default function Teams({ players, onSelectPlayer }) {
             onMouseLeave={e => { if (selectedTeam !== abbr) e.currentTarget.style.background = 'transparent' }}
           >
             <span style={{ fontSize: 13, fontWeight: 500, color: selectedTeam === abbr ? '#fff' : '#333' }}>{name}</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: selectedTeam === abbr ? '#6b8fd4' : '#aaa', letterSpacing: 0.5 }}>{abbr}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: selectedTeam === abbr ? '#6896bd' : '#aaa', letterSpacing: 0.5 }}>{abbr}</span>
           </button>
         ))}
       </div>

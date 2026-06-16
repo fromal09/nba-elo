@@ -11,11 +11,11 @@ function PlayerSearch({ label, value, onChange, players }) {
 
   return (
     <div style={{ flex: 1, position: 'relative' }}>
-      <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#6b8fd4', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#6896bd', marginBottom: 6 }}>{label}</div>
       {value ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: '10px 14px' }}>
           <span style={{ color: '#fff', fontWeight: 600, flex: 1 }}>{value.name}</span>
-          <button onClick={clear} style={{ background: 'none', border: 'none', color: '#6b8fd4', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+          <button onClick={clear} style={{ background: 'none', border: 'none', color: '#6896bd', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
         </div>
       ) : (
         <>
@@ -46,7 +46,7 @@ function StatRow({ label, aVal, bVal, higherIsBetter = true }) {
   const cell = (val, wins) => ({
     flex: 1, padding: '10px 0', textAlign: wins ? 'right' : 'right',
     fontSize: 15, fontWeight: wins ? 700 : 400,
-    color: wins ? '#003594' : '#888', fontVariantNumeric: 'tabular-nums',
+    color: wins ? '#173657' : '#888', fontVariantNumeric: 'tabular-nums',
   })
   return (
     <div style={{ display: 'flex', alignItems: 'center', borderBottom: '0.5px solid #f4f4f4' }}>
@@ -161,8 +161,8 @@ function MiniChart({ playerA, playerB }) {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
         <div style={{ fontSize:11, textTransform:"uppercase", letterSpacing:1, color:"#aaa" }}>Elo Rating History</div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          {frame !== null && <span style={{ fontFamily:"'Consolas', 'Monaco', monospace", fontSize:13, color:"#003594", fontWeight:600 }}>{currentYear}</span>}
-          <button onClick={playing ? handleStop : handlePlay} style={{ background:"#003594", color:"#fff", border:"none", borderRadius:6, padding:"5px 14px", fontSize:11, cursor:"pointer", fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif", fontWeight:500 }}>
+          {frame !== null && <span style={{ fontFamily:"'Consolas', 'Monaco', monospace", fontSize:13, color:"#173657", fontWeight:600 }}>{currentYear}</span>}
+          <button onClick={playing ? handleStop : handlePlay} style={{ background:"#173657", color:"#fff", border:"none", borderRadius:6, padding:"5px 14px", fontSize:11, cursor:"pointer", fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif", fontWeight:500 }}>
             {playing ? "■ Stop" : "▶ Play"}
           </button>
         </div>
@@ -296,9 +296,9 @@ function SharedGames({ playerA, playerB }) {
                   <td style={{ ...s.td, fontFamily:"'Consolas', 'Monaco', monospace", fontSize:11, color:"#aaa" }}>{fmt(g.date)}</td>
                   <td style={{ ...s.td, fontSize:11, fontWeight:600, color:colorA }}>{g.teamA}</td>
                   <td style={{ ...s.td, textAlign:"right", fontVariantNumeric:"tabular-nums" }}>{g.eloA.toLocaleString()}</td>
-                  <td style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainA >= 0 ? "#003594" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainA >= 0 ? "+" : ""}{g.eloGainA}</td>
+                  <td style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainA >= 0 ? "#173657" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainA >= 0 ? "+" : ""}{g.eloGainA}</td>
                   <td style={{ ...s.td, textAlign:"right", fontVariantNumeric:"tabular-nums" }}>{g.eloB.toLocaleString()}</td>
-                  <td style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainB >= 0 ? "#003594" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainB >= 0 ? "+" : ""}{g.eloGainB}</td>
+                  <td style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainB >= 0 ? "#173657" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainB >= 0 ? "+" : ""}{g.eloGainB}</td>
                   <td style={{ ...s.td, fontSize:11, fontWeight:600, color:colorB }}>{g.teamB}</td>
                   <td style={{ ...s.td, textAlign:"right", fontSize:12 }}>{g.eloWinA ? playerA.name.split(" ").pop() : playerB.name.split(" ").pop()}</td>
                   <td style={{ ...s.td, textAlign:"right", fontSize:12 }}>{g.teamWinA ? playerA.name.split(" ").pop() : playerB.name.split(" ").pop()}</td>
@@ -333,11 +333,11 @@ export default function H2H({ players }) {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", flex:1, overflow:"hidden", background:"#f4f4f4", fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif" }}>
-      <div style={{ background:"#003594", padding:"28px 32px" }}>
-        <div style={{ fontSize:11, letterSpacing:2, textTransform:"uppercase", color:"#6b8fd4", marginBottom:8 }}>Head-to-Head</div>
+      <div style={{ background:"#173657", padding:"28px 32px" }}>
+        <div style={{ fontSize:11, letterSpacing:2, textTransform:"uppercase", color:"#6896bd", marginBottom:8 }}>Head-to-Head</div>
         <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
           <PlayerSearch label="Player A" value={playerA} onChange={setPlayerA} players={players} />
-          <div style={{ paddingTop:32, color:"#6b8fd4", fontSize:14, fontWeight:500, flexShrink:0 }}>vs</div>
+          <div style={{ paddingTop:32, color:"#6896bd", fontSize:14, fontWeight:500, flexShrink:0 }}>vs</div>
           <PlayerSearch label="Player B" value={playerB} onChange={setPlayerB} players={players} />
         </div>
       </div>

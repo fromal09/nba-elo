@@ -134,7 +134,7 @@ export default function BestThroughX({ players, onSelectPlayer }) {
               key={row.name}
               rank={i+1}
               row={row}
-              color={TEAM_COLORS[row.team] || '#003594'}
+              color={TEAM_COLORS[row.team] || '#173657'}
               gamesHeld={row.gamesHeld}
             />
           ))}
@@ -154,7 +154,7 @@ export default function BestThroughX({ players, onSelectPlayer }) {
           />
           <button
             onClick={handleJump}
-            style={{ background:'#003594', color:'#fff', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, cursor:'pointer', fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif" }}
+            style={{ background:'#173657', color:'#fff', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, cursor:'pointer', fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif" }}
           >Go</button>
         </div>
       </div>
@@ -177,7 +177,7 @@ export default function BestThroughX({ players, onSelectPlayer }) {
           </thead>
           <tbody>
             {rows.map(({ first, second, third }, i) => {
-              const color = TEAM_COLORS[first.team] || '#003594'
+              const color = TEAM_COLORS[first.team] || '#173657'
               const row = withMeta[i]
               return (
                 <tr

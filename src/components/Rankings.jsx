@@ -12,7 +12,7 @@ const SORT_OPTIONS = [
 ]
 
 function gmscColor(v) {
-  if (v >= 25) return '#003594'
+  if (v >= 25) return '#173657'
   if (v >= 18) return '#1a5fa8'
   if (v >= 12) return '#a87a0a'
   if (v >= 6)  return '#888'

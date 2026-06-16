@@ -124,7 +124,7 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode, onTooltip = () => {
     let segPts = [], segTeam = null
     const flushSeg = () => {
       if (segPts.length < 2) { segPts = []; return }
-      const color = TEAM_COLORS[segTeam] || '#003594'
+      const color = TEAM_COLORS[segTeam] || '#173657'
       const d = segPts.map(([i, v], k) => `${k === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ')
       const path = document.createElementNS(ns, 'path')
       path.setAttribute('d', d); path.setAttribute('fill', 'none')
@@ -144,7 +144,7 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode, onTooltip = () => {
     const lastTeam = dateToTeam[dates[last[0]]] || null
     const dot = document.createElementNS(ns, 'circle')
     dot.setAttribute('cx', xScale(last[0])); dot.setAttribute('cy', yScale(last[1]))
-    dot.setAttribute('r', '4'); dot.setAttribute('fill', TEAM_COLORS[lastTeam] || '#003594')
+    dot.setAttribute('r', '4'); dot.setAttribute('fill', TEAM_COLORS[lastTeam] || '#173657')
     svg.appendChild(dot)
 
     // Invisible hit targets for tooltip
@@ -204,7 +204,7 @@ function SpagChart({ playerIndex, playerName, eloHist }) {
               onClick={() => setCareerMode(mode)}
               style={{
                 padding: '4px 10px', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 500,
-                background: careerMode === mode ? '#003594' : 'transparent',
+                background: careerMode === mode ? '#173657' : 'transparent',
                 color: careerMode === mode ? '#fff' : '#888',
                 borderRight: mode === false ? '0.5px solid #e0e0e0' : 'none',
               }}
@@ -310,13 +310,13 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
         boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
       }}>
         {/* Dark header */}
-        <div style={{ background: '#003594', padding: '24px 24px 0', position: 'relative' }}>
+        <div style={{ background: '#173657', padding: '24px 24px 0', position: 'relative' }}>
           <button
             onClick={onClose}
             style={{
               position: 'absolute', top: 16, right: 16,
               background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 6,
-              color: '#6b8fd4', width: 28, height: 28, cursor: 'pointer',
+              color: '#6896bd', width: 28, height: 28, cursor: 'pointer',
               fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
             aria-label="Close"
@@ -325,7 +325,7 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
           <div style={{ fontFamily: "'Georgia', serif", fontSize: 26, color: '#fff', marginBottom: 4 }}>
             {player.name}
           </div>
-          <div style={{ fontSize: 12, color: '#6b8fd4', display: 'flex', gap: 10, marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: '#6896bd', display: 'flex', gap: 10, marginBottom: 20 }}>
             <span>{player.team}</span>
             {careerRange && <><span style={{ opacity: 0.4 }}>·</span><span>{careerRange}</span></>}
             <span style={{ opacity: 0.4 }}>·</span>
@@ -338,11 +338,11 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
             {[
               { label: 'Current Elo', val: Math.round(player.current_elo).toLocaleString(), color: '#fff' },
               { label: 'Peak Elo',    val: Math.round(player.peak_elo).toLocaleString(),    color: '#ffd700' },
-              { label: 'FPR Rank',    val: player.is_fpr_eligible ? `#${player.fpr_rank}` : `#${player.current_tpr_rank}`,                   color: player.is_fpr_eligible ? '#fff' : '#6b8fd4' },
+              { label: 'FPR Rank',    val: player.is_fpr_eligible ? `#${player.fpr_rank}` : `#${player.current_tpr_rank}`,                   color: player.is_fpr_eligible ? '#fff' : '#6896bd' },
               { label: 'Avg Elo',     val: avgElo.toLocaleString(),                          color: '#a8c5a8' },
             ].map(({ label, val, color }) => (
               <div key={label} style={{ padding: '14px 16px', borderRight: '0.5px solid rgba(255,255,255,0.1)', borderBottom: '0.5px solid rgba(255,255,255,0.1)' }}>
-                <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#6b8fd4', marginBottom: 4 }}>{label}</div>
+                <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#6896bd', marginBottom: 4 }}>{label}</div>
                 <div style={{ fontSize: 18, fontWeight: 500, color, fontVariantNumeric: 'tabular-nums' }}>{val}</div>
               </div>
             ))}

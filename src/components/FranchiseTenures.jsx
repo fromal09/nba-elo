@@ -99,7 +99,7 @@ function ScatterPlot({ points, franchise, onHover, hoveredName, onSelectPlayer }
   const xScale = gp  => PAD.left + (gp / maxGP) * plotW
   const yScale = elo => PAD.top + plotH - ((elo - minElo) / (maxElo - minElo)) * plotH
 
-  const teamColor = TEAM_COLORS[franchise] || '#003594'
+  const teamColor = TEAM_COLORS[franchise] || '#173657'
 
   const ns = 'http://www.w3.org/2000/svg'
 
@@ -208,7 +208,7 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
   }, [players, franchise])
 
   const franchiseName = FRANCHISE_NAMES[franchise]
-  const teamColor = TEAM_COLORS[franchise] || '#003594'
+  const teamColor = TEAM_COLORS[franchise] || '#173657'
 
   const s = {
     wrap:      { display: 'flex', flex: 1, overflow: 'hidden', background: '#f4f4f4', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" },

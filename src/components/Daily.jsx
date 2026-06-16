@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 
 function deltaColor(v) {
-  if (v > 0) return '#003594'
+  if (v > 0) return '#173657'
   if (v < 0) return '#c94040'
   return '#aaa'
 }
@@ -20,7 +20,7 @@ function rankDeltaStr(v) {
 
 function rankDeltaColor(v) {
   if (!v) return '#aaa'
-  if (v > 0) return '#003594'  // improved = green
+  if (v > 0) return '#173657'  // improved = green
   return '#c94040'              // worsened = red
 }
 
@@ -126,7 +126,7 @@ export default function Daily({ players, onSelectPlayer }) {
     scroll:     { flex: 1, overflow: 'auto', padding: '24px 32px' },
     teamSection:{ marginBottom: 28 },
     teamHeader: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
-    teamLabel:  { fontSize: 11, fontWeight: 700, color: '#003594', textTransform: 'uppercase', letterSpacing: 1.2, background: '#e8f0e0', padding: '3px 10px', borderRadius: 5 },
+    teamLabel:  { fontSize: 11, fontWeight: 700, color: '#173657', textTransform: 'uppercase', letterSpacing: 1.2, background: '#e8f0e0', padding: '3px 10px', borderRadius: 5 },
     teamCount:  { fontSize: 12, color: '#aaa' },
     table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13, background: '#fff', borderRadius: 12, overflow: 'hidden', border: '0.5px solid #e0e0e0' },
     thead:      { background: '#f8f8f8', borderBottom: '0.5px solid #e0e0e0' },
@@ -154,7 +154,7 @@ export default function Daily({ players, onSelectPlayer }) {
             onChange={e => setSelectedDate(e.target.value)}
           />
           {selectedDate && selectedDate !== mostRecentDate && (
-            <button onClick={() => setSelectedDate('')} style={{ fontSize: 12, color: '#003594', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
+            <button onClick={() => setSelectedDate('')} style={{ fontSize: 12, color: '#173657', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
               → Latest
             </button>
           )}

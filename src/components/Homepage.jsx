@@ -53,7 +53,7 @@ export default function Homepage({ data, setView }) {
       desc: 'Scatterplot of avg Elo vs games played for any franchise. Identifies all-time Elo Legends.',
       meta: 'Legend Score · avgElo⁰⋅⁶ × GP⁰⋅⁴',
       view: 'tenures',
-      color: '#e8f0e8', iconColor: '#003594',
+      color: '#e8f0e8', iconColor: '#173657',
     },
     {
       icon: '🐐',
@@ -110,11 +110,11 @@ export default function Homepage({ data, setView }) {
 
       {/* Hero */}
       <div style={{
-        background: '#003594', color: '#fff',
+        background: '#173657', color: '#fff',
         padding: '56px 48px 48px', textAlign: 'center',
         position: 'relative', overflow: 'hidden',
       }}>
-        <div style={{ fontSize: 11, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#6b8fd4', marginBottom: 12 }}>
+        <div style={{ fontSize: 11, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#6896bd', marginBottom: 12 }}>
           NBA Analytics · By FanSided
         </div>
         <h1 style={{
@@ -161,7 +161,7 @@ export default function Homepage({ data, setView }) {
                 </div>
                 <div style={{ flex: 1, fontSize: 14, fontWeight: 500, color: '#fff' }}>{p.name}</div>
                 <div style={{ fontSize: 13, color: '#e8f0e8', fontVariantNumeric: 'tabular-nums' }}>
-                  <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#6b8fd4', marginRight: 4 }}>ELO</span>{fmt(p.current_elo)}
+                  <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#6896bd', marginRight: 4 }}>ELO</span>{fmt(p.current_elo)}
                 </div>
               </div>
             )
@@ -170,7 +170,7 @@ export default function Homepage({ data, setView }) {
           <div style={{ height: 1, background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent)', margin: '12px 0' }} />
           <button
             onClick={() => setView('rankings')}
-            style={{ background: 'none', border: 'none', color: '#6b8fd4', fontSize: 13, cursor: 'pointer', letterSpacing: '0.5px' }}
+            style={{ background: 'none', border: 'none', color: '#6896bd', fontSize: 13, cursor: 'pointer', letterSpacing: '0.5px' }}
           >
             View full rankings →
           </button>
@@ -195,7 +195,7 @@ export default function Homepage({ data, setView }) {
                 position: 'relative',
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.borderColor = '#003594'
+                e.currentTarget.style.borderColor = '#173657'
                 e.currentTarget.style.transform = 'translateY(-2px)'
                 e.currentTarget.style.boxShadow = '0 8px 24px rgba(26,46,26,0.1)'
               }}
@@ -215,7 +215,7 @@ export default function Homepage({ data, setView }) {
               </div>
               <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>{card.title}</div>
               <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5, marginBottom: 12 }}>{card.desc}</div>
-              <div style={{ fontSize: 12, color: '#003594', fontWeight: 500 }}>{card.meta}</div>
+              <div style={{ fontSize: 12, color: '#173657', fontWeight: 500 }}>{card.meta}</div>
               <div style={{ position: 'absolute', top: 20, right: 20, color: '#ccc', fontSize: 16 }}>→</div>
             </div>
           ))}
