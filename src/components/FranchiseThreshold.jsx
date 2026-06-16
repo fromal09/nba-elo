@@ -182,45 +182,45 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
   const franchiseName = FRANCHISE_NAMES[franchise]
 
   const s = {
-    wrap:      { display: 'flex', flex: 1, overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" },
-    sidebar:   { width: 240, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e0ddd6', display: 'flex', flexDirection: 'column', overflow: 'auto' },
+    wrap:      { display: 'flex', flex: 1, overflow: 'hidden', background: '#f4f4f4', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
+    sidebar:   { width: 240, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e0e0e0', display: 'flex', flexDirection: 'column', overflow: 'auto' },
     main:      { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-    sideHead:  { padding: '22px 18px 14px', borderBottom: '0.5px solid #e0ddd6' },
-    sideTitle: { fontFamily: "'DM Serif Display', serif", fontSize: 17, color: '#1a1a1a', marginBottom: 3 },
+    sideHead:  { padding: '22px 18px 14px', borderBottom: '0.5px solid #e0e0e0' },
+    sideTitle: { fontFamily: "'Georgia', serif", fontSize: 17, color: '#1a1a1a', marginBottom: 3 },
     sideDesc:  { fontSize: 12, color: '#888', lineHeight: 1.6 },
-    section:   { padding: '14px 18px', borderBottom: '0.5px solid #f0ede8' },
+    section:   { padding: '14px 18px', borderBottom: '0.5px solid #f0f0f0' },
     sectionLbl:{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#bbb', marginBottom: 10 },
     teamGrid:  { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 },
     teamBtn:   (active) => ({
-      background: active ? '#1a2e1a' : 'transparent',
-      border: `0.5px solid ${active ? '#1a2e1a' : '#e0ddd6'}`,
+      background: active ? '#003594' : 'transparent',
+      border: `0.5px solid ${active ? '#003594' : '#e0e0e0'}`,
       borderRadius: 6, padding: '5px 4px',
-      fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: active ? 600 : 400,
+      fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 11, fontWeight: active ? 600 : 400,
       color: active ? '#fff' : '#555', cursor: 'pointer', textAlign: 'center',
     }),
     eloGrid:   { display: 'flex', flexWrap: 'wrap', gap: 5 },
     eloBtn:    (active) => ({
-      background: active ? '#1a2e1a' : 'transparent',
-      border: `0.5px solid ${active ? '#1a2e1a' : '#e0ddd6'}`,
+      background: active ? '#003594' : 'transparent',
+      border: `0.5px solid ${active ? '#003594' : '#e0e0e0'}`,
       borderRadius: 6, padding: '5px 10px',
-      fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: active ? 600 : 400,
+      fontFamily: "'Consolas', 'Monaco', monospace", fontSize: 11, fontWeight: active ? 600 : 400,
       color: active ? '#fff' : '#555', cursor: 'pointer',
     }),
     customInput: {
       width: '100%', marginTop: 8, padding: '7px 10px',
-      border: '0.5px solid #e0ddd6', borderRadius: 6,
-      fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#333',
-      background: '#fafaf8', outline: 'none',
+      border: '0.5px solid #e0e0e0', borderRadius: 6,
+      fontFamily: "'Consolas', 'Monaco', monospace", fontSize: 12, color: '#333',
+      background: '#f8f8f8', outline: 'none',
     },
     pageHeader:{ padding: '22px 28px 14px' },
-    pageTitle: { fontFamily: "'DM Serif Display', serif", fontSize: 26, color: '#1a1a1a', marginBottom: 4 },
+    pageTitle: { fontFamily: "'Georgia', serif", fontSize: 26, color: '#1a1a1a', marginBottom: 4 },
     pageDesc:  { fontSize: 13, color: '#888' },
-    tableWrap: { flex: 1, overflow: 'auto', background: '#fff', borderTop: '0.5px solid #e0ddd6' },
+    tableWrap: { flex: 1, overflow: 'auto', background: '#fff', borderTop: '0.5px solid #e0e0e0' },
     table:     { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-    thead:     { position: 'sticky', top: 0, zIndex: 10, background: '#faf9f6', borderBottom: '0.5px solid #e0ddd6' },
+    thead:     { position: 'sticky', top: 0, zIndex: 10, background: '#f8f8f8', borderBottom: '0.5px solid #e0e0e0' },
     th:        { padding: '9px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', whiteSpace: 'nowrap', letterSpacing: '0.8px', textTransform: 'uppercase' },
     thR:       { textAlign: 'right' },
-    row:       { borderBottom: '0.5px solid #f0ede8', cursor: 'pointer' },
+    row:       { borderBottom: '0.5px solid #f0f0f0', cursor: 'pointer' },
     td:        { padding: '10px 14px', verticalAlign: 'top' },
     empty:     { padding: '60px 32px', textAlign: 'center', color: '#aaa', fontSize: 14 },
   }
@@ -304,21 +304,21 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
                     key={p.name}
                     style={s.row}
                     onClick={() => onSelectPlayer(p)}
-                    onMouseEnter={e => e.currentTarget.style.background = '#faf9f6'}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
                     <td style={{ ...s.td, fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{i + 1}</td>
                     <td style={{ ...s.td, fontWeight: 500, whiteSpace: 'nowrap' }}>{p.name}</td>
-                    <td style={{ ...s.td, textAlign: 'right', color: '#c9920a', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ ...s.td, textAlign: 'right', color: '#d4002a', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.peak).toLocaleString()}
                     </td>
                     <td style={{ ...s.td, textAlign: 'right', color: '#888', fontVariantNumeric: 'tabular-nums' }}>
                       {p.gp}
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#1a2e1a' }}>
+                    <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#003594' }}>
                       {p.gamesAbove}
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#aaa', fontFamily: "'DM Mono', monospace" }}>
+                    <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#aaa', fontFamily: "'Consolas', 'Monaco', monospace" }}>
                       {p.peakDate ? `${p.peakDate.slice(5,7)}/${p.peakDate.slice(8,10)}/${p.peakDate.slice(0,4)}` : '—'}
                     </td>
                   </tr>

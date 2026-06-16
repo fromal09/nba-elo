@@ -4,7 +4,7 @@
   gap: 16px;
   padding: 0 24px;
   height: 52px;
-  background: #1a2e1a;
+  background: #003594;
   border-bottom: 1px solid rgba(255,255,255,0.08);
   position: sticky;
   top: 0;
@@ -24,7 +24,7 @@
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 6px;
   color: #a8c5a8;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   font-size: 12px;
   padding: 4px 10px;
   cursor: pointer;
@@ -36,7 +36,7 @@
 .divider { width: 1px; height: 20px; background: rgba(255,255,255,0.12); }
 
 .logo {
-  font-family: 'DM Serif Display', serif;
+  font-family: 'Georgia', serif;
   font-size: 15px;
   color: #fff;
   white-space: nowrap;
@@ -54,8 +54,8 @@
 .navBtn {
   background: none;
   border: none;
-  color: #7aaa7a;
-  font-family: 'DM Sans', sans-serif;
+  color: #6b8fd4;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   font-size: 12px;
   font-weight: 500;
   padding: 6px 12px;

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 
 function deltaColor(v) {
-  if (v > 0) return '#2d8a5a'
+  if (v > 0) return '#003594'
   if (v < 0) return '#c94040'
   return '#aaa'
 }
@@ -20,7 +20,7 @@ function rankDeltaStr(v) {
 
 function rankDeltaColor(v) {
   if (!v) return '#aaa'
-  if (v > 0) return '#2d8a5a'  // improved = green
+  if (v > 0) return '#003594'  // improved = green
   return '#c94040'              // worsened = red
 }
 
@@ -117,22 +117,22 @@ export default function Daily({ players, onSelectPlayer }) {
   }, [dailyData])
 
   const s = {
-    wrap:       { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" },
-    header:     { padding: '24px 32px 20px', background: '#fff', borderBottom: '0.5px solid #e0ddd6', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' },
-    pageTitle:  { fontFamily: "'DM Serif Display', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
+    wrap:       { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#f4f4f4', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
+    header:     { padding: '24px 32px 20px', background: '#fff', borderBottom: '0.5px solid #e0e0e0', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' },
+    pageTitle:  { fontFamily: "'Georgia', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
     pageDesc:   { fontSize: 13, color: '#888' },
     datePicker: { display: 'flex', alignItems: 'center', gap: 10 },
-    dateInput:  { background: '#f5f3ee', border: '0.5px solid #e0ddd6', borderRadius: 8, padding: '7px 12px', fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#1a1a1a', cursor: 'pointer' },
+    dateInput:  { background: '#f4f4f4', border: '0.5px solid #e0e0e0', borderRadius: 8, padding: '7px 12px', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 13, color: '#1a1a1a', cursor: 'pointer' },
     scroll:     { flex: 1, overflow: 'auto', padding: '24px 32px' },
     teamSection:{ marginBottom: 28 },
     teamHeader: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
-    teamLabel:  { fontSize: 11, fontWeight: 700, color: '#1a2e1a', textTransform: 'uppercase', letterSpacing: 1.2, background: '#e8f0e0', padding: '3px 10px', borderRadius: 5 },
+    teamLabel:  { fontSize: 11, fontWeight: 700, color: '#003594', textTransform: 'uppercase', letterSpacing: 1.2, background: '#e8f0e0', padding: '3px 10px', borderRadius: 5 },
     teamCount:  { fontSize: 12, color: '#aaa' },
-    table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13, background: '#fff', borderRadius: 12, overflow: 'hidden', border: '0.5px solid #e0ddd6' },
-    thead:      { background: '#faf9f6', borderBottom: '0.5px solid #e0ddd6' },
+    table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13, background: '#fff', borderRadius: 12, overflow: 'hidden', border: '0.5px solid #e0e0e0' },
+    thead:      { background: '#f8f8f8', borderBottom: '0.5px solid #e0e0e0' },
     th:         { padding: '8px 14px', fontSize: 10, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '1px', textTransform: 'uppercase' },
     thR:        { textAlign: 'right' },
-    row:        { borderBottom: '0.5px solid #f0ede8', cursor: 'pointer' },
+    row:        { borderBottom: '0.5px solid #f0f0f0', cursor: 'pointer' },
     td:         { padding: '10px 14px' },
   }
 
@@ -154,7 +154,7 @@ export default function Daily({ players, onSelectPlayer }) {
             onChange={e => setSelectedDate(e.target.value)}
           />
           {selectedDate && selectedDate !== mostRecentDate && (
-            <button onClick={() => setSelectedDate('')} style={{ fontSize: 12, color: '#1a2e1a', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
+            <button onClick={() => setSelectedDate('')} style={{ fontSize: 12, color: '#003594', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
               → Latest
             </button>
           )}
@@ -192,7 +192,7 @@ export default function Daily({ players, onSelectPlayer }) {
                       tabIndex={0}
                       onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)}
                       role="button"
-                      onMouseEnter={e => e.currentTarget.style.background = '#faf9f6'}
+                      onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
                       <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a' }}>{p.name}</td>

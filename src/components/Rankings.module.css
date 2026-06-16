@@ -1,11 +1,11 @@
-.wrap { display: flex; flex-direction: column; flex: 1; overflow: hidden; background: #f5f3ee; }
+.wrap { display: flex; flex-direction: column; flex: 1; overflow: hidden; background: #f4f4f4; }
 
 .pageHeader {
   padding: 28px 32px 0;
-  background: #f5f3ee;
+  background: #f4f4f4;
 }
 .pageTitle {
-  font-family: 'DM Serif Display', serif;
+  font-family: 'Georgia', serif;
   font-size: 28px;
   color: #1a1a1a;
   margin-bottom: 4px;
@@ -21,7 +21,7 @@
   align-items: center;
   gap: 8px;
   padding: 0 32px 16px;
-  background: #f5f3ee;
+  background: #f4f4f4;
   flex-wrap: wrap;
 }
 
@@ -30,7 +30,7 @@
   align-items: center;
   gap: 8px;
   background: #fff;
-  border: 0.5px solid #e0ddd6;
+  border: 0.5px solid #e0e0e0;
   border-radius: 8px;
   padding: 0 12px;
   color: #aaa;
@@ -43,7 +43,7 @@
   border: none;
   outline: none;
   color: #1a1a1a;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   font-size: 13px;
   padding: 8px 0;
   width: 100%;
@@ -57,7 +57,7 @@
 
 .activeToggle {
   display: flex;
-  border: 0.5px solid #e0ddd6;
+  border: 0.5px solid #e0e0e0;
   border-radius: 8px;
   overflow: hidden;
   background: #fff;
@@ -65,7 +65,7 @@
 .toggleBtn {
   background: none; border: none;
   padding: 7px 14px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   font-size: 12px;
   font-weight: 500;
   color: #888;
@@ -73,8 +73,8 @@
   cursor: pointer; transition: all 0.12s;
 }
 .toggleBtn:hover { color: #1a1a1a; }
-.toggleBtn.toggleActive { background: #1a2e1a; color: #fff; }
-.toggleBtn + .toggleBtn { border-left: 0.5px solid #e0ddd6; }
+.toggleBtn.toggleActive { background: #003594; color: #fff; }
+.toggleBtn + .toggleBtn { border-left: 0.5px solid #e0e0e0; }
 .toggleCount {
   font-size: 10px;
   background: rgba(0,0,0,0.06);
@@ -87,27 +87,27 @@
 .sortGroup { display: flex; gap: 4px; flex-wrap: wrap; }
 .sortBtn {
   background: #fff;
-  border: 0.5px solid #e0ddd6;
+  border: 0.5px solid #e0e0e0;
   border-radius: 8px;
   padding: 7px 12px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   font-size: 12px;
   font-weight: 500;
   color: #888;
   cursor: pointer; transition: all 0.12s;
   white-space: nowrap;
 }
-.sortBtn:hover { color: #1a1a1a; border-color: #1a2e1a; }
-.sortBtn.sortActive { background: #1a2e1a; border-color: #1a2e1a; color: #fff; }
+.sortBtn:hover { color: #1a1a1a; border-color: #003594; }
+.sortBtn.sortActive { background: #003594; border-color: #003594; color: #fff; }
 
 .gpFilter { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .gpLabel { font-size: 12px; color: #888; }
 .gpSelect {
   background: #fff;
-  border: 0.5px solid #e0ddd6;
+  border: 0.5px solid #e0e0e0;
   border-radius: 8px;
   color: #1a1a1a;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   font-size: 12px;
   padding: 7px 10px;
   cursor: pointer;
@@ -121,19 +121,19 @@
   border-bottom: 0.5px solid rgba(26,46,26,0.1);
   font-size: 12px; color: #666;
 }
-.activeDot { width: 6px; height: 6px; border-radius: 50%; background: #2d8a5a; flex-shrink: 0; }
-.bannerLink { background: none; border: none; color: #1a2e1a; font-size: 12px; margin-left: auto; cursor: pointer; font-weight: 500; }
+.activeDot { width: 6px; height: 6px; border-radius: 50%; background: #003594; flex-shrink: 0; }
+.bannerLink { background: none; border: none; color: #003594; font-size: 12px; margin-left: auto; cursor: pointer; font-weight: 500; }
 .bannerLink:hover { text-decoration: underline; }
 
-.tableWrap { flex: 1; overflow: auto; background: #fff; border-top: 0.5px solid #e0ddd6; }
+.tableWrap { flex: 1; overflow: auto; background: #fff; border-top: 0.5px solid #e0e0e0; }
 
 .table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.table thead { position: sticky; top: 0; z-index: 10; background: #faf9f6; }
-.table thead tr { border-bottom: 0.5px solid #e0ddd6; }
+.table thead { position: sticky; top: 0; z-index: 10; background: #f8f8f8; }
+.table thead tr { border-bottom: 0.5px solid #e0e0e0; }
 
 .th, .thRank, .thName, .thTeam {
   padding: 10px 14px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   font-size: 11px;
   font-weight: 600;
   color: #aaa;
@@ -150,12 +150,12 @@
 .thName, .thTeam { cursor: default; }
 
 .row {
-  border-bottom: 0.5px solid #f0ede8;
+  border-bottom: 0.5px solid #f0f0f0;
   cursor: pointer;
   transition: background 0.1s;
 }
-.row:hover { background: #faf9f6; }
-.row:focus-visible { outline: 2px solid #1a2e1a; outline-offset: -2px; }
+.row:hover { background: #f8f8f8; }
+.row:focus-visible { outline: 2px solid #003594; outline-offset: -2px; }
 .row.inactive { opacity: 0.35; }
 
 td { padding: 9px 14px; }
@@ -180,14 +180,14 @@ td { padding: 9px 14px; }
 .tdPeak {
   text-align: right;
   font-size: 13px;
-  color: #c9920a;
+  color: #d4002a;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   font-weight: 500;
 }
 
 .eloWrap { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
-.eloBar { height: 3px; border-radius: 2px; background: #1a2e1a; opacity: 0.3; min-width: 2px; flex-shrink: 0; }
+.eloBar { height: 3px; border-radius: 2px; background: #003594; opacity: 0.3; min-width: 2px; flex-shrink: 0; }
 .eloVal { font-size: 13px; color: #1a1a1a; font-weight: 500; min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
 
 .chip {
@@ -204,17 +204,17 @@ td { padding: 9px 14px; }
 .paging {
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 32px;
-  border-top: 0.5px solid #e0ddd6;
-  background: #faf9f6;
+  border-top: 0.5px solid #e0e0e0;
+  background: #f8f8f8;
   flex-shrink: 0;
 }
 .pagingInfo { font-size: 12px; color: #aaa; }
 .pagingBtns { display: flex; align-items: center; gap: 4px; }
 .pageBtn {
-  background: #fff; border: 0.5px solid #e0ddd6; border-radius: 6px;
+  background: #fff; border: 0.5px solid #e0e0e0; border-radius: 6px;
   padding: 5px 12px; font-size: 12px; color: #666; cursor: pointer;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
 }
-.pageBtn:hover:not(:disabled) { background: #f5f3ee; color: #1a1a1a; border-color: #1a2e1a; }
+.pageBtn:hover:not(:disabled) { background: #f4f4f4; color: #1a1a1a; border-color: #003594; }
 .pageBtn:disabled { opacity: 0.3; cursor: default; }
 .pageNum { font-size: 12px; color: #aaa; padding: 0 8px; min-width: 60px; text-align: center; }

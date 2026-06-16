@@ -99,7 +99,7 @@ function ScatterPlot({ points, franchise, onHover, hoveredName, onSelectPlayer }
   const xScale = gp  => PAD.left + (gp / maxGP) * plotW
   const yScale = elo => PAD.top + plotH - ((elo - minElo) / (maxElo - minElo)) * plotH
 
-  const teamColor = TEAM_COLORS[franchise] || '#1a2e1a'
+  const teamColor = TEAM_COLORS[franchise] || '#003594'
 
   const ns = 'http://www.w3.org/2000/svg'
 
@@ -208,35 +208,35 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
   }, [players, franchise])
 
   const franchiseName = FRANCHISE_NAMES[franchise]
-  const teamColor = TEAM_COLORS[franchise] || '#1a2e1a'
+  const teamColor = TEAM_COLORS[franchise] || '#003594'
 
   const s = {
-    wrap:      { display: 'flex', flex: 1, overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" },
-    sidebar:   { width: 220, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e0ddd6', display: 'flex', flexDirection: 'column', overflow: 'auto' },
+    wrap:      { display: 'flex', flex: 1, overflow: 'hidden', background: '#f4f4f4', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
+    sidebar:   { width: 220, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e0e0e0', display: 'flex', flexDirection: 'column', overflow: 'auto' },
     main:      { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-    sideHead:  { padding: '20px 16px 14px', borderBottom: '0.5px solid #e0ddd6' },
-    sideTitle: { fontFamily: "'DM Serif Display', serif", fontSize: 16, color: '#1a1a1a', marginBottom: 3 },
+    sideHead:  { padding: '20px 16px 14px', borderBottom: '0.5px solid #e0e0e0' },
+    sideTitle: { fontFamily: "'Georgia', serif", fontSize: 16, color: '#1a1a1a', marginBottom: 3 },
     sideDesc:  { fontSize: 12, color: '#888', lineHeight: 1.6 },
-    section:   { padding: '12px 16px', borderBottom: '0.5px solid #f0ede8' },
+    section:   { padding: '12px 16px', borderBottom: '0.5px solid #f0f0f0' },
     sectionLbl:{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#bbb', marginBottom: 8 },
     teamGrid:  { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 },
     teamBtn:   (active) => ({
       background: active ? teamColor : 'transparent',
-      border: `0.5px solid ${active ? teamColor : '#e0ddd6'}`,
+      border: `0.5px solid ${active ? teamColor : '#e0e0e0'}`,
       borderRadius: 6, padding: '5px 4px',
-      fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: active ? 600 : 400,
+      fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 11, fontWeight: active ? 600 : 400,
       color: active ? '#fff' : '#555', cursor: 'pointer', textAlign: 'center',
     }),
-    pageHeader:{ padding: '20px 28px 14px', borderBottom: '0.5px solid #e0ddd6', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 },
-    pageTitle: { fontFamily: "'DM Serif Display', serif", fontSize: 24, color: '#1a1a1a', marginBottom: 2 },
+    pageHeader:{ padding: '20px 28px 14px', borderBottom: '0.5px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 },
+    pageTitle: { fontFamily: "'Georgia', serif", fontSize: 24, color: '#1a1a1a', marginBottom: 2 },
     pageDesc:  { fontSize: 13, color: '#888' },
     body:      { flex: 1, display: 'flex', overflow: 'hidden' },
     plotArea:  { flex: 1, padding: '20px 24px', overflow: 'auto' },
-    rankPanel: { width: 280, flexShrink: 0, borderLeft: '0.5px solid #e0ddd6', overflow: 'auto', background: '#fff' },
-    rankHead:  { padding: '12px 16px', borderBottom: '0.5px solid #e0ddd6', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#bbb' },
+    rankPanel: { width: 280, flexShrink: 0, borderLeft: '0.5px solid #e0e0e0', overflow: 'auto', background: '#fff' },
+    rankHead:  { padding: '12px 16px', borderBottom: '0.5px solid #e0e0e0', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#bbb' },
     rankRow:   (active) => ({
-      padding: '9px 16px', borderBottom: '0.5px solid #f0ede8', cursor: 'pointer',
-      background: active ? '#f5f3ee' : 'transparent',
+      padding: '9px 16px', borderBottom: '0.5px solid #f0f0f0', cursor: 'pointer',
+      background: active ? '#f4f4f4' : 'transparent',
       display: 'flex', alignItems: 'center', gap: 10,
     }),
     rankNum:   { fontSize: 11, color: '#bbb', minWidth: 20, fontVariantNumeric: 'tabular-nums' },
@@ -299,7 +299,7 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
 
           <div style={s.rankPanel}>
             <div style={s.rankHead}>Franchise Elo Legends</div>
-            <div style={{ padding: '8px 16px', borderBottom: '0.5px solid #f0ede8', fontSize: 11, color: '#aaa' }}>
+            <div style={{ padding: '8px 16px', borderBottom: '0.5px solid #f0f0f0', fontSize: 11, color: '#aaa' }}>
               Color intensity = franchise peak Elo
             </div>
             {points.slice(0, 30).map(p => (

@@ -34,7 +34,7 @@ const NBA_TEAMS = [
 ]
 
 function gmscColor(v) {
-  if (v >= 25) return '#2d8a5a'
+  if (v >= 25) return '#003594'
   if (v >= 18) return '#1a5fa8'
   if (v >= 12) return '#a87a0a'
   return '#888'
@@ -71,25 +71,25 @@ export default function Teams({ players, onSelectPlayer }) {
   const sortArrow = (key) => sortKey === key ? (sortAsc ? ' ↑' : ' ↓') : ''
 
   const s = {
-    wrap:     { display: 'flex', flex: 1, overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" },
-    sidebar:  { width: 220, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e0ddd6', overflow: 'auto', display: 'flex', flexDirection: 'column' },
-    sideHead: { padding: '20px 16px 12px', borderBottom: '0.5px solid #e0ddd6', fontFamily: "'DM Serif Display', serif", fontSize: 16, color: '#1a1a1a', flexShrink: 0 },
+    wrap:     { display: 'flex', flex: 1, overflow: 'hidden', background: '#f4f4f4', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
+    sidebar:  { width: 220, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e0e0e0', overflow: 'auto', display: 'flex', flexDirection: 'column' },
+    sideHead: { padding: '20px 16px 12px', borderBottom: '0.5px solid #e0e0e0', fontFamily: "'Georgia', serif", fontSize: 16, color: '#1a1a1a', flexShrink: 0 },
     teamBtn:  (active) => ({
       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      padding: '9px 16px', cursor: 'pointer', borderBottom: '0.5px solid #f5f3ee',
-      background: active ? '#1a2e1a' : 'transparent',
+      padding: '9px 16px', cursor: 'pointer', borderBottom: '0.5px solid #f4f4f4',
+      background: active ? '#003594' : 'transparent',
       border: 'none', width: '100%', textAlign: 'left', transition: 'background 0.1s',
     }),
     main:       { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-    pageHeader: { padding: '24px 32px 16px', borderBottom: '0.5px solid #e0ddd6' },
-    pageTitle:  { fontFamily: "'DM Serif Display', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
+    pageHeader: { padding: '24px 32px 16px', borderBottom: '0.5px solid #e0e0e0' },
+    pageTitle:  { fontFamily: "'Georgia', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
     pageDesc:   { fontSize: 13, color: '#888' },
     tableWrap:  { flex: 1, overflow: 'auto', background: '#fff' },
     table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-    thead:      { position: 'sticky', top: 0, zIndex: 10, background: '#faf9f6', borderBottom: '0.5px solid #e0ddd6' },
-    th:         (active) => ({ padding: '10px 14px', fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 600, color: active ? '#1a2e1a' : '#aaa', textAlign: 'left', whiteSpace: 'nowrap', letterSpacing: '0.8px', textTransform: 'uppercase', cursor: 'pointer', userSelect: 'none' }),
+    thead:      { position: 'sticky', top: 0, zIndex: 10, background: '#f8f8f8', borderBottom: '0.5px solid #e0e0e0' },
+    th:         (active) => ({ padding: '10px 14px', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 11, fontWeight: 600, color: active ? '#003594' : '#aaa', textAlign: 'left', whiteSpace: 'nowrap', letterSpacing: '0.8px', textTransform: 'uppercase', cursor: 'pointer', userSelect: 'none' }),
     thR:        { textAlign: 'right' },
-    row:        { borderBottom: '0.5px solid #f0ede8', cursor: 'pointer' },
+    row:        { borderBottom: '0.5px solid #f0f0f0', cursor: 'pointer' },
     td:         { padding: '10px 14px' },
   }
 
@@ -102,11 +102,11 @@ export default function Teams({ players, onSelectPlayer }) {
             key={abbr}
             style={s.teamBtn(selectedTeam === abbr)}
             onClick={() => setSelectedTeam(abbr)}
-            onMouseEnter={e => { if (selectedTeam !== abbr) e.currentTarget.style.background = '#f5f3ee' }}
+            onMouseEnter={e => { if (selectedTeam !== abbr) e.currentTarget.style.background = '#f4f4f4' }}
             onMouseLeave={e => { if (selectedTeam !== abbr) e.currentTarget.style.background = 'transparent' }}
           >
             <span style={{ fontSize: 13, fontWeight: 500, color: selectedTeam === abbr ? '#fff' : '#333' }}>{name}</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: selectedTeam === abbr ? '#7aaa7a' : '#aaa', letterSpacing: 0.5 }}>{abbr}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: selectedTeam === abbr ? '#6b8fd4' : '#aaa', letterSpacing: 0.5 }}>{abbr}</span>
           </button>
         ))}
       </div>
@@ -157,7 +157,7 @@ export default function Teams({ players, onSelectPlayer }) {
                         tabIndex={0}
                         onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)}
                         role="button"
-                        onMouseEnter={e => e.currentTarget.style.background = '#faf9f6'}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       >
                         <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>
@@ -167,7 +167,7 @@ export default function Teams({ players, onSelectPlayer }) {
                         <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 500, color: '#1a1a1a', fontVariantNumeric: 'tabular-nums' }}>
                           {Math.round(p.current_elo).toLocaleString()}
                         </td>
-                        <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#c9920a', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                        <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#d4002a', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                           {Math.round(p.peak_elo).toLocaleString()}
                         </td>
                         <td style={{ ...s.td, textAlign: 'right' }}>

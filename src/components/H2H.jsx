@@ -11,22 +11,22 @@ function PlayerSearch({ label, value, onChange, players }) {
 
   return (
     <div style={{ flex: 1, position: 'relative' }}>
-      <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#7aaa7a', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#6b8fd4', marginBottom: 6 }}>{label}</div>
       {value ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.1)', borderRadius: 8, padding: '10px 14px' }}>
           <span style={{ color: '#fff', fontWeight: 600, flex: 1 }}>{value.name}</span>
-          <button onClick={clear} style={{ background: 'none', border: 'none', color: '#7aaa7a', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+          <button onClick={clear} style={{ background: 'none', border: 'none', color: '#6b8fd4', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
         </div>
       ) : (
         <>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search players…"
-            style={{ width: '100%', background: 'rgba(255,255,255,0.1)', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '10px 14px', color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: "'DM Sans', sans-serif" }} />
+            style={{ width: '100%', background: 'rgba(255,255,255,0.1)', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '10px 14px', color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" }} />
           {results.length > 0 && (
             <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', zIndex: 100, marginTop: 4, overflow: 'hidden' }}>
               {results.map(p => (
                 <div key={p.name} onClick={() => select(p)}
-                  style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '0.5px solid #f0ede8', color: '#1a1a1a' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f5f3ee'}
+                  style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: '0.5px solid #f0f0f0', color: '#1a1a1a' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f4f4f4'}
                   onMouseLeave={e => e.currentTarget.style.background = '#fff'}
                 >{p.name}</div>
               ))}
@@ -46,10 +46,10 @@ function StatRow({ label, aVal, bVal, higherIsBetter = true }) {
   const cell = (val, wins) => ({
     flex: 1, padding: '10px 0', textAlign: wins ? 'right' : 'right',
     fontSize: 15, fontWeight: wins ? 700 : 400,
-    color: wins ? '#1a2e1a' : '#888', fontVariantNumeric: 'tabular-nums',
+    color: wins ? '#003594' : '#888', fontVariantNumeric: 'tabular-nums',
   })
   return (
-    <div style={{ display: 'flex', alignItems: 'center', borderBottom: '0.5px solid #f5f3ee' }}>
+    <div style={{ display: 'flex', alignItems: 'center', borderBottom: '0.5px solid #f4f4f4' }}>
       <div style={cell(aVal, aWins)}>{aVal}</div>
       <div style={{ width: 160, textAlign: 'center', fontSize: 11, color: '#bbb', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
       <div style={{ ...cell(bVal, bWins), textAlign: 'left' }}>{bVal}</div>
@@ -161,8 +161,8 @@ function MiniChart({ playerA, playerB }) {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
         <div style={{ fontSize:11, textTransform:"uppercase", letterSpacing:1, color:"#aaa" }}>Elo Rating History</div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          {frame !== null && <span style={{ fontFamily:"'DM Mono', monospace", fontSize:13, color:"#1a2e1a", fontWeight:600 }}>{currentYear}</span>}
-          <button onClick={playing ? handleStop : handlePlay} style={{ background:"#1a2e1a", color:"#fff", border:"none", borderRadius:6, padding:"5px 14px", fontSize:11, cursor:"pointer", fontFamily:"'DM Sans', sans-serif", fontWeight:500 }}>
+          {frame !== null && <span style={{ fontFamily:"'Consolas', 'Monaco', monospace", fontSize:13, color:"#003594", fontWeight:600 }}>{currentYear}</span>}
+          <button onClick={playing ? handleStop : handlePlay} style={{ background:"#003594", color:"#fff", border:"none", borderRadius:6, padding:"5px 14px", fontSize:11, cursor:"pointer", fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif", fontWeight:500 }}>
             {playing ? "■ Stop" : "▶ Play"}
           </button>
         </div>
@@ -171,7 +171,7 @@ function MiniChart({ playerA, playerB }) {
         {gridLines.map(v => {
           const y = yS(v)
           return <g key={v}>
-            <line x1={0} y1={y} x2={W} y2={y} stroke="#e0ddd6" strokeWidth={0.5} />
+            <line x1={0} y1={y} x2={W} y2={y} stroke="#e0e0e0" strokeWidth={0.5} />
             <text x={-8} y={y+4} fontSize={9} fill="#bbb" textAnchor="end">{v}</text>
           </g>
         })}
@@ -248,7 +248,7 @@ function SharedGames({ playerA, playerB }) {
   const s = {
     th: { padding:"8px 12px", fontSize:10, fontWeight:600, color:"#aaa", textTransform:"uppercase", letterSpacing:"0.8px", textAlign:"left" },
     thR: { textAlign:"right" },
-    td: { padding:"8px 12px", fontSize:13, borderBottom:"0.5px solid #f5f3ee" },
+    td: { padding:"8px 12px", fontSize:13, borderBottom:"0.5px solid #f4f4f4" },
   }
 
   return (
@@ -263,7 +263,7 @@ function SharedGames({ playerA, playerB }) {
           { label:"Elo W/L", aV:`${aEloWins}–${bEloWins}`, bV:`${bEloWins}–${aEloWins}` },
           { label:"Team W/L", aV:`${aTeamWins}–${bTeamWins}`, bV:`${bTeamWins}–${aTeamWins}` },
         ].map(({ label, aV, bV }) => (
-          <div key={label} style={{ background:"#f5f3ee", borderRadius:8, padding:"10px 16px", fontSize:13 }}>
+          <div key={label} style={{ background:"#f4f4f4", borderRadius:8, padding:"10px 16px", fontSize:13 }}>
             <div style={{ fontSize:10, color:"#aaa", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{label}</div>
             <div><span style={{ fontWeight:700, color:"#1a1a1a" }}>{playerA.name.split(" ").pop()}</span> <span style={{ color:"#888" }}>{aV}</span> · <span style={{ fontWeight:700, color:"#c94040" }}>{playerB.name.split(" ").pop()}</span> <span style={{ color:"#888" }}>{bV}</span></div>
           </div>
@@ -271,9 +271,9 @@ function SharedGames({ playerA, playerB }) {
       </div>
 
       {/* Game log */}
-      <div style={{ border:"0.5px solid #e0ddd6", borderRadius:10, overflow:"hidden" }}>
+      <div style={{ border:"0.5px solid #e0e0e0", borderRadius:10, overflow:"hidden" }}>
         <table style={{ width:"100%", borderCollapse:"collapse" }}>
-          <thead style={{ background:"#faf9f6" }}>
+          <thead style={{ background:"#f8f8f8" }}>
             <tr>
               <th style={s.th}>Date</th>
               <th style={s.th}>{playerA.name.split(" ").pop()} Team</th>
@@ -292,13 +292,13 @@ function SharedGames({ playerA, playerB }) {
               const colorA = TEAM_COLORS[g.teamA] || "#555"
               const colorB = TEAM_COLORS[g.teamB] || "#c94040"
               return (
-                <tr key={i} style={{ background: i%2===0 ? "#fff" : "#fafaf8" }}>
-                  <td style={{ ...s.td, fontFamily:"'DM Mono', monospace", fontSize:11, color:"#aaa" }}>{fmt(g.date)}</td>
+                <tr key={i} style={{ background: i%2===0 ? "#fff" : "#f8f8f8" }}>
+                  <td style={{ ...s.td, fontFamily:"'Consolas', 'Monaco', monospace", fontSize:11, color:"#aaa" }}>{fmt(g.date)}</td>
                   <td style={{ ...s.td, fontSize:11, fontWeight:600, color:colorA }}>{g.teamA}</td>
                   <td style={{ ...s.td, textAlign:"right", fontVariantNumeric:"tabular-nums" }}>{g.eloA.toLocaleString()}</td>
-                  <td style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainA >= 0 ? "#2d8a5a" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainA >= 0 ? "+" : ""}{g.eloGainA}</td>
+                  <td style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainA >= 0 ? "#003594" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainA >= 0 ? "+" : ""}{g.eloGainA}</td>
                   <td style={{ ...s.td, textAlign:"right", fontVariantNumeric:"tabular-nums" }}>{g.eloB.toLocaleString()}</td>
-                  <td style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainB >= 0 ? "#2d8a5a" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainB >= 0 ? "+" : ""}{g.eloGainB}</td>
+                  <td style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainB >= 0 ? "#003594" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainB >= 0 ? "+" : ""}{g.eloGainB}</td>
                   <td style={{ ...s.td, fontSize:11, fontWeight:600, color:colorB }}>{g.teamB}</td>
                   <td style={{ ...s.td, textAlign:"right", fontSize:12 }}>{g.eloWinA ? playerA.name.split(" ").pop() : playerB.name.split(" ").pop()}</td>
                   <td style={{ ...s.td, textAlign:"right", fontSize:12 }}>{g.teamWinA ? playerA.name.split(" ").pop() : playerB.name.split(" ").pop()}</td>
@@ -332,12 +332,12 @@ export default function H2H({ players }) {
   const bothSelected = playerA && playerB
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", flex:1, overflow:"hidden", background:"#f5f3ee", fontFamily:"'DM Sans', sans-serif" }}>
-      <div style={{ background:"#1a2e1a", padding:"28px 32px" }}>
-        <div style={{ fontSize:11, letterSpacing:2, textTransform:"uppercase", color:"#7aaa7a", marginBottom:8 }}>Head-to-Head</div>
+    <div style={{ display:"flex", flexDirection:"column", flex:1, overflow:"hidden", background:"#f4f4f4", fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif" }}>
+      <div style={{ background:"#003594", padding:"28px 32px" }}>
+        <div style={{ fontSize:11, letterSpacing:2, textTransform:"uppercase", color:"#6b8fd4", marginBottom:8 }}>Head-to-Head</div>
         <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
           <PlayerSearch label="Player A" value={playerA} onChange={setPlayerA} players={players} />
-          <div style={{ paddingTop:32, color:"#7aaa7a", fontSize:14, fontWeight:500, flexShrink:0 }}>vs</div>
+          <div style={{ paddingTop:32, color:"#6b8fd4", fontSize:14, fontWeight:500, flexShrink:0 }}>vs</div>
           <PlayerSearch label="Player B" value={playerB} onChange={setPlayerB} players={players} />
         </div>
       </div>
@@ -350,13 +350,13 @@ export default function H2H({ players }) {
         ) : (
           <>
             {/* Player headers */}
-            <div style={{ display:"flex", background:"#fff", borderBottom:"0.5px solid #e0ddd6" }}>
+            <div style={{ display:"flex", background:"#fff", borderBottom:"0.5px solid #e0e0e0" }}>
               {[playerA, playerB].map((p, i) => (
-                <div key={i} style={{ flex:1, padding:"20px 32px", borderRight: i===0 ? "0.5px solid #e0ddd6" : "none" }}>
-                  <div style={{ fontSize:22, fontFamily:"'DM Serif Display', serif", color:"#1a1a1a", marginBottom:4 }}>{p.name}</div>
+                <div key={i} style={{ flex:1, padding:"20px 32px", borderRight: i===0 ? "0.5px solid #e0e0e0" : "none" }}>
+                  <div style={{ fontSize:22, fontFamily:"'Georgia', serif", color:"#1a1a1a", marginBottom:4 }}>{p.name}</div>
                   <div style={{ fontSize:12, color:"#aaa" }}>{careerRange(p)} · {p.team}</div>
                   <div style={{ display:"flex", gap:20, marginTop:12 }}>
-                    <div><div style={{ fontSize:11, color:"#aaa", marginBottom:2 }}>Peak Elo</div><div style={{ fontSize:18, fontWeight:600, color:"#c9920a" }}>{Math.round(p.peak_elo).toLocaleString()}</div></div>
+                    <div><div style={{ fontSize:11, color:"#aaa", marginBottom:2 }}>Peak Elo</div><div style={{ fontSize:18, fontWeight:600, color:"#d4002a" }}>{Math.round(p.peak_elo).toLocaleString()}</div></div>
                     <div><div style={{ fontSize:11, color:"#aaa", marginBottom:2 }}>Avg Elo</div><div style={{ fontSize:18, fontWeight:500 }}>{avgElo(p).toLocaleString()}</div></div>
                     <div><div style={{ fontSize:11, color:"#aaa", marginBottom:2 }}>Peak FPR</div><div style={{ fontSize:18, fontWeight:500 }}>#{p.peak_fpr_rank || "—"}</div></div>
                   </div>
@@ -365,13 +365,13 @@ export default function H2H({ players }) {
             </div>
 
             {/* Animated Elo chart */}
-            <div style={{ background:"#fff", borderBottom:"0.5px solid #e0ddd6", padding:"20px 32px 0" }}>
+            <div style={{ background:"#fff", borderBottom:"0.5px solid #e0e0e0", padding:"20px 32px 0" }}>
               <MiniChart playerA={playerA} playerB={playerB} />
             </div>
 
             {/* Stat comparison */}
-            <div style={{ background:"#fff", margin:"16px 32px", borderRadius:12, border:"0.5px solid #e0ddd6", padding:"4px 24px" }}>
-              <div style={{ display:"flex", padding:"8px 0 4px", borderBottom:"0.5px solid #e0ddd6" }}>
+            <div style={{ background:"#fff", margin:"16px 32px", borderRadius:12, border:"0.5px solid #e0e0e0", padding:"4px 24px" }}>
+              <div style={{ display:"flex", padding:"8px 0 4px", borderBottom:"0.5px solid #e0e0e0" }}>
                 <div style={{ flex:1, textAlign:"right", fontSize:11, fontWeight:600, color:"#555", textTransform:"uppercase", letterSpacing:0.5 }}>{playerA.name.split(" ").pop()}</div>
                 <div style={{ width:160, textAlign:"center" }} />
                 <div style={{ flex:1, fontSize:11, fontWeight:600, color:"#555", textTransform:"uppercase", letterSpacing:0.5 }}>{playerB.name.split(" ").pop()}</div>
@@ -385,7 +385,7 @@ export default function H2H({ players }) {
             </div>
 
             {/* Shared games */}
-            <div style={{ background:"#fff", margin:"0 32px 24px", borderRadius:12, border:"0.5px solid #e0ddd6", overflow:"hidden" }}>
+            <div style={{ background:"#fff", margin:"0 32px 24px", borderRadius:12, border:"0.5px solid #e0e0e0", overflow:"hidden" }}>
               <div style={{ padding:"16px 32px 0" }}>
                 <SharedGames playerA={playerA} playerB={playerB} />
               </div>

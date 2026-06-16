@@ -98,10 +98,10 @@ function GameBox({ game, onClick, size = 'normal' }) {
         <span style={{ fontSize: isSmall ? 9 : 10, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5 }}>{game.teamA}</span>
         <span style={{ fontSize: isSmall ? 9 : 10, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5 }}>{game.teamB}</span>
       </div>
-      <div style={{ textAlign: 'center', fontSize: isSmall ? 18 : 24, fontWeight: 800, color: '#fff', lineHeight: 1, fontFamily: "'DM Serif Display', serif" }}>
+      <div style={{ textAlign: 'center', fontSize: isSmall ? 18 : 24, fontWeight: 800, color: '#fff', lineHeight: 1, fontFamily: "'Georgia', serif" }}>
         {game.score.toFixed(1)}
       </div>
-      <div style={{ fontSize: isSmall ? 8 : 10, color: 'rgba(255,255,255,0.55)', textAlign: 'center', fontFamily: "'DM Mono', monospace" }}>
+      <div style={{ fontSize: isSmall ? 8 : 10, color: 'rgba(255,255,255,0.55)', textAlign: 'center', fontFamily: "'Consolas', 'Monaco', monospace" }}>
         {game.date.slice(5,7)}/{game.date.slice(8,10)}/{game.date.slice(0,4)}
       </div>
     </div>
@@ -132,7 +132,7 @@ function GameDetail({ game, onClose }) {
         <div style={{ fontSize: 12, fontWeight: 500, minWidth: 130, color: '#1a1a1a', textAlign: side === 'B' ? 'right' : 'left' }}>
           {p.n}
         </div>
-        <div style={{ flex: 1, height: 6, background: '#f0ede8', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ flex: 1, height: 6, background: '#f0f0f0', borderRadius: 3, overflow: 'hidden' }}>
           <div style={{
             height: '100%', width: `${barW}%`, background: barColor, borderRadius: 3,
             marginLeft: side === 'B' ? 'auto' : 0,
@@ -161,10 +161,10 @@ function GameDetail({ game, onClose }) {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#aaa', marginBottom: 4 }}>
+            <div style={{ fontFamily: "'Consolas', 'Monaco', monospace", fontSize: 12, color: '#aaa', marginBottom: 4 }}>
               {game.date.slice(5,7)}/{game.date.slice(8,10)}/{game.date.slice(0,4)}
             </div>
-            <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 26, color: '#1a1a1a' }}>
+            <div style={{ fontFamily: "'Georgia', serif", fontSize: 26, color: '#1a1a1a' }}>
               <span style={{ color: colorA }}>{game.teamA}</span>
               <span style={{ color: '#bbb', margin: '0 10px' }}>vs</span>
               <span style={{ color: colorB }}>{game.teamB}</span>
@@ -175,7 +175,7 @@ function GameDetail({ game, onClose }) {
             <div style={{
               background: scoreColor(game.score), borderRadius: 10,
               padding: '8px 16px', fontSize: 28, fontWeight: 800, color: '#fff',
-              fontFamily: "'DM Serif Display', serif",
+              fontFamily: "'Georgia', serif",
             }}>{game.score.toFixed(1)}</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#aaa', padding: '0 4px' }}>×</button>
@@ -251,14 +251,14 @@ export default function GameExplorer() {
   }, [date, games])
 
   const s = {
-    wrap:   { display: 'flex', flex: 1, flexDirection: 'column', overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" },
-    header: { padding: '20px 28px 16px', borderBottom: '0.5px solid #e0ddd6', background: '#fff', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' },
-    title:  { fontFamily: "'DM Serif Display', serif", fontSize: 26, color: '#1a1a1a', marginBottom: 4 },
+    wrap:   { display: 'flex', flex: 1, flexDirection: 'column', overflow: 'hidden', background: '#f4f4f4', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
+    header: { padding: '20px 28px 16px', borderBottom: '0.5px solid #e0e0e0', background: '#fff', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' },
+    title:  { fontFamily: "'Georgia', serif", fontSize: 26, color: '#1a1a1a', marginBottom: 4 },
     desc:   { fontSize: 13, color: '#888' },
     body:   { flex: 1, overflow: 'auto', padding: '20px 24px' },
     grid:   { display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 8 },
-    paging: { display: 'flex', alignItems: 'center', gap: 8, padding: '14px 28px', borderTop: '0.5px solid #e0ddd6', background: '#faf9f6', flexShrink: 0 },
-    pgBtn:  { background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 6, padding: '5px 12px', fontSize: 12, cursor: 'pointer', color: '#666' },
+    paging: { display: 'flex', alignItems: 'center', gap: 8, padding: '14px 28px', borderTop: '0.5px solid #e0e0e0', background: '#f8f8f8', flexShrink: 0 },
+    pgBtn:  { background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 6, padding: '5px 12px', fontSize: 12, cursor: 'pointer', color: '#666' },
   }
 
   if (loading) return <div style={{ ...s.wrap, alignItems: 'center', justifyContent: 'center' }}><div style={{ color: '#aaa' }}>Loading game data…</div></div>
@@ -278,7 +278,7 @@ export default function GameExplorer() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {date && (
             <button onClick={() => { setDate(''); setPage(0) }}
-              style={{ background: 'none', border: '0.5px solid #e0ddd6', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer', color: '#888' }}>
+              style={{ background: 'none', border: '0.5px solid #e0e0e0', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer', color: '#888' }}>
               ← All Games
             </button>
           )}
@@ -287,7 +287,7 @@ export default function GameExplorer() {
             <select
               value={franchise}
               onChange={e => { setFranchise(e.target.value); setPage(0) }}
-              style={{ border: '0.5px solid #e0ddd6', borderRadius: 6, padding: '6px 10px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans', sans-serif", background: '#fff' }}
+              style={{ border: '0.5px solid #e0e0e0', borderRadius: 6, padding: '6px 10px', fontSize: 13, outline: 'none', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", background: '#fff' }}
             >
               <option value="">All Franchises</option>
               {Object.entries(FRANCHISE_NAMES).map(([k, v]) => (
@@ -301,7 +301,7 @@ export default function GameExplorer() {
               type="date"
               value={date}
               onChange={e => { setDate(e.target.value); setPage(0) }}
-              style={{ border: '0.5px solid #e0ddd6', borderRadius: 6, padding: '6px 10px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans', sans-serif" }}
+              style={{ border: '0.5px solid #e0e0e0', borderRadius: 6, padding: '6px 10px', fontSize: 13, outline: 'none', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" }}
             />
           </div>
         </div>

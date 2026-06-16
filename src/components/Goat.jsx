@@ -176,29 +176,29 @@ export default function Goat({ players, onSelectPlayer }) {
   const franchiseName = franchise ? NBA_TEAMS.find(t => t.abbr === franchise)?.name : null
 
   const s = {
-    wrap:       { display: 'flex', flex: 1, overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" },
-    sidebar:    { width: 260, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e0ddd6', display: 'flex', flexDirection: 'column', overflow: 'auto' },
+    wrap:       { display: 'flex', flex: 1, overflow: 'hidden', background: '#f4f4f4', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
+    sidebar:    { width: 260, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e0e0e0', display: 'flex', flexDirection: 'column', overflow: 'auto' },
     main:       { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-    sideHead:   { padding: '24px 20px 16px', borderBottom: '0.5px solid #e0ddd6' },
-    sideTitle:  { fontFamily: "'DM Serif Display', serif", fontSize: 18, color: '#1a1a1a', marginBottom: 4 },
+    sideHead:   { padding: '24px 20px 16px', borderBottom: '0.5px solid #e0e0e0' },
+    sideTitle:  { fontFamily: "'Georgia', serif", fontSize: 18, color: '#1a1a1a', marginBottom: 4 },
     sideDesc:   { fontSize: 12, color: '#888', lineHeight: 1.6 },
-    section:    { padding: '14px 20px', borderBottom: '0.5px solid #f0ede8' },
+    section:    { padding: '14px 20px', borderBottom: '0.5px solid #f0f0f0' },
     sectionLbl: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#bbb', marginBottom: 10 },
     presetGrid: { display: 'flex', flexDirection: 'column', gap: 5 },
     btn:        (active) => ({
-      background: active ? '#1a2e1a' : '#f5f3ee',
-      border: `0.5px solid ${active ? '#1a2e1a' : '#e0ddd6'}`,
+      background: active ? '#003594' : '#f4f4f4',
+      border: `0.5px solid ${active ? '#003594' : '#e0e0e0'}`,
       borderRadius: 7, padding: '7px 12px',
-      fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
+      fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 12, fontWeight: 500,
       color: active ? '#fff' : '#555', cursor: 'pointer', textAlign: 'left',
       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     }),
     franchiseGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 },
     fBtn:       (active) => ({
-      background: active ? '#1a2e1a' : 'transparent',
-      border: `0.5px solid ${active ? '#1a2e1a' : '#e0ddd6'}`,
+      background: active ? '#003594' : 'transparent',
+      border: `0.5px solid ${active ? '#003594' : '#e0e0e0'}`,
       borderRadius: 6, padding: '5px 8px',
-      fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: active ? 600 : 400,
+      fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 11, fontWeight: active ? 600 : 400,
       color: active ? '#fff' : '#555', cursor: 'pointer', textAlign: 'left',
     }),
     sliders:    { padding: '14px 20px', flex: 1 },
@@ -207,24 +207,24 @@ export default function Goat({ players, onSelectPlayer }) {
     sliderTop:  { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 },
     sliderLabel:{ fontSize: 13, fontWeight: 500, color: '#333' },
     sliderDesc: { fontSize: 11, color: '#aaa', marginBottom: 7 },
-    sliderVal:  { fontSize: 13, fontWeight: 600, color: '#1a2e1a' },
-    totalRow:   { padding: '12px 20px', borderTop: '0.5px solid #e0ddd6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 },
+    sliderVal:  { fontSize: 13, fontWeight: 600, color: '#003594' },
+    totalRow:   { padding: '12px 20px', borderTop: '0.5px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 },
     totalLabel: { fontSize: 11, color: '#aaa' },
-    totalVal:   (ok) => ({ fontSize: 13, fontWeight: 600, color: ok ? '#2d8a5a' : '#c94040' }),
+    totalVal:   (ok) => ({ fontSize: 13, fontWeight: 600, color: ok ? '#003594' : '#c94040' }),
     pageHeader: { padding: '24px 32px 16px' },
-    pageTitle:  { fontFamily: "'DM Serif Display', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
+    pageTitle:  { fontFamily: "'Georgia', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
     pageDesc:   { fontSize: 13, color: '#888' },
-    tableWrap:  { flex: 1, overflow: 'auto', background: '#fff', borderTop: '0.5px solid #e0ddd6' },
+    tableWrap:  { flex: 1, overflow: 'auto', background: '#fff', borderTop: '0.5px solid #e0e0e0' },
     table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-    thead:      { position: 'sticky', top: 0, zIndex: 10, background: '#faf9f6', borderBottom: '0.5px solid #e0ddd6' },
-    th:         { padding: '10px 14px', fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 600, color: '#aaa', textAlign: 'left', whiteSpace: 'nowrap', letterSpacing: '0.8px', textTransform: 'uppercase' },
+    thead:      { position: 'sticky', top: 0, zIndex: 10, background: '#f8f8f8', borderBottom: '0.5px solid #e0e0e0' },
+    th:         { padding: '10px 14px', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 11, fontWeight: 600, color: '#aaa', textAlign: 'left', whiteSpace: 'nowrap', letterSpacing: '0.8px', textTransform: 'uppercase' },
     thR:        { textAlign: 'right' },
-    row:        { borderBottom: '0.5px solid #f0ede8', cursor: 'pointer' },
+    row:        { borderBottom: '0.5px solid #f0f0f0', cursor: 'pointer' },
     td:         { padding: '9px 14px' },
-    paging:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 32px', borderTop: '0.5px solid #e0ddd6', background: '#faf9f6', flexShrink: 0 },
+    paging:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 32px', borderTop: '0.5px solid #e0e0e0', background: '#f8f8f8', flexShrink: 0 },
     pagingInfo: { fontSize: 12, color: '#aaa' },
     pagingBtns: { display: 'flex', alignItems: 'center', gap: 4 },
-    pageBtn:    { background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 6, padding: '5px 12px', fontSize: 12, color: '#666', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" },
+    pageBtn:    { background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 6, padding: '5px 12px', fontSize: 12, color: '#666', cursor: 'pointer', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
     pageNum:    { fontSize: 12, color: '#aaa', padding: '0 8px', minWidth: 60, textAlign: 'center' },
   }
 
@@ -283,7 +283,7 @@ export default function Goat({ players, onSelectPlayer }) {
                 type="range" min={0} max={100} step={5}
                 value={weights[dim.key]}
                 onChange={e => updateWeight(dim.key, Number(e.target.value))}
-                style={{ width: '100%', accentColor: '#1a2e1a' }}
+                style={{ width: '100%', accentColor: '#003594' }}
               />
             </div>
           ))}
@@ -326,7 +326,7 @@ export default function Goat({ players, onSelectPlayer }) {
               {slice.map((p, i) => {
                 const rank     = page * PER_PAGE + i + 1
                 const score    = p.goat_score
-                const barColor = rank === 1 ? '#c9920a' : rank <= 5 ? '#2d8a5a' : rank <= 25 ? '#1a5fa8' : '#bbb'
+                const barColor = rank === 1 ? '#d4002a' : rank <= 5 ? '#003594' : rank <= 25 ? '#1a5fa8' : '#bbb'
 
                 return (
                   <tr
@@ -336,7 +336,7 @@ export default function Goat({ players, onSelectPlayer }) {
                     tabIndex={0}
                     onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)}
                     role="button"
-                    onMouseEnter={e => e.currentTarget.style.background = '#faf9f6'}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{rank}</td>
@@ -350,7 +350,7 @@ export default function Goat({ players, onSelectPlayer }) {
                         </span>
                       </div>
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#c9920a', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#d4002a', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                       {(peakEloMap[p.name] || 0).toLocaleString()}
                     </td>
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#555', fontVariantNumeric: 'tabular-nums' }}>

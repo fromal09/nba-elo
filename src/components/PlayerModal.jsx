@@ -124,7 +124,7 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode, onTooltip = () => {
     let segPts = [], segTeam = null
     const flushSeg = () => {
       if (segPts.length < 2) { segPts = []; return }
-      const color = TEAM_COLORS[segTeam] || '#1a2e1a'
+      const color = TEAM_COLORS[segTeam] || '#003594'
       const d = segPts.map(([i, v], k) => `${k === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ')
       const path = document.createElementNS(ns, 'path')
       path.setAttribute('d', d); path.setAttribute('fill', 'none')
@@ -144,7 +144,7 @@ function drawChart(data, focusIdx, svg, eloHist, careerMode, onTooltip = () => {
     const lastTeam = dateToTeam[dates[last[0]]] || null
     const dot = document.createElementNS(ns, 'circle')
     dot.setAttribute('cx', xScale(last[0])); dot.setAttribute('cy', yScale(last[1]))
-    dot.setAttribute('r', '4'); dot.setAttribute('fill', TEAM_COLORS[lastTeam] || '#1a2e1a')
+    dot.setAttribute('r', '4'); dot.setAttribute('fill', TEAM_COLORS[lastTeam] || '#003594')
     svg.appendChild(dot)
 
     // Invisible hit targets for tooltip
@@ -197,22 +197,22 @@ function SpagChart({ playerIndex, playerName, eloHist }) {
         <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa' }}>
           {careerMode ? `Career view · all players in gray` : `All players in gray · ${playerName} highlighted`}
         </div>
-        <div style={{ display: 'flex', border: '0.5px solid #e0ddd6', borderRadius: 6, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', border: '0.5px solid #e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
           {[['All-Time', false],['Career', true]].map(([label, mode]) => (
             <button
               key={label}
               onClick={() => setCareerMode(mode)}
               style={{
                 padding: '4px 10px', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 500,
-                background: careerMode === mode ? '#1a2e1a' : 'transparent',
+                background: careerMode === mode ? '#003594' : 'transparent',
                 color: careerMode === mode ? '#fff' : '#888',
-                borderRight: mode === false ? '0.5px solid #e0ddd6' : 'none',
+                borderRight: mode === false ? '0.5px solid #e0e0e0' : 'none',
               }}
             >{label}</button>
           ))}
         </div>
       </div>
-      <div ref={wrapRef} style={{ background: '#fafaf8', borderRadius: 8, border: '0.5px solid #e8e5e0', padding: '8px 4px 0', minHeight: 188, position: 'relative' }}>
+      <div ref={wrapRef} style={{ background: '#f8f8f8', borderRadius: 8, border: '0.5px solid #e0e0e0', padding: '8px 4px 0', minHeight: 188, position: 'relative' }}>
         {!loaded && <div style={{ textAlign: 'center', padding: 20, fontSize: 12, color: '#aaa' }}>Loading…</div>}
         <svg ref={svgRef} style={{ width: '100%', display: loaded ? 'block' : 'none' }} />
         {tooltip && (() => {
@@ -305,27 +305,27 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
       }}
     >
       <div style={{
-        background: '#fff', borderRadius: 14, border: '0.5px solid #e0ddd6',
+        background: '#fff', borderRadius: 14, border: '0.5px solid #e0e0e0',
         width: '100%', maxWidth: 640, maxHeight: '90vh', overflow: 'auto',
         boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
       }}>
         {/* Dark header */}
-        <div style={{ background: '#1a2e1a', padding: '24px 24px 0', position: 'relative' }}>
+        <div style={{ background: '#003594', padding: '24px 24px 0', position: 'relative' }}>
           <button
             onClick={onClose}
             style={{
               position: 'absolute', top: 16, right: 16,
               background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 6,
-              color: '#7aaa7a', width: 28, height: 28, cursor: 'pointer',
+              color: '#6b8fd4', width: 28, height: 28, cursor: 'pointer',
               fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
             aria-label="Close"
           >✕</button>
 
-          <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 26, color: '#fff', marginBottom: 4 }}>
+          <div style={{ fontFamily: "'Georgia', serif", fontSize: 26, color: '#fff', marginBottom: 4 }}>
             {player.name}
           </div>
-          <div style={{ fontSize: 12, color: '#7aaa7a', display: 'flex', gap: 10, marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: '#6b8fd4', display: 'flex', gap: 10, marginBottom: 20 }}>
             <span>{player.team}</span>
             {careerRange && <><span style={{ opacity: 0.4 }}>·</span><span>{careerRange}</span></>}
             <span style={{ opacity: 0.4 }}>·</span>
@@ -338,11 +338,11 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
             {[
               { label: 'Current Elo', val: Math.round(player.current_elo).toLocaleString(), color: '#fff' },
               { label: 'Peak Elo',    val: Math.round(player.peak_elo).toLocaleString(),    color: '#ffd700' },
-              { label: 'FPR Rank',    val: player.is_fpr_eligible ? `#${player.fpr_rank}` : `#${player.current_tpr_rank}`,                   color: player.is_fpr_eligible ? '#fff' : '#7aaa7a' },
+              { label: 'FPR Rank',    val: player.is_fpr_eligible ? `#${player.fpr_rank}` : `#${player.current_tpr_rank}`,                   color: player.is_fpr_eligible ? '#fff' : '#6b8fd4' },
               { label: 'Avg Elo',     val: avgElo.toLocaleString(),                          color: '#a8c5a8' },
             ].map(({ label, val, color }) => (
               <div key={label} style={{ padding: '14px 16px', borderRight: '0.5px solid rgba(255,255,255,0.1)', borderBottom: '0.5px solid rgba(255,255,255,0.1)' }}>
-                <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#7aaa7a', marginBottom: 4 }}>{label}</div>
+                <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#6b8fd4', marginBottom: 4 }}>{label}</div>
                 <div style={{ fontSize: 18, fontWeight: 500, color, fontVariantNumeric: 'tabular-nums' }}>{val}</div>
               </div>
             ))}

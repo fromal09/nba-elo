@@ -13,6 +13,7 @@ import Daily from './components/Daily'
 import Methodology from './components/Methodology'
 import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
+import FanSidedHeader from './components/FanSidedHeader'
 import Homepage from './components/Homepage'
 import styles from './App.module.css'
 
@@ -51,6 +52,7 @@ export default function App() {
 
   return (
     <div className={styles.app}>
+      <FanSidedHeader />
       {view !== 'home' && (
         <Nav meta={data} view={view} setView={setView} />
       )}

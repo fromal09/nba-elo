@@ -115,31 +115,31 @@ The ranking is era-consistent: a player who dominated their game in 1962 is rewa
 
 export default function Methodology() {
   return (
-    <div style={{ flex: 1, overflow: 'auto', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ flex: 1, overflow: 'auto', background: '#f4f4f4', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" }}>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '40px 32px 80px' }}>
 
         {/* Header */}
         <div style={{ marginBottom: 40 }}>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 2, color: '#7aaa7a', marginBottom: 10 }}>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 2, color: '#6b8fd4', marginBottom: 10 }}>
             Technical Reference
           </div>
-          <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 40, color: '#1a1a1a', marginBottom: 12, lineHeight: 1.1 }}>
+          <h1 style={{ fontFamily: "'Georgia', serif", fontSize: 40, color: '#1a1a1a', marginBottom: 12, lineHeight: 1.1 }}>
             Methodology
           </h1>
-          <p style={{ fontSize: 15, color: '#666', lineHeight: 1.7, borderBottom: '0.5px solid #e0ddd6', paddingBottom: 32 }}>
+          <p style={{ fontSize: 15, color: '#666', lineHeight: 1.7, borderBottom: '0.5px solid #e0e0e0', paddingBottom: 32 }}>
             A complete reference for how the Floor Performance Ranking is calculated — the mathematical framework, era adjustments, eligibility rules, and design decisions behind the system.
           </p>
         </div>
 
         {/* Table of contents */}
-        <div style={{ background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 12, padding: '20px 24px', marginBottom: 40 }}>
+        <div style={{ background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 12, padding: '20px 24px', marginBottom: 40 }}>
           <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa', marginBottom: 12 }}>Contents</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {SECTIONS.map((s, i) => (
               <a
                 key={s.title}
                 href={`#section-${i}`}
-                style={{ fontSize: 13, color: '#1a2e1a', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}
+                style={{ fontSize: 13, color: '#003594', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}
               >
                 <span style={{ fontSize: 10, color: '#bbb', minWidth: 20 }}>{i + 1}.</span>
                 {s.title}
@@ -153,11 +153,11 @@ export default function Methodology() {
           <div
             key={section.title}
             id={`section-${i}`}
-            style={{ marginBottom: 40, paddingBottom: 40, borderBottom: '0.5px solid #e0ddd6' }}
+            style={{ marginBottom: 40, paddingBottom: 40, borderBottom: '0.5px solid #e0e0e0' }}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 14 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#bbb', minWidth: 24, paddingTop: 5 }}>{i + 1}</span>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 22, color: '#1a1a1a', lineHeight: 1.2 }}>
+              <h2 style={{ fontFamily: "'Georgia', serif", fontSize: 22, color: '#1a1a1a', lineHeight: 1.2 }}>
                 {section.title}
               </h2>
             </div>
@@ -166,7 +166,7 @@ export default function Methodology() {
                 const isFormula = para.includes('=') && (para.includes('×') || para.includes('^') || para.includes('Σ') || para.startsWith('K =') || para.startsWith('GmSc') || para.startsWith('E(') || para.startsWith('ΔR'))
                 return isFormula ? (
                   <pre key={j} style={{
-                    background: '#1a2e1a', color: '#a8c5a8',
+                    background: '#003594', color: '#a8c5a8',
                     borderRadius: 8, padding: '14px 18px',
                     fontSize: 13, lineHeight: 1.8,
                     fontFamily: 'monospace', margin: '12px 0',

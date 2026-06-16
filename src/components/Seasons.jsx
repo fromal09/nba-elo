@@ -11,7 +11,7 @@ for (let y = 1946; y <= 2025; y++) {
 SEASONS.reverse() // most recent first
 
 function medalColor(rank) {
-  if (rank === 1) return '#c9920a'
+  if (rank === 1) return '#d4002a'
   if (rank === 2) return '#888'
   if (rank === 3) return '#a0522d'
   return '#bbb'
@@ -96,27 +96,27 @@ export default function Seasons({ players, onSelectPlayer }) {
   }, [search, players])
 
   const s = {
-    wrap:       { display: 'flex', flex: 1, overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" },
-    sidebar:    { width: 180, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e0ddd6', overflow: 'auto', display: 'flex', flexDirection: 'column' },
-    sideHead:   { padding: '16px 14px 10px', borderBottom: '0.5px solid #e0ddd6', fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1, flexShrink: 0 },
+    wrap:       { display: 'flex', flex: 1, overflow: 'hidden', background: '#f4f4f4', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
+    sidebar:    { width: 180, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e0e0e0', overflow: 'auto', display: 'flex', flexDirection: 'column' },
+    sideHead:   { padding: '16px 14px 10px', borderBottom: '0.5px solid #e0e0e0', fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1, flexShrink: 0 },
     seasonBtn:  (active) => ({
       display: 'block', width: '100%', textAlign: 'left',
-      padding: '8px 14px', border: 'none', borderBottom: '0.5px solid #f5f3ee',
-      background: active ? '#1a2e1a' : 'transparent',
+      padding: '8px 14px', border: 'none', borderBottom: '0.5px solid #f4f4f4',
+      background: active ? '#003594' : 'transparent',
       color: active ? '#fff' : '#555', fontSize: 13, fontWeight: active ? 500 : 400,
       cursor: 'pointer',
     }),
     main:       { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto' },
     header:     { padding: '28px 32px 20px' },
-    title:      { fontFamily: "'DM Serif Display', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
+    title:      { fontFamily: "'Georgia', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
     subtitle:   { fontSize: 13, color: '#888' },
     searchWrap: { position: 'relative', marginBottom: 24 },
-    searchBox:  { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 8, padding: '0 12px', maxWidth: 320 },
-    searchInput:{ background: 'none', border: 'none', outline: 'none', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", fontSize: 13, padding: '9px 0', width: '100%' },
-    dropdown:   { position: 'absolute', top: '100%', left: 0, width: 320, background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 8, marginTop: 4, zIndex: 100, overflow: 'hidden' },
+    searchBox:  { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 8, padding: '0 12px', maxWidth: 320 },
+    searchInput:{ background: 'none', border: 'none', outline: 'none', color: '#1a1a1a', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 13, padding: '9px 0', width: '100%' },
+    dropdown:   { position: 'absolute', top: '100%', left: 0, width: 320, background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 8, marginTop: 4, zIndex: 100, overflow: 'hidden' },
     podium:     { display: 'flex', gap: 16, padding: '0 32px 32px' },
-    card1:      { flex: 1.2, background: '#1a2e1a', borderRadius: 14, padding: '24px', color: '#fff' },
-    card2:      { flex: 1, background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 14, padding: '20px' },
+    card1:      { flex: 1.2, background: '#003594', borderRadius: 14, padding: '24px', color: '#fff' },
+    card2:      { flex: 1, background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 14, padding: '20px' },
     rankBadge:  (rank) => ({
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       width: 28, height: 28, borderRadius: 8,
@@ -125,10 +125,10 @@ export default function Seasons({ players, onSelectPlayer }) {
     }),
     tableSection:{ padding: '0 32px 32px' },
     tableTitle: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa', marginBottom: 12 },
-    table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13, background: '#fff', borderRadius: 12, overflow: 'hidden', border: '0.5px solid #e0ddd6' },
-    th:         { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase', background: '#faf9f6', borderBottom: '0.5px solid #e0ddd6' },
+    table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13, background: '#fff', borderRadius: 12, overflow: 'hidden', border: '0.5px solid #e0e0e0' },
+    th:         { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#aaa', textAlign: 'left', letterSpacing: '0.8px', textTransform: 'uppercase', background: '#f8f8f8', borderBottom: '0.5px solid #e0e0e0' },
     thR:        { textAlign: 'right' },
-    row:        { borderBottom: '0.5px solid #f0ede8', cursor: 'pointer' },
+    row:        { borderBottom: '0.5px solid #f0f0f0', cursor: 'pointer' },
     td:         { padding: '10px 14px' },
   }
 
@@ -174,7 +174,7 @@ export default function Seasons({ players, onSelectPlayer }) {
                     key={p.name}
                     style={{ padding: '9px 14px', cursor: 'pointer', fontSize: 13 }}
                     onClick={() => { setSearch(p.name); setSearchResults([]); setSearchOpen(false) }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#f5f3ee'}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f4f4f4'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
                     {p.name} <span style={{ color: '#aaa', fontSize: 11 }}>{p.team}</span>
@@ -203,11 +203,11 @@ export default function Seasons({ players, onSelectPlayer }) {
                     key={season.label}
                     style={{ ...s.row, background: selectedSeason.label === season.label ? '#f0f5f0' : 'transparent' }}
                     onClick={() => setSelectedSeason(season)}
-                    onMouseEnter={e => e.currentTarget.style.background = '#faf9f6'}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                     onMouseLeave={e => e.currentTarget.style.background = selectedSeason.label === season.label ? '#f0f5f0' : 'transparent'}
                   >
                     <td style={s.td}>{season.label}</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#c9920a', fontVariantNumeric: 'tabular-nums' }}>{Math.round(peak).toLocaleString()}</td>
+                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#d4002a', fontVariantNumeric: 'tabular-nums' }}>{Math.round(peak).toLocaleString()}</td>
                     <td style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{gp}</td>
                   </tr>
                 ))}
@@ -236,21 +236,21 @@ export default function Seasons({ players, onSelectPlayer }) {
                     <div style={s.rankBadge(i + 1)}>
                       {medalEmoji(i + 1) || `#${i + 1}`}
                     </div>
-                    <div style={{ fontSize: isFirst ? 20 : 16, fontFamily: "'DM Serif Display', serif", color: isFirst ? '#fff' : '#1a1a1a', marginBottom: 4 }}>
+                    <div style={{ fontSize: isFirst ? 20 : 16, fontFamily: "'Georgia', serif", color: isFirst ? '#fff' : '#1a1a1a', marginBottom: 4 }}>
                       {p.name}
                     </div>
-                    <div style={{ fontSize: 11, color: isFirst ? '#7aaa7a' : '#aaa', marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, color: isFirst ? '#6b8fd4' : '#aaa', marginBottom: 12 }}>
                       {p.team_in_season} · {p.season_gp} games
                     </div>
                     <div style={{ display: 'flex', gap: 16 }}>
                       <div>
-                        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: isFirst ? '#7aaa7a' : '#bbb', marginBottom: 2 }}>Peak Elo</div>
-                        <div style={{ fontSize: isFirst ? 24 : 18, fontWeight: 600, color: isFirst ? '#ffd700' : '#c9920a', fontVariantNumeric: 'tabular-nums' }}>
+                        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: isFirst ? '#6b8fd4' : '#bbb', marginBottom: 2 }}>Peak Elo</div>
+                        <div style={{ fontSize: isFirst ? 24 : 18, fontWeight: 600, color: isFirst ? '#ffd700' : '#d4002a', fontVariantNumeric: 'tabular-nums' }}>
                           {Math.round(p.season_peak).toLocaleString()}
                         </div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: isFirst ? '#7aaa7a' : '#bbb', marginBottom: 2 }}>Avg Elo</div>
+                        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: isFirst ? '#6b8fd4' : '#bbb', marginBottom: 2 }}>Avg Elo</div>
                         <div style={{ fontSize: isFirst ? 20 : 15, fontWeight: 400, color: isFirst ? '#e0e0e0' : '#555', fontVariantNumeric: 'tabular-nums' }}>
                           {p.season_avg.toLocaleString()}
                         </div>
@@ -281,7 +281,7 @@ export default function Seasons({ players, onSelectPlayer }) {
                       key={p.name}
                       style={s.row}
                       onClick={() => onSelectPlayer(p)}
-                      onMouseEnter={e => e.currentTarget.style.background = '#faf9f6'}
+                      onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       role="button" tabIndex={0}
                       onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)}
@@ -289,7 +289,7 @@ export default function Seasons({ players, onSelectPlayer }) {
                       <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{p.season_rank}</td>
                       <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a' }}>{p.name}</td>
                       <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team_in_season}</td>
-                      <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#c9920a', fontVariantNumeric: 'tabular-nums' }}>{Math.round(p.season_peak).toLocaleString()}</td>
+                      <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#d4002a', fontVariantNumeric: 'tabular-nums' }}>{Math.round(p.season_peak).toLocaleString()}</td>
                       <td style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.season_avg.toLocaleString()}</td>
                       <td style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.season_gp}</td>
                     </tr>

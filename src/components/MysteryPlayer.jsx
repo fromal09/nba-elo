@@ -190,18 +190,18 @@ function drawChart(svg, hist, round, W, H, spagData, wrongGuesses = []) {
     let seg=[],s0=0,curT=hist[0]?.[4]||''
     hist.forEach((e,i)=>{
       const t=e[4]||''
-      if (t!==curT){ seg.push(e); drawSeg(seg,s0,TEAM_COLORS[curT]||'#1a2e1a'); seg=[e]; s0=i; curT=t } else seg.push(e)
+      if (t!==curT){ seg.push(e); drawSeg(seg,s0,TEAM_COLORS[curT]||'#003594'); seg=[e]; s0=i; curT=t } else seg.push(e)
     })
-    drawSeg(seg,s0,TEAM_COLORS[curT]||'#1a2e1a')
+    drawSeg(seg,s0,TEAM_COLORS[curT]||'#003594')
   } else {
-    drawSeg(hist,0,'#4a9a4a')
+    drawSeg(hist,0,'#003594')
   }
 
   const last=hist[hist.length-1]
   const dot=document.createElementNS(ns,'circle')
   dot.setAttribute('cx',xS(n-1)); dot.setAttribute('cy',yS(last[1]))
   dot.setAttribute('r','4')
-  dot.setAttribute('fill',round>=3?(TEAM_COLORS[last[4]||'']||'#4a9a4a'):'#4a9a4a')
+  dot.setAttribute('fill',round>=3?(TEAM_COLORS[last[4]||'']||'#003594'):'#003594')
   svg.appendChild(dot)
 }
 
@@ -269,7 +269,7 @@ function MysteryChart({ player, round, wrongGuesses = [] }) {
   }
 
   return (
-    <div ref={wrapRef} style={{background:'#f5f3ee',borderRadius:12,border:'0.5px solid #e0ddd6',padding:'12px 8px 4px',position:'relative'}}>
+    <div ref={wrapRef} style={{background:'#f4f4f4',borderRadius:12,border:'0.5px solid #e0e0e0',padding:'12px 8px 4px',position:'relative'}}>
       <svg ref={svgRef} style={{width:'100%',display:'block',height:230}} />
       {tooltip&&(
         <div style={{
@@ -277,11 +277,11 @@ function MysteryChart({ player, round, wrongGuesses = [] }) {
           left:`${(tooltip.x/(tooltip.svgW||640))*100}%`,
           top:`${(tooltip.y/230)*100}%`,
           transform:tooltip.x>(tooltip.svgW||640)*0.65?'translate(-110%,-50%)':'translate(10%,-50%)',
-          background:'#fff',color:'#1a1a1a',borderRadius:8,padding:'8px 12px',border:'0.5px solid #e0ddd6',
+          background:'#fff',color:'#1a1a1a',borderRadius:8,padding:'8px 12px',border:'0.5px solid #e0e0e0',
           fontSize:12,lineHeight:1.7,pointerEvents:'none',zIndex:10,
-          boxShadow:'0 4px 16px rgba(0,0,0,0.8)',whiteSpace:'nowrap',border:'0.5px solid #e0ddd6',
+          boxShadow:'0 4px 16px rgba(0,0,0,0.8)',whiteSpace:'nowrap',border:'0.5px solid #e0e0e0',
         }}>
-          <div>Elo <span style={{color:'#c9920a',fontWeight:600}}>{tooltip.elo.toLocaleString()}</span></div>
+          <div>Elo <span style={{color:'#d4002a',fontWeight:600}}>{tooltip.elo.toLocaleString()}</span></div>
           {tooltip.date&&<div style={{color:'#888'}}>{tooltip.date.slice(5,7)}/{tooltip.date.slice(8,10)}/{tooltip.date.slice(0,4)}</div>}
           {tooltip.team&&<div style={{color:TEAM_COLORS[tooltip.team]||'#ccc'}}>{tooltip.team}</div>}
         </div>
@@ -309,24 +309,24 @@ function GuessInput({ players, onGuess, disabled, usedNames }) {
         <input value={val} onChange={onChange} disabled={disabled}
           onKeyDown={e=>e.key==='Enter'&&val&&submit()}
           placeholder="Name your suspect..."
-          style={{flex:1,border:'0.5px solid #e0ddd6',borderRadius:8,padding:'12px 16px',fontSize:14,
-            fontFamily:"'DM Sans', sans-serif",outline:'none',background:'#f0ede8',color:'#1a1a1a'}}
+          style={{flex:1,border:'0.5px solid #e0e0e0',borderRadius:8,padding:'12px 16px',fontSize:14,
+            fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif",outline:'none',background:'#f0f0f0',color:'#1a1a1a'}}
         />
         <button onClick={()=>submit()} disabled={disabled||!val.trim()}
-          style={{background:disabled||!val.trim()?'#e0ddd6':'#1a2e1a',color:disabled||!val.trim()?'#aaa':'#fff',
+          style={{background:disabled||!val.trim()?'#e0e0e0':'#003594',color:disabled||!val.trim()?'#aaa':'#fff',
             border:'none',borderRadius:8,padding:'12px 24px',fontSize:14,fontWeight:700,cursor:'pointer',
-            fontFamily:"'DM Sans', sans-serif"}}>
+            fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif"}}>
           Accuse
         </button>
       </div>
       {suggs.length>0&&(
         <div style={{position:'absolute',top:'100%',left:0,right:80,zIndex:30,
-          background:'#f0ede8',border:'0.5px solid #e0ddd6',borderRadius:8,
+          background:'#f0f0f0',border:'0.5px solid #e0e0e0',borderRadius:8,
           boxShadow:'0 8px 24px rgba(0,0,0,0.8)',marginTop:4,overflow:'hidden'}}>
           {suggs.map(p=>(
             <div key={p.name} onClick={()=>submit(p.name)}
               style={{padding:'10px 14px',cursor:'pointer',fontSize:14,borderBottom:'0.5px solid #333',color:'#1a1a1a'}}
-              onMouseEnter={e=>e.currentTarget.style.background='#f5f3ee'}
+              onMouseEnter={e=>e.currentTarget.style.background='#f4f4f4'}
               onMouseLeave={e=>e.currentTarget.style.background='transparent'}
             >{p.name}</div>
           ))}
@@ -370,9 +370,9 @@ function CluesSidebar({ guesses, mystery, round, visibleGuesses = new Set(), onT
           const gFranch= playerFranchises(gHist)
           const mStart = mystery.elo_history[0]?.[0]?.slice(0,4)
           const peakDir = mPeak>gPeak?'↑ Higher':mPeak<gPeak?'↓ Lower':'= Same'
-          const peakClr = mPeak>gPeak?'#ff9944':mPeak<gPeak?'#44aaff':'#4a9a4a'
+          const peakClr = mPeak>gPeak?'#ff9944':mPeak<gPeak?'#44aaff':'#003594'
           const avgDir  = mAvg>gAvg?'↑ Higher':mAvg<gAvg?'↓ Lower':'= Same'
-          const avgClr  = mAvg>gAvg?'#ff9944':mAvg<gAvg?'#44aaff':'#4a9a4a'
+          const avgClr  = mAvg>gAvg?'#ff9944':mAvg<gAvg?'#44aaff':'#003594'
           return (
             <div key={i} style={{background:'#fff5f5',border:'0.5px solid #f0d0d0',borderRadius:8,padding:'10px 12px',marginBottom:8}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
@@ -381,10 +381,10 @@ function CluesSidebar({ guesses, mystery, round, visibleGuesses = new Set(), onT
                   onClick={()=>onToggle(g.name)}
                   style={{
                     background: visibleGuesses.has(g.name) ? '#c9404022' : 'transparent',
-                    border: `0.5px solid ${visibleGuesses.has(g.name) ? '#c94040' : '#e0ddd6'}`,
+                    border: `0.5px solid ${visibleGuesses.has(g.name) ? '#c94040' : '#e0e0e0'}`,
                     borderRadius:6, padding:'2px 8px', fontSize:10, cursor:'pointer',
                     color: visibleGuesses.has(g.name) ? '#c94040' : '#aaa',
-                    fontFamily:"'DM Sans', sans-serif", whiteSpace:'nowrap',
+                    fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif", whiteSpace:'nowrap',
                   }}
                 >{visibleGuesses.has(g.name) ? '● Hide' : '○ Show'}</button>
               </div>
@@ -403,7 +403,7 @@ function CluesSidebar({ guesses, mystery, round, visibleGuesses = new Set(), onT
               {round>=2&&(
                 <div style={{fontSize:11,color:'#888',marginBottom:6}}>
                   {gStart}–{gEnd}
-                  {mStart&&<span style={{marginLeft:6,color:mStart>gStart?'#ff9944':mStart<gStart?'#44aaff':'#4a9a4a',fontSize:10}}>
+                  {mStart&&<span style={{marginLeft:6,color:mStart>gStart?'#ff9944':mStart<gStart?'#44aaff':'#003594',fontSize:10}}>
                     {mStart>gStart?'↑ Later start':mStart<gStart?'↓ Earlier start':'= Same era'}
                   </span>}
                 </div>
@@ -454,10 +454,10 @@ function FiltersScreen({ players, onSelect, onBack }) {
   }),[players,rookieYear,minPeak,minGP,franchises])
 
   return (
-    <div style={{display:'flex',flex:1,flexDirection:'column',overflow:'hidden',background:'#f5f3ee',fontFamily:"'DM Sans', sans-serif"}}>
-      <div style={{padding:'16px 24px',borderBottom:'0.5px solid #e0ddd6',display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+    <div style={{display:'flex',flex:1,flexDirection:'column',overflow:'hidden',background:'#f4f4f4',fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif"}}>
+      <div style={{padding:'16px 24px',borderBottom:'0.5px solid #e0e0e0',display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
         <button onClick={onBack} style={{background:'none',border:'none',color:'#888',cursor:'pointer',fontSize:13}}>← Back</button>
-        <div style={{fontFamily:"'DM Serif Display', serif",fontSize:20,color:'#1a1a1a'}}>Filter the Suspect Pool</div>
+        <div style={{fontFamily:"'Georgia', serif",fontSize:20,color:'#1a1a1a'}}>Filter the Suspect Pool</div>
       </div>
       <div style={{flex:1,overflow:'auto',padding:24}}>
         <div style={{marginBottom:24}}>
@@ -465,12 +465,12 @@ function FiltersScreen({ players, onSelect, onBack }) {
           <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
             {ALL_FRANCHISES.map(f=>(
               <button key={f}
-                style={{background:franchises.includes(f)?'#1a2e1a':'transparent',
-                  border:`0.5px solid ${franchises.includes(f)?'#1a2e1a':'#e0ddd6'}`,
+                style={{background:franchises.includes(f)?'#003594':'transparent',
+                  border:`0.5px solid ${franchises.includes(f)?'#003594':'#e0e0e0'}`,
                   borderRadius:20,padding:'4px 10px',fontSize:11,
                   fontWeight:franchises.includes(f)?700:400,
                   color:franchises.includes(f)?'#fff':'#555',
-                  cursor:'pointer',fontFamily:"'DM Sans', sans-serif"}}
+                  cursor:'pointer',fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif"}}
                 onClick={()=>toggle(franchises,setFranchises,f)}>{FRANCHISE_NAMES[f]}</button>
             ))}
           </div>
@@ -484,22 +484,22 @@ function FiltersScreen({ players, onSelect, onBack }) {
             <div key={label}>
               <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:1,color:'#888',marginBottom:8}}>{label}</div>
               <input type="number" value={val} onChange={e=>set(e.target.value)} placeholder={ph}
-                style={{background:'#f0ede8',border:'0.5px solid #e0ddd6',borderRadius:8,padding:'10px 14px',
-                  fontSize:14,color:'#1a1a1a',outline:'none',fontFamily:"'DM Mono', monospace",width:120}} />
+                style={{background:'#f0f0f0',border:'0.5px solid #e0e0e0',borderRadius:8,padding:'10px 14px',
+                  fontSize:14,color:'#1a1a1a',outline:'none',fontFamily:"'Consolas', 'Monaco', monospace",width:120}} />
             </div>
           ))}
           <div>
             <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:1,color:'#888',marginBottom:8}}>Min Career Games</div>
             <input type="number" value={minGP} onChange={e=>setMinGP(Math.max(1,parseInt(e.target.value)||1))}
-              style={{background:'#f0ede8',border:'0.5px solid #e0ddd6',borderRadius:8,padding:'10px 14px',
-                fontSize:14,color:'#1a1a1a',outline:'none',fontFamily:"'DM Mono', monospace",width:80}} />
+              style={{background:'#f0f0f0',border:'0.5px solid #e0e0e0',borderRadius:8,padding:'10px 14px',
+                fontSize:14,color:'#1a1a1a',outline:'none',fontFamily:"'Consolas', 'Monaco', monospace",width:80}} />
           </div>
         </div>
 
         <button onClick={()=>pool.length&&onSelect(pool[Math.floor(Math.random()*pool.length)])} disabled={!pool.length}
-          style={{background:pool.length?'#1a2e1a':'#e0ddd6',color:pool.length?'#fff':'#aaa',
+          style={{background:pool.length?'#003594':'#e0e0e0',color:pool.length?'#fff':'#aaa',
             border:'none',borderRadius:12,padding:'16px 40px',fontSize:16,fontWeight:700,
-            cursor:pool.length?'pointer':'not-allowed',fontFamily:"'DM Sans', sans-serif"}}>
+            cursor:pool.length?'pointer':'not-allowed',fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif"}}>
           {pool.length?`Pick from ${pool.length.toLocaleString()} suspects →`:'No players match'}
         </button>
       </div>
@@ -510,10 +510,10 @@ function FiltersScreen({ players, onSelect, onBack }) {
 function LandingScreen({ onQuick, onFilter }) {
   return (
     <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-      padding:40,background:'#f5f3ee',fontFamily:"'DM Sans', sans-serif"}}>
+      padding:40,background:'#f4f4f4',fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif"}}>
       <div style={{textAlign:'center',maxWidth:500}}>
         <div style={{fontSize:72,marginBottom:16}}>🔍</div>
-        <h1 style={{fontFamily:"'DM Serif Display', serif",fontSize:40,color:'#1a1a1a',marginBottom:12,letterSpacing:-1}}>
+        <h1 style={{fontFamily:"'Georgia', serif",fontSize:40,color:'#1a1a1a',marginBottom:12,letterSpacing:-1}}>
           Mystery Player
         </h1>
         <p style={{fontSize:15,color:'#888',lineHeight:1.7,marginBottom:36}}>
@@ -525,20 +525,20 @@ function LandingScreen({ onQuick, onFilter }) {
             {round:'Round 2',desc:'Years revealed on x-axis'},
             {round:'Rounds 3–5',desc:'Team colors fully revealed'},
           ].map(({round,desc})=>(
-            <div key={round} style={{background:'#f5f3ee',border:'0.5px solid #e0ddd6',borderRadius:10,padding:'12px 16px',fontSize:12,color:'#888',textAlign:'left',flex:1,minWidth:130}}>
-              <div style={{color:'#1a2e1a',fontWeight:600,marginBottom:4}}>{round}</div>
+            <div key={round} style={{background:'#f4f4f4',border:'0.5px solid #e0e0e0',borderRadius:10,padding:'12px 16px',fontSize:12,color:'#888',textAlign:'left',flex:1,minWidth:130}}>
+              <div style={{color:'#003594',fontWeight:600,marginBottom:4}}>{round}</div>
               <div>{desc}</div>
             </div>
           ))}
         </div>
-        <button onClick={onFilter} style={{background:'#1a2e1a',color:'#fff',border:'none',borderRadius:12,
+        <button onClick={onFilter} style={{background:'#003594',color:'#fff',border:'none',borderRadius:12,
           padding:'16px 48px',fontSize:16,fontWeight:700,cursor:'pointer',
-          fontFamily:"'DM Sans', sans-serif",marginBottom:12,display:'block',width:'100%'}}>
+          fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif",marginBottom:12,display:'block',width:'100%'}}>
           Filter the Suspect Pool →
         </button>
-        <button onClick={onQuick} style={{background:'transparent',color:'#888',border:'0.5px solid #e0ddd6',borderRadius:12,
+        <button onClick={onQuick} style={{background:'transparent',color:'#888',border:'0.5px solid #e0e0e0',borderRadius:12,
           padding:'14px 48px',fontSize:14,cursor:'pointer',
-          fontFamily:"'DM Sans', sans-serif",display:'block',width:'100%'}}>
+          fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif",display:'block',width:'100%'}}>
           Quick Start (random)
         </button>
       </div>
@@ -604,13 +604,13 @@ export default function MysteryPlayer({ players, onSelectPlayer }) {
   const HINTS = ['Elo shape only — no years, no teams','Years visible on x-axis','Team colors revealed']
 
   return (
-    <div style={{display:'flex',flex:1,overflow:'hidden',background:'#f5f3ee',fontFamily:"'DM Sans', sans-serif"}}>
+    <div style={{display:'flex',flex:1,overflow:'hidden',background:'#f4f4f4',fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif"}}>
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         <div style={{padding:'12px 20px',borderBottom:'1px solid #1a1a2e',display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0,background:'#fff'}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <span style={{fontSize:18}}>🔍</span>
             <div>
-              <div style={{fontFamily:"'DM Serif Display', serif",fontSize:17,color:'#1a1a1a'}}>Mystery Player</div>
+              <div style={{fontFamily:"'Georgia', serif",fontSize:17,color:'#1a1a1a'}}>Mystery Player</div>
               <div style={{fontSize:11,color:'#aaa'}}>{HINTS[Math.min(round-1,2)]}</div>
             </div>
           </div>
@@ -618,12 +618,12 @@ export default function MysteryPlayer({ players, onSelectPlayer }) {
             <div style={{display:'flex',gap:5,alignItems:'center'}}>
               {Array.from({length:MAX_GUESSES}).map((_,i)=>(
                 <div key={i} style={{width:9,height:9,borderRadius:'50%',
-                  background:i<wrongGuesses.length?'#c94040':'#e0ddd6',
-                  border:'0.5px solid #e0ddd6'}} />
+                  background:i<wrongGuesses.length?'#c94040':'#e0e0e0',
+                  border:'0.5px solid #e0e0e0'}} />
               ))}
               <span style={{fontSize:11,color:'#aaa',marginLeft:4}}>{guessesLeft} left</span>
             </div>
-            <button onClick={reset} style={{background:'none',border:'0.5px solid #e0ddd6',borderRadius:6,
+            <button onClick={reset} style={{background:'none',border:'0.5px solid #e0e0e0',borderRadius:6,
               padding:'4px 10px',fontSize:11,cursor:'pointer',color:'#888'}}>New Case</button>
           </div>
         </div>
@@ -636,11 +636,11 @@ export default function MysteryPlayer({ players, onSelectPlayer }) {
           {result==='win'&&(
             <div style={{background:'#f0f7f0',border:'0.5px solid #c0d8c0',borderRadius:12,padding:24,textAlign:'center',marginBottom:16}}>
               <div style={{fontSize:36,marginBottom:8}}>🎉</div>
-              <div style={{fontFamily:"'DM Serif Display', serif",fontSize:24,color:'#1a2e1a',marginBottom:4}}>{mystery.name}</div>
+              <div style={{fontFamily:"'Georgia', serif",fontSize:24,color:'#003594',marginBottom:4}}>{mystery.name}</div>
               <div style={{fontSize:13,color:'#888',marginBottom:16}}>Case solved in {guesses.length===1?'1 guess':`${guesses.length} guesses`}</div>
               <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-                <button onClick={()=>onSelectPlayer(mystery)} style={{background:'#4a9a4a',color:'#1a1a1a',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:600,cursor:'pointer'}}>View Player →</button>
-                <button onClick={reset} style={{background:'transparent',border:'0.5px solid #e0ddd6',borderRadius:8,padding:'10px 20px',fontSize:13,cursor:'pointer',color:'#888'}}>New Case</button>
+                <button onClick={()=>onSelectPlayer(mystery)} style={{background:'#003594',color:'#1a1a1a',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:600,cursor:'pointer'}}>View Player →</button>
+                <button onClick={reset} style={{background:'transparent',border:'0.5px solid #e0e0e0',borderRadius:8,padding:'10px 20px',fontSize:13,cursor:'pointer',color:'#888'}}>New Case</button>
               </div>
             </div>
           )}
@@ -648,10 +648,10 @@ export default function MysteryPlayer({ players, onSelectPlayer }) {
             <div style={{background:'#fff5f5',border:'0.5px solid #f0d0d0',borderRadius:12,padding:24,textAlign:'center',marginBottom:16}}>
               <div style={{fontSize:36,marginBottom:8}}>💀</div>
               <div style={{fontSize:13,color:'#888',marginBottom:4}}>The mystery player was</div>
-              <div style={{fontFamily:"'DM Serif Display', serif",fontSize:24,color:'#c94040',marginBottom:16}}>{mystery.name}</div>
+              <div style={{fontFamily:"'Georgia', serif",fontSize:24,color:'#c94040',marginBottom:16}}>{mystery.name}</div>
               <div style={{display:'flex',gap:10,justifyContent:'center'}}>
                 <button onClick={()=>onSelectPlayer(mystery)} style={{background:'#c94040',color:'#1a1a1a',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:600,cursor:'pointer'}}>View Player →</button>
-                <button onClick={reset} style={{background:'transparent',border:'0.5px solid #e0ddd6',borderRadius:8,padding:'10px 20px',fontSize:13,cursor:'pointer',color:'#888'}}>New Case</button>
+                <button onClick={reset} style={{background:'transparent',border:'0.5px solid #e0e0e0',borderRadius:8,padding:'10px 20px',fontSize:13,cursor:'pointer',color:'#888'}}>New Case</button>
               </div>
             </div>
           )}

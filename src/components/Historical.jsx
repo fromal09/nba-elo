@@ -14,8 +14,8 @@ const ERAS = [
 ]
 
 function peakColor(peak) {
-  if (peak >= 3000) return '#c9920a'
-  if (peak >= 2800) return '#2d8a5a'
+  if (peak >= 3000) return '#d4002a'
+  if (peak >= 2800) return '#003594'
   if (peak >= 2600) return '#1a5fa8'
   return '#888'
 }
@@ -160,33 +160,33 @@ export default function Historical({ players, onSelectPlayer }) {
   const totalPages    = Math.ceil(filtered.length / PER_PAGE)
 
   const btn = (active) => ({
-    background: active ? '#1a2e1a' : '#fff',
-    border: `0.5px solid ${active ? '#1a2e1a' : '#e0ddd6'}`,
+    background: active ? '#003594' : '#fff',
+    border: `0.5px solid ${active ? '#003594' : '#e0e0e0'}`,
     borderRadius: 8, padding: '7px 12px',
-    fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
+    fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 12, fontWeight: 500,
     color: active ? '#fff' : '#888',
     cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.12s',
   })
 
   const s = {
-    wrap:       { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#f5f3ee', fontFamily: "'DM Sans', sans-serif" },
+    wrap:       { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#f4f4f4', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
     pageHeader: { padding: '28px 32px 0' },
-    pageTitle:  { fontFamily: "'DM Serif Display', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
+    pageTitle:  { fontFamily: "'Georgia', serif", fontSize: 28, color: '#1a1a1a', marginBottom: 4 },
     pageDesc:   { fontSize: 13, color: '#888', marginBottom: 20 },
     controls:   { display: 'flex', alignItems: 'center', gap: 8, padding: '0 32px 16px', flexWrap: 'wrap' },
-    searchWrap: { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 8, padding: '0 12px', color: '#aaa', minWidth: 200, flex: 1, maxWidth: 260 },
-    search:     { background: 'none', border: 'none', outline: 'none', color: '#1a1a1a', fontFamily: "'DM Sans', sans-serif", fontSize: 13, padding: '8px 0', width: '100%' },
-    tableWrap:  { flex: 1, overflow: 'auto', background: '#fff', borderTop: '0.5px solid #e0ddd6' },
+    searchWrap: { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 8, padding: '0 12px', color: '#aaa', minWidth: 200, flex: 1, maxWidth: 260 },
+    search:     { background: 'none', border: 'none', outline: 'none', color: '#1a1a1a', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 13, padding: '8px 0', width: '100%' },
+    tableWrap:  { flex: 1, overflow: 'auto', background: '#fff', borderTop: '0.5px solid #e0e0e0' },
     table:      { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-    thead:      { position: 'sticky', top: 0, zIndex: 10, background: '#faf9f6', borderBottom: '0.5px solid #e0ddd6' },
-    th:         (clickable) => ({ padding: '10px 14px', fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 600, color: '#aaa', textAlign: 'left', whiteSpace: 'nowrap', letterSpacing: '0.8px', textTransform: 'uppercase', cursor: clickable ? 'pointer' : 'default', userSelect: 'none' }),
+    thead:      { position: 'sticky', top: 0, zIndex: 10, background: '#f8f8f8', borderBottom: '0.5px solid #e0e0e0' },
+    th:         (clickable) => ({ padding: '10px 14px', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 11, fontWeight: 600, color: '#aaa', textAlign: 'left', whiteSpace: 'nowrap', letterSpacing: '0.8px', textTransform: 'uppercase', cursor: clickable ? 'pointer' : 'default', userSelect: 'none' }),
     thR:        { textAlign: 'right' },
-    row:        { borderBottom: '0.5px solid #f0ede8', cursor: 'pointer' },
+    row:        { borderBottom: '0.5px solid #f0f0f0', cursor: 'pointer' },
     td:         { padding: '9px 14px' },
-    paging:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 32px', borderTop: '0.5px solid #e0ddd6', background: '#faf9f6', flexShrink: 0 },
+    paging:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 32px', borderTop: '0.5px solid #e0e0e0', background: '#f8f8f8', flexShrink: 0 },
     pagingInfo: { fontSize: 12, color: '#aaa' },
     pagingBtns: { display: 'flex', alignItems: 'center', gap: 4 },
-    pageBtn:    { background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 6, padding: '5px 12px', fontSize: 12, color: '#666', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" },
+    pageBtn:    { background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 6, padding: '5px 12px', fontSize: 12, color: '#666', cursor: 'pointer', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
     pageNum:    { fontSize: 12, color: '#aaa', padding: '0 8px', minWidth: 60, textAlign: 'center' },
   }
 
@@ -215,8 +215,8 @@ export default function Historical({ players, onSelectPlayer }) {
         </div>
 
         {/* Mode toggle */}
-        <div style={{ display: 'flex', border: '0.5px solid #e0ddd6', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
-          <button style={{ ...btn(mode === 'alltime'), borderRadius: 0, border: 'none', borderRight: '0.5px solid #e0ddd6' }}
+        <div style={{ display: 'flex', border: '0.5px solid #e0e0e0', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+          <button style={{ ...btn(mode === 'alltime'), borderRadius: 0, border: 'none', borderRight: '0.5px solid #e0e0e0' }}
             onClick={() => { setMode('alltime'); setPage(0) }}>All-Time</button>
           <button style={{ ...btn(mode === 'snapshot'), borderRadius: 0, border: 'none' }}
             onClick={() => { setMode('snapshot'); setPage(0) }}>Day in History</button>
@@ -242,7 +242,7 @@ export default function Historical({ players, onSelectPlayer }) {
               max={maxDate}
               value={snapshotDate}
               onChange={e => { setSnapshotDate(e.target.value); setPage(0) }}
-              style={{ background: '#fff', border: '0.5px solid #e0ddd6', borderRadius: 8, padding: '7px 12px', fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#1a1a1a', cursor: 'pointer' }}
+              style={{ background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 8, padding: '7px 12px', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 13, color: '#1a1a1a', cursor: 'pointer' }}
             />
             {snapshotDate && effectiveDate && snapshotDate !== effectiveDate && (
               <span style={{ fontSize: 12, color: '#888' }}>→ showing {effectiveDate} (nearest game day)</span>
@@ -299,16 +299,16 @@ export default function Historical({ players, onSelectPlayer }) {
                   <tr key={p.name} style={s.row}
                     onClick={() => onSelectPlayer(p)}
                     tabIndex={0} onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)} role="button"
-                    onMouseEnter={e => e.currentTarget.style.background = '#faf9f6'}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
                     <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{rank}</td>
                     <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a', whiteSpace: 'nowrap' }}>{p.name}</td>
                     <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team_on_date || p.team}</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#1a2e1a', fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#003594', fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.snapshot_elo).toLocaleString()}
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#c9920a', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#d4002a', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.peak_elo).toLocaleString()}
                     </td>
                     <td style={{ ...s.td, fontSize: 12, color: '#aaa' }}>{p.snapshot_date}</td>
@@ -321,7 +321,7 @@ export default function Historical({ players, onSelectPlayer }) {
                 <tr key={p.name + eraVal} style={s.row}
                   onClick={() => onSelectPlayer(p)}
                   tabIndex={0} onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)} role="button"
-                  onMouseEnter={e => e.currentTarget.style.background = '#faf9f6'}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
                   <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{rank}</td>

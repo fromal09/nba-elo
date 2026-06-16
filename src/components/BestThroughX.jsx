@@ -26,7 +26,7 @@ function PlayerSummary({ rank, row, color, gamesHeld }) {
       <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#bbb', marginBottom: 8 }}>
         {medal} #{rank} All-Time Through {row.n.toLocaleString()} Games
       </div>
-      <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 20, color: '#1a1a1a', marginBottom: 4 }}>
+      <div style={{ fontFamily: "'Georgia', serif", fontSize: 20, color: '#1a1a1a', marginBottom: 4 }}>
         {row.name}
       </div>
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 8 }}>
@@ -40,7 +40,7 @@ function PlayerSummary({ rank, row, color, gamesHeld }) {
         </div>
         <div>
           <div style={{ fontSize: 11, color: '#aaa' }}>Date</div>
-          <div style={{ fontSize: 14, color: '#555', fontFamily: "'DM Mono', monospace" }}>{fmt(row.date)}</div>
+          <div style={{ fontSize: 14, color: '#555', fontFamily: "'Consolas', 'Monaco', monospace" }}>{fmt(row.date)}</div>
         </div>
         <div>
           <div style={{ fontSize: 11, color: '#aaa' }}>Games held #1</div>
@@ -111,14 +111,14 @@ export default function BestThroughX({ players, onSelectPlayer }) {
   }
 
   const s = {
-    wrap:  { display:'flex', flex:1, flexDirection:'column', overflow:'hidden', background:'#f5f3ee', fontFamily:"'DM Sans', sans-serif" },
+    wrap:  { display:'flex', flex:1, flexDirection:'column', overflow:'hidden', background:'#f4f4f4', fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif" },
     top:   { padding:'20px 28px 0', flexShrink:0 },
-    title: { fontFamily:"'DM Serif Display', serif", fontSize:26, color:'#1a1a1a', marginBottom:4 },
+    title: { fontFamily:"'Georgia', serif", fontSize:26, color:'#1a1a1a', marginBottom:4 },
     desc:  { fontSize:13, color:'#888', marginBottom:20 },
     cards: { display:'flex', gap:16, marginBottom:20 },
     controls: { display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 28px 12px', flexShrink:0 },
     tableWrap: { flex:1, overflow:'auto' },
-    thead: { position:'sticky', top:0, zIndex:10, background:'#faf9f6', borderBottom:'0.5px solid #e0ddd6' },
+    thead: { position:'sticky', top:0, zIndex:10, background:'#f8f8f8', borderBottom:'0.5px solid #e0e0e0' },
     th:    { padding:'10px 20px', fontSize:10, fontWeight:600, color:'#aaa', textAlign:'left', letterSpacing:'0.8px', textTransform:'uppercase', whiteSpace:'nowrap' },
     thR:   { textAlign:'right' },
   }
@@ -134,7 +134,7 @@ export default function BestThroughX({ players, onSelectPlayer }) {
               key={row.name}
               rank={i+1}
               row={row}
-              color={TEAM_COLORS[row.team] || '#1a2e1a'}
+              color={TEAM_COLORS[row.team] || '#003594'}
               gamesHeld={row.gamesHeld}
             />
           ))}
@@ -146,7 +146,7 @@ export default function BestThroughX({ players, onSelectPlayer }) {
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <span style={{ fontSize:12, color:'#aaa' }}>Jump to game</span>
           <input
-            style={{ width:72, border:'0.5px solid #e0ddd6', borderRadius:6, padding:'6px 10px', fontSize:13, fontFamily:"'DM Mono', monospace", color:'#333', outline:'none' }}
+            style={{ width:72, border:'0.5px solid #e0e0e0', borderRadius:6, padding:'6px 10px', fontSize:13, fontFamily:"'Consolas', 'Monaco', monospace", color:'#333', outline:'none' }}
             type="number" value={jumpTo}
             onChange={e => setJumpTo(e.target.value)}
             onKeyDown={e => e.key==='Enter' && handleJump()}
@@ -154,7 +154,7 @@ export default function BestThroughX({ players, onSelectPlayer }) {
           />
           <button
             onClick={handleJump}
-            style={{ background:'#1a2e1a', color:'#fff', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, cursor:'pointer', fontFamily:"'DM Sans', sans-serif" }}
+            style={{ background:'#003594', color:'#fff', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, cursor:'pointer', fontFamily:"'Inter', 'Helvetica Neue', Arial, sans-serif" }}
           >Go</button>
         </div>
       </div>
@@ -177,27 +177,27 @@ export default function BestThroughX({ players, onSelectPlayer }) {
           </thead>
           <tbody>
             {rows.map(({ first, second, third }, i) => {
-              const color = TEAM_COLORS[first.team] || '#1a2e1a'
+              const color = TEAM_COLORS[first.team] || '#003594'
               const row = withMeta[i]
               return (
                 <tr
                   key={first.n}
                   data-row={first.n}
                   style={{
-                    borderBottom:'0.5px solid #f0ede8',
+                    borderBottom:'0.5px solid #f0f0f0',
                     background: row.isChange ? '#fff' : 'transparent',
                     borderLeft: row.isChange ? `3px solid ${color}` : '3px solid transparent',
                     cursor:'pointer',
                   }}
                   onClick={() => { const p = players.find(x=>x.name===first.name); if(p) onSelectPlayer(p) }}
-                  onMouseEnter={e => e.currentTarget.style.background='#faf9f6'}
+                  onMouseEnter={e => e.currentTarget.style.background='#f8f8f8'}
                   onMouseLeave={e => e.currentTarget.style.background=row.isChange?'#fff':'transparent'}
                 >
                   <td style={{ padding:'8px 20px', textAlign:'right', color:'#bbb', fontVariantNumeric:'tabular-nums' }}>{first.n.toLocaleString()}</td>
                   <td style={{ padding:'8px 20px', fontWeight:row.isChange?600:400 }}>{first.name}</td>
                   <td style={{ padding:'8px 20px', textAlign:'right', fontWeight:600, color, fontVariantNumeric:'tabular-nums' }}>{first.elo.toLocaleString()}</td>
                   <td style={{ padding:'8px 20px', fontSize:11, color:'#aaa' }}>{first.team}</td>
-                  <td style={{ padding:'8px 20px', textAlign:'right', fontSize:12, color:'#aaa', fontFamily:"'DM Mono', monospace" }}>{fmt(first.date)}</td>
+                  <td style={{ padding:'8px 20px', textAlign:'right', fontSize:12, color:'#aaa', fontFamily:"'Consolas', 'Monaco', monospace" }}>{fmt(first.date)}</td>
                   <td style={{ padding:'8px 20px', textAlign:'right', fontSize:12, color:'#bbb', fontVariantNumeric:'tabular-nums' }}>{row.streak}</td>
                   <td style={{ padding:'8px 20px', fontSize:12, color:'#999' }}>{second?.name || '—'}</td>
                   <td style={{ padding:'8px 20px', textAlign:'right', fontSize:12, color:'#bbb', fontVariantNumeric:'tabular-nums' }}>{second ? second.elo.toLocaleString() : '—'}</td>
