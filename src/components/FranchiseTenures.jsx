@@ -207,41 +207,38 @@ function ScatterPlot({ points, franchise, onHover, hoveredName, onSelectPlayer }
 export default function FranchiseTenures({ players, onSelectPlayer }) {
   const [franchise, setFranchise] = useState('LAL')
   const [hovered,   setHovered]   = useState(null)
-  const [league,    setLeague]    = useState('NBA')  // 'NBA' | 'ABA' | 'ALL'
+  const [league,    setLeague]    = useState('ALL')  // 'NBA' | 'ABA' | 'ALL' | null (franchise mode)
 
   const points = useMemo(() => {
-    if (league === 'ABA' || league === 'ALL') {
-      // Show all players across all franchises for this league
-      // Compute per-player stats across their whole career in that league
-      return players
-        .map(p => {
-          const hist = p.elo_history || []
-          const entries = hist.filter(e => {
-            const t = e[4] || ''
-            if (league === 'ABA') return ABA_TEAMS.has(t)
-            return true // ALL
-          })
-          if (entries.length < MIN_GP) return null
-          const gp = entries.length
-          const avgElo = Math.round(entries.reduce((s,e) => s+e[1], 0) / gp)
-          const peakElo = Math.round(Math.max(...entries.map(e=>e[1])))
-          const legendScore = Math.pow(avgElo, 0.40) * Math.pow(peakElo, 0.40) * Math.pow(gp, 0.20)
-          return { name: p.name, gp, avgElo, peakElo, legendScore, player: p }
-        })
-        .filter(Boolean)
-        .sort((a, b) => b.legendScore - a.legendScore)
-        .map((p, i) => ({ ...p, rank: i + 1 }))
+    const compute = (entries, p) => {
+      if (entries.length < MIN_GP) return null
+      const gp = entries.length
+      const avgElo = Math.round(entries.reduce((s,e) => s+e[1], 0) / gp)
+      const peakElo = Math.round(Math.max(...entries.map(e=>e[1])))
+      const legendScore = Math.pow(avgElo, 0.40) * Math.pow(peakElo, 0.40) * Math.pow(gp, 0.20)
+      return { name: p.name, gp, avgElo, peakElo, legendScore, player: p }
     }
-    // NBA mode: use franchise filter
-    return players
-      .map(p => {
-        const tenure = computeTenure(p, franchise, league)
+
+    return players.map(p => {
+      const hist = p.elo_history || []
+      if (franchise) {
+        // Franchise mode: show career with that franchise only
+        const tenure = computeTenure(p, franchise, 'ALL')
         if (!tenure) return null
         return { name: p.name, ...tenure, player: p }
+      }
+      // League mode
+      const entries = hist.filter(e => {
+        const t = e[4] || ''
+        if (league === 'ABA') return ABA_TEAMS.has(t)
+        if (league === 'NBA') return !ABA_TEAMS.has(t) && t !== ''
+        return t !== ''  // ALL
       })
-      .filter(Boolean)
-      .sort((a, b) => b.legendScore - a.legendScore)
-      .map((p, i) => ({ ...p, rank: i + 1 }))
+      return compute(entries, p)
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.legendScore - a.legendScore)
+    .map((p, i) => ({ ...p, rank: i + 1 }))
   }, [players, franchise, league])
 
   const franchiseName = FRANCHISE_NAMES[franchise]
@@ -258,8 +255,8 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
     sectionLbl:{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#bbb', marginBottom: 8 },
     teamGrid:  { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 },
     teamBtn:   (active) => ({
-      background: active ? teamColor : 'transparent',
-      border: `0.5px solid ${active ? teamColor : '#e0e0e0'}`,
+      background: active ? '#173657' : 'transparent',
+      border: `0.5px solid ${active ? '#173657' : '#e0e0e0'}`,
       borderRadius: 6, padding: '5px 4px',
       fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", fontSize: 11, fontWeight: active ? 600 : 400,
       color: active ? '#fff' : '#555', cursor: 'pointer', textAlign: 'center',
@@ -293,30 +290,30 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
           <div style={{ display: 'flex', gap: 4 }}>
             {['NBA', 'ABA', 'ALL'].map(l => (
               <button key={l}
-                onClick={() => { setLeague(l); setHovered(null) }}
+                onClick={() => { setLeague(l); setFranchise(null); setHovered(null) }}
                 style={{
-                  flex: 1, background: league === l ? '#173657' : 'transparent',
-                  border: `0.5px solid ${league === l ? '#173657' : '#e0e0e0'}`,
+                  flex: 1, background: !franchise && league === l ? '#173657' : 'transparent',
+                  border: `0.5px solid ${!franchise && league === l ? '#173657' : '#e0e0e0'}`,
                   borderRadius: 6, padding: '5px 0', fontSize: 11,
-                  fontWeight: league === l ? 700 : 400,
-                  color: league === l ? '#fff' : '#888',
+                  fontWeight: !franchise && league === l ? 700 : 400,
+                  color: !franchise && league === l ? '#fff' : '#888',
                   cursor: 'pointer', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
                 }}
               >{l === 'ALL' ? 'NBA+ABA' : l}</button>
             ))}
           </div>
         </div>
-        {league === 'NBA' && <div style={s.section}>
+        <div style={s.section}>
           <div style={s.sectionLbl}>Franchise</div>
           <div style={s.teamGrid}>
             {Object.keys(FRANCHISE_NAMES).map(abbr => (
               <button key={abbr} style={s.teamBtn(franchise === abbr)}
-                onClick={() => { setFranchise(abbr); setHovered(null) }}
+                onClick={() => { setFranchise(abbr); setLeague(null); setHovered(null) }}
                 title={FRANCHISE_NAMES[abbr]}
               >{abbr}</button>
             ))}
           </div>
-        </div>}
+        </div>
         <div style={{ padding: '12px 16px', fontSize: 11, color: '#aaa', lineHeight: 1.7 }}>
           Min {MIN_GP} GP to qualify. Click any dot to open player modal.
         </div>
@@ -325,7 +322,12 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
       <div style={s.main}>
         <div style={s.pageHeader}>
           <div>
-            <h1 style={s.pageTitle}>{league === 'ABA' ? 'ABA All-Time' : league === 'ALL' ? 'NBA + ABA All-Time' : franchiseName}</h1>
+            <h1 style={s.pageTitle}>
+              {franchise ? FRANCHISE_NAMES[franchise]
+                : league === 'ABA' ? 'ABA All-Time'
+                : league === 'NBA' ? 'NBA All-Time'
+                : 'NBA + ABA All-Time'}
+            </h1>
             <p style={s.pageDesc}>{points.length} players · min {MIN_GP} GP · sorted by Legend Score</p>
           </div>
           {hovered && (
