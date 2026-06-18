@@ -1,4 +1,15 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { useEffect as useEffectOnce } from 'react'
+
+// Load Three.js once
+let threeLoaded = false
+function loadThree() {
+  if (threeLoaded || typeof window === 'undefined') return
+  threeLoaded = true
+  const s = document.createElement('script')
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
+  document.head.appendChild(s)
+}
 
 const FRANCHISE_ALIASES = {
   ATL:['ATL','STL','TRI','BOM'],
@@ -206,9 +217,193 @@ function ScatterPlot({ points, franchise, onHover, hoveredName, onSelectPlayer }
   )
 }
 
+
+function Plot3D({ points }) {
+  const mountRef  = useRef(null)
+  const sceneRef  = useRef(null)
+  const rendRef   = useRef(null)
+  const camRef    = useRef(null)
+  const animRef   = useRef(null)
+  const dragRef   = useRef({ dragging: false, lastX: 0, lastY: 0, theta: 0.7, phi: 0.55, tTheta: 0.7, tPhi: 0.55 })
+  const spheresRef = useRef([])
+  const [tooltip,  setTooltip] = useState(null)
+
+  useEffect(() => {
+    if (!mountRef.current || !points.length) return
+    const el = mountRef.current
+    const W = el.clientWidth, H = Math.round(W * 0.58)
+
+    // Scene setup
+    const renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true })
+    renderer.setSize(W, H)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    el.appendChild(renderer.domElement)
+    rendRef.current = renderer
+
+    const scene = new window.THREE.Scene()
+    sceneRef.current = scene
+
+    const camera = new window.THREE.PerspectiveCamera(45, W / H, 0.1, 1000)
+    camRef.current = camera
+
+    // Global data ranges from all points
+    const gpMin  = Math.min(...points.map(p => p.gp)),   gpMax  = Math.max(...points.map(p => p.gp))
+    const avgMin = Math.min(...points.map(p => p.avgElo)),avgMax = Math.max(...points.map(p => p.avgElo))
+    const pkMin  = Math.min(...points.map(p => p.peakElo)),pkMax = Math.max(...points.map(p => p.peakElo))
+    const S = 8
+
+    const nx = v => (v - gpMin)  / (gpMax  - gpMin  || 1) * S - S/2
+    const ny = v => (v - avgMin) / (avgMax - avgMin || 1) * S - S/2
+    const nz = v => (v - pkMin)  / (pkMax  - pkMin  || 1) * S - S/2
+
+    // Color by legend score (normalized)
+    const lsMin = Math.min(...points.map(p => p.legendScore))
+    const lsMax = Math.max(...points.map(p => p.legendScore))
+    const color = ls => new window.THREE.Color().setHSL(0.65 - ((ls-lsMin)/(lsMax-lsMin||1))*0.65, 0.8, 0.42)
+
+    // Uniform sphere radius = 0.18 regardless of data count
+    const geo = new window.THREE.SphereGeometry(0.18, 12, 12)
+    const spheres = []
+    points.forEach(p => {
+      const mat  = new window.THREE.MeshPhongMaterial({ color: color(p.legendScore), shininess: 60 })
+      const mesh = new window.THREE.Mesh(geo, mat)
+      mesh.position.set(nx(p.gp), ny(p.avgElo), nz(p.peakElo))
+      mesh.userData = p
+      scene.add(mesh)
+      spheres.push(mesh)
+    })
+    spheresRef.current = spheres
+
+    // Axes
+    const axMat = col => new window.THREE.LineBasicMaterial({ color: col, opacity: 0.5, transparent: true })
+    const axLine = (from, to, col) => {
+      const g = new window.THREE.BufferGeometry().setFromPoints([new window.THREE.Vector3(...from), new window.THREE.Vector3(...to)])
+      return new window.THREE.Line(g, axMat(col))
+    }
+    scene.add(axLine([-S/2,  -S/2, -S/2], [S/2+1, -S/2, -S/2], 0x173657))  // X = GP
+    scene.add(axLine([-S/2,  -S/2, -S/2], [-S/2, S/2+1, -S/2], 0x1a7a5a))  // Y = avg Elo
+    scene.add(axLine([-S/2,  -S/2, -S/2], [-S/2, -S/2, S/2+1], 0x9a3a1a))  // Z = peak Elo
+
+    // Floor grid
+    const grid = new window.THREE.GridHelper(S, 8, 0x888888, 0xdddddd)
+    grid.material.opacity = 0.12; grid.material.transparent = true
+    grid.position.set(0, -S/2, 0)
+    scene.add(grid)
+
+    // Lights
+    scene.add(new window.THREE.AmbientLight(0xffffff, 0.65))
+    const dl = new window.THREE.DirectionalLight(0xffffff, 0.8)
+    dl.position.set(10, 20, 10); scene.add(dl)
+
+    // Camera update
+    const radius = 18
+    const d = dragRef.current
+    const updateCam = () => {
+      camera.position.set(
+        radius * Math.sin(d.phi) * Math.cos(d.theta),
+        radius * Math.cos(d.phi),
+        radius * Math.sin(d.phi) * Math.sin(d.theta)
+      )
+      camera.lookAt(0, 0, 0)
+    }
+    updateCam()
+
+    // Drag
+    const onDown = e => { d.dragging=true; d.lastX=e.clientX; d.lastY=e.clientY }
+    const onUp   = () => { d.dragging=false }
+    const onMove = e => {
+      if (!d.dragging) return
+      d.tTheta += (e.clientX - d.lastX) * 0.008
+      d.tPhi = Math.max(0.15, Math.min(Math.PI-0.15, d.tPhi + (e.clientY - d.lastY) * 0.008))
+      d.lastX=e.clientX; d.lastY=e.clientY
+    }
+    renderer.domElement.addEventListener('mousedown', onDown)
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('mousemove', onMove)
+
+    // Touch
+    const onTD = e => { d.dragging=true; d.lastX=e.touches[0].clientX; d.lastY=e.touches[0].clientY }
+    const onTM = e => {
+      if (!d.dragging) return
+      d.tTheta += (e.touches[0].clientX - d.lastX) * 0.008
+      d.tPhi = Math.max(0.15, Math.min(Math.PI-0.15, d.tPhi + (e.touches[0].clientY - d.lastY) * 0.008))
+      d.lastX=e.touches[0].clientX; d.lastY=e.touches[0].clientY
+    }
+    renderer.domElement.addEventListener('touchstart', onTD, { passive: true })
+    window.addEventListener('touchend', onUp)
+    window.addEventListener('touchmove', onTM, { passive: true })
+
+    // Hover
+    const raycaster = new window.THREE.Raycaster()
+    const mouse2    = new window.THREE.Vector2()
+    renderer.domElement.addEventListener('mousemove', e => {
+      const rect = renderer.domElement.getBoundingClientRect()
+      mouse2.x = ((e.clientX - rect.left) / rect.width)  * 2 - 1
+      mouse2.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1
+      raycaster.setFromCamera(mouse2, camera)
+      const hits = raycaster.intersectObjects(spheres)
+      if (hits.length > 0) {
+        const p = hits[0].object.userData
+        setTooltip({ x: e.clientX, y: e.clientY, p })
+      } else {
+        setTooltip(null)
+      }
+    })
+    renderer.domElement.addEventListener('mouseleave', () => setTooltip(null))
+
+    // Animate
+    const animate = () => {
+      animRef.current = requestAnimationFrame(animate)
+      d.theta += (d.tTheta - d.theta) * 0.06
+      d.phi   += (d.tPhi   - d.phi)   * 0.06
+      updateCam()
+      renderer.render(scene, camera)
+    }
+    animate()
+
+    return () => {
+      cancelAnimationFrame(animRef.current)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('touchend', onUp)
+      window.removeEventListener('touchmove', onTM)
+      renderer.dispose()
+      if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement)
+    }
+  }, [points])
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <div ref={mountRef} style={{ width: '100%', cursor: 'grab' }} />
+      <div style={{ display: 'flex', gap: 20, marginTop: 8, fontSize: 11, color: '#888' }}>
+        <span style={{ color: '#173657' }}>→ Games played</span>
+        <span style={{ color: '#1a7a5a' }}>↑ Avg Elo</span>
+        <span style={{ color: '#9a3a1a' }}>⊙ Peak Elo</span>
+        <span style={{ marginLeft: 'auto' }}>Color = Legend Score &nbsp;
+          <span style={{ background: 'linear-gradient(to right,#4a90c0,#c05a1a)', display:'inline-block', width:60, height:8, borderRadius:4, verticalAlign:'middle' }} />
+        </span>
+      </div>
+      {tooltip && (
+        <div style={{
+          position: 'fixed', left: tooltip.x + 12, top: tooltip.y - 30,
+          background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 8,
+          padding: '8px 12px', fontSize: 12, pointerEvents: 'none', zIndex: 999,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)', whiteSpace: 'nowrap',
+        }}>
+          <div style={{ fontWeight: 600 }}>{tooltip.p.name}</div>
+          <div style={{ color: '#888' }}>GP {tooltip.p.gp} · Avg {tooltip.p.avgElo} · Peak {tooltip.p.peakElo}</div>
+          <div style={{ color: '#173657' }}>Legend Score {Math.round(tooltip.p.legendScore).toLocaleString()}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function FranchiseTenures({ players, onSelectPlayer }) {
   const [franchise, setFranchise] = useState('LAL')
+  useEffect(() => { loadThree() }, [])
   const [hovered,   setHovered]   = useState(null)
+  const [view3d,    setView3d]    = useState(false)
   const [league,    setLeague]    = useState('ALL')  // 'NBA' | 'ABA' | 'ALL' | null (franchise mode)
 
   const points = useMemo(() => {
@@ -331,6 +526,20 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
                 : 'NBA + ABA All-Time'}
             </h1>
             <p style={s.pageDesc}>{points.length} players · min {MIN_GP} GP · sorted by Legend Score</p>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            {['scatter','3d'].map(v => (
+              <button key={v}
+                onClick={() => setView3d(v === '3d')}
+                style={{
+                  background: (view3d ? v==='3d' : v==='scatter') ? '#173657' : 'transparent',
+                  border: '0.5px solid #e0e0e0', borderRadius: 6, padding: '4px 12px',
+                  fontSize: 11, fontWeight: 500, cursor: 'pointer',
+                  color: (view3d ? v==='3d' : v==='scatter') ? '#fff' : '#888',
+                  fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+                }}
+              >{v === '3d' ? '3D Cube' : 'Scatter'}</button>
+            ))}
+          </div>
           </div>
           {hovered && (
             <div style={{ textAlign: 'right' }}>
@@ -347,13 +556,16 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
 
         <div style={s.body}>
           <div style={s.plotArea}>
-            <ScatterPlot
+            {view3d
+              ? <Plot3D points={points} />
+              : <ScatterPlot
               points={points}
               franchise={franchise}
               onHover={setHovered}
               hoveredName={hovered?.name}
               onSelectPlayer={p => onSelectPlayer(p.player)}
             />
+            }
           </div>
 
           <div style={s.rankPanel}>
