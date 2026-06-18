@@ -52,6 +52,48 @@ if not games:
     errors.append("games.json is empty")
 print(f"  {len(games):,} games, score range {min_score:.1f}–{max_score:.1f}")
 
+
+# Check Charlotte/New Orleans disambiguation
+print("Checking Charlotte/NO disambiguation...")
+cp = next((p for p in players if p["name"] == "Chris Paul"), None)
+kemba = next((p for p in players if "Kemba" in p["name"]), None)
+if cp:
+    cp_teams = set(e[4] for e in cp.get("elo_history",[]) if len(e)>4)
+    if "CHO" in cp_teams:
+        errors.append(f"Chris Paul has CHO entries — Charlotte remap broken")
+    else:
+        print(f"  Chris Paul teams OK: {cp_teams}")
+if kemba:
+    kemba_teams = set(e[4] for e in kemba.get("elo_history",[]) if len(e)>4)
+    if "NOP" in kemba_teams and "CHO" not in kemba_teams:
+        errors.append(f"Kemba Walker has NOP but not CHO — Charlotte remap broken")
+    else:
+        print(f"  Kemba Walker teams OK: {kemba_teams}")
+
+# Check fpr_rank is populated for eligible players
+rank1 = next((p for p in players if p.get("fpr_rank") == 1), None)
+if not rank1:
+    errors.append("No player has fpr_rank=1")
+else:
+    print(f"  FPR #1: {rank1['name']} ({rank1['current_elo']:.0f})")
+
+# Check no duplicate player names
+from collections import Counter
+name_counts = Counter(p["name"] for p in players)
+dupes = [n for n,c in name_counts.items() if c > 1]
+if dupes:
+    errors.append(f"Duplicate player names: {dupes}")
+else:
+    print(f"  No duplicate player names ✓")
+
+# Check known disambiguated players exist
+for expected in ["Larry Johnson (1991)", "Larry Johnson (1977)", 
+                 "Eddie Johnson (1977)", "Eddie Johnson (1981)",
+                 "Bobby Jones (1976)", "Bobby Jones (2006)"]:
+    if not any(p["name"] == expected for p in players):
+        errors.append(f"Missing expected player: {expected}")
+print(f"  Disambiguation spot-checks passed")
+
 if errors:
     print(f"\n❌ VALIDATION FAILED ({len(errors)} errors):")
     for e in errors:

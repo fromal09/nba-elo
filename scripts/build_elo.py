@@ -132,11 +132,213 @@ if _os.path.exists(_charlotte_csv):
     print(f"  Loaded {len(charlotte_keys)} Charlotte game-player keys")
 
 
+# ── Player name disambiguation ───────────────────────────────────────────────
+# Players sharing names disambiguated by rookie year + first team
+PLAYER_DISAMBIG = {
+    ('Bill Smith', '1961', 'NYK'): 'Bill Smith (1961)',
+    ('Bill Smith', '1971', 'POR'): 'Bill Smith (1971)',
+    ('Bob Duffy', '1946', 'BOS'): 'Bob Duffy (1946)',
+    ('Bob Duffy', '1962', 'DET'): 'Bob Duffy (1962)',
+    ('Bobby Jones', '1976', 'DEN'): 'Bobby Jones (1976)',
+    ('Bobby Jones', '2006', 'DEN'): 'Bobby Jones (2006)',
+    ('Brandon Williams', '1997', 'ATL'): 'Brandon Williams (1997)',
+    ('Brandon Williams', '2021', 'DAL'): 'Brandon Williams (2021)',
+    ('Cedric Henderson', '1986', 'ATL'): 'Cedric Henderson (1986)',
+    ('Cedric Henderson', '1997', 'CLE'): 'Cedric Henderson (1997)',
+    ('Charles Jones', '1983', 'CHI'): 'Charles Jones (1983)',
+    ('Charles Jones', '1984', 'PHO'): 'Charles Jones (1984)',
+    ('Charles Jones', '1998', 'CHI'): 'Charles Jones (1998)',
+    ('Charles Smith', '1988', 'LAC'): 'Charles Smith (1988)',
+    ('Charles Smith', '1989', 'BOS'): 'Charles Smith (1989)',
+    ('Charles Smith', '1997', 'DEN'): 'Charles Smith (1997)',
+    ('Chris Johnson', '2010', 'BOS'): 'Chris Johnson (2010)',
+    ('Chris Johnson', '2012', 'BOS'): 'Chris Johnson (2012)',
+    ('Chris Smith', '1992', 'MIN'): 'Chris Smith (1992)',
+    ('Chris Smith', '2013', 'NYK'): 'Chris Smith (2013)',
+    ('Chris Wright', '2011', 'GSW'): 'Chris Wright (2011)',
+    ('Chris Wright', '2012', 'DAL'): 'Chris Wright (2012)',
+    ('Dee Brown', '1990', 'BOS'): 'Dee Brown (1990)',
+    ('Dee Brown', '2006', 'PHO'): 'Dee Brown (2006)',
+    ('Don Smith', '1948', 'MNL'): 'Don Smith (1948)',
+    ('Don Smith', '1974', 'PHI'): 'Don Smith (1974)',
+    ('Freddie Lewis', '1948', 'BLB'): 'Freddie Lewis (1948)',
+    ('Freddie Lewis', '1966', 'CIN'): 'Freddie Lewis (1966)',
+    ('George Johnson', '1970', 'BAL'): 'George Johnson (1970)',
+    ('George Johnson', '1972', 'ATL'): 'George Johnson (1972)',
+    ('George Johnson', '1978', 'DEN'): 'George Johnson (1978)',
+    ('George King', '1951', 'CIN'): 'George King (1951)',
+    ('George King', '2018', 'DAL'): 'George King (2018)',
+    ('Gerald Henderson', '1979', 'BOS'): 'Gerald Henderson (1979)',
+    ('Gerald Henderson', '2009', 'CHA'): 'Gerald Henderson (2009)',
+    ('Greg Smith', '1968', 'HOU'): 'Greg Smith (1968)',
+    ('Greg Smith', '2011', 'DAL'): 'Greg Smith (2011)',
+    ('Jack Turner', '1954', 'NYK'): 'Jack Turner (1954)',
+    ('Jack Turner', '1961', 'CHP'): 'Jack Turner (1961)',
+    ('Jeff Taylor', '1982', 'DET'): 'Jeff Taylor (1982)',
+    ('Jeff Taylor', '2012', 'CHA'): 'Jeff Taylor (2012)',
+    ('Jim Paxson', '1956', 'CIN'): 'Jim Paxson (1956)',
+    ('Jim Paxson', '1979', 'BOS'): 'Jim Paxson (1979)',
+    ('Johnny Davis', '1976', 'ATL'): 'Johnny Davis (1976)',
+    ('Johnny Davis', '2022', 'WAS'): 'Johnny Davis (2022)',
+    ('Ken Johnson', '1985', 'POR'): 'Ken Johnson (1985)',
+    ('Ken Johnson', '2002', 'MIA'): 'Ken Johnson (2002)',
+    ('Luke Jackson', '1964', 'PHI'): 'Luke Jackson (1964)',
+    ('Luke Jackson', '2004', 'CLE'): 'Luke Jackson (2004)',
+    ('Marcus Williams', '2006', 'GSW'): 'Marcus Williams (2006)',
+    ('Marcus Williams', '2007', 'LAC'): 'Marcus Williams (2007)',
+    ('Mark Davis', '1988', 'MIL'): 'Mark Davis (1988)',
+    ('Mark Davis', '1995', 'GSW'): 'Mark Davis (1995)',
+    ('Mark Jones', '1983', 'NJN'): 'Mark Jones (1983)',
+    ('Mark Jones', '2004', 'ORL'): 'Mark Jones (2004)',
+    ('Matt Guokas', '1946', 'PHW'): 'Matt Guokas (1946)',
+    ('Matt Guokas', '1966', 'BUF'): 'Matt Guokas (1966)',
+    ('Michael Smith', '1989', 'BOS'): 'Michael Smith (1989)',
+    ('Michael Smith', '1994', 'SAC'): 'Michael Smith (1994)',
+    ('Mike Davis', '1969', 'BAL'): 'Mike Davis (1969)',
+    ('Mike Davis', '1982', 'NYK'): 'Mike Davis (1982)',
+    ('Mike Dunleavy', '1976', 'HOU'): 'Mike Dunleavy (1976)',
+    ('Mike Dunleavy', '2002', 'ATL'): 'Mike Dunleavy (2002)',
+    ('Mike James', '2001', 'BOS'): 'Mike James (2001)',
+    ('Mike James', '2017', 'BRK'): 'Mike James (2017)',
+    ('Nate Williams', '1971', 'CIN'): 'Nate Williams (1971)',
+    ('Nate Williams', '2022', 'GSW'): 'Nate Williams (2022)',
+    ('Patrick Ewing', '1985', 'NYK'): 'Patrick Ewing (1985)',
+    ('Patrick Ewing', '2010', 'NOH'): 'Patrick Ewing (2010)',
+    ('Reggie Williams', '1987', 'CLE'): 'Reggie Williams (1987)',
+    ('Reggie Williams', '2009', 'CHA'): 'Reggie Williams (2009)',
+    ('Sam Williams', '1968', 'MIL'): 'Sam Williams (1968)',
+    ('Sam Williams', '1981', 'GSW'): 'Sam Williams (1981)',
+    ('Tony Mitchell', '2013', 'DET'): 'Tony Mitchell (DET)',
+    ('Tony Mitchell', '2013', 'MIL'): 'Tony Mitchell (MIL)',
+    ('Walker Russell', '1982', 'ATL'): 'Walker Russell (1982)',
+    ('Walker Russell', '2011', 'DET'): 'Walker Russell (2011)',
+}
+_DISAMBIG_NAMES = set(k[0] for k in PLAYER_DISAMBIG)
+_player_first_seen = {}  # name -> (first_year, first_team)
+
 def build_elo(df):
     if "Unnamed: 6" in df.columns:
         df.rename(columns={"Unnamed: 6": "home_away"}, inplace=True)
 
     df["GmSc"] = pd.to_numeric(df["GmSc"], errors="coerce")
+
+    # ── CSV-level player name disambiguation ────────────────────────────────
+    # Eddie Johnson (two separate players with same name)
+    mask_eja = (df["Player"] == "Eddie Johnson") & (df["Team"].isin(["SAC","KCK","PHX","PHO","OKC","IND","HOU","SEA","CHH"]))
+    mask_ejl = (df["Player"] == "Eddie Johnson") & (df["Team"].isin(["ATL","CLE"]))
+    df.loc[mask_eja, "Player"] = "Eddie Johnson (1981)"
+    df.loc[mask_ejl, "Player"] = "Eddie Johnson (1977)"
+    # Larry Johnson (1977 LAC vs 1991 CHH/NYK)
+    mask_lj77 = (df["Player"] == "Larry Johnson") & (df["Team"] == "LAC")
+    mask_lj91 = (df["Player"] == "Larry Johnson") & (df["Team"].isin(["CHA","CHH","CHO","NYK"]))
+    df.loc[mask_lj77, "Player"] = "Larry Johnson (1977)"
+    df.loc[mask_lj91, "Player"] = "Larry Johnson (1991)"
+
+    # ── Additional player name disambiguation (year-based splits) ────────────
+    _yr = pd.to_numeric(df["Date"].astype(str).str[:4], errors="coerce").fillna(0).astype(int)
+    _p  = df["Player"]
+
+    # Bobby Jones: 1976-1986 DEN/PHI vs 2006-2008 modern
+    df.loc[(_p=="Bobby Jones") & (_yr <= 1986), "Player"] = "Bobby Jones (1976)"
+    df.loc[(_p=="Bobby Jones") & (_yr >= 2006), "Player"] = "Bobby Jones (2006)"
+
+    # Brandon Williams: 1997-2003 ATL/GSW/SAS vs 2021+ DAL/POR
+    df.loc[(_p=="Brandon Williams") & (_yr <= 2003), "Player"] = "Brandon Williams (1997)"
+    df.loc[(_p=="Brandon Williams") & (_yr >= 2021), "Player"] = "Brandon Williams (2021)"
+
+    # Charles Jones: three players - use team splits
+    df.loc[(_p=="Charles Jones") & (df["Team"].isin(["CHI","DET","HOU","PHI","WSB","WAS"])) & (_yr <= 1998), "Player"] = "Charles Jones (1983)"
+    df.loc[(_p=="Charles Jones") & (df["Team"].isin(["PHX","POR"])), "Player"] = "Charles Jones (1984)"
+    df.loc[(_p=="Charles Jones") & (_yr >= 1998), "Player"] = "Charles Jones (1998)"
+
+    # Charles Smith: LAC/NYK/SAS vs BOS/MIN vs DEN/MIA/POR
+    df.loc[(_p=="Charles Smith") & (df["Team"].isin(["LAC","NYK","SAS"])), "Player"] = "Charles Smith (1988)"
+    df.loc[(_p=="Charles Smith") & (df["Team"].isin(["BOS","MIN"])), "Player"] = "Charles Smith (1989)"
+    df.loc[(_p=="Charles Smith") & (df["Team"].isin(["DEN","MIA","POR"])), "Player"] = "Charles Smith (1997)"
+
+    # Chris Johnson: 2010-2012 BOS/MIN/NOH/POR vs 2012+ BOS/MEM/MIL/PHI/UTA
+    df.loc[(_p=="Chris Johnson") & (_yr <= 2012) & (df["Team"].isin(["BOS","MIN","NOH","POR"])), "Player"] = "Chris Johnson (2010)"
+    df.loc[(_p=="Chris Johnson") & (_yr >= 2013), "Player"] = "Chris Johnson (2012)"
+    df.loc[(_p=="Chris Johnson") & (_yr == 2012) & (df["Team"].isin(["MEM","MIL","PHI","UTA"])), "Player"] = "Chris Johnson (2012)"
+
+    # Chris Smith: 1992 MIN vs 2013 NYK
+    df.loc[(_p=="Chris Smith") & (_yr <= 1995), "Player"] = "Chris Smith (1992)"
+    df.loc[(_p=="Chris Smith") & (_yr >= 2013), "Player"] = "Chris Smith (2013)"
+
+    # Chris Wright: GSW/MIL vs DAL
+    df.loc[(_p=="Chris Wright") & (df["Team"].isin(["GSW","MIL"])), "Player"] = "Chris Wright (2011)"
+    df.loc[(_p=="Chris Wright") & (df["Team"] == "DAL"), "Player"] = "Chris Wright (2012)"
+
+    # Dee Brown: 1990-2001 BOS/ORL/TOR vs 2006-2008 PHX/UTA/WAS
+    df.loc[(_p=="Dee Brown") & (_yr <= 2002), "Player"] = "Dee Brown (1990)"
+    df.loc[(_p=="Dee Brown") & (_yr >= 2006), "Player"] = "Dee Brown (2006)"
+
+    # George Johnson: three players by year
+    df.loc[(_p=="George Johnson") & (df["Team"].isin(["BAL","HOU","DLC"])) & (_yr <= 1974), "Player"] = "George Johnson (1970)"
+    df.loc[(_p=="George Johnson") & (_yr >= 1972) & (df["Team"].isin(["ATL","BUF","GSW","NJN","SAS","SEA","BKN","OKC","NOP","NOH","LAC"])), "Player"] = "George Johnson (1972)"
+    df.loc[(_p=="George Johnson") & (df["Team"].isin(["DEN","IND","MIL","PHI","WSB","WAS","LAC","BUF"])), "Player"] = "George Johnson (1978)"
+
+    # Gerald Henderson: 1979-1992 BOS/DET/HOU/MIL/NYK/PHI/SEA vs 2009+ CHA/POR/PHI
+    df.loc[(_p=="Gerald Henderson") & (_yr <= 1992), "Player"] = "Gerald Henderson (1979)"
+    df.loc[(_p=="Gerald Henderson") & (_yr >= 2009), "Player"] = "Gerald Henderson (2009)"
+
+    # Greg Smith: 1968-1976 HOU/MIL/POR vs 2011+ DAL/HOU/MIN
+    df.loc[(_p=="Greg Smith") & (_yr <= 1977), "Player"] = "Greg Smith (1968)"
+    df.loc[(_p=="Greg Smith") & (_yr >= 2011), "Player"] = "Greg Smith (2011)"
+
+    # Jeff Taylor: 1982-1987 DET/HOU vs 2012+ CHA/CHO
+    df.loc[(_p=="Jeff Taylor") & (_yr <= 1987), "Player"] = "Jeff Taylor (1982)"
+    df.loc[(_p=="Jeff Taylor") & (_yr >= 2012), "Player"] = "Jeff Taylor (2012)"
+
+    # Jim Paxson: 1956-1958 CIN/MNL vs 1979-1990 BOS/POR
+    df.loc[(_p=="Jim Paxson") & (_yr <= 1959), "Player"] = "Jim Paxson (1956)"
+    df.loc[(_p=="Jim Paxson") & (_yr >= 1979), "Player"] = "Jim Paxson (1979)"
+
+    # Johnny Davis: 1976-1986 ATL/CLE/IND/POR vs 2022+ WAS
+    df.loc[(_p=="Johnny Davis") & (_yr <= 1987), "Player"] = "Johnny Davis (1976)"
+    df.loc[(_p=="Johnny Davis") & (_yr >= 2022), "Player"] = "Johnny Davis (2022)"
+
+    # Marcus Williams: 2006-2007 GSW/MEM/NJN vs 2007-2010 LAC/SAS
+    df.loc[(_p=="Marcus Williams") & (df["Team"].isin(["GSW","MEM","NJN"])), "Player"] = "Marcus Williams (2006)"
+    df.loc[(_p=="Marcus Williams") & (df["Team"].isin(["LAC","SAS"])), "Player"] = "Marcus Williams (2007)"
+
+    # Mark Davis: 1988-1990 MIL/PHX vs 1995-2000 GSW/MIA/MIN/PHI
+    df.loc[(_p=="Mark Davis") & (_yr <= 1991), "Player"] = "Mark Davis (1988)"
+    df.loc[(_p=="Mark Davis") & (_yr >= 1995), "Player"] = "Mark Davis (1995)"
+
+    # Mike Davis: 1969-1972 BAL/BUF vs 1982-1983 NYK
+    df.loc[(_p=="Mike Davis") & (_yr <= 1973), "Player"] = "Mike Davis (1969)"
+    df.loc[(_p=="Mike Davis") & (_yr >= 1982), "Player"] = "Mike Davis (1982)"
+
+    # Mike Dunleavy: 1976-1990 PHI/HOU/SAS/MIL vs 2002+ GSW/IND/MIL/CHI/ATL
+    df.loc[(_p=="Mike Dunleavy") & (_yr <= 1990), "Player"] = "Mike Dunleavy (1976)"
+    df.loc[(_p=="Mike Dunleavy") & (_yr >= 2002), "Player"] = "Mike Dunleavy (2002)"
+
+    # Mike James: 2001-2014 vs 2017+
+    df.loc[(_p=="Mike James") & (_yr <= 2014), "Player"] = "Mike James (2001)"
+    df.loc[(_p=="Mike James") & (_yr >= 2017), "Player"] = "Mike James (2017)"
+
+    # Nate Williams: 1971-1977 CIN/GSW/KCO/NOJ vs 2022+ GSW/HOU/POR
+    df.loc[(_p=="Nate Williams") & (_yr <= 1977), "Player"] = "Nate Williams (1971)"
+    df.loc[(_p=="Nate Williams") & (_yr >= 2022), "Player"] = "Nate Williams (2022)"
+
+    # Patrick Ewing: 1985-2002 NYK/ORL/SEA vs 2010-2011 NOH
+    df.loc[(_p=="Patrick Ewing") & (_yr <= 2002), "Player"] = "Patrick Ewing (1985)"
+    df.loc[(_p=="Patrick Ewing") & (_yr >= 2010), "Player"] = "Patrick Ewing (2010)"
+
+    # Reggie Williams: 1987-1997 LAC/CLE/DEN/NJN vs 2009+ GSW/CHA/OKC/SAS/NOP
+    df.loc[(_p=="Reggie Williams") & (_yr <= 1997), "Player"] = "Reggie Williams (1987)"
+    df.loc[(_p=="Reggie Williams") & (_yr >= 2009), "Player"] = "Reggie Williams (2009)"
+
+    # Sam Williams: only one in data (MIL 1968-1970), other (GSW/PHI 1981) may not exist
+    df.loc[(_p=="Sam Williams") & (_yr <= 1970), "Player"] = "Sam Williams (1968)"
+    df.loc[(_p=="Sam Williams") & (_yr >= 1981), "Player"] = "Sam Williams (1981)"
+
+    # Walker Russell: 1982-1986 ATL/DET/IND vs 2011-2012 DET
+    df.loc[(_p=="Walker Russell") & (_yr <= 1986), "Player"] = "Walker Russell (1982)"
+    df.loc[(_p=="Walker Russell") & (_yr >= 2011), "Player"] = "Walker Russell (2011)"
+
+
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     df["MP"]   = pd.to_numeric(df["MP"],   errors="coerce")
 
@@ -487,7 +689,22 @@ if __name__ == "__main__":
     print(f"  {len(df)} raw rows")
     print("Running Elo pipeline…")
     output = build_elo(df)
+
+    # ── Disambiguate duplicate player names using elo_history ────────────────
+    for _p in output["players"]:
+        _n = _p["name"]
+        if _n not in _DISAMBIG_NAMES: continue
+        _hist = _p.get("elo_history", [])
+        if not _hist: continue
+        _yr = _hist[0][0][:4]
+        _tm = _hist[0][4] if len(_hist[0]) > 4 else _p.get("team", "")
+        _new = PLAYER_DISAMBIG.get((_n, _yr, _tm))
+        if _new and _new != _n:
+            _p["name"] = _new
+    print(f"  Disambiguated duplicate player names")
+
     print(f"  {output['total_players']} players · {output['total_games']} games")
+
 
     # Assign fpr_rank — rank among eligible players only, sorted by current Elo
     eligible_sorted = sorted(
