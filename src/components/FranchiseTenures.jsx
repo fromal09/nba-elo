@@ -395,8 +395,14 @@ function Plot3D({ points }) {
   // Recolor on view change
   const setView = (v) => {
     const d = dragRef.current
-    d.tTheta = { iso:.7, 'gp-avg':Math.PI/2, 'gp-peak':0, 'avg-peak':Math.PI }[v]
-    d.tPhi   = v === 'iso' ? .55 : Math.PI/2
+    // Camera angles: theta rotates horizontally, phi rotates vertically
+    // Looking along Z → theta=0, phi=pi/2 (front face: X vs Y)
+    // Looking along Y → theta=0, phi=0    (top face: X vs Z)
+    // Looking along X → theta=pi/2, phi=pi/2 (side face: Y vs Z)
+    const thetaMap = { iso:.7, 'gp-avg':0, 'gp-peak':0, 'avg-peak':Math.PI/2 }
+    const phiMap   = { iso:.55,'gp-avg':Math.PI/2, 'gp-peak':0.01, 'avg-peak':Math.PI/2 }
+    d.tTheta = thetaMap[v]
+    d.tPhi   = phiMap[v]
     const { spheres, lsMin, lsMax, gpMin, gpMax, avgMin, avgMax, pkMin, pkMax, lerpCol } = stateRef.current
     if (!spheres) return
     spheres.forEach(s => {
