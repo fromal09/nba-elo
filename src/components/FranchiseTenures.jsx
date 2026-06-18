@@ -53,12 +53,25 @@ const TEAM_COLORS = {
   POR:'#E03A3E',SAC:'#5A2D81',SAS:'#000000',TOR:'#CE1141',UTA:'#002B5C',WAS:'#002B5C',
 }
 
+
+const ABA_TEAMS = new Set([
+  'ANA','AND','CAP','CAR','DAL','DEN','DNR','FLO','HOU','IND',
+  'KEN','LAS','MEM','MIA','MIN','NOB','NJA','NNY','NVA','NYN',
+  'OAK','PIT','SAA','SDC','TEX','UTA','VIR',
+])
+
 const MIN_GP = 50
 
-function computeTenure(player, franchise) {
+function computeTenure(player, franchise, league = "NBA") {
   const aliases = FRANCHISE_ALIASES[franchise] || [franchise]
   const hist = player.elo_history || []
-  const entries = hist.filter(e => aliases.includes(e[4] || ''))
+  const entries = hist.filter(e => {
+    const t = e[4] || ''
+    if (!aliases.includes(t)) return false
+    if (league === 'NBA') return !ABA_TEAMS.has(t)
+    if (league === 'ABA') return ABA_TEAMS.has(t)
+    return true  // ALL
+  })
   if (entries.length < MIN_GP) return null
   const gp = entries.length
   const avgElo = entries.reduce((s, e) => s + e[1], 0) / gp
@@ -194,18 +207,19 @@ function ScatterPlot({ points, franchise, onHover, hoveredName, onSelectPlayer }
 export default function FranchiseTenures({ players, onSelectPlayer }) {
   const [franchise, setFranchise] = useState('LAL')
   const [hovered,   setHovered]   = useState(null)
+  const [league,    setLeague]    = useState('NBA')  // 'NBA' | 'ABA' | 'ALL'
 
   const points = useMemo(() => {
     return players
       .map(p => {
-        const tenure = computeTenure(p, franchise)
+        const tenure = computeTenure(p, franchise, league)
         if (!tenure) return null
         return { name: p.name, ...tenure, player: p }
       })
       .filter(Boolean)
       .sort((a, b) => b.legendScore - a.legendScore)
       .map((p, i) => ({ ...p, rank: i + 1 }))
-  }, [players, franchise])
+  }, [players, franchise, league])
 
   const franchiseName = FRANCHISE_NAMES[franchise]
   const teamColor = TEAM_COLORS[franchise] || '#173657'
@@ -252,6 +266,24 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
           <div style={s.sideDesc}>Avg Elo vs games played for each franchise. Top-right = Legends.</div>
         </div>
         <div style={s.section}>
+          <div style={s.sectionLbl}>League</div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {['NBA', 'ABA', 'ALL'].map(l => (
+              <button key={l}
+                onClick={() => { setLeague(l); setHovered(null) }}
+                style={{
+                  flex: 1, background: league === l ? '#173657' : 'transparent',
+                  border: `0.5px solid ${league === l ? '#173657' : '#e0e0e0'}`,
+                  borderRadius: 6, padding: '5px 0', fontSize: 11,
+                  fontWeight: league === l ? 700 : 400,
+                  color: league === l ? '#fff' : '#888',
+                  cursor: 'pointer', fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif",
+                }}
+              >{l === 'ALL' ? 'NBA+ABA' : l}</button>
+            ))}
+          </div>
+        </div>
+        <div style={s.section}>
           <div style={s.sectionLbl}>Franchise</div>
           <div style={s.teamGrid}>
             {Object.keys(FRANCHISE_NAMES).map(abbr => (
@@ -271,7 +303,7 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
         <div style={s.pageHeader}>
           <div>
             <h1 style={s.pageTitle}>{franchiseName}</h1>
-            <p style={s.pageDesc}>{points.length} players · min {MIN_GP} GP · sorted by Legend Score</p>
+            <p style={s.pageDesc}>{points.length} players · min {MIN_GP} GP · {league === 'ALL' ? 'NBA + ABA' : league} · sorted by Legend Score</p>
           </div>
           {hovered && (
             <div style={{ textAlign: 'right' }}>
