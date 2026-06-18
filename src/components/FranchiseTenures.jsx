@@ -210,6 +210,29 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
   const [league,    setLeague]    = useState('NBA')  // 'NBA' | 'ABA' | 'ALL'
 
   const points = useMemo(() => {
+    if (league === 'ABA' || league === 'ALL') {
+      // Show all players across all franchises for this league
+      // Compute per-player stats across their whole career in that league
+      return players
+        .map(p => {
+          const hist = p.elo_history || []
+          const entries = hist.filter(e => {
+            const t = e[4] || ''
+            if (league === 'ABA') return ABA_TEAMS.has(t)
+            return true // ALL
+          })
+          if (entries.length < MIN_GP) return null
+          const gp = entries.length
+          const avgElo = Math.round(entries.reduce((s,e) => s+e[1], 0) / gp)
+          const peakElo = Math.round(Math.max(...entries.map(e=>e[1])))
+          const legendScore = Math.pow(avgElo, 0.40) * Math.pow(peakElo, 0.40) * Math.pow(gp, 0.20)
+          return { name: p.name, gp, avgElo, peakElo, legendScore, player: p }
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.legendScore - a.legendScore)
+        .map((p, i) => ({ ...p, rank: i + 1 }))
+    }
+    // NBA mode: use franchise filter
     return players
       .map(p => {
         const tenure = computeTenure(p, franchise, league)
@@ -283,7 +306,7 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
             ))}
           </div>
         </div>
-        <div style={s.section}>
+        {league === 'NBA' && <div style={s.section}>
           <div style={s.sectionLbl}>Franchise</div>
           <div style={s.teamGrid}>
             {Object.keys(FRANCHISE_NAMES).map(abbr => (
@@ -293,7 +316,7 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
               >{abbr}</button>
             ))}
           </div>
-        </div>
+        </div>}
         <div style={{ padding: '12px 16px', fontSize: 11, color: '#aaa', lineHeight: 1.7 }}>
           Min {MIN_GP} GP to qualify. Click any dot to open player modal.
         </div>
@@ -302,8 +325,8 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
       <div style={s.main}>
         <div style={s.pageHeader}>
           <div>
-            <h1 style={s.pageTitle}>{franchiseName}</h1>
-            <p style={s.pageDesc}>{points.length} players · min {MIN_GP} GP · {league === 'ALL' ? 'NBA + ABA' : league} · sorted by Legend Score</p>
+            <h1 style={s.pageTitle}>{league === 'ABA' ? 'ABA All-Time' : league === 'ALL' ? 'NBA + ABA All-Time' : franchiseName}</h1>
+            <p style={s.pageDesc}>{points.length} players · min {MIN_GP} GP · sorted by Legend Score</p>
           </div>
           {hovered && (
             <div style={{ textAlign: 'right' }}>
