@@ -981,7 +981,7 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
   const [franchise, setFranchise] = useState('LAL')
   useEffect(() => { loadThree(); loadD3() }, [])
   const [hovered,   setHovered]   = useState(null)
-  const [view3d,    setView3d]    = useState(false)
+  const [vizMode,    setVizMode]   = useState('scatter')
   const [league,    setLeague]    = useState('ALL')  // 'NBA' | 'ABA' | 'ALL' | null (franchise mode)
 
   const points = useMemo(() => {
