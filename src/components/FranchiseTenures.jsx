@@ -395,12 +395,13 @@ function Plot3D({ points }) {
   // Recolor on view change
   const setView = (v) => {
     const d = dragRef.current
-    // Camera angles: theta rotates horizontally, phi rotates vertically
-    // Looking along Z → theta=0, phi=pi/2 (front face: X vs Y)
-    // Looking along Y → theta=0, phi=0    (top face: X vs Z)
-    // Looking along X → theta=pi/2, phi=pi/2 (side face: Y vs Z)
-    const thetaMap = { iso:.7, 'gp-avg':0, 'gp-peak':0, 'avg-peak':Math.PI/2 }
-    const phiMap   = { iso:.55,'gp-avg':Math.PI/2, 'gp-peak':0.01, 'avg-peak':Math.PI/2 }
+    // Look directly along the hidden axis so it collapses and the two visible axes spread out
+    // Axes: X=GP (right), Y=Avg Elo (up), Z=Peak Elo (into scene from origin corner)
+    // GP×Avg:   hide Z → look from +Z toward origin → theta=-π/2, phi=π/2
+    // GP×Peak:  hide Y → look from +Y down → theta=anything, phi≈0
+    // Avg×Peak: hide X → look from -X toward origin → theta=π, phi=π/2
+    const thetaMap = { iso:.7, 'gp-avg':-Math.PI/2, 'gp-peak':-.7, 'avg-peak':Math.PI }
+    const phiMap   = { iso:.55, 'gp-avg':Math.PI/2,  'gp-peak':0.02, 'avg-peak':Math.PI/2 }
     d.tTheta = thetaMap[v]
     d.tPhi   = phiMap[v]
     const { spheres, lsMin, lsMax, gpMin, gpMax, avgMin, avgMax, pkMin, pkMax, lerpCol } = stateRef.current
