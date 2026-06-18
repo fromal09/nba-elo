@@ -120,6 +120,18 @@ def parse_csv(paths):
     return df
 
 
+import csv as _csv
+_charlotte_csv = _os.path.join(_os.path.dirname(__file__), '..', 'data', 'charlotte.csv')
+charlotte_keys = set()
+if _os.path.exists(_charlotte_csv):
+    with open(_charlotte_csv) as _f:
+        for row in _csv.DictReader(_f):
+            p, d = row.get('Player','').strip(), row.get('Date','').strip()
+            if p and d:
+                charlotte_keys.add((p, d))
+    print(f"  Loaded {len(charlotte_keys)} Charlotte game-player keys")
+
+
 def build_elo(df):
     if "Unnamed: 6" in df.columns:
         df.rename(columns={"Unnamed: 6": "home_away"}, inplace=True)
@@ -232,9 +244,11 @@ def build_elo(df):
             opp_map[p]     = str(prow["Opp"]).strip() if "Opp" in group.columns and str(prow.get("Opp","")).strip() not in ("","nan") else str(prow["Team"])
             result_str     = str(prow.get("Result","")).strip()
             won_map[p]     = result_str.startswith("W") if result_str else None
-            if team_map.get(p) == "CHO":
-                if (p, date_str) not in charlotte_keys:
-                    team_map[p] = "NOH"
+            # Charlotte disambiguation using franchise CSV
+            if (p, date_str) in charlotte_keys:
+                team_map[p] = "CHO"  # confirmed Charlotte
+            elif team_map.get(p) == "CHO":
+                team_map[p] = "NOH"  # CHO in BDL but not Charlotte = New Orleans
             last_played[p] = date_str
 
         deltas = defaultdict(float)
