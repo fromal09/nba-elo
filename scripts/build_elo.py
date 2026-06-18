@@ -224,7 +224,7 @@ def build_elo(df):
 
     # ── CSV-level player name disambiguation ────────────────────────────────
     # Eddie Johnson (two separate players with same name)
-    mask_eja = (df["Player"] == "Eddie Johnson") & (df["Team"].isin(["SAC","KCK","PHX","PHO","OKC","IND","HOU","SEA","CHH"]))
+    mask_eja = (df["Player"] == "Eddie Johnson") & (df["Team"].isin(["SAC","KCK","PHX","PHO","OKC","IND","HOU","SEA","CHH","CHA"]))
     mask_ejl = (df["Player"] == "Eddie Johnson") & (df["Team"].isin(["ATL","CLE"]))
     df.loc[mask_eja, "Player"] = "Eddie Johnson (1981)"
     df.loc[mask_ejl, "Player"] = "Eddie Johnson (1977)"
@@ -703,6 +703,51 @@ if __name__ == "__main__":
             _p["name"] = _new
     print(f"  Disambiguated duplicate player names")
 
+    # ── Clean suffixes: dominant player (higher peak Elo) gets clean name ────
+    from collections import defaultdict
+    base_groups = defaultdict(list)
+    for _p2 in output["players"]:
+        # Extract base name (strip parenthetical suffix)
+        import re as _re
+        _base = _re.sub(r' \(\d{4}\)$', '', _p2["name"])
+        _base = _re.sub(r' \([A-Z]{2,3}\)$', '', _base)
+        if _base != _p2["name"]:  # has a suffix
+            base_groups[_base].append(_p2)
+
+    for _base, _variants in base_groups.items():
+        # Find ALL players with this base name (suffixed + clean)
+        # Store original names for suffix recovery
+        for _p2 in output["players"]:
+            if "_orig_name" not in _p2:
+                _p2["_orig_name"] = _p2["name"]
+        _all = [_p2 for _p2 in output["players"]
+                if _p2["name"] == _base or
+                _re.sub(r' \(\d{4}\)$', '', _re.sub(r' \([A-Z]{2,3}\)$', '', _p2["name"])) == _base]
+        if len(_all) < 2:
+            continue
+        # Best player gets clean name, others keep/get suffix
+        _best = max(_all, key=lambda x: (x.get("peak_elo", 0), x.get("games_played", 0)))
+        for _v in _all:
+            if _v is _best:
+                if _v["name"] != _base:
+                    print(f"  Renaming {_v['name']} -> {_base} (peak {_v['peak_elo']:.0f})")
+                    _v["name"] = _base
+            else:
+                # Ensure non-best has a suffix if it currently has the clean name
+                if _v["name"] == _base:
+                    # Give it a year suffix from first elo_history entry
+                    _vh = _v.get("elo_history", [])
+                    # Use suffix stored before renaming, else first hist year
+                    _orig_suffix = _re.search(r'\((\d{4}|[A-Z]{2,3})\)', _v.get("_orig_name", _v["name"]))
+                    if _orig_suffix:
+                        _vsuffix = _orig_suffix.group(1)
+                    elif _vh:
+                        _vsuffix = _vh[0][0][:4]
+                    else:
+                        _vsuffix = "?"
+                    _v["name"] = f"{_base} ({_vsuffix})"
+                    print(f"  Adding suffix: {_v['name']} (peak {_v['peak_elo']:.0f})")
+
     print(f"  {output['total_players']} players · {output['total_games']} games")
 
 
@@ -714,6 +759,10 @@ if __name__ == "__main__":
     fpr_rank_map = {p["name"]: i + 1 for i, p in enumerate(eligible_sorted)}
     for p in output["players"]:
         p["fpr_rank"] = fpr_rank_map.get(p["name"])
+
+    # Strip internal tracking fields before output
+    for _p3 in output["players"]:
+        _p3.pop("_orig_name", None)
 
     out_path = Path("public/data/elo.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
