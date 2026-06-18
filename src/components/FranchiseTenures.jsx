@@ -55,10 +55,12 @@ const TEAM_COLORS = {
 
 
 const ABA_TEAMS = new Set([
-  'ANA','AND','CAP','CAR','DAL','DEN','DNR','FLO','HOU','IND',
-  'KEN','LAS','MEM','MIA','MIN','NOB','NJA','NNY','NVA','NYN',
-  'OAK','PIT','SAA','SDC','TEX','UTA','VIR',
+  'ANA','CAR','DLC','FLO','HSM','KEN','LAS',
+  'MMP','MMS','MMT','MNM','MNP','PTC','PTP',
+  'SSL','TEX','VIR',
+  // Dallas Chaparrals became SAS, so DLC is ABA-only
 ])
+// ABA ran 1967-68 through 1975-76
 
 const MIN_GP = 50
 
@@ -230,7 +232,7 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
       // League mode
       const entries = hist.filter(e => {
         const t = e[4] || ''
-        if (league === 'ABA') return ABA_TEAMS.has(t)
+        if (league === 'ABA') return ABA_TEAMS.has(t) && e[0] >= '1967-01-01' && e[0] <= '1977-01-01'
         if (league === 'NBA') return !ABA_TEAMS.has(t) && t !== ''
         return t !== ''  // ALL
       })
