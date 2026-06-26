@@ -22,6 +22,8 @@ Pass multiple CSVs to concatenate. Output: public/data/elo.json + spaghetti.json
 import sys, json, io, os as _os
 from pathlib import Path
 from datetime import date
+import math
+import math
 from collections import defaultdict
 
 sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
@@ -215,6 +217,8 @@ PLAYER_DISAMBIG = {
 }
 _DISAMBIG_NAMES = set(k[0] for k in PLAYER_DISAMBIG)
 _player_first_seen = {}  # name -> (first_year, first_team)
+
+USE_MARGIN = True  # experimental: scale K by GmSc differential
 
 def build_elo(df):
     if "Unnamed: 6" in df.columns:
@@ -462,6 +466,15 @@ def build_elo(df):
                 ga, gb = gmsc[a], gmsc[b]
                 act_a  = 1.0 if ga > gb else (0.5 if ga == gb else 0.0)
                 k_eff  = k_factor(games_played[a]) / (n ** 0.5)
+                if USE_MARGIN:
+                    # Scale by log of GmSc differential — diminishing returns on dominance
+                    # Clip at 0 to avoid negative differentials amplifying losses
+                    diff = max(0.0, ga - gb) if ga > gb else max(0.0, gb - ga)
+                    # Normalize: typical GmSc range ~0-40, ln(41) ~ 3.7
+                    margin_factor = math.log1p(diff) / math.log1p(20)
+                    # Cap at 2.0x, floor at 0.5x — don't let margin dominate
+                    margin_factor = max(0.5, min(2.0, margin_factor))
+                    k_eff *= margin_factor
                 deltas[a] += k_eff * (act_a - exp_a)
 
         for p in players:
@@ -704,7 +717,6 @@ if __name__ == "__main__":
     print(f"  Disambiguated duplicate player names")
 
     # ── Clean suffixes: dominant player (higher peak Elo) gets clean name ────
-    from collections import defaultdict
     base_groups = defaultdict(list)
     for _p2 in output["players"]:
         # Extract base name (strip parenthetical suffix)
@@ -778,7 +790,6 @@ if __name__ == "__main__":
     print(f"  Written {spag_path} ({spag_path.stat().st_size/1024:.0f} KB)")
     # ── Build games.json ─────────────────────────────────────────────────────
     print("  Building games index...")
-    from collections import defaultdict
     # Build lookup: player name -> list of elo_history entries
     player_hist = {p["name"]: p["elo_history"] for p in output["players"]}
 

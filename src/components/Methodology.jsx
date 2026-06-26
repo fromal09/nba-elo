@@ -33,13 +33,21 @@ A 20-point Game Score represents an excellent performance. 30+ is exceptional. N
     title: 'The Rating Update Formula',
     body: `For each game, every player's expected win probability against every other player is calculated using their pre-game ratings:
 
-E(i vs j) = 1 / (1 + 10^((Rⱼ − Rᵢ) / 650))
+E(i vs j) = 1 / (1 + 10^((Rⱼ − Rᵢ) / 620))
 
-The D parameter of 650 (versus the standard chess value of 400) widens the probability curve, allowing ratings to spread further before hitting diminishing returns. This calibration was chosen to produce a top all-time peak near 3,100 — analogous to Magnus Carlsen's chess peak of 2,882 relative to the broader distribution.
+The D parameter of 620 (versus the standard chess value of 400) widens the probability curve, allowing ratings to spread further before hitting diminishing returns. This calibration was chosen to produce a top all-time peak near 3,100 — analogous to Magnus Carlsen's chess peak of 2,882 relative to the broader distribution.
 
-The actual result is binary: 1 if player i's Game Score exceeded player j's, 0.5 if equal, 0 otherwise. The total rating change is:
+The actual result is directional: 1 if player i's Game Score exceeded player j's, 0.5 if equal, 0 otherwise. However, the effective K-factor is also scaled by the margin of that GmSc matchup — a decisive victory carries more information than a narrow one.
 
-ΔRᵢ = Σ K_eff × (actual − expected) for all opponents j`,
+The margin factor uses a logarithmic dampener to produce diminishing returns on dominance:
+
+margin_factor = ln(|GmSc_i − GmSc_j| + 1) / ln(21)
+
+This factor is bounded between 0.5× and 2.0× the base K, meaning a close win still earns credit but a 20-point GmSc blowout earns twice as much. Critically, because both players are competing in the same game under identical conditions, the differential is self-normalizing — era and pace differences that affect absolute GmSc values cancel out in the comparison.
+
+The total rating change is:
+
+ΔRᵢ = Σ (K_eff × margin_factor) × (actual − expected) for all opponents j`,
   },
   {
     title: 'Game-Size Normalization',
