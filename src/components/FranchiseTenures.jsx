@@ -220,144 +220,166 @@ function ScatterPlot({ points, franchise, onHover, hoveredName, onSelectPlayer }
 
 function Plot3D({ points }) {
   const mountRef  = useRef(null)
-  const sceneRef  = useRef(null)
-  const rendRef   = useRef(null)
-  const camRef    = useRef(null)
   const animRef   = useRef(null)
-  const dragRef   = useRef({ dragging: false, lastX: 0, lastY: 0, theta: 0.7, phi: 0.55, tTheta: 0.7, tPhi: 0.55 })
-  const spheresRef = useRef([])
+  const dragRef   = useRef({ dragging:false, lx:0, ly:0, theta:.7, phi:.55, tTheta:.7, tPhi:.55 })
+  const stateRef  = useRef({ spheres:[], scene:null, camera:null, renderer:null })
   const [tooltip,  setTooltip] = useState(null)
+  const [curView,  setCurView] = useState('iso')
+
+  const VIEWS = {
+    iso:     { t:.7,          p:.55 },
+    'gp-avg':  { t:Math.PI/2,   p:Math.PI/2 },
+    'gp-peak': { t:0,           p:Math.PI/2 },
+    'avg-peak':{ t:Math.PI,     p:Math.PI/2 },
+  }
+  const CLABEL = {
+    iso:'Legend Score',
+    'gp-avg':'Peak Elo (Z)',
+    'gp-peak':'Avg Elo (Y)',
+    'avg-peak':'Games Played (X)',
+  }
 
   useEffect(() => {
-    if (!mountRef.current || !points.length) return
+    if (!mountRef.current || !points.length || !window.THREE) return
+    const THREE = window.THREE
     const el = mountRef.current
-    const W = el.clientWidth, H = Math.round(W * 0.58)
+    const W = el.clientWidth || 600, H = Math.round(W * .60)
 
-    // Scene setup
-    const renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true })
-    renderer.setSize(W, H)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true })
+    renderer.setSize(W, H); renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+    renderer.setClearColor(0, 0)
     el.appendChild(renderer.domElement)
-    rendRef.current = renderer
 
-    const scene = new window.THREE.Scene()
-    sceneRef.current = scene
+    const scene  = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(42, W/H, .1, 1000)
 
-    const camera = new window.THREE.PerspectiveCamera(45, W / H, 0.1, 1000)
-    camRef.current = camera
+    const gpMin  = Math.min(...points.map(p=>p.gp)),   gpMax  = Math.max(...points.map(p=>p.gp))
+    const avgMin = Math.min(...points.map(p=>p.avgElo)),avgMax = Math.max(...points.map(p=>p.avgElo))
+    const pkMin  = Math.min(...points.map(p=>p.peakElo)),pkMax = Math.max(...points.map(p=>p.peakElo))
+    const lsMin  = Math.min(...points.map(p=>p.legendScore)),lsMax = Math.max(...points.map(p=>p.legendScore))
 
-    // Global data ranges from all points
-    const gpMin  = Math.min(...points.map(p => p.gp)),   gpMax  = Math.max(...points.map(p => p.gp))
-    const avgMin = Math.min(...points.map(p => p.avgElo)),avgMax = Math.max(...points.map(p => p.avgElo))
-    const pkMin  = Math.min(...points.map(p => p.peakElo)),pkMax = Math.max(...points.map(p => p.peakElo))
-    const S = 8
+    const S=8, o=-S/2
+    const nx = v => (v-gpMin)/(gpMax-gpMin||1)*S+o
+    const ny = v => (v-avgMin)/(avgMax-avgMin||1)*S+o
+    const nz = v => (v-pkMin)/(pkMax-pkMin||1)*S+o
+    const lerpCol = t => new THREE.Color().setHSL(.62-t*.58,.82,.44)
 
-    const nx = v => (v - gpMin)  / (gpMax  - gpMin  || 1) * S - S/2
-    const ny = v => (v - avgMin) / (avgMax - avgMin || 1) * S - S/2
-    const nz = v => (v - pkMin)  / (pkMax  - pkMin  || 1) * S - S/2
+    // Wireframe cube
+    const corners=[[o,o,o],[S+o,o,o],[S+o,S+o,o],[o,S+o,o],[o,o,S+o],[S+o,o,S+o],[S+o,S+o,S+o],[o,S+o,S+o]]
+    const edges=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]
+    const ePts=[]; edges.forEach(([a,b])=>{ePts.push(new THREE.Vector3(...corners[a]),new THREE.Vector3(...corners[b]))})
+    scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(ePts),new THREE.LineBasicMaterial({color:0xaaaaaa,opacity:.2,transparent:true})))
 
-    // Color by legend score (normalized)
-    const lsMin = Math.min(...points.map(p => p.legendScore))
-    const lsMax = Math.max(...points.map(p => p.legendScore))
-    const color = ls => new window.THREE.Color().setHSL(0.65 - ((ls-lsMin)/(lsMax-lsMin||1))*0.65, 0.8, 0.42)
+    // Bold tube axes
+    const boldAxis = (from, to, col) => {
+      const path = new THREE.LineCurve3(new THREE.Vector3(...from), new THREE.Vector3(...to))
+      return new THREE.Mesh(new THREE.TubeGeometry(path,1,.05,8,false), new THREE.MeshBasicMaterial({color:col}))
+    }
+    scene.add(boldAxis([o,o,o],[S+o+.3,o,o],0x173657))
+    scene.add(boldAxis([o,o,o],[o,S+o+.3,o],0x1a8050))
+    scene.add(boldAxis([o,o,o],[o,o,S+o+.3],0xb04020))
 
-    // Uniform sphere radius = 0.18 regardless of data count
-    const geo = new window.THREE.SphereGeometry(0.18, 12, 12)
+    // Arrow cones
+    const cone = (pos, rot, col) => {
+      const m = new THREE.Mesh(new THREE.ConeGeometry(.16,.5,10), new THREE.MeshBasicMaterial({color:col}))
+      m.position.set(...pos); m.rotation.set(...rot); return m
+    }
+    scene.add(cone([S+o+.55,o,o],[0,0,-Math.PI/2],0x173657))
+    scene.add(cone([o,S+o+.55,o],[0,0,0],0x1a8050))
+    scene.add(cone([o,o,S+o+.55],[Math.PI/2,0,0],0xb04020))
+
+    // Tick marks
+    const tick = (pos, rot, col) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.4,6), new THREE.MeshBasicMaterial({color:col,opacity:.6,transparent:true}))
+      m.position.set(...pos); m.rotation.set(...rot); return m
+    }
+    ;[0,S/2,S].forEach(x => scene.add(tick([o+x,o,o],[0,0,Math.PI/2],0x173657)))
+    ;[0,S/2,S].forEach(y => scene.add(tick([o,o+y,o],[0,0,0],0x1a8050)))
+    ;[0,S/2,S].forEach(z => scene.add(tick([o,o,o+z],[Math.PI/2,0,0],0xb04020)))
+
+    // Sprite labels
+    const spriteLabel = (text, col, size=22, w=200, h=50) => {
+      const c = document.createElement('canvas'); c.width=w; c.height=h
+      const cx = c.getContext('2d'); cx.clearRect(0,0,w,h)
+      cx.font = `bold ${size}px Inter,Arial,sans-serif`
+      cx.fillStyle=col; cx.textAlign='center'; cx.textBaseline='middle'
+      cx.fillText(text,w/2,h/2)
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true}))
+      sp.scale.set(w/40,h/40,1); return sp
+    }
+
+    // Axis name labels
+    const la=spriteLabel('Games Played','#173657',26,300,60); la.position.set(S+o+2.4,o-.7,o); scene.add(la)
+    const lb=spriteLabel('Avg Elo','#1a8050',26,200,60);       lb.position.set(o-1.9,S+o+1.2,o); scene.add(lb)
+    const lc=spriteLabel('Peak Elo','#b04020',26,200,60);      lc.position.set(o-1.1,o-.7,S+o+1.6); scene.add(lc)
+
+    // Tick values
+    const tv = (val, pos, col) => { const sp=spriteLabel(Math.round(val).toLocaleString(),col,18,160,42); sp.position.set(...pos); scene.add(sp) }
+    tv(gpMin,  [o,    o-.8,o-.5],'#173657'); tv((gpMin+gpMax)/2,[0,o-.8,o-.5],'#173657'); tv(gpMax,  [S+o,  o-.8,o-.5],'#173657')
+    tv(avgMin, [o-1., o,   o-.5],'#1a8050'); tv((avgMin+avgMax)/2,[o-1.,0,o-.5],'#1a8050'); tv(avgMax, [o-1., S+o, o-.5],'#1a8050')
+    tv(pkMin,  [o-1., o-.5,o  ],'#b04020'); tv((pkMin+pkMax)/2,[o-1.,o-.5,0],'#b04020'); tv(pkMax,  [o-1., o-.5,S+o],'#b04020')
+
+    // Spheres
+    const sGeo = new THREE.SphereGeometry(.22,16,16)
     const spheres = []
     points.forEach(p => {
-      const mat  = new window.THREE.MeshPhongMaterial({ color: color(p.legendScore), shininess: 60 })
-      const mesh = new window.THREE.Mesh(geo, mat)
-      mesh.position.set(nx(p.gp), ny(p.avgElo), nz(p.peakElo))
-      mesh.userData = p
-      scene.add(mesh)
-      spheres.push(mesh)
+      const t = (p.legendScore-lsMin)/(lsMax-lsMin||1)
+      const mat = new THREE.MeshPhongMaterial({color:lerpCol(t),shininess:70})
+      const m = new THREE.Mesh(sGeo, mat)
+      m.position.set(nx(p.gp), ny(p.avgElo), nz(p.peakElo))
+      m.userData = p; scene.add(m); spheres.push(m)
     })
-    spheresRef.current = spheres
-
-    // Axes
-    const axMat = col => new window.THREE.LineBasicMaterial({ color: col, opacity: 0.5, transparent: true })
-    const axLine = (from, to, col) => {
-      const g = new window.THREE.BufferGeometry().setFromPoints([new window.THREE.Vector3(...from), new window.THREE.Vector3(...to)])
-      return new window.THREE.Line(g, axMat(col))
-    }
-    scene.add(axLine([-S/2,  -S/2, -S/2], [S/2+1, -S/2, -S/2], 0x173657))  // X = GP
-    scene.add(axLine([-S/2,  -S/2, -S/2], [-S/2, S/2+1, -S/2], 0x1a7a5a))  // Y = avg Elo
-    scene.add(axLine([-S/2,  -S/2, -S/2], [-S/2, -S/2, S/2+1], 0x9a3a1a))  // Z = peak Elo
-
-    // Floor grid
-    const grid = new window.THREE.GridHelper(S, 8, 0x888888, 0xdddddd)
-    grid.material.opacity = 0.12; grid.material.transparent = true
-    grid.position.set(0, -S/2, 0)
-    scene.add(grid)
 
     // Lights
-    scene.add(new window.THREE.AmbientLight(0xffffff, 0.65))
-    const dl = new window.THREE.DirectionalLight(0xffffff, 0.8)
-    dl.position.set(10, 20, 10); scene.add(dl)
+    scene.add(new THREE.AmbientLight(0xffffff,.7))
+    const dl=new THREE.DirectionalLight(0xffffff,.8); dl.position.set(10,20,10); scene.add(dl)
+    const dl2=new THREE.DirectionalLight(0xffffff,.25); dl2.position.set(-8,-5,-10); scene.add(dl2)
 
-    // Camera update
-    const radius = 18
-    const d = dragRef.current
+    stateRef.current = { spheres, scene, camera, renderer, lerpCol, lsMin, lsMax, gpMin, gpMax, avgMin, avgMax, pkMin, pkMax }
+
+    // Camera
+    const d = dragRef.current, r=21
     const updateCam = () => {
-      camera.position.set(
-        radius * Math.sin(d.phi) * Math.cos(d.theta),
-        radius * Math.cos(d.phi),
-        radius * Math.sin(d.phi) * Math.sin(d.theta)
-      )
-      camera.lookAt(0, 0, 0)
+      camera.position.set(r*Math.sin(d.phi)*Math.cos(d.theta), r*Math.cos(d.phi), r*Math.sin(d.phi)*Math.sin(d.theta))
+      camera.lookAt(0,0,0)
     }
     updateCam()
 
-    // Drag
-    const onDown = e => { d.dragging=true; d.lastX=e.clientX; d.lastY=e.clientY }
-    const onUp   = () => { d.dragging=false }
+    // Drag events
+    const onDown = e => { d.dragging=true; d.lx=e.clientX; d.ly=e.clientY; renderer.domElement.style.cursor='grabbing' }
+    const onUp   = () => { d.dragging=false; renderer.domElement.style.cursor='grab' }
     const onMove = e => {
       if (!d.dragging) return
-      d.tTheta += (e.clientX - d.lastX) * 0.008
-      d.tPhi = Math.max(0.15, Math.min(Math.PI-0.15, d.tPhi + (e.clientY - d.lastY) * 0.008))
-      d.lastX=e.clientX; d.lastY=e.clientY
+      d.tTheta += (e.clientX-d.lx)*.008
+      d.tPhi = Math.max(.08, Math.min(Math.PI-.08, d.tPhi+(e.clientY-d.ly)*.008))
+      d.lx=e.clientX; d.ly=e.clientY
     }
     renderer.domElement.addEventListener('mousedown', onDown)
     window.addEventListener('mouseup', onUp)
     window.addEventListener('mousemove', onMove)
-
-    // Touch
-    const onTD = e => { d.dragging=true; d.lastX=e.touches[0].clientX; d.lastY=e.touches[0].clientY }
-    const onTM = e => {
-      if (!d.dragging) return
-      d.tTheta += (e.touches[0].clientX - d.lastX) * 0.008
-      d.tPhi = Math.max(0.15, Math.min(Math.PI-0.15, d.tPhi + (e.touches[0].clientY - d.lastY) * 0.008))
-      d.lastX=e.touches[0].clientX; d.lastY=e.touches[0].clientY
-    }
-    renderer.domElement.addEventListener('touchstart', onTD, { passive: true })
+    renderer.domElement.addEventListener('touchstart', e=>{d.dragging=true;d.lx=e.touches[0].clientX;d.ly=e.touches[0].clientY},{passive:true})
     window.addEventListener('touchend', onUp)
-    window.addEventListener('touchmove', onTM, { passive: true })
+    window.addEventListener('touchmove', e=>{if(!d.dragging)return;d.tTheta+=(e.touches[0].clientX-d.lx)*.008;d.tPhi=Math.max(.08,Math.min(Math.PI-.08,d.tPhi+(e.touches[0].clientY-d.ly)*.008));d.lx=e.touches[0].clientX;d.ly=e.touches[0].clientY},{passive:true})
 
     // Hover
-    const raycaster = new window.THREE.Raycaster()
-    const mouse2    = new window.THREE.Vector2()
+    const ray=new THREE.Raycaster(), mouse=new THREE.Vector2()
     renderer.domElement.addEventListener('mousemove', e => {
-      const rect = renderer.domElement.getBoundingClientRect()
-      mouse2.x = ((e.clientX - rect.left) / rect.width)  * 2 - 1
-      mouse2.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1
-      raycaster.setFromCamera(mouse2, camera)
-      const hits = raycaster.intersectObjects(spheres)
-      if (hits.length > 0) {
-        const p = hits[0].object.userData
-        setTooltip({ x: e.clientX, y: e.clientY, p })
-      } else {
-        setTooltip(null)
-      }
+      const rect=renderer.domElement.getBoundingClientRect()
+      mouse.x=((e.clientX-rect.left)/rect.width)*2-1
+      mouse.y=-((e.clientY-rect.top)/rect.height)*2+1
+      ray.setFromCamera(mouse, camera)
+      const hits=ray.intersectObjects(spheres)
+      if (hits.length) setTooltip({x:e.clientX,y:e.clientY,p:hits[0].object.userData})
+      else setTooltip(null)
     })
-    renderer.domElement.addEventListener('mouseleave', () => setTooltip(null))
+    renderer.domElement.addEventListener('mouseleave', ()=>setTooltip(null))
 
     // Animate
     const animate = () => {
       animRef.current = requestAnimationFrame(animate)
-      d.theta += (d.tTheta - d.theta) * 0.06
-      d.phi   += (d.tPhi   - d.phi)   * 0.06
-      updateCam()
-      renderer.render(scene, camera)
+      d.theta += (d.tTheta-d.theta)*.06
+      d.phi   += (d.tPhi  -d.phi  )*.06
+      updateCam(); renderer.render(scene, camera)
     }
     animate()
 
@@ -365,39 +387,67 @@ function Plot3D({ points }) {
       cancelAnimationFrame(animRef.current)
       window.removeEventListener('mouseup', onUp)
       window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('touchend', onUp)
-      window.removeEventListener('touchmove', onTM)
       renderer.dispose()
       if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement)
     }
   }, [points])
 
+  // Recolor on view change
+  const setView = (v) => {
+    const d = dragRef.current
+    d.tTheta = { iso:.7, 'gp-avg':Math.PI/2, 'gp-peak':0, 'avg-peak':Math.PI }[v]
+    d.tPhi   = v === 'iso' ? .55 : Math.PI/2
+    const { spheres, lsMin, lsMax, gpMin, gpMax, avgMin, avgMax, pkMin, pkMax, lerpCol } = stateRef.current
+    if (!spheres) return
+    spheres.forEach(s => {
+      const p = s.userData
+      const t = v==='gp-avg'   ? (p.peakElo -pkMin) /(pkMax -pkMin ||1)
+              : v==='gp-peak'  ? (p.avgElo  -avgMin)/(avgMax-avgMin||1)
+              : v==='avg-peak' ? (p.gp      -gpMin) /(gpMax -gpMin ||1)
+              :                  (p.legendScore-lsMin)/(lsMax-lsMin||1)
+      s.material.color = lerpCol(t)
+    })
+    setCurView(v)
+  }
+
+  const btnStyle = (v) => ({
+    fontSize:11, padding:'4px 12px',
+    border:'0.5px solid #e0e0e0', borderRadius:6, cursor:'pointer',
+    background: curView===v ? '#173657' : 'transparent',
+    color: curView===v ? '#fff' : '#888',
+    fontFamily:"'Inter','Helvetica Neue',Arial,sans-serif",
+  })
+
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
-      <div ref={mountRef} style={{ width: '100%', cursor: 'grab' }} />
-      <div style={{ display: 'flex', gap: 20, marginTop: 8, fontSize: 11, color: '#888' }}>
-        <span style={{ color: '#173657' }}>→ Games played</span>
-        <span style={{ color: '#1a7a5a' }}>↑ Avg Elo</span>
-        <span style={{ color: '#9a3a1a' }}>⊙ Peak Elo</span>
-        <span style={{ marginLeft: 'auto' }}>Color = Legend Score &nbsp;
-          <span style={{ background: 'linear-gradient(to right,#4a90c0,#c05a1a)', display:'inline-block', width:60, height:8, borderRadius:4, verticalAlign:'middle' }} />
+    <div style={{width:'100%'}}>
+      <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap',alignItems:'center'}}>
+        <span style={{fontSize:11,color:'#aaa',marginRight:4}}>View:</span>
+        {[['iso','All 3 axes'],['gp-avg','GP × Avg Elo'],['gp-peak','GP × Peak Elo'],['avg-peak','Avg × Peak Elo']].map(([v,label])=>(
+          <button key={v} style={btnStyle(v)} onClick={()=>setView(v)}>{label}</button>
+        ))}
+        <span style={{fontSize:11,color:'#aaa',marginLeft:4}}>Drag to rotate</span>
+      </div>
+      <div ref={mountRef} style={{width:'100%',cursor:'grab',borderRadius:8,border:'0.5px solid #e0e0e0',overflow:'hidden'}} />
+      <div style={{display:'flex',gap:20,marginTop:8,fontSize:11,color:'#888',flexWrap:'wrap',alignItems:'center'}}>
+        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{display:'inline-block',width:24,height:3,background:'#173657',borderRadius:2}}/><strong style={{color:'#173657'}}>X</strong> Games played</span>
+        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{display:'inline-block',width:24,height:3,background:'#1a8050',borderRadius:2}}/><strong style={{color:'#1a8050'}}>Y</strong> Avg Elo</span>
+        <span style={{display:'flex',alignItems:'center',gap:5}}><span style={{display:'inline-block',width:24,height:3,background:'#b04020',borderRadius:2}}/><strong style={{color:'#b04020'}}>Z</strong> Peak Elo</span>
+        <span style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#aaa'}}>
+          Color = {CLABEL[curView]}
+          <span style={{display:'inline-block',width:60,height:8,borderRadius:4,background:'linear-gradient(to right,#4488cc,#cc5522)'}}/>
         </span>
       </div>
       {tooltip && (
-        <div style={{
-          position: 'fixed', left: tooltip.x + 12, top: tooltip.y - 30,
-          background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 8,
-          padding: '8px 12px', fontSize: 12, pointerEvents: 'none', zIndex: 999,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)', whiteSpace: 'nowrap',
-        }}>
-          <div style={{ fontWeight: 600 }}>{tooltip.p.name}</div>
-          <div style={{ color: '#888' }}>GP {tooltip.p.gp} · Avg {tooltip.p.avgElo} · Peak {tooltip.p.peakElo}</div>
-          <div style={{ color: '#173657' }}>Legend Score {Math.round(tooltip.p.legendScore).toLocaleString()}</div>
+        <div style={{position:'fixed',left:tooltip.x+14,top:tooltip.y-44,background:'#fff',border:'0.5px solid #e0e0e0',borderRadius:8,padding:'8px 12px',fontSize:12,pointerEvents:'none',zIndex:999,boxShadow:'0 2px 8px rgba(0,0,0,.12)',whiteSpace:'nowrap'}}>
+          <div style={{fontWeight:600,marginBottom:2}}>{tooltip.p.name}</div>
+          <div style={{color:'#888'}}>GP {tooltip.p.gp} · Avg {tooltip.p.avgElo} · Peak {tooltip.p.peakElo}</div>
+          <div style={{color:'#173657',fontWeight:500}}>Legend Score {Math.round(tooltip.p.legendScore).toLocaleString()}</div>
         </div>
       )}
     </div>
   )
 }
+
 
 export default function FranchiseTenures({ players, onSelectPlayer }) {
   const [franchise, setFranchise] = useState(null)
