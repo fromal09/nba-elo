@@ -797,10 +797,13 @@ if __name__ == "__main__":
     # Each elo_history entry: [date, elo, opp, won, team]
     game_map = defaultdict(lambda: defaultdict(list))  # date -> frozenset(teamA,teamB) -> [entries]
     for p in output["players"]:
-        for e in p["elo_history"]:
+        hist = p["elo_history"]
+        for i, e in enumerate(hist):
             if len(e) >= 5 and e[2] and e[4]:
                 key = frozenset([e[4], e[2]])  # team vs opp
-                game_map[e[0]][key].append({"name": p["name"], "elo": round(e[1], 1), "team": e[4], "won": e[3]})
+                # Use Elo BEFORE this game (prior entry), not after
+                elo_before = round(hist[i-1][1], 1) if i > 0 else round(e[1], 1)
+                game_map[e[0]][key].append({"name": p["name"], "elo": elo_before, "team": e[4], "won": e[3]})
 
     # Normalize Elo range for 0-100 score
     ELO_MIN, ELO_MAX = 1400, 3100
