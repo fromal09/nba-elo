@@ -795,6 +795,18 @@ if __name__ == "__main__":
 
     # Group all game entries by (date, team) to reconstruct games
     # Each elo_history entry: [date, elo, opp, won, team]
+    # Build MP lookup: player -> date -> minutes
+    mp_hist = defaultdict(dict)
+    for _, row in df.iterrows():
+        pname = row.get("Player", "")
+        date  = str(row.get("Date", ""))[:10]
+        mp    = row.get("MP", None)
+        if pname and date and mp is not None:
+            try:
+                mp_hist[pname][date] = int(float(str(mp).split(":")[0])) if mp == mp else None
+            except (ValueError, TypeError):
+                mp_hist[pname][date] = None
+
     game_map = defaultdict(lambda: defaultdict(list))  # date -> frozenset(teamA,teamB) -> [entries]
     for p in output["players"]:
         hist = p["elo_history"]
@@ -803,7 +815,8 @@ if __name__ == "__main__":
                 key = frozenset([e[4], e[2]])  # team vs opp
                 # Use Elo BEFORE this game (prior entry), not after
                 elo_before = round(hist[i-1][1], 1) if i > 0 else round(e[1], 1)
-                game_map[e[0]][key].append({"name": p["name"], "elo": elo_before, "team": e[4], "won": e[3]})
+                mp_val = mp_hist.get(p["name"], {}).get(e[0], None)
+                game_map[e[0]][key].append({"name": p["name"], "elo": elo_before, "team": e[4], "won": e[3], "mp": mp_val})
 
     # Normalize Elo range for 0-100 score
     ELO_MIN, ELO_MAX = 1400, 3100
@@ -820,9 +833,18 @@ if __name__ == "__main__":
             pA = [p for p in players if p["team"] == teamA]
             pB = [p for p in players if p["team"] == teamB]
             if not pA or not pB: continue
-            avgA = sum(p["elo"] for p in pA) / len(pA)
-            avgB = sum(p["elo"] for p in pB) / len(pB)
-            overall = (avgA * len(pA) + avgB * len(pB)) / (len(pA) + len(pB))
+            # Weighted by minutes if available, else unweighted
+            mpA = [p.get("mp") for p in pA]
+            mpB = [p.get("mp") for p in pB]
+            if all(m is not None for m in mpA) and sum(mpA) > 0:
+                avgA = sum(p["elo"]*p["mp"] for p in pA) / sum(mpA)
+            else:
+                avgA = sum(p["elo"] for p in pA) / len(pA)
+            if all(m is not None for m in mpB) and sum(mpB) > 0:
+                avgB = sum(p["elo"]*p["mp"] for p in pB) / sum(mpB)
+            else:
+                avgB = sum(p["elo"] for p in pB) / len(pB)
+            overall = (avgA + avgB) / 2
             # Sort players by elo desc, keep top 12 per team for size
             pA_sorted = sorted(pA, key=lambda x: -x["elo"])[:12]
             pB_sorted = sorted(pB, key=lambda x: -x["elo"])[:12]
@@ -833,8 +855,8 @@ if __name__ == "__main__":
                 "scoreA":  elo_score(avgA),
                 "scoreB":  elo_score(avgB),
                 "score":   elo_score(overall),
-                "playersA": [{"n": p["name"], "e": round(p["elo"]), "w": p["won"]} for p in pA_sorted],
-                "playersB": [{"n": p["name"], "e": round(p["elo"]), "w": p["won"]} for p in pB_sorted],
+                "playersA": [{"n": p["name"], "e": round(p["elo"]), "w": p["won"], "m": p.get("mp")} for p in pA_sorted],
+                "playersB": [{"n": p["name"], "e": round(p["elo"]), "w": p["won"], "m": p.get("mp")} for p in pB_sorted],
             })
 
     # Sort by overall strength descending

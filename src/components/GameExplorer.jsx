@@ -131,6 +131,7 @@ function GameDetail({ game, onClose }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexDirection: side === 'B' ? 'row-reverse' : 'row' }}>
         <div style={{ fontSize: 12, fontWeight: 500, minWidth: 130, color: '#1a1a1a', textAlign: side === 'B' ? 'right' : 'left' }}>
           {p.n}
+          {p.m != null && <span style={{ fontSize: 10, color: '#aaa', fontWeight: 400, marginLeft: 4 }}>{p.m}m</span>}
         </div>
         <div style={{ flex: 1, height: 6, background: '#f0f0f0', borderRadius: 3, overflow: 'hidden' }}>
           <div style={{
