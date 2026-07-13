@@ -123,6 +123,8 @@ def parse_csv(paths):
 
 
 import csv as _csv
+import unicodedata as _ud
+def _norm(s): return _ud.normalize("NFD", s).encode("ascii","ignore").decode("ascii").strip()
 _charlotte_csv = _os.path.join(_os.path.dirname(__file__), '..', 'data', 'charlotte.csv')
 charlotte_keys = set()
 if _os.path.exists(_charlotte_csv):
@@ -130,7 +132,7 @@ if _os.path.exists(_charlotte_csv):
         for row in _csv.DictReader(_f):
             p, d = row.get('Player','').strip(), row.get('Date','').strip()
             if p and d:
-                charlotte_keys.add((p, d))
+                charlotte_keys.add((_norm(p), d))
     print(f"  Loaded {len(charlotte_keys)} Charlotte game-player keys")
 
 
@@ -447,14 +449,31 @@ def build_elo(df):
             prow           = group_by_player.get(p)
             if prow is None: continue
             team_map[p]    = prow["Team"]
-            opp_map[p]     = str(prow["Opp"]).strip() if "Opp" in group.columns and str(prow.get("Opp","")).strip() not in ("","nan") else str(prow["Team"])
+            _raw_opp = str(prow["Opp"]).strip() if "Opp" in group.columns and str(prow.get("Opp","")).strip() not in ("","nan") else str(prow["Team"])
+            # Normalize Charlotte opponents to CHO so game keys match
+            _CHA_NORM = {'CHA':'CHO','CHH':'CHO'}
+            opp_map[p] = _CHA_NORM.get(_raw_opp, _raw_opp)
             result_str     = str(prow.get("Result","")).strip()
             won_map[p]     = result_str.startswith("W") if result_str else None
             # Charlotte disambiguation using franchise CSV
-            if (p, date_str) in charlotte_keys:
-                team_map[p] = "CHO"  # confirmed Charlotte
-            elif team_map.get(p) == "CHO":
-                team_map[p] = "NOH"  # CHO in BDL but not Charlotte = New Orleans
+            # charlotte_keys contains New Orleans players (NOH/NOP era, 2002-2013)
+            # CHO = Charlotte Bobcats (2004-2014) OR New Orleans Hornets (2002-2004)
+            # Only remap CHO -> NOH if the game is in the New Orleans era (pre-2005)
+            # Charlotte/NO disambiguation
+            # charlotte_keys = confirmed Charlotte Bobcats/Hornets players (CHO)
+            # If in charlotte_keys -> CHO (Charlotte)
+            # If NOT in charlotte_keys + pre-2004 -> NOH (New Orleans)
+            # If NOT in charlotte_keys + post-2004 -> CHO (Charlotte Bobcats era)
+            _re2 = __import__('re')
+            _p_base = _re2.sub(r' \(\d{4}\)$', '', p)
+            _raw_team = team_map.get(p, '')
+            if _raw_team in ("CHA", "CHO", "CHH"):
+                if (_norm(_p_base), date_str) in charlotte_keys:
+                    team_map[p] = "CHO"  # confirmed Charlotte player
+                elif date_str < "2004-10-01":
+                    team_map[p] = "NOH"  # pre-Bobcats = New Orleans
+                else:
+                    team_map[p] = "CHO"  # post-2004 not in charlotte_keys = Charlotte Bobcats
             last_played[p] = date_str
 
         deltas = defaultdict(float)
@@ -812,7 +831,15 @@ if __name__ == "__main__":
         hist = p["elo_history"]
         for i, e in enumerate(hist):
             if len(e) >= 5 and e[2] and e[4]:
-                key = frozenset([e[4], e[2]])  # team vs opp
+                # Normalize Charlotte/NO abbrevs to CHO for game matching
+                # Use date to distinguish: pre-2002 NOP = Charlotte era
+                _CHO_ALIASES = {'CHO':'CHO','CHA':'CHO','CHH':'CHO','NOH':'CHO'}
+                _pre2002 = e[0] < '2002-09-01'
+                if _pre2002:
+                    _CHO_ALIASES = {'CHO':'CHO','CHA':'CHO','CHH':'CHO','NOP':'CHO','NOH':'CHO','NOK':'CHO'}
+                t1 = _CHO_ALIASES.get(e[4], e[4])
+                t2 = _CHO_ALIASES.get(e[2], e[2])
+                key = frozenset([t1, t2])  # team vs opp
                 # Use Elo BEFORE this game (prior entry), not after
                 elo_before = round(hist[i-1][1], 1) if i > 0 else round(e[1], 1)
                 mp_val = mp_hist.get(p["name"], {}).get(e[0], None)
@@ -822,7 +849,7 @@ if __name__ == "__main__":
     ELO_MIN, ELO_MAX = 1400, 3100
 
     def elo_score(elo):
-        return round(max(0, min(100, (elo - ELO_MIN) / (ELO_MAX - ELO_MIN) * 100)), 1)
+        return round(max(0, min(99.9, (elo - ELO_MIN) / (ELO_MAX - ELO_MIN) * 100)), 1)
 
     games_list = []
     for date, keys in game_map.items():

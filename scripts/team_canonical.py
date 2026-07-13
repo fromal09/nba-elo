@@ -14,9 +14,7 @@ CANONICAL = {
     # ── BDL-SPECIFIC FIXES (differ from BBRef) ──────────────────────────
     "PHX": "PHO",   # BDL uses PHX; BBRef uses PHO for Phoenix Suns
     "BOM": "BOM",   # Baltimore Bullets (BAA era 1946-54) — defunct, not in games CSV
-    "CHA": "NOP",   # Pre-2004 BDL CHA = original Charlotte Hornets = NOP franchise
-    "CHO": "CHA",   # nba_api uses CHO for Charlotte Hornets (new franchise)
-                    # (New Charlotte Bobcats/Hornets didn't exist until 2004)
+    "CHO": "CHO",   # Charlotte Bobcats/Hornets (new franchise, 2004+)
     "JET": "INJ",   # Indianapolis Jets variant
     "DN":  "DEN",   # Denver variant
 
@@ -30,7 +28,7 @@ CANONICAL = {
     "NYN": "BKN", "NJN": "BKN", "BKN": "BKN", "BRK": "BKN",   # nba_api uses BRK
 
     # ── NEW ORLEANS PELICANS (original Charlotte Hornets franchise) ──────
-    "CHH": "NOP", "NOH": "NOP", "NOK": "NOP", "NOP": "NOP",
+    "CHH": "NOH", "NOH": "NOH", "NOK": "NOH", "NOP": "NOP",
 
     # ── CHICAGO BULLS ────────────────────────────────────────────────────
     "CHS": "CHI", "CHI": "CHI",
