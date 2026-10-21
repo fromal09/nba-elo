@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Run after build_elo.py to verify output contract is intact."""
 import json, sys
+from datetime import date
+
+_t = date.today()
+_season_y = _t.year if _t.month >= 9 else _t.year - 1
+RETIRED_BEFORE = f"{_season_y - 1}-01-01"  # Jan 1 of last season's start year
 
 print("Validating elo.json...")
 data = json.load(open('public/data/elo.json'))
@@ -37,7 +42,7 @@ if rank1 and rank1['name'] != best_elo['name']:
 
 # Check no retired players are eligible
 for p in eligible:
-    if p['last_played'] < '2025-01-01':
+    if p['last_played'] < RETIRED_BEFORE:
         errors.append(f"Retired player marked eligible: {p['name']} last played {p['last_played']}")
 
 print(f"  {len(players)} players, {len(eligible)} eligible")

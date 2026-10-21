@@ -1,3 +1,5 @@
+import { CURRENT_SEASON_YEAR } from '../season'
+
 export default function Homepage({ data, setView }) {
   const active = data.players
     .filter(p => p.is_fpr_eligible)
@@ -83,7 +85,7 @@ export default function Homepage({ data, setView }) {
       icon: '📅',
       title: 'Season by Season',
       desc: 'Top five players by Elo at the close of every season from 1946–47 to present.',
-      meta: '1946–2026 · complete record',
+      meta: `1946–${CURRENT_SEASON_YEAR + 1} · complete record`,
       view: 'seasons',
       color: '#faeee0', iconColor: '#7a3a0a',
     },

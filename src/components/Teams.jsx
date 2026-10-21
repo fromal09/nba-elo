@@ -1,4 +1,8 @@
 import { useState, useMemo } from 'react'
+import { CURRENT_SEASON_YEAR, seasonLabel } from '../season'
+
+// Rosters include anyone who played this season or last, so early-season pages aren't empty
+const ROSTER_FLOOR = `${CURRENT_SEASON_YEAR - 1}-10-01`
 
 const NBA_TEAMS = [
   { abbr: 'ATL', name: 'Atlanta Hawks' },
@@ -59,7 +63,7 @@ export default function Teams({ players, onSelectPlayer }) {
   const teamPlayers = useMemo(() => {
     if (!selectedTeam) return []
     return players
-      .filter(p => p.team === selectedTeam && p.is_fpr_eligible && p.last_played >= '2025-10-01')
+      .filter(p => p.team === selectedTeam && p.is_fpr_eligible && p.last_played >= ROSTER_FLOOR)
       .sort((a, b) => sortAsc ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey])
   }, [players, selectedTeam, sortKey, sortAsc])
 
@@ -120,7 +124,7 @@ export default function Teams({ players, onSelectPlayer }) {
           <>
             <div style={s.pageHeader}>
               <h1 style={s.pageTitle}>{NBA_TEAMS.find(t => t.abbr === selectedTeam)?.name}</h1>
-              <p style={s.pageDesc}>{teamPlayers.length} FPR-eligible players · 2025–26 season</p>
+              <p style={s.pageDesc}>{teamPlayers.length} FPR-eligible players · {seasonLabel(CURRENT_SEASON_YEAR, '–')} season</p>
             </div>
 
             <div style={s.tableWrap}>

@@ -26,6 +26,17 @@ import math
 import math
 from collections import defaultdict
 
+
+def season_start_year(d=None):
+    """Seasons start in September: Oct 2026 -> 2026 (2026-27), Jun 2027 -> 2026."""
+    d = d or date.today()
+    return d.year if d.month >= 9 else d.year - 1
+
+
+def season_label(y=None):
+    y = season_start_year() if y is None else y
+    return f"{y}-{str(y + 1)[-2:]}"
+
 sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from team_canonical import canon_team
 
@@ -527,8 +538,9 @@ def build_elo(df):
 
     all_players = sorted(elo.keys(), key=lambda p: -elo[p])
 
-    # FPR eligibility — current season only prevents retired players qualifying
-    CURRENT_SEASON_START = "2025-10-01"
+    # FPR eligibility: count team games from last season onward so the 20-game
+    # cutoff works in October; retired players still fall outside it.
+    CURRENT_SEASON_START = f"{season_start_year() - 1}-10-01"
     team_game_dates = defaultdict(set)
     for pl, games in gmsc_hist.items():
         for d, _ in games:
@@ -704,7 +716,7 @@ def build_elo(df):
         p.pop("_max_streak", None)
 
     return {
-        "season":        "2025-26",
+        "season":        season_label(),
         "generated":     date.today().isoformat(),
         "total_games":   len(game_order),
         "total_players": len(players_out),

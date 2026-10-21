@@ -106,17 +106,20 @@ const shade=(h,f)=>{const n=parseInt(h.slice(1),16);return `rgb(${[n>>16,(n>>8)&
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const initials=n=>n.split(' ').filter(Boolean).map(w=>w[0]).slice(0,2).join('').toUpperCase();
 const split=n=>{const i=n.indexOf(' ');return i<0?['',n]:[n.slice(0,i),n.slice(i+1)]};
+const NBA_IDS={'kevin porter':1629645}; // ESPN has no usable headshot for these
+const nbaImg=id=>`https://cdn.nba.com/headshots/nba/latest/1040x760/${id}.png`;
 const norm=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[.'’]/g,'').replace(/\b(jr|sr|ii|iii|iv)\b/g,'').replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim();
 
 function card(p){
   const c=TEAM[p.team]||'#173657',[f,l]=split(p.name);
-  const ph=p.headshot?`<img src="${esc(p.headshot)}" alt="${esc(p.name)}"${p.rank>25?' loading="lazy"':''} data-ini="${initials(p.name)}" onerror="fail(this)">`:`<div class="ini">${initials(p.name)}</div>`;
+  const ph=p.headshot?`<img src="${esc(p.headshot)}" alt="${esc(p.name)}"${p.rank>25?' loading="lazy"':''} data-ini="${initials(p.name)}"${p.alt?` data-alt="${esc(p.alt)}"`:''} onerror="fail(this)">`:`<div class="ini">${initials(p.name)}</div>`;
   return `<div class="card" style="--c:${c};--cd:${shade(c,.5)}"><div class="in">
     <div class="rk">${p.rank}</div><div class="ph">${ph}</div>
     <div class="pl"><div class="fn">${esc(f)}</div><div class="ln">${esc(l)}</div>
     <div class="meta"><span class="tm">${esc(p.team)}</span><span class="elo">${Math.round(p.elo)}</span></div></div></div></div>`;
 }
-function fail(img){const d=document.createElement("div");d.className="ini";d.textContent=img.dataset.ini;img.replaceWith(d)}
+function fail(img){if(img.dataset.alt){const a=img.dataset.alt;delete img.dataset.alt;img.src=a;return}
+  const d=document.createElement("div");d.className="ini";d.textContent=img.dataset.ini;img.replaceWith(d)}
 function fit(){document.querySelectorAll('.ln').forEach(el=>{el.style.fontSize='';let s=1.35;
   while(el.scrollWidth>el.clientWidth&&s>.7){s-=.05;el.style.fontSize=s+'em'}})}
 function render(d,P){
@@ -136,7 +139,9 @@ async function init(){
   const P=d.players;
   render(d,P);
   try{const r=await fetch('/api/headshots');if(!r.ok)return;const h=await r.json();h.players=h.players||{};
-    P.forEach(p=>{const m=h.players[norm(p.name)];if(m){p.headshot=m.headshot;if(TEAM[m.team])p.team=m.team}});
+    P.forEach(p=>{const k=norm(p.name),m=h.players[k],nba=NBA_IDS[k];
+      if(m){p.headshot=m.headshot;p.alt=m.alt||null;if(TEAM[m.team])p.team=m.team}
+      if(nba&&!(m&&m.headshot&&m.headshot.includes('cdn.nba.com'))){p.alt=p.headshot||null;p.headshot=nbaImg(nba)}});
     render(d,P)}catch(e){}
 }
 addEventListener('resize',()=>{clearTimeout(window._ft);window._ft=setTimeout(fit,150)});

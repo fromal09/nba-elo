@@ -17,6 +17,17 @@ from pathlib import Path
 from datetime import date
 from collections import defaultdict
 
+
+def season_start_year(d=None):
+    """Seasons start in September: Oct 2026 -> 2026 (2026-27), Jun 2027 -> 2026."""
+    d = d or date.today()
+    return d.year if d.month >= 9 else d.year - 1
+
+
+def season_label(y=None):
+    y = season_start_year() if y is None else y
+    return f"{y}-{str(y + 1)[-2:]}"
+
 sys.path.insert(0, str(Path(__file__).parent))
 from team_canonical import canon_team
 
@@ -371,7 +382,7 @@ for rank, name in enumerate(all_player_names, 1):
 
 # ── Write elo.json ────────────────────────────────────────────────────────
 output = {
-    "season":        "2025-26",
+    "season":        season_label(),
     "generated":     date.today().isoformat(),
     "total_games":   data.get("total_games", 0) + len(game_order),
     "total_players": len(new_players_out),

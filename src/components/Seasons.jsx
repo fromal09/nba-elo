@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
+import { CURRENT_SEASON_YEAR } from '../season'
 
-// Generate season labels 1946-47 through 2025-26
+// Season labels 1946-47 through the current season
 const SEASONS = []
-for (let y = 1946; y <= 2025; y++) {
+for (let y = 1946; y <= CURRENT_SEASON_YEAR; y++) {
   const label = `${y}-${String(y + 1).slice(-2)}`
   const endDate = `${y + 1}-09-30`  // season ends by Sep of following year
   const startDate = `${y}-09-01`    // season starts Sep of start year
