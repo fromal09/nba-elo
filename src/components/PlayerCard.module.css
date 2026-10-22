@@ -159,12 +159,26 @@
 .frame .shot { height: min(282px, 74%); width: auto; bottom: 50px; -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent); mask-image: linear-gradient(180deg, #000 78%, transparent); } /* same scale as the plate layout; raised so the face clears the name and the shoulders fade into it */
 .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 58%; z-index: 3; pointer-events: none;
   background: linear-gradient(180deg, rgba(13,27,46,0) 0%, color-mix(in srgb, var(--tc) 30%, rgba(13,27,46,.55)) 42%, rgba(13,27,46,.96) 100%); }
-.medal { position: absolute; z-index: 5; left: 12px; top: 12px; width: 70px; height: 70px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #23305a, #0d1b2e 70%); box-shadow: 0 0 0 3px var(--tier), 0 0 0 5px rgba(255,255,255,.35), 0 8px 18px rgba(0,0,0,.45);
+.medal { position: absolute; z-index: 5; left: 9px; top: 9px; width: 76px; height: 76px; border-radius: 50%;
+  background: var(--ring, var(--tier)); box-shadow: 0 0 0 2px rgba(255,255,255,.35), 0 8px 18px rgba(0,0,0,.45);
   display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; line-height: 1; }
+.medal::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #23305a, #0d1b2e 70%); box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
+.medal span, .medal b { position: relative; }
+.medal i { z-index: 1; }
+/* Ring uses the same finish as the card border */
+[data-tier=common] .medal { --ring: #4a5a70; }
+[data-tier=rare] .medal { --ring: linear-gradient(135deg, #8a5a32, #d08a52 40%, #7a4a26 60%, #c07a42); }
+[data-tier=legend] .medal { --ring: linear-gradient(135deg, #3b444e 0%, #f7f9fb 14%, #6a7581 28%, #ffffff 42%, #545e69 56%, #e9eef3 70%, #444e58 84%, #f2f5f8 100%);
+  background-size: 200% 200%; animation: chrome 3s ease-in-out infinite alternate; }
+[data-tier=icon] .medal { --ring: linear-gradient(135deg, #9a6d12, #f4d27a 25%, #b8871e 48%, #ffe9a8 70%, #a8791a); }
+[data-tier=goat] .medal { --ring: conic-gradient(from var(--spin), #ff2d95, #ffb52d, #fff3b0, #2dffb4, #2d9bff, #ffffff, #b42dff, #ff2d95);
+  animation: spin 4s linear infinite; box-shadow: 0 0 0 2px rgba(255,255,255,.6), 0 0 18px rgba(255,200,120,.55), 0 8px 18px rgba(0,0,0,.45); }
+@property --spin { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes spin { to { --spin: 360deg; } }
+@media (prefers-reduced-motion: reduce) { .medal { animation: none !important; } }
 .medal span { font-size: 7.5px; font-weight: 800; letter-spacing: 1.2px; opacity: .7; text-transform: uppercase; }
 .medal b { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 28px; margin-top: 1px; letter-spacing: -.5px; }
-.medal i { position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 10px; color: #fff; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.medal i { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 10px; color: #fff; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
 .medalUp { background: #1a7a4a; } .medalDown { background: #a83232; } .medalFlat { background: #5c6876; }
 .photo .season { position: absolute; z-index: 5; top: 10px; right: 12px; }
 .photo .logo, .photo .logoMark { top: 36px; bottom: auto; right: 10px; width: 44px; height: 44px; z-index: 5; }
