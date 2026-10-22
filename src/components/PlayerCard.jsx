@@ -154,8 +154,8 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
                   <div className={styles.fade} />
                   {rank != null && <div className={styles.medal}>
                     <span>Elo rank</span><b>#{rank}</b>
-                    {move != null && <i className={move > 0 ? styles.medalUp : move < 0 ? styles.medalDown : styles.medalFlat}>
-                      {move > 0 ? `▲ ${move}` : move < 0 ? `▼ ${-move}` : '–'}</i>}
+                    {!!move && <i className={move > 0 ? styles.medalUp : styles.medalDown}>
+                      {move > 0 ? `▲ ${move}` : `▼ ${-move}`}</i>}
                   </div>}
                   <span className={styles.season}>{sd.season}</span>
                   {logo
