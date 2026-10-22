@@ -694,8 +694,29 @@ const BOX_GROUPS = [
 const sum = (rows, k) => rows.reduce((s, p) => s + (p[k] || 0), 0)
 const split = (m, a, showA = true) => (m == null ? '—' : showA ? `${m}-${a ?? '—'}` : `${m}`)
 
+// Raw stats gain GmSc (the stat every duel is decided on) at the end
+const RAW_EXTRA = { h: 'GmSc', v: p => p.gs.toFixed(1), cls: 'gs', tot: () => '' }
+
+// Elo journey: pre-game Elo, duels expected vs. won on a 0..N-1 track, post-game Elo, change
+function DuelTrack({ w, xw, n }) {
+  const pc = v => `${(Math.max(0, Math.min(n, v)) / n) * 100}%`
+  const beat = w >= xw, lo = Math.min(w, xw), hi = Math.max(w, xw), diff = w - xw
+  const flip = w > n * 0.86 || (!beat && w > n * 0.12) // put the label on the open side
+  return (
+    <span className={styles.track} title={`Won ${w} of ${n} duels; Elo expected ${xw.toFixed(1)}`}>
+      <span className={styles.trackLine} />
+      {[0.2, 0.4, 0.6, 0.8].map(f => <span key={f} className={styles.trackTick} style={{ left: `${f * 100}%` }} />)}
+      <span className={beat ? styles.trackUp : styles.trackDown} style={{ left: pc(lo), width: `calc(${pc(hi)} - ${pc(lo)})` }} />
+      <span className={styles.trackExp} style={{ left: pc(xw) }} />
+      <span className={beat ? styles.trackWonUp : styles.trackWonDown} style={{ left: pc(w) }} />
+      <span className={`${styles.trackLab} ${beat ? styles.up : styles.down}`}
+        style={flip ? { right: `calc(100% - ${pc(lo)} + 13px)` } : { left: `calc(${pc(hi)} + 13px)` }}>{sgn(diff)}</span>
+    </span>
+  )
+}
+
 function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
-  const groups = BOX_GROUPS.map(G => ({ ...G, cols: G.cols.filter(c => (!c.need || has?.has(c.need)) && (!c.any || avail.has(c.any))) }))
+  const groups = BOX_GROUPS.map(G => ({ ...G, cols: [...G.cols.filter(c => (!c.need || has?.has(c.need)) && (!c.any || avail.has(c.any))), ...(G.g === 'Raw Stats' ? [RAW_EXTRA] : [])] }))
     .filter(G => G.cols.length)
   const cell = c => p => c.pair ? split(p[c.pair[0]], p[c.pair[1]], avail.has(c.pair[1]))
     : c.pct ? fmtPct(p[c.pct[0]] || 0, p[c.pct[1]] || 0) : c.v(p)
@@ -704,10 +725,10 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
   const starters = has?.has('st') && rows.some(p => p.st)
   const sorted = [...rows].sort((a, b) => (starters ? b.st - a.st : 0) || (b.mp || 0) - (a.mp || 0) || (b.pts || 0) - (a.pts || 0))
   const sections = starters ? [['Starters', sorted.filter(p => p.st)], ['Bench', sorted.filter(p => !p.st)]] : [[null, sorted]]
-  const max = Math.max(8, ...rows.map(p => Math.abs(p.post - p.pre)))
   const net = rows.reduce((s, p) => s + p.post - p.pre, 0)
-  const width = 1 + groups.reduce((s, G) => s + G.cols.length, 0) + 5
-  const ELO_COLS = 5
+  const ELO_COLS = 4
+  const width = 1 + ELO_COLS + groups.reduce((s, G) => s + G.cols.length, 0)
+  const n = N - 1
 
   const row = p => {
     const d = p.post - p.pre
@@ -720,44 +741,39 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
               <small>{[p.pos, tierFor(p.lr).id !== 'common' && tierFor(p.lr).label].filter(Boolean).join(' · ')}</small></span>
           </span>
         </td>
+        <td className={`${styles.gElo} ${styles.gStart} ${styles.eloPre}`}>{r0(p.pre)}</td>
+        <td className={`${styles.gElo} ${styles.trackCell}`}><DuelTrack w={p.w} xw={p.xw} n={n} /></td>
+        <td className={`${styles.gElo} ${styles.eloPost}`}>{r0(p.post)}</td>
+        <td className={`${styles.gElo} ${styles.eloDelta} ${d >= 0 ? styles.up : styles.down}`}>{sgn(d)}</td>
         {groups.map(G => G.cols.map((c, j) => (
           <td key={G.g + c.h} className={`${styles[G.cls]} ${j === 0 ? styles.gStart : ''} ${c.cls ? styles[c.cls] : ''}`}>{cell(c)(p)}</td>
         )))}
-        <td className={`${styles.gElo} ${styles.gStart} ${styles.gs}`}>{p.gs.toFixed(1)}</td>
-        <td className={`${styles.gElo} ${styles.duels}`} title={`Won ${p.w} of ${N - 1}; Elo expected ${p.xw.toFixed(1)}`}>
-          {Number.isInteger(p.w) ? p.w : p.w.toFixed(1)}<small>/{N - 1}</small>
-          <i className={p.w >= p.xw ? styles.up : styles.down}>{sgn(p.w - p.xw)}</i>
-        </td>
-        <td className={`${styles.gElo} ${styles.elo}`}>{r0(p.pre)}</td>
-        <td className={`${styles.gElo} ${styles.elo}`}><b>{r0(p.post)}</b></td>
-        <td className={`${styles.gElo} ${styles.swing}`}><span className={styles.swingIn}>
-          <span className={styles.bar}>
-            <span className={d >= 0 ? styles.barUp : styles.barDown} style={{ width: `${Math.min(50, (Math.abs(d) / max) * 50)}%` }} />
-          </span>
-          <b className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</b>
-        </span></td>
       </tr>
     )
   }
 
   return (
     <div className={styles.teamBox} style={{ '--tc': tColor(t) }}>
-      <div className={styles.teamBoxHead}><TeamMark t={t} size={30} /><span>{tName(t)}</span></div>
+      <div className={styles.teamBoxHead}><TeamMark t={t} size={30} /><span>{tName(t)}</span>
+        <span className={styles.boxLegend}><i className={styles.legExp} />Duels Elo expected<i className={styles.legWon} />Duels won</span></div>
       <div className={styles.tableWrap}>
         <table className={styles.box}>
           <thead>
             <tr className={styles.groupRow}>
               <th className={styles.sticky} />
-              {groups.map(G => <th key={G.g} colSpan={G.cols.length} className={`${styles[G.cls]} ${styles.gStart}`}><span>{G.g}</span></th>)}
-              <th colSpan={ELO_COLS} className={`${styles.gElo} ${styles.gStart}`}><span>Elo Stats</span></th>
+              <th colSpan={ELO_COLS} className={`${styles.gElo} ${styles.gStart}`}><span>Elo</span></th>
+              {groups.map(G => <th key={G.g} colSpan={G.cols.length} className={`${styles[G.cls]} ${styles.gStart}`}><span>{G.g === 'Raw Stats' ? 'Raw' : G.g}</span></th>)}
             </tr>
             <tr>
               <th className={styles.sticky}>Player</th>
+              <th className={`${styles.gElo} ${styles.gStart}`}>Pre</th>
+              <th className={`${styles.gElo} ${styles.trackHead}`} title={`Every player duels the other ${n} on Game Score`}>
+                <span>Duels: expected → won</span>
+                <span className={styles.trackScale}><i style={{ left: '0%' }}>0</i><i style={{ left: '50%' }}>{Math.round(n / 2)}</i><i style={{ left: '100%' }}>{n}</i></span>
+              </th>
+              <th className={styles.gElo}>Post</th>
+              <th className={styles.gElo}>Elo Δ</th>
               {groups.map(G => G.cols.map((c, j) => <th key={G.g + c.h} className={`${styles[G.cls]} ${j === 0 ? styles.gStart : ''}`}>{c.h}</th>))}
-              <th className={`${styles.gElo} ${styles.gStart}`} title="Game Score: the stat every duel is decided on">GmSc</th>
-              <th className={styles.gElo} title={`Head-to-head duels won against the other ${N - 1} players in the game, with the number Elo expected`}>Duels</th>
-              <th className={styles.gElo}>Pre</th><th className={styles.gElo}>Post</th>
-              <th className={`${styles.gElo} ${styles.swingH}`}>Elo Swing</th>
             </tr>
           </thead>
           {sections.map(([label, ps]) => (
@@ -769,11 +785,11 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
           <tbody>
             <tr className={styles.totals}>
               <td className={styles.sticky}>Team</td>
+              <td className={`${styles.gElo} ${styles.gStart}`} /><td className={styles.gElo} /><td className={styles.gElo} />
+              <td className={`${styles.gElo} ${styles.eloDelta} ${net >= 0 ? styles.up : styles.down}`}>{sgn(net)}</td>
               {groups.map(G => G.cols.map((c, j) => (
                 <td key={G.g + c.h} className={`${styles[G.cls]} ${j === 0 ? styles.gStart : ''} ${c.cls ? styles[c.cls] : ''}`}>{total(c)}</td>
               )))}
-              <td className={`${styles.gElo} ${styles.gStart}`} /><td className={styles.gElo} /><td className={styles.gElo} /><td className={styles.gElo} />
-              <td className={`${styles.gElo} ${styles.swing}`}><b className={net >= 0 ? styles.up : styles.down}>{sgn(net)}</b></td>
             </tr>
           </tbody>
         </table>

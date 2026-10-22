@@ -268,3 +268,28 @@
 .rowUpsetL td:first-child { box-shadow: inset 4px 0 0 #b02a2a; }
 .rowUpsetW .upsetTag { color: #fff; background: #1aa35a; }
 .rowUpsetL .upsetTag { color: #fff; background: #b02a2a; }
+
+/* Elo journey columns */
+.box td.eloPre { color: #7a8694; font-size: 13.5px; }
+.box td.eloPost { color: #173657; font-weight: 800; font-size: 14px; text-align: left; padding-left: 4px; }
+.box td.eloDelta { font-size: 17px; font-weight: 800; letter-spacing: -.4px; padding-right: 14px; }
+.box th.trackHead { text-align: center; min-width: 300px; padding-bottom: 4px; }
+.trackHead > span:first-child { display: block; color: #1a5fa8; }
+.trackScale { position: relative; display: block; height: 12px; margin: 3px 22px 0; }
+.trackScale i { position: absolute; transform: translateX(-50%); font-style: normal; font-weight: 600; color: #98a2ad; text-transform: none; letter-spacing: 0; }
+.box td.trackCell { padding: 0 22px; }
+.track { position: relative; display: block; height: 24px; min-width: 260px; }
+.trackLine { position: absolute; left: 0; right: 0; top: 11px; height: 2px; background: #dfe5ec; }
+.trackTick { position: absolute; top: 7px; width: 1px; height: 10px; background: #d7dde4; }
+.trackUp, .trackDown { position: absolute; top: 8px; height: 8px; border-radius: 4px; }
+.trackUp { background: linear-gradient(90deg, rgba(26,122,74,.22), #1a7a4a); }
+.trackDown { background: linear-gradient(270deg, rgba(168,50,50,.22), #a83232); }
+.trackExp { position: absolute; top: 4px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; box-sizing: border-box; background: #fff; border: 2.5px solid #7a8694; }
+.trackWonUp, .trackWonDown { position: absolute; top: 2px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.trackWonUp { background: #1a7a4a; }
+.trackWonDown { background: #a83232; }
+.trackLab { position: absolute; top: 4px; font-size: 11.5px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.boxLegend { margin-left: auto; display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; opacity: .92; }
+.boxLegend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; margin-left: 8px; }
+.legExp { border: 2px solid #fff; }
+.legWon { background: #fff; }

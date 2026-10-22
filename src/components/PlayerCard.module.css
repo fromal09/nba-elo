@@ -18,16 +18,16 @@
 .top { position: absolute; z-index: 3; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; }
 .tierTag { font-size: 10px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; padding: 4px 9px; border-radius: 20px; background: rgba(0,0,0,.45); color: #fff; backdrop-filter: blur(4px); white-space: nowrap; }
 .season { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 15px; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.5); }
-.photo { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.photo { isolation: isolate; position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .photoBg { position: absolute; inset: 0; background:
   radial-gradient(90% 70% at 50% 45%, color-mix(in srgb, var(--tc) 80%, #fff 20%) 0%, var(--tc) 45%, color-mix(in srgb, var(--tc) 55%, #000) 100%); }
 .photoBg::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(-55deg, rgba(255,255,255,.06) 0 14px, transparent 14px 28px); }
-.bigNum { position: absolute; left: 50%; top: 40%; opacity: .7; transform: translate(-50%, -50%); font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic;
+.bigNum { z-index: 2; position: absolute; left: 50%; top: 40%; opacity: .7; transform: translate(-50%, -50%); font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic;
   font-size: 128px; letter-spacing: -4px; color: rgba(255,255,255,.12); white-space: nowrap; line-height: 1; }
-.shot { position: absolute; left: 50%; bottom: 0; height: 96%; transform: translateX(-50%); max-width: none; filter: drop-shadow(0 10px 18px rgba(0,0,0,.45)); }
-.mono { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 110px; color: rgba(255,255,255,.78); text-shadow: 0 6px 24px rgba(0,0,0,.35); }
-.logo { position: absolute; right: 10px; bottom: 10px; width: 54px; height: 54px; object-fit: contain; background: #fff; border-radius: 50%; padding: 5px; box-shadow: 0 4px 12px rgba(0,0,0,.35); z-index: 2; }
-.logoMark { position: absolute; right: 10px; bottom: 10px; width: 54px; height: 54px; border-radius: 50%; background: #fff; color: var(--tc); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; box-shadow: 0 4px 12px rgba(0,0,0,.35); z-index: 2; }
+.shot { z-index: 3; position: absolute; left: 50%; bottom: 0; height: 96%; transform: translateX(-50%); max-width: none; filter: drop-shadow(0 10px 18px rgba(0,0,0,.45)); }
+.mono { z-index: 3; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 110px; color: rgba(255,255,255,.78); text-shadow: 0 6px 24px rgba(0,0,0,.35); }
+.logo { position: absolute; right: 10px; bottom: 10px; width: 54px; height: 54px; object-fit: contain; background: #fff; border-radius: 50%; padding: 5px; box-shadow: 0 4px 12px rgba(0,0,0,.35); z-index: 4; }
+.logoMark { position: absolute; right: 10px; bottom: 10px; width: 54px; height: 54px; border-radius: 50%; background: #fff; color: var(--tc); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; box-shadow: 0 4px 12px rgba(0,0,0,.35); z-index: 4; }
 .plate { position: relative; z-index: 2; padding: 12px 14px 8px; background: linear-gradient(180deg, color-mix(in srgb, var(--tc) 35%, #0d1b2e), #0d1b2e); color: #fff; margin-top: -2px; }
 .first { font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; opacity: .8; }
 .last { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; text-transform: uppercase; font-size: 34px; line-height: .95; letter-spacing: -.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -47,7 +47,7 @@
 /* ── Back ── */
 .back { background: #f6f3ea; color: #1d2633; }
 .back::before { content: ""; position: absolute; inset: 9px; border-radius: 10px; border: 2px solid var(--tc); pointer-events: none; }
-.backIn { position: absolute; inset: 9px; padding: 12px 12px 46px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; scrollbar-width: thin; }
+.backIn { position: absolute; inset: 9px; padding: 11px 12px 52px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; scrollbar-width: thin; }
 .backHead > div:first-child { min-width: 0; flex: 1; }
 .backHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding-bottom: 9px; border-bottom: 2px solid var(--tc); }
 .backName { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; text-transform: uppercase; font-size: 24px; line-height: 1.05; color: var(--tc); filter: saturate(1.1) brightness(.85); white-space: nowrap; overflow: hidden; }
@@ -71,7 +71,7 @@
 .back .flipBtn { border-color: rgba(0,0,0,.25); background: rgba(0,0,0,.06); color: #1d2633; }
 
 /* ── Holo layers (front only) ── */
-.holo, .glitter, .shine { position: absolute; inset: 0; pointer-events: none; border-radius: 16px; z-index: 4; }
+.holo, .glitter, .shine { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .shine { background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.28), transparent 45%); mix-blend-mode: soft-light; opacity: 0; transition: opacity .2s; }
 .card:hover .shine { opacity: 1; }
 

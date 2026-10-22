@@ -26,27 +26,43 @@ async function getJSON(url) {
   return r.json()
 }
 
-async function schedule(seasonStart) {
-  // One scoreboard call per month, October through April (regular season only)
-  const months = []
-  for (let i = 0; i < 7; i++) {
-    const a = new Date(Date.UTC(seasonStart, 9 + i, 1)), b = new Date(Date.UTC(seasonStart, 10 + i, 0))
-    months.push(`${ymd(a)}-${ymd(b)}`)
-  }
-  const pages = await Promise.all(months.map(m => getJSON(`${BASE}/scoreboard?dates=${m}&limit=1000`).catch(() => ({ events: [] }))))
+const num = v => (v == null ? null : typeof v === 'object' ? +(v.value ?? v.displayValue) : +v)
+
+function addEvent(e, seen, games) {
+  if (!e?.id || seen.has(e.id)) return
+  const st = e.seasonType?.type ?? e.seasonType?.id ?? e.season?.type
+  if (st != null && +st !== 2) return // regular season only
+  const c = e.competitions?.[0]; if (!c) return
+  const home = c.competitors?.find(x => x.homeAway === 'home'), away = c.competitors?.find(x => x.homeAway === 'away')
+  if (!home?.team?.abbreviation || !away?.team?.abbreviation) return
+  seen.add(e.id)
+  const done = !!(c.status || e.status)?.type?.completed
+  games.push({
+    id: e.id, day: etDay(e.date || c.date), tip: e.date || c.date,
+    home: code(home.team.abbreviation), away: code(away.team.abbreviation),
+    done, hs: done ? num(home.score) : null, as: done ? num(away.score) : null,
+  })
+}
+
+// Every team's own schedule (30 calls, ESPN's season = the year it ends), with the
+// month-by-month scoreboard as a backup source. Errors are reported, not swallowed.
+async function schedule(seasonStart, errors) {
   const seen = new Set(), games = []
-  for (const p of pages) for (const e of p.events || []) {
-    if (seen.has(e.id) || (e.season && e.season.type !== 2)) continue
-    seen.add(e.id)
-    const c = e.competitions?.[0]; if (!c) continue
-    const home = c.competitors.find(x => x.homeAway === 'home'), away = c.competitors.find(x => x.homeAway === 'away')
-    if (!home || !away) continue
-    const done = !!(c.status || e.status)?.type?.completed
-    games.push({
-      id: e.id, day: etDay(e.date), tip: e.date,
-      home: code(home.team.abbreviation), away: code(away.team.abbreviation),
-      done, hs: done ? +home.score : null, as: done ? +away.score : null,
-    })
+  try {
+    const t = await getJSON(`${BASE}/teams`)
+    const teams = t.sports[0].leagues[0].teams.map(x => x.team)
+    const pages = await Promise.all(teams.map(team =>
+      getJSON(`${BASE}/teams/${team.id}/schedule?season=${seasonStart + 1}&seasontype=2`)
+        .catch(e => { errors.push(`team ${team.abbreviation}: ${e.message}`); return { events: [] } })))
+    pages.forEach(p => (p.events || []).forEach(e => addEvent(e, seen, games)))
+  } catch (e) { errors.push(`teams: ${e.message}`) }
+  if (games.length < 1000) {
+    for (let i = 0; i < 7; i++) {
+      const a = new Date(Date.UTC(seasonStart, 9 + i, 1)), b = new Date(Date.UTC(seasonStart, 10 + i, 0))
+      const p = await getJSON(`${BASE}/scoreboard?dates=${ymd(a)}-${ymd(b)}&limit=1000`)
+        .catch(e => { errors.push(`scoreboard ${ymd(a)}: ${e.message}`); return { events: [] } })
+      ;(p.events || []).forEach(e => addEvent(e, seen, games))
+    }
   }
   return games.sort((a, b) => a.tip.localeCompare(b.tip))
 }
@@ -73,9 +89,11 @@ export default async function handler(req, res) {
   const now = new Date()
   const seasonStart = Number(req.query?.season) || (now.getUTCMonth() >= 8 ? now.getUTCFullYear() : now.getUTCFullYear() - 1)
   try {
-    const [games, inj] = await Promise.all([schedule(seasonStart), injuries().catch(() => ({}))])
-    res.setHeader('Cache-Control', 's-maxage=10800, stale-while-revalidate=86400')
-    res.status(200).json({ fetched: now.toISOString(), season: seasonStart, games, injuries: inj })
+    const errors = []
+    const [games, inj] = await Promise.all([schedule(seasonStart, errors), injuries().catch(e => { errors.push(`injuries: ${e.message}`); return {} })])
+    // Cache a full schedule for 3h; an incomplete one only briefly so a fix shows up fast
+    res.setHeader('Cache-Control', games.length >= 1000 ? 's-maxage=10800, stale-while-revalidate=86400' : 's-maxage=300')
+    res.status(200).json({ fetched: now.toISOString(), season: seasonStart, count: games.length, errors: errors.slice(0, 20), games, injuries: inj })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }

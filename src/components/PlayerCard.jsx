@@ -36,15 +36,17 @@ function seasonLine(sd, name, gameId) {
   }
 }
 
-// Season Elo path with a y-axis, the season peak and this game marked
-function SeasonChart({ path, peakAt, at, color }) {
+// Elo path with a y-axis, the peak (gold) and this game (team color) marked.
+// Long paths are thinned for drawing; the markers stay exact.
+function EloChart({ path, peakAt, at, color, H = 92, ends }) {
   if (path.length < 2) return <div className={styles.chartEmpty}>Elo path appears after a second game</div>
-  const W = 300, H = 100, L = 38, R = 8, T = 14, B = 14
+  const W = 300, L = 38, R = 8, T = 14, B = ends ? 24 : 14
   const lo0 = Math.min(...path), hi0 = Math.max(...path), pad = Math.max(8, (hi0 - lo0) * 0.12)
   const lo = lo0 - pad, hi = hi0 + pad
   const x = i => L + (i / (path.length - 1)) * (W - L - R)
   const y = v => T + (1 - (v - lo) / (hi - lo)) * (H - T - B)
-  const pts = path.map((v, i) => `${x(i)},${y(v)}`).join(' ')
+  const step = Math.max(1, Math.floor(path.length / 300))
+  const pts = path.map((v, i) => (i % step === 0 || i === path.length - 1 || i === peakAt || i === at) ? `${x(i)},${y(v)}` : null).filter(Boolean).join(' ')
   const ticks = [lo0, (lo0 + hi0) / 2, hi0]
   const lab = i => { const px = x(i); return px > W - 90 ? { x: px + 4, a: 'end' } : px < L + 50 ? { x: px - 4, a: 'start' } : { x: px, a: 'middle' } }
   return (
@@ -57,6 +59,10 @@ function SeasonChart({ path, peakAt, at, color }) {
       <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
       <circle cx={x(peakAt)} cy={y(path[peakAt])} r="4.5" fill="#e7c160" stroke="#8a6a12" strokeWidth="1" />
       <text x={lab(peakAt).x} y={y(path[peakAt]) - 7} textAnchor={lab(peakAt).a} className={styles.peakLab}>{at === peakAt ? 'Peak · this game' : 'Peak'} {Math.round(path[peakAt]).toLocaleString()}</text>
+      {ends && <>
+        <text x={L} y={H - 6} textAnchor="start" className={styles.tick}>{ends[0]}</text>
+        <text x={W - R - 34} y={H - 6} textAnchor="end" className={styles.tick}>{ends[1]}</text>
+      </>}
       {at > 0 && at !== peakAt && <>
         <circle cx={x(at)} cy={y(path[at])} r="5.5" fill="#fff" stroke={color} strokeWidth="2.5" />
         <text x={lab(at).x} y={Math.min(y(path[at]) + 16, H - 2)} textAnchor={lab(at).a} className={styles.gameLab} fill={color}>This game {Math.round(path[at]).toLocaleString()}</text>
@@ -80,6 +86,15 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
   const avgElo = useMemo(() => {
     const h = career?.elo_history; return h?.length ? h.reduce((s, e) => s + e[1], 0) / h.length : null
   }, [career])
+  // Career Elo path: 1,500 debut, then every game; this game = the entry on this game's date
+  const careerPath = useMemo(() => {
+    const h = career?.elo_history; if (!h?.length) return null
+    const path = [1500, ...h.map(e => e[1])]
+    const peak = Math.max(...path)
+    const gi = h.findIndex(e => e[0] === game.date)
+    const yr = d => d.slice(0, 4)
+    return { path, peakAt: path.indexOf(peak), at: gi >= 0 ? gi + 1 : 0, ends: [yr(h[0][0]), yr(h[h.length - 1][0])] }
+  }, [career, game.date])
   const [first, ...rest] = baseName(name).split(' ')
   const last = rest.join(' ') || first
   const color = team?.color || '#173657'
@@ -131,6 +146,8 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
                 </div>
                 <div className={styles.photo}>
                   <div className={styles.photoBg} />
+                  {/* foil sits behind the player so the headshot stays crisp */}
+                  <div className={styles.holo} /><div className={styles.glitter} /><div className={styles.shine} />
                   <span className={styles.bigNum}>{r0(row.post)}</span>
                   {headshot && !imgBad
                     ? <img className={styles.shot} src={headshot} alt={baseName(name)} onError={() => setImgBad(true)} />
@@ -150,7 +167,6 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
                   <div><small>All-time peak</small><b>{r0(career?.peak_elo)}</b>{peakRank && <em>#{peakRank.toLocaleString()}</em>}</div>
                 </div>
               </div>
-              <div className={styles.holo} /><div className={styles.glitter} /><div className={styles.shine} />
               <FlipBtn />
             </div>
 
@@ -185,25 +201,20 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
                     <div><b>{season.duelPct == null ? '—' : (season.duelPct * 100).toFixed(1)}<i>%</i></b><small>Duel %</small></div>
                     <div><b className={season.end >= season.start ? styles.up : styles.down}>{sgn(season.end - season.start)}</b><small>Elo Δ</small></div>
                   </div>
-                  <SeasonChart path={season.path} peakAt={season.peakAt} at={season.at} color={color} />
+                  <EloChart path={season.path} peakAt={season.peakAt} at={season.at} color={color} />
                 </section>}
 
                 {career && <section>
                   <h4>Career</h4>
                   <div className={styles.grid5}>
                     <div><b>{career.games_played.toLocaleString()}</b><small>Games</small></div>
-                    <div><b>{r0(career.current_elo)}</b><small>{career.is_fpr_eligible ? 'Current' : 'Final'} Elo</small></div>
+                    <div><b>{r0(career.current_elo)}</b><small>Elo</small></div>
                     <div><b>{r0(career.peak_elo)}</b><small>Peak Elo</small></div>
                     <div><b>{r0(avgElo)}</b><small>Avg Elo</small></div>
                     <div><b>{bestRank ? ordinal(bestRank[0]) : '—'}</b><small>Best rank</small></div>
                   </div>
-                  {bestRank && <div className={styles.note}>Best rank among active players: {ordinal(bestRank[0])} in {bestRank[1]}</div>}
+                  {careerPath && <EloChart path={careerPath.path} peakAt={careerPath.peakAt} at={careerPath.at} color={color} H={88} ends={careerPath.ends} />}
                 </section>}
-
-                <div className={styles.backFoot}>
-                  {career && <button type="button" className={styles.profile} onClick={() => onProfile(name)}>Full profile →</button>}
-                  <span>#{peakRank ? peakRank.toLocaleString() : '—'} all-time peak Elo</span>
-                </div>
               </div>
               <FlipBtn />
             </div>
