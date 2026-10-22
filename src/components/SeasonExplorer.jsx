@@ -386,36 +386,6 @@ function teamSummary(g, team) {
   return { net, star }
 }
 
-// Schedule rows grouped by month under collapsible headers. The latest month with games
-// (or, for upcoming games, the nearest month) starts open.
-function MonthBodies({ items, dateOf, cols, summary, openLast, children }) {
-  const months = useMemo(() => {
-    const m = new Map()
-    items.forEach(g => { const k = dateOf(g).slice(0, 7); if (!m.has(k)) m.set(k, []); m.get(k).push(g) })
-    return [...m]
-  }, [items, dateOf])
-  const start = months.length ? months[openLast ? months.length - 1 : 0][0] : null
-  const [open, setOpen] = useState(() => new Set(start ? [start] : []))
-  const toggle = k => setOpen(o => { const n = new Set(o); n.has(k) ? n.delete(k) : n.add(k); return n })
-  return months.map(([k, list]) => {
-    const isOpen = open.has(k)
-    return (
-      <tbody key={k}>
-        <tr className={styles.monthRow} onClick={() => toggle(k)} aria-expanded={isOpen}>
-          <td colSpan={cols}>
-            <span className={styles.monthIn}>
-              <i className={isOpen ? styles.chevOpen : styles.chev}>›</i>
-              <b>{new Date(k + '-15T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</b>
-              <span>{summary(list)}</span>
-            </span>
-          </td>
-        </tr>
-        {isOpen && list.map(children)}
-      </tbody>
-    )
-  })
-}
-
 function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
   const parts = [['Regular Season', games.filter(g => !g.post)], ['Postseason', games.filter(g => g.post)]]
   return (
@@ -432,10 +402,8 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
                 <th>Result</th><th>W-L</th>
                 <th>Elo Riser</th><th title="Sum of every player's Elo change for this team">Team ΔElo</th><th></th>
               </tr></thead>
-              <MonthBodies items={gs} dateOf={g => g.date} cols={8} openLast summary={list => {
-                const w = list.filter(g => g.res === 'W').length
-                return `${w}-${list.length - w}`
-              }}>{g => {
+              <tbody>
+                {gs.map(g => {
                   const { net, star } = teamSummary(g, team)
                   const wp = g.wp[team], upset = (wp < 0.5) === (g.res === 'W')
                   return (
@@ -458,7 +426,8 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
                       <td><span className={styles.boxBtn}>Box Score</span></td>
                     </tr>
                   )
-                }}</MonthBodies>
+                })}
+              </tbody>
             </table>
           </div>
         </div>
@@ -470,10 +439,8 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
           <div className={styles.tableWrap}>
             <table className={`${styles.schedTable} ${styles.upTable}`}>
               <thead><tr><th>Date</th><th>Opponent</th><th>Elo Win %</th><th>Projected</th><th title="Each team's highest-rated healthy player">Top player matchup</th><th></th></tr></thead>
-              <MonthBodies items={upcoming} dateOf={g => g.day} cols={6} summary={list => {
-                const w = list.reduce((s, g) => s + (g.done ? +g.won : g.p), 0)
-                return `${list.length} game${list.length === 1 ? '' : 's'} · projected ${Math.round(w)}-${Math.round(list.length - w)}`
-              }}>{g => {
+              <tbody>
+                {upcoming.map(g => {
                   const mine = g.fg && (g.isHome ? g.fg.home : g.fg.away), theirs = g.fg && (g.isHome ? g.fg.away : g.fg.home)
                   const best = x => x && [...x.rows].filter(r => !r.out).sort((a, b) => b.elo - a.elo)[0]
                   const tm = best(mine), to = best(theirs)
@@ -502,7 +469,8 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
                       </>}
                     </tr>
                   )
-                }}</MonthBodies>
+                })}
+              </tbody>
             </table>
           </div>
         </div>
