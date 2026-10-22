@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from 'react'
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
 import PlayerCard, { tierFor } from './PlayerCard'
@@ -437,11 +437,12 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
             <small>Current Elo, recent minutes, injury report{fetched ? ` as of ${fmtDate(fetched.slice(0, 10), { month: 'short', day: 'numeric' })}` : ''}</small></div>
           <div className={styles.tableWrap}>
             <table className={`${styles.schedTable} ${styles.upTable}`}>
-              <thead><tr><th>Date</th><th>Opponent</th><th>Elo Win %</th><th>Projected</th><th>Out</th><th></th></tr></thead>
+              <thead><tr><th>Date</th><th>Opponent</th><th>Elo Win %</th><th>Projected</th><th title="Each team's highest-rated healthy player">Top player matchup</th><th></th></tr></thead>
               <tbody>
                 {upcoming.map(g => {
-                  const mine = g.fg && (g.isHome ? g.fg.home : g.fg.away)
-                  const outs = mine ? mine.rows.filter(r => r.out) : []
+                  const mine = g.fg && (g.isHome ? g.fg.home : g.fg.away), theirs = g.fg && (g.isHome ? g.fg.away : g.fg.home)
+                  const best = x => x && [...x.rows].filter(r => !r.out).sort((a, b) => b.elo - a.elo)[0]
+                  const tm = best(mine), to = best(theirs)
                   return (
                     <tr key={g.id} onClick={() => g.fg && onPreview(g)} className={g.done ? `${styles.pending} ${g.won ? styles.rowW : styles.rowL}` : ''}>
                       <td className={styles.date}>{fmtDate(g.day)}</td>
@@ -458,7 +459,11 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
                           {Math.round(g.p * 100)}%
                         </span></td>
                         <td>{g.p >= 0.5 ? <span className={styles.favTag}>Favored</span> : <span className={styles.dogTag}>Underdog</span>}</td>
-                        <td className={styles.outs}>{outs.length ? outs.map(r => r.name).join(', ') : '—'}</td>
+                        <td>{tm && to ? <span className={styles.topMatch}>
+                          <span className={tm.elo >= to.elo ? styles.topWin : ''}>{shortName(tm.name)} <b>{r0(tm.elo)}</b></span>
+                          <i>vs</i>
+                          <span className={to.elo > tm.elo ? styles.topWin : ''}>{shortName(to.name)} <b>{r0(to.elo)}</b></span>
+                        </span> : '—'}</td>
                         <td><span className={styles.boxBtn}>Preview</span></td>
                       </>}
                     </tr>
@@ -655,7 +660,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose }) {
             focus={focus} setFocus={setFocus} onCard={onCard} />
         ))}
 
-        <DuelGrid P={P} focus={focus} setFocus={setFocus} />
+        <DuelGrid P={P} focus={focus} setFocus={setFocus} shots={shots} />
       </div>
     </div>
   )
@@ -799,8 +804,11 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
 }
 
 // The differentiator: FPR scores a game as a round robin. Every cell is one duel.
-function DuelGrid({ P, focus, setFocus }) {
+function DuelGrid({ P, focus, setFocus, shots }) {
   const [hover, setHover] = useState(null)
+  const [pin, setPin] = useState(null)
+  const [cellPx, setCellPx] = useState(22)
+  const sideRef = useRef(null)
   const N = P.length
   const order = useMemo(() => [...P].sort((a, b) => b.gs - a.gs), [P])
   const cells = useMemo(() => order.map(a => order.map(b => (a === b ? null : duel(a, b, N)))), [order, N])
@@ -809,47 +817,140 @@ function DuelGrid({ P, focus, setFocus }) {
     const a = Math.min(1, Math.abs(v) / max) ** 0.6
     return v >= 0 ? `rgba(26,122,74,${0.12 + a * 0.85})` : `rgba(168,50,50,${0.12 + a * 0.85})`
   }
-  const h = hover && { a: order[hover[0]], b: order[hover[1]], c: cells[hover[0]][hover[1]] }
+  const rec = useMemo(() => cells.map(row => {
+    const w = row.reduce((s, c) => s + (c ? c.act : 0), 0)
+    return { w, l: N - 1 - w }
+  }), [cells, N])
+  const netMax = Math.max(1, ...order.map(p => Math.abs(p.post - p.pre)))
+
+  // Cells grow to fill the space beside the panel (14–36px)
+  useEffect(() => {
+    const el = sideRef.current; if (!el) return
+    const fit = () => {
+      const avail = el.clientWidth - 200 - 164 // row labels, record + net
+      setCellPx(Math.max(14, Math.min(36, Math.floor((avail - 2 * (N - 1)) / N))))
+    }
+    fit()
+    const ro = new ResizeObserver(fit); ro.observe(el)
+    return () => ro.disconnect()
+  }, [N])
+
+  // Key duels: the biggest Elo exchanges (winner's side) and the least likely wins
+  const key = useMemo(() => {
+    const wins = []
+    cells.forEach((row, i) => row.forEach((c, j) => { if (c && c.act === 1) wins.push({ i, j, c }) }))
+    const swings = [...wins].sort((x, y) => y.c.delta - x.c.delta).slice(0, 5)
+    const upset = [...wins].sort((x, y) => x.c.exp - y.c.exp)[0]
+    return { swings, upset }
+  }, [cells])
+
+  const sel = hover || pin
+  const pick = (i, j) => setPin(p => (p && p[0] === i && p[1] === j ? null : [i, j]))
   const lab = p => shortName(p.n).replace(/^(.)\. /, '$1.')
+  const cs = cellPx
+
+  const Detail = ({ i, j }) => {
+    const a = order[i], b = order[j], c = cells[i][j], back = cells[j][i]
+    const verb = c.act === 1 ? 'beat' : c.act === 0 ? 'lost to' : 'tied'
+    const upset = (c.act === 1 && c.exp < 0.5) || (c.act === 0 && c.exp > 0.5)
+    const side = (p, d, chance) => (
+      <div className={styles.dSide}>
+        <Headshot name={p.n} shots={shots} color={tColor(p.t)} />
+        <div className={styles.dWho}><b>{shortName(p.n)}</b><small><TeamMark t={p.t} size={14} /> {r0(p.pre)} Elo</small></div>
+        <div className={styles.dGs}><b>{p.gs.toFixed(1)}</b><small>GmSc</small></div>
+        <div className={`${styles.dDelta} ${d >= 0 ? styles.up : styles.down}`}>{sgn(d, 2)}</div>
+      </div>
+    )
+    return (
+      <div className={styles.dCard}>
+        <div className={styles.dTag}>{pin && pin[0] === i && pin[1] === j ? 'Pinned duel' : 'Duel'}{upset && <span className={styles.upsetTag}>Upset</span>}</div>
+        <div className={styles.dLine}><b>{shortName(a.n)}</b> {verb} <b>{shortName(b.n)}</b></div>
+        {side(a, c.delta)}
+        {side(b, back.delta)}
+        <div className={styles.dChance}>
+          <em className={styles.dChanceCap}>Pre-game duel win chance</em>
+          <div className={styles.dChanceLab}><span>{shortName(a.n)} <b>{Math.round(c.exp * 100)}%</b></span><span><b>{Math.round((1 - c.exp) * 100)}%</b> {shortName(b.n)}</span></div>
+          <div className={styles.wpTrack}><span style={{ width: `${c.exp * 100}%`, background: '#1a5fa8' }} /><span style={{ width: `${(1 - c.exp) * 100}%`, background: '#c3ccd6' }} /></div>
+        </div>
+        <p className={styles.dWhy}>{upset
+          ? `${shortName(c.act === 1 ? a.n : b.n)} had a ${Math.round((c.act === 1 ? c.exp : 1 - c.exp) * 100)}% chance and won anyway, so the swing is larger.`
+          : c.act === 0.5 ? 'Equal Game Scores split the duel.'
+          : `The favorite won, so the Elo moved ${Math.abs(c.delta) < 1 ? 'only a little' : 'modestly'}.`}</p>
+      </div>
+    )
+  }
 
   return (
     <div className={styles.duel}>
       <div className={styles.duelHead}>
         <h3>The Duel Grid</h3>
-        <p>FPR scores every game as a round robin. Each player faces all {N - 1} others on the floor, from both teams, and wins a duel by posting the higher Game Score. The Elo he gains or loses in each duel depends on how much the rating expected him to win. Upsets pay more. Rows are sorted by Game Score; read across to see one player's {N - 1} results.</p>
+        <p>FPR scores every game as a round robin. Each player faces all {N - 1} others on the floor, from both teams, and wins a duel by posting the higher Game Score. The Elo he gains or loses in each duel depends on how much the rating expected him to win. Upsets pay more. Rows are sorted by Game Score; read across to see one player's {N - 1} results. Click a cell to pin it.</p>
       </div>
-      <div className={styles.duelReadout}>
-        {h ? <>
-          <b>{h.a.n}</b> {h.c.act === 1 ? 'beat' : h.c.act === 0 ? 'lost to' : 'tied'} <b>{h.b.n}</b> · GmSc {h.a.gs} vs {h.b.gs} ·
-          {' '}win chance {(h.c.exp * 100).toFixed(0)}% · <span className={h.c.delta >= 0 ? styles.up : styles.down}>{sgn(h.c.delta, 2)} Elo</span>
-        </> : <span className={styles.duelHint}>Hover a cell to see one duel.</span>}
-      </div>
-      <div className={styles.tableWrap}>
-        <div className={styles.grid} style={{ gridTemplateColumns: `minmax(120px,max-content) repeat(${N}, 18px) 64px` }}
-          onMouseLeave={() => { setHover(null); setFocus(null) }}>
-          <span />
-          {order.map((b, j) => (
-            <span key={j} className={`${styles.colLab} ${focus === b.n ? styles.lit : ''}`} style={{ '--tc': tColor(b.t) }}>{lab(b)}</span>
-          ))}
-          <span className={styles.colLab}>Net</span>
-          {order.map((a, i) => (
-            <Fragment key={a.n}>
-              <span className={`${styles.rowLab} ${focus === a.n ? styles.lit : ''}`} style={{ '--tc': tColor(a.t) }}>
-                {shortName(a.n)} <small>{a.gs}</small>
-              </span>
-              {order.map((b, j) => {
-                const c = cells[i][j]
-                const lit = hover && (hover[0] === i || hover[1] === j)
-                return c
-                  ? <span key={j} className={`${styles.cell} ${lit ? styles.cellLit : ''} ${focus === a.n || focus === b.n ? styles.cellFocus : ''}`}
-                    style={{ background: shade(c.delta) }}
-                    onMouseEnter={() => { setHover([i, j]); setFocus(a.n) }} />
-                  : <span key={j} className={styles.diag} />
+      <div className={styles.duelBody}>
+        <div ref={sideRef} className={styles.duelGridSide}>
+          <div className={styles.tableWrap}>
+            <div className={styles.grid} style={{ gridTemplateColumns: `minmax(130px,max-content) repeat(${N}, ${cs}px) 150px`, '--cs': `${cs}px` }}
+              onMouseLeave={() => { setHover(null); setFocus(null) }}>
+              <span />
+              {order.map((b, j) => (
+                <span key={j} className={`${styles.colLab} ${focus === b.n ? styles.lit : ''}`} style={{ '--tc': tColor(b.t) }}>{lab(b)}</span>
+              ))}
+              <span className={`${styles.colLab} ${styles.netLab}`}>Record · Net Elo</span>
+              {order.map((a, i) => {
+                const d = a.post - a.pre
+                return (
+                  <Fragment key={a.n}>
+                    <span className={`${styles.rowLab} ${focus === a.n ? styles.lit : ''}`} style={{ '--tc': tColor(a.t) }}>
+                      {shortName(a.n)} <small>{a.gs}</small>
+                    </span>
+                    {order.map((b, j) => {
+                      const c = cells[i][j]
+                      const on = sel && sel[0] === i && sel[1] === j
+                      const lit = sel && (sel[0] === i || sel[1] === j)
+                      return c
+                        ? <button key={j} type="button" aria-label={`${a.n} vs ${b.n}`}
+                          className={`${styles.cell} ${on ? styles.cellOn : lit ? styles.cellLit : ''} ${focus === a.n || focus === b.n ? styles.cellFocus : ''}`}
+                          style={{ background: shade(c.delta) }}
+                          onMouseEnter={() => { setHover([i, j]); setFocus(a.n) }} onClick={() => pick(i, j)} />
+                        : <span key={j} className={styles.diag} />
+                    })}
+                    <span className={styles.netCell}>
+                      <span className={styles.netRec}>{Number.isInteger(rec[i].w) ? rec[i].w : rec[i].w.toFixed(1)}–{Number.isInteger(rec[i].l) ? rec[i].l : rec[i].l.toFixed(1)}</span>
+                      <span className={styles.netBar}><span className={d >= 0 ? styles.barUp : styles.barDown} style={{ width: `${Math.min(50, Math.abs(d) / netMax * 50)}%` }} /></span>
+                      <b className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</b>
+                    </span>
+                  </Fragment>
+                )
               })}
-              <span className={`${styles.net} ${a.post >= a.pre ? styles.up : styles.down}`}>{sgn(a.post - a.pre)}</span>
-            </Fragment>
-          ))}
+            </div>
+          </div>
         </div>
+
+        <aside className={styles.duelPanel}>
+          {sel ? <Detail i={sel[0]} j={sel[1]} /> : (
+            <div className={styles.dCard}>
+              <div className={styles.dTag}>Key duels</div>
+              <p className={styles.dIntro}>The five duels that moved the most Elo. Click one to find it in the grid.</p>
+              {key.swings.map(({ i, j, c }) => (
+                <button key={`${i}-${j}`} type="button" className={styles.keyRow} onClick={() => pick(i, j)}
+                  onMouseEnter={() => setFocus(order[i].n)} onMouseLeave={() => setFocus(null)}>
+                  <span className={styles.keyWho}><b>{shortName(order[i].n)}</b> over {shortName(order[j].n)}</span>
+                  <span className={styles.keyMeta}>{order[i].gs.toFixed(1)} vs {order[j].gs.toFixed(1)} GmSc · {Math.round(c.exp * 100)}% chance</span>
+                  <b className={styles.up}>{sgn(c.delta, 2)}</b>
+                </button>
+              ))}
+              {key.upset && <>
+                <div className={`${styles.dTag} ${styles.dTagGap}`}>Biggest upset</div>
+                <button type="button" className={`${styles.keyRow} ${styles.keyUpset}`} onClick={() => pick(key.upset.i, key.upset.j)}>
+                  <span className={styles.keyWho}><b>{shortName(order[key.upset.i].n)}</b> over {shortName(order[key.upset.j].n)}</span>
+                  <span className={styles.keyMeta}>{r0(order[key.upset.i].pre)} vs {r0(order[key.upset.j].pre)} Elo · {Math.round(key.upset.c.exp * 100)}% chance</span>
+                  <b className={styles.up}>{sgn(key.upset.c.delta, 2)}</b>
+                </button>
+              </>}
+            </div>
+          )}
+          {pin && !hover && <button type="button" className={styles.unpin} onClick={() => setPin(null)}>Back to key duels</button>}
+        </aside>
       </div>
     </div>
   )

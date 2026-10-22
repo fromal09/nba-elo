@@ -167,20 +167,19 @@
 .duel { margin: 0 16px 20px; background: #fff; border-radius: 6px; padding: 16px; }
 .duelHead h3 { font-size: 16px; font-weight: 800; color: #173657; }
 .duelHead p { font-size: 13px; color: #555; margin-top: 4px; max-width: 820px; line-height: 1.5; }
-.duelReadout { margin: 12px 0 10px; font-size: 13px; min-height: 22px; padding: 6px 10px; background: #f4f6f9; border-radius: 4px; }
 .duelHint { color: #999; }
 .grid { display: grid; gap: 2px; align-items: center; width: max-content; padding-bottom: 4px; }
 .colLab { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10.5px; color: #555; height: 82px; text-align: left; white-space: nowrap; justify-self: center; border-left: 0; padding-top: 4px; }
 .colLab, .rowLab { border-color: var(--tc); }
 .colLab { border-bottom: 3px solid var(--tc); }
-.rowLab { font-size: 11.5px; padding: 0 8px 0 6px; border-left: 3px solid var(--tc); white-space: nowrap; height: 18px; line-height: 18px; }
+.rowLab { font-size: 12px; padding: 0 8px 0 6px; border-left: 3px solid var(--tc); white-space: nowrap; height: var(--cs, 18px); line-height: var(--cs, 18px); }
 .rowLab small { color: #999; margin-left: 3px; }
 .lit { color: #173657; font-weight: 700; background: #eef4fb; }
-.cell { width: 18px; height: 18px; border-radius: 3px; cursor: crosshair; transition: transform .08s; }
+.cell { width: var(--cs, 18px); height: var(--cs, 18px); border-radius: 4px; cursor: pointer; transition: transform .08s; border: 0; padding: 0; display: block; }
 .cellFocus { outline: 1px solid rgba(23,54,87,.35); }
 .cellLit { outline: 1.5px solid #173657; }
 .cell:hover { transform: scale(1.25); z-index: 2; position: relative; }
-.diag { width: 18px; height: 18px; border-radius: 3px; background: repeating-linear-gradient(45deg, #eee 0 3px, #fff 3px 6px); }
+.diag { width: var(--cs, 18px); height: var(--cs, 18px); border-radius: 4px; background: repeating-linear-gradient(45deg, #eee 0 3px, #fff 3px 6px); }
 .net { font-size: 11.5px; font-weight: 700; text-align: right; padding-left: 6px; font-variant-numeric: tabular-nums; }
 
 /* ── Progression ── */
@@ -293,3 +292,49 @@
 .boxLegend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; margin-left: 8px; }
 .legExp { border: 2px solid #fff; }
 .legWon { background: #fff; }
+
+/* Duel grid: grid fills the left, a panel explains duels on the right */
+.duelBody { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin-top: 14px; }
+.duelGridSide { flex: 999 1 560px; min-width: 0; }
+.duelPanel { flex: 1 1 320px; max-width: 420px; position: sticky; top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.colLab { font-size: 11px; }
+.netLab { writing-mode: horizontal-tb; transform: none; height: auto; align-self: end; justify-self: start !important; padding: 0 0 4px 8px; border-bottom: 0; font-weight: 700; color: #7a8694; text-transform: uppercase; font-size: 10px; letter-spacing: .5px; white-space: nowrap; }
+.cellOn { outline: 2.5px solid #173657; outline-offset: 1px; transform: scale(1.12); position: relative; z-index: 3; }
+.netCell { display: grid; grid-template-columns: 40px minmax(0, 1fr) 48px; align-items: center; gap: 6px; padding-left: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.netRec { color: #5c6876; font-weight: 600; }
+.netCell b { text-align: right; font-weight: 800; }
+.netBar { position: relative; height: 7px; background: #edf1f5; border-radius: 4px; }
+.netBar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: #b6c2cf; }
+.dCard { background: #f6f8fb; border: 1px solid #e4e8ee; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.dTag { font-size: 10.5px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; color: #1a5fa8; display: flex; align-items: center; gap: 8px; }
+.dTagGap { margin-top: 6px; color: #b07d1a; }
+.dLine { font-size: 15px; color: #1d2633; }
+.dSide { display: grid; grid-template-columns: 34px minmax(0, 1fr) 52px 60px; align-items: center; gap: 10px; background: #fff; border-radius: 8px; padding: 8px 10px; }
+.dWho { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.dWho b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dWho small { font-size: 11px; color: #7a8694; display: flex; align-items: center; gap: 5px; }
+.dWho small .mark { font-size: 5px !important; }
+.dGs { text-align: center; display: flex; flex-direction: column; line-height: 1.15; }
+.dGs b { font-size: 15px; color: #173657; }
+.dGs small { font-size: 9.5px; color: #8a95a2; text-transform: uppercase; letter-spacing: .6px; font-weight: 700; }
+.dDelta { text-align: right; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.dChance .wpTrack { height: 8px; background: #e6ebf1; }
+.dChanceLab { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: #3d4754; margin-bottom: 4px; gap: 8px; white-space: nowrap; }
+.dChanceLab b { font-weight: 800; }
+.dChanceCap { display: block; font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: 1px; color: #8a95a2; font-weight: 700; margin-bottom: 3px; }
+.dChanceLab em { font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: 1px; color: #8a95a2; }
+.dWhy, .dIntro { font-size: 12.5px; color: #4a5560; line-height: 1.45; margin: 0; }
+.keyRow { display: grid; grid-template-columns: minmax(0, 1fr) 62px; grid-template-rows: auto auto; column-gap: 8px; text-align: left; background: #fff; border: 1px solid #e4e8ee; border-radius: 8px; padding: 8px 10px; font: inherit; color: inherit; cursor: pointer; }
+.keyRow:hover { border-color: #1a5fa8; background: #f4f8fd; }
+.keyWho { font-size: 13px; grid-column: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.keyMeta { font-size: 11px; color: #7a8694; grid-column: 1; }
+.keyRow > b { grid-column: 2; grid-row: 1 / span 2; align-self: center; text-align: right; font-size: 15px; font-variant-numeric: tabular-nums; }
+.keyUpset { border-color: #ecd9a8; background: #fffaf0; }
+.unpin { align-self: flex-start; border: 0; background: none; color: #1a5fa8; font-weight: 600; font-size: 12.5px; padding: 4px 0; cursor: pointer; }
+@media (max-width: 700px) { .duelPanel { position: static; max-width: none; } }
+
+.topMatch { display: inline-flex; align-items: baseline; gap: 8px; font-size: 13px; color: #4a5560; }
+.topMatch i { font-style: normal; font-size: 11px; color: #a3acb6; }
+.topMatch b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.topWin { color: #173657; font-weight: 600; }
+.topWin b { color: #1a5fa8; font-weight: 800; }
