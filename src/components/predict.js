@@ -7,7 +7,7 @@
 //                 is spread across the healthy players in proportion to their minutes (max 42 each).
 //   Roster Elo:   plain average of the top 8 healthy players' current Elo.
 //   rating = w * Rotation + (1 - w) * Roster, with w = n / (n + 4)
-// Win chance uses the same team-level fit as the box scores (scale 410, home court 75).
+// Win chance uses the same team-level fit as the box scores (since 2020: scale 450, home court 44).
 
 export const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[.'’]/g, '')
   .replace(/\b(jr|sr|ii|iii|iv)\b/g, '').replace(/\s*\(\d{4}\)$/, '').replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim()

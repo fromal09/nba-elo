@@ -121,8 +121,9 @@ function TeamMark({ t, size = 28 }) {
 // ── Team-level Elo ───────────────────────────────────────────────────────────
 // Lineup Elo: minutes-weighted average of the players who played.
 // Win chance: the duel formula refit on 53,674 games with team ratings and home court.
-// Pre-1970 ratings separate teams less, so that era gets its own fit.
-const WP = sy => (sy < 1970 ? { scale: 1540, home: 420 } : { scale: 410, home: 75 })
+// Fit by era: pre-1970 ratings separate teams less, and home court has shrunk since 2020
+// (about 70 Elo points through 2019, about 44 since; the 2024-26 forecast backtest agrees).
+const WP = sy => (sy < 1970 ? { scale: 1540, home: 420 } : sy < 2020 ? { scale: 400, home: 72 } : { scale: 450, home: 44 })
 function lineupElo(ps, key) {
   const m = ps.reduce((s, p) => s + (p.mp || 0), 0)
   return m ? ps.reduce((s, p) => s + p[key] * (p.mp || 0), 0) / m : ps.reduce((s, p) => s + p[key], 0) / ps.length
@@ -385,6 +386,36 @@ function teamSummary(g, team) {
   return { net, star }
 }
 
+// Schedule rows grouped by month under collapsible headers. The latest month with games
+// (or, for upcoming games, the nearest month) starts open.
+function MonthBodies({ items, dateOf, cols, summary, openLast, children }) {
+  const months = useMemo(() => {
+    const m = new Map()
+    items.forEach(g => { const k = dateOf(g).slice(0, 7); if (!m.has(k)) m.set(k, []); m.get(k).push(g) })
+    return [...m]
+  }, [items, dateOf])
+  const start = months.length ? months[openLast ? months.length - 1 : 0][0] : null
+  const [open, setOpen] = useState(() => new Set(start ? [start] : []))
+  const toggle = k => setOpen(o => { const n = new Set(o); n.has(k) ? n.delete(k) : n.add(k); return n })
+  return months.map(([k, list]) => {
+    const isOpen = open.has(k)
+    return (
+      <tbody key={k}>
+        <tr className={styles.monthRow} onClick={() => toggle(k)} aria-expanded={isOpen}>
+          <td colSpan={cols}>
+            <span className={styles.monthIn}>
+              <i className={isOpen ? styles.chevOpen : styles.chev}>›</i>
+              <b>{new Date(k + '-15T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</b>
+              <span>{summary(list)}</span>
+            </span>
+          </td>
+        </tr>
+        {isOpen && list.map(children)}
+      </tbody>
+    )
+  })
+}
+
 function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
   const parts = [['Regular Season', games.filter(g => !g.post)], ['Postseason', games.filter(g => g.post)]]
   return (
@@ -401,8 +432,10 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
                 <th>Result</th><th>W-L</th>
                 <th>Elo Riser</th><th title="Sum of every player's Elo change for this team">Team ΔElo</th><th></th>
               </tr></thead>
-              <tbody>
-                {gs.map(g => {
+              <MonthBodies items={gs} dateOf={g => g.date} cols={8} openLast summary={list => {
+                const w = list.filter(g => g.res === 'W').length
+                return `${w}-${list.length - w}`
+              }}>{g => {
                   const { net, star } = teamSummary(g, team)
                   const wp = g.wp[team], upset = (wp < 0.5) === (g.res === 'W')
                   return (
@@ -425,8 +458,7 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
                       <td><span className={styles.boxBtn}>Box Score</span></td>
                     </tr>
                   )
-                })}
-              </tbody>
+                }}</MonthBodies>
             </table>
           </div>
         </div>
@@ -438,8 +470,10 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
           <div className={styles.tableWrap}>
             <table className={`${styles.schedTable} ${styles.upTable}`}>
               <thead><tr><th>Date</th><th>Opponent</th><th>Elo Win %</th><th>Projected</th><th title="Each team's highest-rated healthy player">Top player matchup</th><th></th></tr></thead>
-              <tbody>
-                {upcoming.map(g => {
+              <MonthBodies items={upcoming} dateOf={g => g.day} cols={6} summary={list => {
+                const w = list.reduce((s, g) => s + (g.done ? +g.won : g.p), 0)
+                return `${list.length} game${list.length === 1 ? '' : 's'} · projected ${Math.round(w)}-${Math.round(list.length - w)}`
+              }}>{g => {
                   const mine = g.fg && (g.isHome ? g.fg.home : g.fg.away), theirs = g.fg && (g.isHome ? g.fg.away : g.fg.home)
                   const best = x => x && [...x.rows].filter(r => !r.out).sort((a, b) => b.elo - a.elo)[0]
                   const tm = best(mine), to = best(theirs)
@@ -468,8 +502,7 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
                       </>}
                     </tr>
                   )
-                })}
-              </tbody>
+                }}</MonthBodies>
             </table>
           </div>
         </div>
@@ -566,6 +599,7 @@ function ProjBox({ x, shots }) {
 // ── Box score ────────────────────────────────────────────────────────────────
 function BoxScore({ team, game, has, shots, onCard, onClose }) {
   const [focus, setFocus] = useState(null)
+  const [side, setSide] = useState(team) // which team's table shows; starts on the team you came from
   const P = game.players, N = P.length
   const opp = game.opp
   const home = game.home === false ? opp : team
@@ -655,10 +689,16 @@ function BoxScore({ team, game, has, shots, onCard, onClose }) {
           </StoryCard>}
         </div>
 
-        {[away, home].map(t => (
-          <TeamBox key={t} t={t} rows={P.filter(p => p.t === t)} N={N} has={has} avail={avail} shots={shots}
-            focus={focus} setFocus={setFocus} onCard={onCard} />
-        ))}
+        <div className={styles.teamSwitch} role="tablist" aria-label="Team box score">
+          {[away, home].map(t => (
+            <button key={t} type="button" role="tab" aria-selected={side === t} className={side === t ? styles.switchOn : ''}
+              style={{ '--tc': tColor(t) }} onClick={() => setSide(t)}>
+              <TeamMark t={t} size={26} /><span>{tName(t)}</span><b>{pts[t]}</b>
+            </button>
+          ))}
+        </div>
+        <TeamBox key={side} t={side} rows={P.filter(p => p.t === side)} N={N} has={has} avail={avail} shots={shots}
+          focus={focus} setFocus={setFocus} onCard={onCard} />
 
         <DuelGrid P={P} focus={focus} setFocus={setFocus} shots={shots} />
       </div>
@@ -706,7 +746,7 @@ const RAW_EXTRA = { h: 'GmSc', v: p => p.gs.toFixed(1), cls: 'gs', tot: () => ''
 function DuelTrack({ w, xw, n }) {
   const pc = v => `${(Math.max(0, Math.min(n, v)) / n) * 100}%`
   const beat = w >= xw, lo = Math.min(w, xw), hi = Math.max(w, xw), diff = w - xw
-  const flip = w > n * 0.86 || (!beat && w > n * 0.12) // put the label on the open side
+  const flip = beat ? w > n * 0.72 : w > n * 0.12 // put the label on the open side
   return (
     <span className={styles.track} title={`Won ${w} of ${n} duels; Elo expected ${xw.toFixed(1)}`}>
       <span className={styles.trackLine} />
