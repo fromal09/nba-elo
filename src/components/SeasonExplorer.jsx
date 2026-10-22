@@ -93,20 +93,71 @@ function Headshot({ name, shots, color }) {
   )
 }
 
+// Official logos (ESPN CDN) for teams that still carry their current identity;
+// relocated or renamed teams keep the abbreviation mark.
+const ESPN_LOGO = {
+  ATL: 'atl', BOS: 'bos', BKN: 'bkn', CHO: 'cha', CHI: 'chi', CLE: 'cle', DAL: 'dal', DEN: 'den', DET: 'det', GSW: 'gs',
+  HOU: 'hou', IND: 'ind', LAC: 'lac', LAL: 'lal', MEM: 'mem', MIA: 'mia', MIL: 'mil', MIN: 'min', NOP: 'no', NYK: 'ny',
+  OKC: 'okc', ORL: 'orl', PHI: 'phi', PHO: 'phx', POR: 'por', SAC: 'sac', SAS: 'sa', TOR: 'tor', UTA: 'utah', WAS: 'wsh',
+}
+const logoUrl = t => {
+  const info = TEAMINFO[t], code = info?.code || t
+  if (t.includes('@') || !ESPN_LOGO[code] || !info || HIST_ABBR[info.name]) return null
+  const cur = CURRENT[code]?.[0]
+  if (!cur || tShort(t) !== (TWO_WORD.find(w => cur.endsWith(w)) || cur.split(' ').slice(-1)[0])) return null
+  return `https://a.espncdn.com/i/teamlogos/nba/500/${ESPN_LOGO[code]}.png`
+}
+
 function TeamMark({ t, size = 28 }) {
+  const [bad, setBad] = useState(false)
+  const src = logoUrl(t)
+  if (src && !bad) return <img className={styles.logo} src={src} alt={tName(t)} width={size} height={size} loading="lazy" onError={() => setBad(true)} />
   return <span className={styles.mark} style={{ background: tColor(t), width: size, height: size, fontSize: size * 0.34 }}>{tCode(t)}</span>
 }
+
+// ── Team-level Elo ───────────────────────────────────────────────────────────
+// Lineup Elo: minutes-weighted average of the players who played.
+// Win chance: the duel formula refit on 53,674 games with team ratings and home court.
+// Pre-1970 ratings separate teams less, so that era gets its own fit.
+const WP = sy => (sy < 1970 ? { scale: 1540, home: 420 } : { scale: 410, home: 75 })
+function lineupElo(ps, key) {
+  const m = ps.reduce((s, p) => s + (p.mp || 0), 0)
+  return m ? ps.reduce((s, p) => s + p[key] * (p.mp || 0), 0) / m : ps.reduce((s, p) => s + p[key], 0) / ps.length
+}
+function winChance(sy, eloA, eloB, homeA) {
+  const { scale, home } = WP(sy)
+  return 1 / (1 + 10 ** (-(eloA - eloB + (homeA == null ? 0 : homeA ? home : -home)) / scale))
+}
+const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 >> 3 ^ 1 && n % 10) || 0] || 'th')
 
 // ── Season loading ───────────────────────────────────────────────────────────
 function loadSeason(label) {
   return getJSON(`/data/explorer/${label}.json`).then(d => {
     if (d._ready) return d
-    const C = d.cols
+    const C = d.cols, sy = +d.season.slice(0, 4)
+    const latest = {} // team -> lineup Elo after its most recent game
+    const rankOf = (t, v) => {
+      const others = Object.entries(latest).filter(([k]) => k !== t && !k.includes('@') === !t.includes('@'))
+      return { rank: 1 + others.filter(([, x]) => x > v).length, of: others.length + 1 }
+    }
     d.games.forEach(g => {
       g.players = g.rows.map(r => { const o = {}; C.forEach((k, i) => { o[k] = r[i] }); return o })
       delete g.rows
+      const [a, b] = g.teams
+      g.elo = {}
+      for (const t of g.teams) {
+        const ps = g.players.filter(p => p.t === t)
+        g.elo[t] = { pre: lineupElo(ps, 'pre'), post: lineupElo(ps, 'post') }
+        Object.assign(g.elo[t], { preRank: rankOf(t, g.elo[t].pre) })
+      }
+      g.wp = {}
+      g.wp[a] = winChance(sy, g.elo[a].pre, g.elo[b].pre, g.home == null ? null : g.home === a)
+      g.wp[b] = 1 - g.wp[a]
+      for (const t of g.teams) latest[t] = g.elo[t].post
+      for (const t of g.teams) g.elo[t].postRank = rankOf(t, g.elo[t].post)
     })
     d.has = new Set(d.stats || [])
+    d.sy = sy
     d._ready = true
     return d
   })
@@ -122,7 +173,7 @@ function teamGames(sd, team) {
     return {
       id: g.id, date: g.date, opp: o, home: g.home == null ? null : g.home === team,
       pts: g.pts[i], opp_pts: g.pts[1 - i], ot: g.ot, res: won ? 'W' : 'L', post: g.post,
-      rec: `${r[0]}-${r[1]}`, players: g.players,
+      rec: `${r[0]}-${r[1]}`, players: g.players, elo: g.elo, wp: g.wp, sy: sd.sy,
     }
   })
 }
@@ -284,12 +335,15 @@ function Schedule({ team, games, onBox }) {
           <div className={styles.tableWrap}>
             <table className={styles.schedTable}>
               <thead><tr>
-                <th>Date</th><th>Opponent</th><th>Result</th><th>W-L</th>
+                <th>Date</th><th>Opponent</th>
+                <th title="Pre-game win chance from the two lineups' Elo and home court">Elo Win %</th>
+                <th>Result</th><th>W-L</th>
                 <th>Elo Riser</th><th title="Sum of every player's Elo change for this team">Team ΔElo</th><th></th>
               </tr></thead>
               <tbody>
                 {gs.map(g => {
                   const { net, star } = teamSummary(g, team)
+                  const wp = g.wp[team], upset = (wp < 0.5) === (g.res === 'W')
                   return (
                     <tr key={g.id} onClick={() => onBox(g)}>
                       <td className={styles.date}>{fmtDate(g.date)}</td>
@@ -297,7 +351,12 @@ function Schedule({ team, games, onBox }) {
                         <i>{g.home === false ? '@' : 'vs'}</i><TeamMark t={g.opp} size={22} />
                         <span className={styles.full}>{tName(g.opp)}</span><span className={styles.abbr}>{tCode(g.opp)}</span>
                       </span></td>
-                      <td><b className={g.res === 'W' ? styles.win : styles.loss}>{g.res}</b> {g.pts}-{g.opp_pts}{g.ot && <small> {g.ot}</small>}</td>
+                      <td className={styles.num}><span className={styles.wpCell}>
+                        <span className={styles.wpBar}><span style={{ width: `${wp * 100}%` }} /></span>
+                        {Math.round(wp * 100)}%
+                      </span></td>
+                      <td><b className={g.res === 'W' ? styles.win : styles.loss}>{g.res}</b> {g.pts}-{g.opp_pts}{g.ot && <small> {g.ot}</small>}
+                        {upset && <span className={styles.upsetTag}>{g.res === 'W' ? 'Upset' : 'Upset loss'}</span>}</td>
                       <td className={styles.num}>{g.rec}</td>
                       <td>{star && <span className={styles.riser}>{shortName(star.n)} <b>{sgn(star.post - star.pre)}</b></span>}</td>
                       <td className={`${styles.num} ${net >= 0 ? styles.up : styles.down}`}>{sgn(net)}</td>
@@ -338,18 +397,15 @@ function BoxScore({ team, game, has, shots, selectPlayer, onClose }) {
       // A real upset: both played real minutes and the winner cleared the loser by 5+ Game Score
       if ((a.mp || 0) >= 12 && (b.mp || 0) >= 12 && a.gs >= 10 && a.gs - b.gs >= 5 && b.pre - a.pre > (gk ? gk.gap : 0)) gk = { a, b, gap: b.pre - a.pre }
     }
-    const edge = {}
-    for (const t of [team, opp]) {
-      const ps = P.filter(p => p.t === t), m = ps.reduce((s, p) => s + (p.mp || 0), 0)
-      edge[t] = m ? ps.reduce((s, p) => s + p.pre * (p.mp || 0), 0) / m : ps.reduce((s, p) => s + p.pre, 0) / ps.length
-    }
-    return { climb, drop, gk, edge }
-  }, [P, team, opp])
+    return { climb, drop, gk }
+  }, [P])
 
   const avail = useMemo(() => new Set(['mp', 'trb', 'ast', 'stl', 'blk', 'tov', 'tpa', 'fga', 'fta'].filter(k => P.some(p => (p[k] || 0) > 0))), [P])
-  const fav = story.edge[team] >= story.edge[opp] ? team : opp
-  const favWon = (fav === team) === (game.res === 'W')
   const winner = game.res === 'W' ? team : opp
+  const fav = game.wp[team] >= 0.5 ? team : opp
+  const favWon = fav === winner
+  const favPct = Math.round(game.wp[fav] * 100)
+  const venue = game.home == null ? '' : fav === home ? ' at home' : ' on the road'
 
   return (
     <div className={styles.overlay} onClick={onClose}>
@@ -357,26 +413,44 @@ function BoxScore({ team, game, has, shots, selectPlayer, onClose }) {
         <button className={styles.close} onClick={onClose} aria-label="Close">×</button>
 
         <div className={styles.scoreboard}>
-          {[away, home].map((t, i) => (
-            <Fragment key={t}>
-              {i === 1 && <div className={styles.final}>
-                <b>Final{game.ot ? `/${game.ot}` : ''}</b>
-                <span>{fmtDate(game.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                {game.post && <span className={styles.postTag}>Postseason</span>}
-              </div>}
-              <div className={`${styles.sbTeam} ${i ? styles.sbHome : ''} ${t === winner ? styles.sbWin : ''}`}>
-                <TeamMark t={t} size={44} />
-                <div><div className={styles.sbName}>{tShort(t)}</div><div className={styles.sbElo}>Elo {r0(story.edge[t])}</div></div>
-                <div className={styles.sbPts}>{pts[t]}</div>
-              </div>
-            </Fragment>
-          ))}
+          {[away, home].map((t, i) => {
+            const e = game.elo[t], d = e.post - e.pre
+            return (
+              <Fragment key={t}>
+                {i === 1 && <div className={styles.final}>
+                  <b>Final{game.ot ? `/${game.ot}` : ''}</b>
+                  <span>{fmtDate(game.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  {game.post && <span className={styles.postTag}>Postseason</span>}
+                  <div className={styles.wp}>
+                    <div className={styles.wpLab}><span>{Math.round(game.wp[away] * 100)}%</span><em>Elo win chance</em><span>{Math.round(game.wp[home] * 100)}%</span></div>
+                    <div className={styles.wpTrack}>
+                      <span style={{ width: `${game.wp[away] * 100}%`, background: tColor(away) }} />
+                      <span style={{ width: `${game.wp[home] * 100}%`, background: tColor(home) }} />
+                    </div>
+                  </div>
+                </div>}
+                <div className={`${styles.sbTeam} ${i ? styles.sbHome : ''} ${t === winner ? styles.sbWin : ''}`}>
+                  <span className={styles.sbLogo}><TeamMark t={t} size={52} /></span>
+                  <div className={styles.sbInfo}>
+                    <div className={styles.sbName}>{tShort(t)}</div>
+                    <div className={styles.sbElo}>
+                      <span><small>Pre</small>{r0(e.pre)}<i>{ord(e.preRank.rank)} of {e.preRank.of}</i></span>
+                      <span className={styles.sbArrow}>→</span>
+                      <span><small>Post</small>{r0(e.post)}<i>{ord(e.postRank.rank)} of {e.postRank.of}</i></span>
+                      <b className={d >= 0 ? styles.sbUp : styles.sbDown}>{sgn(d)}</b>
+                    </div>
+                  </div>
+                  <div className={styles.sbPts}>{pts[t]}</div>
+                </div>
+              </Fragment>
+            )
+          })}
         </div>
 
         <div className={styles.cards}>
-          <StoryCard tag="Elo Edge" tone={favWon ? 'blue' : 'gold'}>
-            <b>{tShort(fav)}</b> brought the higher minutes-weighted Elo ({r0(story.edge[fav])} vs {r0(story.edge[fav === team ? opp : team])})
-            {favWon ? ' and won.' : ' and lost. Upset.'}
+          <StoryCard tag="Elo Forecast" tone={favWon ? 'blue' : 'gold'}>
+            <b>{tShort(fav)}</b> were {favPct}% favorites{venue}
+            {favWon ? ' and won.' : '. Upset.'}
           </StoryCard>
           <StoryCard tag="Biggest Climb" tone="up">
             <b>{story.climb.n}</b> {r0(story.climb.pre)} → {r0(story.climb.post)} <em className={styles.up}>{sgn(story.climb.post - story.climb.pre)}</em>
@@ -385,7 +459,7 @@ function BoxScore({ team, game, has, shots, selectPlayer, onClose }) {
             <b>{story.drop.n}</b> {r0(story.drop.pre)} → {r0(story.drop.post)} <em className={styles.down}>{sgn(story.drop.post - story.drop.pre)}</em>
           </StoryCard>
           {story.gk && <StoryCard tag="Giant Killer" tone="gold">
-            <b>{story.gk.a.n}</b> ({r0(story.gk.a.pre)}) out-scored <b>{story.gk.b.n}</b> ({r0(story.gk.b.pre)}) on Game Score, {story.gk.a.gs} to {story.gk.b.gs}: a {r0(story.gk.gap)}-point Elo gap.
+            <b>{story.gk.a.n}</b> ({r0(story.gk.a.pre)}) out-scored <b>{story.gk.b.n}</b> ({r0(story.gk.b.pre)}): a {r0(story.gk.gap)}-point Elo gap.
           </StoryCard>}
         </div>
 
@@ -404,82 +478,115 @@ function StoryCard({ tag, tone, children }) {
   return <div className={`${styles.card} ${styles['t_' + tone]}`}><div className={styles.cardTag}>{tag}</div><div>{children}</div></div>
 }
 
-// Box score stat columns; `need` names the stat a season must have recorded for the column to show
-// `any`: hide the column when nobody in this game has a nonzero value (older box scores log unrecorded stats as 0)
-const STAT_COLS = [
-  { h: 'MIN', need: 'mp', any: 'mp', v: p => p.mp ?? '—' },
-  { h: 'PTS', v: p => p.pts ?? '—', cls: 'pts', tot: 'pts' },
-  { h: 'REB', any: 'trb', v: p => p.trb ?? '—', tot: 'trb' },
-  { h: 'AST', any: 'ast', v: p => p.ast ?? '—', tot: 'ast' },
-  { h: 'STL', need: 'stl', any: 'stl', v: p => p.stl ?? '—', tot: 'stl' },
-  { h: 'BLK', need: 'blk', any: 'blk', v: p => p.blk ?? '—', tot: 'blk' },
-  { h: 'TO', need: 'tov', any: 'tov', v: p => p.tov ?? '—', tot: 'tov' },
-  { h: 'FG', pair: ['fg', 'fga'] },
-  { h: '3PT', need: 'tp', any: 'tpa', pair: ['tp', 'tpa'] },
-  { h: 'FT', pair: ['ft', 'fta'] },
-  { h: '+/-', need: 'pm', v: p => (p.pm == null ? '—' : p.pm > 0 ? `+${p.pm}` : p.pm) },
+// Box score columns in three groups. `need`: the season must have recorded the stat.
+// `any`: hide when nobody in this game has a nonzero value (older box scores log unrecorded stats as 0).
+const fmtPct = (m, a) => (a ? (m / a).toFixed(3).replace(/^0/, '') : '—')
+const ts = p => { const d = 2 * ((p.fga || 0) + 0.44 * (p.fta || 0)); return d ? (p.pts || 0) / d : null }
+const BOX_GROUPS = [
+  { g: 'Raw Stats', cls: 'gRaw', cols: [
+    { h: 'MIN', need: 'mp', any: 'mp', v: p => p.mp ?? '—', tot: () => '' },
+    { h: 'PTS', v: p => p.pts ?? '—', cls: 'pts', sum: 'pts' },
+    { h: 'REB', any: 'trb', v: p => p.trb ?? '—', sum: 'trb' },
+    { h: 'AST', any: 'ast', v: p => p.ast ?? '—', sum: 'ast' },
+    { h: 'STL', need: 'stl', any: 'stl', v: p => p.stl ?? '—', sum: 'stl' },
+    { h: 'BLK', need: 'blk', any: 'blk', v: p => p.blk ?? '—', sum: 'blk' },
+    { h: 'TO', need: 'tov', any: 'tov', v: p => p.tov ?? '—', sum: 'tov' },
+    { h: '+/-', need: 'pm', v: p => (p.pm == null ? '—' : p.pm > 0 ? `+${p.pm}` : p.pm), tot: () => '' },
+  ] },
+  { g: 'Shooting', cls: 'gShoot', cols: [
+    { h: 'FG', pair: ['fg', 'fga'] },
+    { h: 'FG%', any: 'fga', pct: ['fg', 'fga'] },
+    { h: '3PT', need: 'tp', any: 'tpa', pair: ['tp', 'tpa'] },
+    { h: '3P%', need: 'tp', any: 'tpa', pct: ['tp', 'tpa'] },
+    { h: 'FT', pair: ['ft', 'fta'] },
+    { h: 'FT%', any: 'fta', pct: ['ft', 'fta'] },
+    { h: 'TS%', any: 'fga', v: p => { const v = ts(p); return v == null ? '—' : v.toFixed(3).replace(/^0/, '') },
+      tot: rows => { const v = ts({ pts: sum(rows, 'pts'), fga: sum(rows, 'fga'), fta: sum(rows, 'fta') }); return v == null ? '—' : v.toFixed(3).replace(/^0/, '') } },
+  ] },
 ]
+const sum = (rows, k) => rows.reduce((s, p) => s + (p[k] || 0), 0)
 const split = (m, a, showA = true) => (m == null ? '—' : showA ? `${m}-${a ?? '—'}` : `${m}`)
 
 function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, selectPlayer }) {
-  const cols = STAT_COLS.filter(c => (!c.need || has?.has(c.need)) && (!c.any || avail.has(c.any)))
-  const cell = (c, p) => (c.pair ? split(p[c.pair[0]], p[c.pair[1]], avail.has(c.pair[1])) : c.v(p))
-  const starters = has?.has('st')
+  const groups = BOX_GROUPS.map(G => ({ ...G, cols: G.cols.filter(c => (!c.need || has?.has(c.need)) && (!c.any || avail.has(c.any))) }))
+    .filter(G => G.cols.length)
+  const cell = c => p => c.pair ? split(p[c.pair[0]], p[c.pair[1]], avail.has(c.pair[1]))
+    : c.pct ? fmtPct(p[c.pct[0]] || 0, p[c.pct[1]] || 0) : c.v(p)
+  const total = c => c.pair ? split(sum(rows, c.pair[0]), sum(rows, c.pair[1]), avail.has(c.pair[1]))
+    : c.pct ? fmtPct(sum(rows, c.pct[0]), sum(rows, c.pct[1])) : c.sum ? sum(rows, c.sum) : c.tot ? c.tot(rows) : ''
+  const starters = has?.has('st') && rows.some(p => p.st)
   const sorted = [...rows].sort((a, b) => (starters ? b.st - a.st : 0) || (b.mp || 0) - (a.mp || 0) || (b.pts || 0) - (a.pts || 0))
+  const sections = starters ? [['Starters', sorted.filter(p => p.st)], ['Bench', sorted.filter(p => !p.st)]] : [[null, sorted]]
   const max = Math.max(8, ...rows.map(p => Math.abs(p.post - p.pre)))
-  const tot = k => rows.reduce((s, p) => s + (p[k] || 0), 0)
   const net = rows.reduce((s, p) => s + p.post - p.pre, 0)
+  const width = 1 + groups.reduce((s, G) => s + G.cols.length, 0) + 5
+  const ELO_COLS = 5
+
+  const row = p => {
+    const d = p.post - p.pre
+    return (
+      <tr key={p.n} className={focus === p.n ? styles.focus : ''} onMouseEnter={() => setFocus(p.n)} onMouseLeave={() => setFocus(null)}>
+        <td className={styles.sticky}>
+          <span className={styles.pl}>
+            <Headshot name={p.n} shots={shots} color={tColor(t)} />
+            <span><button className={styles.pName} onClick={() => selectPlayer(p.n)}>{shortName(p.n)}</button>
+              {p.pos && <small>{p.pos}</small>}</span>
+          </span>
+        </td>
+        {groups.map(G => G.cols.map((c, j) => (
+          <td key={G.g + c.h} className={`${styles[G.cls]} ${j === 0 ? styles.gStart : ''} ${c.cls ? styles[c.cls] : ''}`}>{cell(c)(p)}</td>
+        )))}
+        <td className={`${styles.gElo} ${styles.gStart} ${styles.gs}`}>{p.gs.toFixed(1)}</td>
+        <td className={`${styles.gElo} ${styles.duels}`} title={`Won ${p.w} of ${N - 1}; Elo expected ${p.xw.toFixed(1)}`}>
+          {Number.isInteger(p.w) ? p.w : p.w.toFixed(1)}<small>/{N - 1}</small>
+          <i className={p.w >= p.xw ? styles.up : styles.down}>{sgn(p.w - p.xw)}</i>
+        </td>
+        <td className={`${styles.gElo} ${styles.elo}`}>{r0(p.pre)}</td>
+        <td className={`${styles.gElo} ${styles.elo}`}><b>{r0(p.post)}</b></td>
+        <td className={`${styles.gElo} ${styles.swing}`}><span className={styles.swingIn}>
+          <span className={styles.bar}>
+            <span className={d >= 0 ? styles.barUp : styles.barDown} style={{ width: `${Math.min(50, (Math.abs(d) / max) * 50)}%` }} />
+          </span>
+          <b className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</b>
+        </span></td>
+      </tr>
+    )
+  }
 
   return (
     <div className={styles.teamBox} style={{ '--tc': tColor(t) }}>
-      <div className={styles.teamBoxHead}><TeamMark t={t} size={24} /> {tName(t)}</div>
+      <div className={styles.teamBoxHead}><TeamMark t={t} size={30} /><span>{tName(t)}</span></div>
       <div className={styles.tableWrap}>
         <table className={styles.box}>
-          <thead><tr>
-            <th className={styles.sticky}>Player</th>
-            {cols.map(c => <th key={c.h}>{c.h}</th>)}
-            <th className={styles.gsH}>GmSc</th>
-            <th className={styles.eloH} title={`Head-to-head duels won against the other ${N - 1} players in the game, with the number Elo expected`}>Duels</th>
-            <th className={styles.eloH}>Pre</th><th className={styles.eloH}>Post</th>
-            <th className={`${styles.eloH} ${styles.swingH}`}>Elo Swing</th>
-          </tr></thead>
+          <thead>
+            <tr className={styles.groupRow}>
+              <th className={styles.sticky} />
+              {groups.map(G => <th key={G.g} colSpan={G.cols.length} className={`${styles[G.cls]} ${styles.gStart}`}><span>{G.g}</span></th>)}
+              <th colSpan={ELO_COLS} className={`${styles.gElo} ${styles.gStart}`}><span>Elo Stats</span></th>
+            </tr>
+            <tr>
+              <th className={styles.sticky}>Player</th>
+              {groups.map(G => G.cols.map((c, j) => <th key={G.g + c.h} className={`${styles[G.cls]} ${j === 0 ? styles.gStart : ''}`}>{c.h}</th>))}
+              <th className={`${styles.gElo} ${styles.gStart}`} title="Game Score: the stat every duel is decided on">GmSc</th>
+              <th className={styles.gElo} title={`Head-to-head duels won against the other ${N - 1} players in the game, with the number Elo expected`}>Duels</th>
+              <th className={styles.gElo}>Pre</th><th className={styles.gElo}>Post</th>
+              <th className={`${styles.gElo} ${styles.swingH}`}>Elo Swing</th>
+            </tr>
+          </thead>
+          {sections.map(([label, ps]) => (
+            <tbody key={label || 'all'} className={label === 'Bench' ? styles.benchBody : undefined}>
+              {label && <tr className={styles.section}><td className={styles.sticky}>{label}</td><td colSpan={width - 1} /></tr>}
+              {ps.map(row)}
+            </tbody>
+          ))}
           <tbody>
-            {sorted.map((p, i) => {
-              const d = p.post - p.pre
-              return (
-                <tr key={p.n} className={`${focus === p.n ? styles.focus : ''} ${starters && i > 0 && !p.st && sorted[i - 1].st ? styles.benchStart : ''}`}
-                  onMouseEnter={() => setFocus(p.n)} onMouseLeave={() => setFocus(null)}>
-                  <td className={styles.sticky}>
-                    <span className={styles.pl}>
-                      <Headshot name={p.n} shots={shots} color={tColor(t)} />
-                      <span><button className={styles.pName} onClick={() => selectPlayer(p.n)}>{shortName(p.n)}</button>
-                        <small>{[p.pos, starters && !p.st ? 'Bench' : ''].filter(Boolean).join(' · ')}</small></span>
-                    </span>
-                  </td>
-                  {cols.map(c => <td key={c.h} className={c.cls ? styles[c.cls] : undefined}>{cell(c, p)}</td>)}
-                  <td className={styles.gs}>{p.gs.toFixed(1)}</td>
-                  <td className={styles.duels} title={`Won ${p.w} of ${N - 1}; Elo expected ${p.xw.toFixed(1)}`}>
-                    {Number.isInteger(p.w) ? p.w : p.w.toFixed(1)}<small>/{N - 1}</small>
-                    <i className={p.w >= p.xw ? styles.up : styles.down}>{sgn(p.w - p.xw)}</i>
-                  </td>
-                  <td className={styles.elo}>{r0(p.pre)}</td>
-                  <td className={styles.elo}><b>{r0(p.post)}</b></td>
-                  <td className={styles.swing}><span className={styles.swingIn}>
-                    <span className={styles.bar}>
-                      <span className={d >= 0 ? styles.barUp : styles.barDown} style={{ width: `${Math.min(50, (Math.abs(d) / max) * 50)}%` }} />
-                    </span>
-                    <b className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</b>
-                  </span></td>
-                </tr>
-              )
-            })}
             <tr className={styles.totals}>
               <td className={styles.sticky}>Team</td>
-              {cols.map(c => <td key={c.h} className={c.cls ? styles[c.cls] : undefined}>
-                {c.pair ? split(tot(c.pair[0]), tot(c.pair[1]), avail.has(c.pair[1])) : c.tot ? tot(c.tot) : ''}
-              </td>)}
-              <td></td><td></td><td></td><td></td>
-              <td className={styles.swing}><b className={net >= 0 ? styles.up : styles.down}>{sgn(net)}</b></td>
+              {groups.map(G => G.cols.map((c, j) => (
+                <td key={G.g + c.h} className={`${styles[G.cls]} ${j === 0 ? styles.gStart : ''} ${c.cls ? styles[c.cls] : ''}`}>{total(c)}</td>
+              )))}
+              <td className={`${styles.gElo} ${styles.gStart}`} /><td className={styles.gElo} /><td className={styles.gElo} /><td className={styles.gElo} />
+              <td className={`${styles.gElo} ${styles.swing}`}><b className={net >= 0 ? styles.up : styles.down}>{sgn(net)}</b></td>
             </tr>
           </tbody>
         </table>
