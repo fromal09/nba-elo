@@ -20,8 +20,8 @@ export default function Homepage({ data, setView }) {
     {
       icon: '🗓️',
       title: 'Season Explorer',
-      desc: 'Every team\'s schedule and box scores with pre- and post-game Elo, the Duel Grid, and roster Elo progressions.',
-      meta: `${CURRENT_SEASON_YEAR}-${String(CURRENT_SEASON_YEAR + 1).slice(-2)} · game by game`,
+      desc: 'Every season since 1946-47, BAA and ABA included: schedules, box scores with pre- and post-game Elo, the Duel Grid, and roster Elo progressions.',
+      meta: `1946–${CURRENT_SEASON_YEAR + 1} · game by game`,
       view: 'explorer',
       color: '#e6ecf5', iconColor: '#173657',
     },

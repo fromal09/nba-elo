@@ -127,7 +127,9 @@ def parse_csv(paths):
             if line.startswith("Rk,Player") or not line.strip():
                 continue
             filtered.append(line)
-        frames.append(pd.read_csv(io.StringIO("\n".join(filtered)), low_memory=False))
+        frame = pd.read_csv(io.StringIO("\n".join(filtered)), low_memory=False)
+        frame["_lg"] = "ABA" if Path(path).name == "bbref-aba.csv" else "NBA"
+        frames.append(frame)
 
     df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
     df["Player"] = df["Player"].apply(normalize_name)
@@ -362,6 +364,7 @@ def build_elo(df):
 
     # Compute GmSc from raw stats wherever it's missing
     stat_cols = ["PTS","FG","FGA","FT","FTA","ORB","DRB","TRB","STL","BLK","AST","TOV","PF"]
+    season_explorer.mark_missing(df, stat_cols)
     for col in stat_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
@@ -416,6 +419,7 @@ def build_elo(df):
     df = df.sort_values("Date")
     df = df.drop_duplicates(subset=["Player", "game_id"], keep="last")
     df = df.reset_index(drop=True)
+    season_explorer.bind(df)
     print(f"  {len(df)} rows after deduplication ({df['Player'].nunique()} players)")
 
     elo          = {}
@@ -444,8 +448,6 @@ def build_elo(df):
             elo[player]          = 1500
             games_played[player] = 0
             peak_elo[player]     = 1500
-
-    EXPORT_FROM = season_explorer.export_from(season_start_year())
 
     game_order  = df.drop_duplicates("game_id").sort_values("Date")["game_id"].tolist()
     game_groups = {gid: grp for gid, grp in df.groupby("game_id")}
@@ -491,6 +493,7 @@ def build_elo(df):
             last_played[p] = date_str
 
         deltas = defaultdict(float)
+        xw, wins = defaultdict(float), defaultdict(float)  # Season Explorer: expected vs actual duels
         for a in players:
             for b in players:
                 if a == b: continue
@@ -509,16 +512,11 @@ def build_elo(df):
                     margin_factor = max(0.5, min(2.0, margin_factor))
                     k_eff *= margin_factor
                 deltas[a] += k_eff * (act_a - exp_a)
+                xw[a]     += exp_a
+                wins[a]   += act_a
 
-        if date_str >= EXPORT_FROM:
-            pre_elo = {p: elo[p] for p in players}
-            pre_gp  = {p: games_played[p] for p in players}
-            xw, wins = defaultdict(float), defaultdict(float)
-            for a in players:
-                for b in players:
-                    if a == b: continue
-                    xw[a] += 1 / (1 + 10 ** ((elo[b] - elo[a]) / 620))
-                    wins[a] += 1.0 if gmsc[a] > gmsc[b] else (0.5 if gmsc[a] == gmsc[b] else 0.0)
+        pre_elo = {p: elo[p] for p in players}
+        pre_gp  = {p: games_played[p] for p in players}
         for p in players:
             elo[p]          += deltas[p]
             games_played[p] += 1
@@ -530,9 +528,8 @@ def build_elo(df):
             if not team_hist[p] or team_hist[p][-1][1] != cur_team:
                 team_hist[p].append([date_str, cur_team])
 
-        if date_str >= EXPORT_FROM:
-            season_explorer.record_game(game_id, date_str, players, group_by_player, team_map,
-                                        pre_elo, pre_gp, gmsc, elo, xw, wins)
+        season_explorer.record_game(game_id, date_str, players, group_by_player, team_map,
+                                    pre_elo, pre_gp, gmsc, elo, xw, wins)
 
         sorted_by_elo = sorted(players, key=lambda p: -elo[p])
         # Global FPR rank snapshot — sort ALL players after every game

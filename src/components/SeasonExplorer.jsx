@@ -2,27 +2,51 @@ import { useState, useEffect, useMemo, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
 
-// ── Reference data ───────────────────────────────────────────────────────────
-const TEAMS = {
-  ATL: ['Atlanta', 'Hawks', '#C8102E', 'E'], BOS: ['Boston', 'Celtics', '#007A33', 'E'],
-  BKN: ['Brooklyn', 'Nets', '#000000', 'E'], CHO: ['Charlotte', 'Hornets', '#00788C', 'E'],
-  CHI: ['Chicago', 'Bulls', '#CE1141', 'E'], CLE: ['Cleveland', 'Cavaliers', '#860038', 'E'],
-  DAL: ['Dallas', 'Mavericks', '#00538C', 'W'], DEN: ['Denver', 'Nuggets', '#0E2240', 'W'],
-  DET: ['Detroit', 'Pistons', '#C8102E', 'E'], GSW: ['Golden State', 'Warriors', '#1D428A', 'W'],
-  HOU: ['Houston', 'Rockets', '#CE1141', 'W'], IND: ['Indiana', 'Pacers', '#002D62', 'E'],
-  LAC: ['LA', 'Clippers', '#C8102E', 'W'], LAL: ['Los Angeles', 'Lakers', '#552583', 'W'],
-  MEM: ['Memphis', 'Grizzlies', '#5D76A9', 'W'], MIA: ['Miami', 'Heat', '#98002E', 'E'],
-  MIL: ['Milwaukee', 'Bucks', '#00471B', 'E'], MIN: ['Minnesota', 'Timberwolves', '#0C2340', 'W'],
-  NOP: ['New Orleans', 'Pelicans', '#0C2340', 'W'], NYK: ['New York', 'Knicks', '#006BB6', 'E'],
-  OKC: ['Oklahoma City', 'Thunder', '#007AC1', 'W'], ORL: ['Orlando', 'Magic', '#0077C0', 'E'],
-  PHI: ['Philadelphia', '76ers', '#006BB6', 'E'], PHO: ['Phoenix', 'Suns', '#1D1160', 'W'],
-  POR: ['Portland', 'Trail Blazers', '#E03A3E', 'W'], SAC: ['Sacramento', 'Kings', '#5A2D81', 'W'],
-  SAS: ['San Antonio', 'Spurs', '#4a4f54', 'W'], TOR: ['Toronto', 'Raptors', '#CE1141', 'E'],
-  UTA: ['Utah', 'Jazz', '#002B5C', 'W'], WAS: ['Washington', 'Wizards', '#002B5C', 'E'],
+// ── Team info ────────────────────────────────────────────────────────────────
+// Names, colors and groups come from each season file (historical names). This
+// list only fills in current teams that haven't played yet in the newest season.
+const CURRENT = {
+  ATL: ['Atlanta Hawks', '#C8102E', 'E'], BOS: ['Boston Celtics', '#007A33', 'E'], BKN: ['Brooklyn Nets', '#000000', 'E'],
+  CHO: ['Charlotte Hornets', '#00788C', 'E'], CHI: ['Chicago Bulls', '#CE1141', 'E'], CLE: ['Cleveland Cavaliers', '#860038', 'E'],
+  DAL: ['Dallas Mavericks', '#00538C', 'W'], DEN: ['Denver Nuggets', '#0E2240', 'W'], DET: ['Detroit Pistons', '#C8102E', 'E'],
+  GSW: ['Golden State Warriors', '#1D428A', 'W'], HOU: ['Houston Rockets', '#CE1141', 'W'], IND: ['Indiana Pacers', '#002D62', 'E'],
+  LAC: ['LA Clippers', '#C8102E', 'W'], LAL: ['Los Angeles Lakers', '#552583', 'W'], MEM: ['Memphis Grizzlies', '#5D76A9', 'W'],
+  MIA: ['Miami Heat', '#98002E', 'E'], MIL: ['Milwaukee Bucks', '#00471B', 'E'], MIN: ['Minnesota Timberwolves', '#0C2340', 'W'],
+  NOP: ['New Orleans Pelicans', '#0C2340', 'W'], NYK: ['New York Knicks', '#006BB6', 'E'], OKC: ['Oklahoma City Thunder', '#007AC1', 'W'],
+  ORL: ['Orlando Magic', '#0077C0', 'E'], PHI: ['Philadelphia 76ers', '#006BB6', 'E'], PHO: ['Phoenix Suns', '#1D1160', 'W'],
+  POR: ['Portland Trail Blazers', '#E03A3E', 'W'], SAC: ['Sacramento Kings', '#5A2D81', 'W'], SAS: ['San Antonio Spurs', '#4a4f54', 'W'],
+  TOR: ['Toronto Raptors', '#CE1141', 'E'], UTA: ['Utah Jazz', '#002B5C', 'W'], WAS: ['Washington Wizards', '#002B5C', 'E'],
 }
-const tName = t => TEAMS[t] ? `${TEAMS[t][0]} ${TEAMS[t][1]}` : t
-const tShort = t => TEAMS[t]?.[1] || t
-const tColor = t => TEAMS[t]?.[2] || '#173657'
+const GROUP_ORDER = ['Eastern Conference', 'Western Conference', 'BAA', 'NBA', 'ABA']
+const GROUP_LABEL = { BAA: 'BAA Standings', NBA: 'NBA Standings', ABA: 'ABA Standings' }
+const TWO_WORD = ['Trail Blazers', 'Red Skins']
+
+// Set from the loaded season before children render (one season is on screen at a time)
+let TEAMINFO = {}
+const tName = t => TEAMINFO[t]?.name || t
+const tShort = t => {
+  const n = tName(t)
+  return TWO_WORD.find(w => n.endsWith(w)) || n.replace(/^The /, '').split(' ').slice(-1)[0]
+}
+const tColor = t => TEAMINFO[t]?.color || '#173657'
+// Period-correct abbreviations (Basketball-Reference style) for renamed and relocated teams
+const HIST_ABBR = {
+  'Seattle SuperSonics': 'SEA', 'Baltimore Bullets': 'BAL', 'Capital Bullets': 'CAP', 'Washington Bullets': 'WSB',
+  'New Jersey Nets': 'NJN', 'New York Nets': 'NYN', 'Philadelphia Warriors': 'PHW', 'San Francisco Warriors': 'SFW',
+  'San Diego Rockets': 'SDR', 'Buffalo Braves': 'BUF', 'San Diego Clippers': 'SDC', 'Minneapolis Lakers': 'MNL',
+  'Vancouver Grizzlies': 'VAN', 'Charlotte Bobcats': 'CHA', 'New Orleans Hornets': 'NOH', 'New Orleans/Oklahoma City Hornets': 'NOK',
+  'Syracuse Nationals': 'SYR', 'Rochester Royals': 'ROC', 'Cincinnati Royals': 'CIN', 'Kansas City-Omaha Kings': 'KCO',
+  'Kansas City Kings': 'KCK', 'New Orleans Jazz': 'NOJ', 'Toronto Huskies': 'TRH', 'Tri-Cities Blackhawks': 'TRI',
+  'Milwaukee Hawks': 'MLH', 'St. Louis Hawks': 'STL', 'Chicago Stags': 'CHS', 'Cleveland Rebels': 'CLR',
+  'Detroit Falcons': 'DTF', 'Fort Wayne Pistons': 'FTW', 'Oakland Oaks': 'OAK', 'Utah Stars': 'UTS',
+  'New Jersey Americans': 'NJA', 'Denver Rockets': 'DNR', 'San Diego Conquistadors': 'SDA', 'Miami Floridians': 'MMF',
+  'New Orleans Buccaneers': 'NOB', 'Washington Capitols': 'WSC',
+}
+const tCode = t => {
+  const n = TEAMINFO[t]?.name, c = TEAMINFO[t]?.code || t.split('@')[0]
+  if (n === 'Charlotte Hornets' && c === 'NOH') return 'CHH'
+  return HIST_ABBR[n] || c
+}
 
 const LINE_COLORS = ['#1a5fa8', '#d4960a', '#c0392b', '#1a7a4a', '#7b3fa0', '#e67e22', '#0e8c99', '#b0306a',
   '#5d6d7e', '#8e6b2f', '#2e86de', '#6ab04c', '#8c564b', '#686de0', '#30336b', '#22a6b3']
@@ -70,7 +94,37 @@ function Headshot({ name, shots, color }) {
 }
 
 function TeamMark({ t, size = 28 }) {
-  return <span className={styles.mark} style={{ background: tColor(t), width: size, height: size, fontSize: size * 0.34 }}>{t}</span>
+  return <span className={styles.mark} style={{ background: tColor(t), width: size, height: size, fontSize: size * 0.34 }}>{tCode(t)}</span>
+}
+
+// ── Season loading ───────────────────────────────────────────────────────────
+function loadSeason(label) {
+  return getJSON(`/data/explorer/${label}.json`).then(d => {
+    if (d._ready) return d
+    const C = d.cols
+    d.games.forEach(g => {
+      g.players = g.rows.map(r => { const o = {}; C.forEach((k, i) => { o[k] = r[i] }); return o })
+      delete g.rows
+    })
+    d.has = new Set(d.stats || [])
+    d._ready = true
+    return d
+  })
+}
+
+// Schedule rows from one team's point of view, with running records
+function teamGames(sd, team) {
+  const rec = { false: [0, 0], true: [0, 0] }
+  return sd.games.filter(g => g.teams.includes(team)).map(g => {
+    const i = g.teams.indexOf(team), o = g.teams[1 - i]
+    const won = g.pts[i] > g.pts[1 - i], r = rec[g.post]
+    r[won ? 0 : 1]++
+    return {
+      id: g.id, date: g.date, opp: o, home: g.home == null ? null : g.home === team,
+      pts: g.pts[i], opp_pts: g.pts[1 - i], ot: g.ot, res: won ? 'W' : 'L', post: g.post,
+      rec: `${r[0]}-${r[1]}`, players: g.players,
+    }
+  })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -78,6 +132,7 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
   const [index, setIndex] = useState(null)
   const [err, setErr] = useState(null)
   const [season, setSeason] = useState(null)
+  const [sd, setSd] = useState(null)
   const [open, setOpen] = useState(null)
   const [shots, setShots] = useState({})
 
@@ -88,54 +143,74 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
     getHeadshots().then(setShots)
   }, [])
 
+  useEffect(() => {
+    if (!season) return
+    setSd(null); setOpen(null)
+    loadSeason(season).then(setSd).catch(() => setErr(`Couldn't load ${season}.`))
+  }, [season])
+
   const byName = useMemo(() => {
     const m = {}; players?.forEach(p => { m[p.name] = p }); return m
   }, [players])
   const selectPlayer = n => byName[n] && onSelectPlayer?.(byName[n])
 
+  const teams = useMemo(() => {
+    if (!sd) return {}
+    const t = { ...sd.teams }
+    // Newest season: list every current team, even before its first game
+    if (index && sd.season === index.seasons[0].season && Object.values(t).some(x => x.group.endsWith('Conference'))) {
+      Object.entries(CURRENT).forEach(([c, [name, color, conf]]) => {
+        if (!t[c]) t[c] = { code: c, name, color, group: conf === 'E' ? 'Eastern Conference' : 'Western Conference', w: 0, l: 0, pw: 0, pl: 0, gp: 0, elo: null }
+      })
+    }
+    return t
+  }, [sd, index])
+  TEAMINFO = teams
+
   if (err) return <div className={styles.page}><div className={styles.empty}>{err}</div></div>
-  if (!index) return <div className={styles.page}><div className={styles.empty}>Loading season…</div></div>
+  if (!index) return <div className={styles.page}><div className={styles.empty}>Loading seasons…</div></div>
 
   const s = index.seasons.find(x => x.season === season) || index.seasons[0]
+  const groups = GROUP_ORDER.filter(g => Object.values(teams).some(t => t.group === g))
+  const league = s.leagues?.length ? ['BAA', 'NBA', 'ABA'].filter(l => s.leagues.includes(l)).join(' & ') : 'NBA'
 
   return (
     <div className={styles.page}>
       <div className={styles.hero}>
         <div>
           <div className={styles.kicker}>Season Explorer</div>
-          <h1 className={styles.title}>{s.season} <span>NBA season</span></h1>
+          <h1 className={styles.title}>{s.season} <span>{league} season</span></h1>
           <p className={styles.sub}>
-            {s.games.toLocaleString()} games through {fmtDate(s.last, { month: 'long', day: 'numeric', year: 'numeric' })}.
+            {s.games.toLocaleString()} games, {fmtDate(s.first, { month: 'short', day: 'numeric', year: 'numeric' })} to {fmtDate(s.last, { month: 'short', day: 'numeric', year: 'numeric' })}.
             Pick a team for its schedule, box scores with pre- and post-game Elo, and every player's Elo path.
           </p>
         </div>
-        {index.seasons.length > 1 && (
-          <div className={styles.seasonPick}>
-            {index.seasons.map(x => (
-              <button key={x.season} className={x.season === s.season ? styles.on : ''}
-                onClick={() => { setSeason(x.season); setOpen(null) }}>{x.season}</button>
-            ))}
-          </div>
-        )}
+        <label className={styles.seasonPick}>
+          <span>Season</span>
+          <select value={s.season} onChange={e => setSeason(e.target.value)}>
+            {index.seasons.map(x => <option key={x.season} value={x.season}>{x.season}{x.leagues?.includes('ABA') ? ' · NBA & ABA' : x.leagues?.includes('BAA') ? ' · BAA' : ''}</option>)}
+          </select>
+        </label>
       </div>
 
-      <div className={styles.confs}>
-        {[['E', 'Eastern Conference'], ['W', 'Western Conference']].map(([c, label]) => (
-          <Standings key={c} label={label} conf={c} s={s} open={open}
-            setOpen={t => setOpen(o => (o === t ? null : t))}
-            shots={shots} selectPlayer={selectPlayer} />
-        ))}
-      </div>
+      {!sd ? <div className={styles.empty}>Loading {s.season}…</div> : (
+        <div className={styles.confs}>
+          {groups.map(g => (
+            <Standings key={g} label={GROUP_LABEL[g] || g} group={g} sd={sd} teams={teams} open={open}
+              setOpen={t => setOpen(o => (o === t ? null : t))}
+              shots={shots} selectPlayer={selectPlayer} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Standings table with expandable team rows ───────────────────────────────
-function Standings({ label, conf, s, open, setOpen, shots, selectPlayer }) {
-  const rows = Object.keys(TEAMS).filter(t => TEAMS[t][3] === conf).map(t => {
-    const x = s.teams[t] || { w: 0, l: 0, pw: 0, pl: 0, gp: 0, elo: null }
-    return { t, ...x, pct: x.w + x.l ? x.w / (x.w + x.l) : 0 }
-  }).sort((a, b) => b.pct - a.pct || b.w - a.w || (b.elo || 0) - (a.elo || 0))
+function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer }) {
+  const rows = Object.entries(teams).filter(([, x]) => x.group === group).map(([t, x]) =>
+    ({ t, ...x, pct: x.w + x.l ? x.w / (x.w + x.l) : 0 })
+  ).sort((a, b) => b.pct - a.pct || b.w - a.w || (b.elo || 0) - (a.elo || 0))
   const lead = rows[0]
   const anyPost = rows.some(r => r.pw + r.pl)
 
@@ -160,11 +235,11 @@ function Standings({ label, conf, s, open, setOpen, shots, selectPlayer }) {
               </span>
               <span>{r.w}</span><span>{r.l}</span>
               <span>{r.w + r.l ? r.pct.toFixed(3).replace(/^0/, '') : '—'}</span>
-              <span>{gb ? gb.toFixed(1) : '—'}</span>
+              <span>{r.gp && gb ? gb.toFixed(1) : '—'}</span>
               {anyPost && <span className={styles.hideSm}>{r.pw + r.pl ? `${r.pw}-${r.pl}` : '—'}</span>}
-              <span className={styles.eloCell}>{r0(r.elo)}<i>{isOpen ? '▴' : '▾'}</i></span>
+              <span className={styles.eloCell}>{r0(r.elo)}<i>{r.gp ? (isOpen ? '▴' : '▾') : ''}</i></span>
             </button>
-            {isOpen && <TeamPanel team={r.t} season={s.season} shots={shots} selectPlayer={selectPlayer} />}
+            {isOpen && <TeamPanel team={r.t} sd={sd} shots={shots} selectPlayer={selectPlayer} />}
           </Fragment>
         )
       })}
@@ -173,17 +248,10 @@ function Standings({ label, conf, s, open, setOpen, shots, selectPlayer }) {
 }
 
 // ── Team panel: schedule + Elo progression ──────────────────────────────────
-function TeamPanel({ team, season, shots, selectPlayer }) {
-  const [data, setData] = useState(null)
+function TeamPanel({ team, sd, shots, selectPlayer }) {
   const [tab, setTab] = useState('schedule')
   const [box, setBox] = useState(null)
-
-  useEffect(() => {
-    setData(null)
-    getJSON(`/data/explorer/${season}/${team}.json`).then(setData).catch(() => setData({ games: [] }))
-  }, [team, season])
-
-  if (!data) return <div className={styles.panel}><div className={styles.empty}>Loading {tName(team)}…</div></div>
+  const games = useMemo(() => teamGames(sd, team), [sd, team])
 
   return (
     <div className={styles.panel} style={{ '--tc': tColor(team) }}>
@@ -192,9 +260,9 @@ function TeamPanel({ team, season, shots, selectPlayer }) {
         <button className={tab === 'elo' ? styles.on : ''} onClick={() => setTab('elo')}>Elo Progression</button>
       </div>
       {tab === 'schedule'
-        ? <Schedule team={team} games={data.games} onBox={setBox} />
-        : <Progression team={team} games={data.games} selectPlayer={selectPlayer} />}
-      {box && <BoxScore team={team} game={box} shots={shots} selectPlayer={selectPlayer} onClose={() => setBox(null)} />}
+        ? <Schedule team={team} games={games} onBox={setBox} />
+        : <Progression team={team} games={games} selectPlayer={selectPlayer} />}
+      {box && <BoxScore team={team} game={box} has={sd.has} shots={shots} selectPlayer={selectPlayer} onClose={() => setBox(null)} />}
     </div>
   )
 }
@@ -227,7 +295,7 @@ function Schedule({ team, games, onBox }) {
                       <td className={styles.date}>{fmtDate(g.date)}</td>
                       <td><span className={styles.opp}>
                         <i>{g.home === false ? '@' : 'vs'}</i><TeamMark t={g.opp} size={22} />
-                        <span className={styles.full}>{tName(g.opp)}</span><span className={styles.abbr}>{g.opp}</span>
+                        <span className={styles.full}>{tName(g.opp)}</span><span className={styles.abbr}>{tCode(g.opp)}</span>
                       </span></td>
                       <td><b className={g.res === 'W' ? styles.win : styles.loss}>{g.res}</b> {g.pts}-{g.opp_pts}{g.ot && <small> {g.ot}</small>}</td>
                       <td className={styles.num}>{g.rec}</td>
@@ -247,7 +315,7 @@ function Schedule({ team, games, onBox }) {
 }
 
 // ── Box score ────────────────────────────────────────────────────────────────
-function BoxScore({ team, game, shots, selectPlayer, onClose }) {
+function BoxScore({ team, game, has, shots, selectPlayer, onClose }) {
   const [focus, setFocus] = useState(null)
   const P = game.players, N = P.length
   const opp = game.opp
@@ -268,7 +336,7 @@ function BoxScore({ team, game, shots, selectPlayer, onClose }) {
     let gk = null
     for (const a of P) for (const b of P) {
       // A real upset: both played real minutes and the winner cleared the loser by 5+ Game Score
-      if ((a.mp || 0) >= 12 && (b.mp || 0) >= 12 && a.gs - b.gs >= 5 && b.pre - a.pre > (gk ? gk.gap : 0)) gk = { a, b, gap: b.pre - a.pre }
+      if ((a.mp || 0) >= 12 && (b.mp || 0) >= 12 && a.gs >= 10 && a.gs - b.gs >= 5 && b.pre - a.pre > (gk ? gk.gap : 0)) gk = { a, b, gap: b.pre - a.pre }
     }
     const edge = {}
     for (const t of [team, opp]) {
@@ -278,6 +346,7 @@ function BoxScore({ team, game, shots, selectPlayer, onClose }) {
     return { climb, drop, gk, edge }
   }, [P, team, opp])
 
+  const avail = useMemo(() => new Set(['mp', 'trb', 'ast', 'stl', 'blk', 'tov', 'tpa', 'fga', 'fta'].filter(k => P.some(p => (p[k] || 0) > 0))), [P])
   const fav = story.edge[team] >= story.edge[opp] ? team : opp
   const favWon = (fav === team) === (game.res === 'W')
   const winner = game.res === 'W' ? team : opp
@@ -321,7 +390,7 @@ function BoxScore({ team, game, shots, selectPlayer, onClose }) {
         </div>
 
         {[away, home].map(t => (
-          <TeamBox key={t} t={t} rows={P.filter(p => p.t === t)} N={N} shots={shots}
+          <TeamBox key={t} t={t} rows={P.filter(p => p.t === t)} N={N} has={has} avail={avail} shots={shots}
             focus={focus} setFocus={setFocus} selectPlayer={selectPlayer} />
         ))}
 
@@ -335,12 +404,31 @@ function StoryCard({ tag, tone, children }) {
   return <div className={`${styles.card} ${styles['t_' + tone]}`}><div className={styles.cardTag}>{tag}</div><div>{children}</div></div>
 }
 
-function TeamBox({ t, rows, N, shots, focus, setFocus, selectPlayer }) {
-  const sorted = [...rows].sort((a, b) => (b.st - a.st) || (b.mp || 0) - (a.mp || 0))
+// Box score stat columns; `need` names the stat a season must have recorded for the column to show
+// `any`: hide the column when nobody in this game has a nonzero value (older box scores log unrecorded stats as 0)
+const STAT_COLS = [
+  { h: 'MIN', need: 'mp', any: 'mp', v: p => p.mp ?? '—' },
+  { h: 'PTS', v: p => p.pts ?? '—', cls: 'pts', tot: 'pts' },
+  { h: 'REB', any: 'trb', v: p => p.trb ?? '—', tot: 'trb' },
+  { h: 'AST', any: 'ast', v: p => p.ast ?? '—', tot: 'ast' },
+  { h: 'STL', need: 'stl', any: 'stl', v: p => p.stl ?? '—', tot: 'stl' },
+  { h: 'BLK', need: 'blk', any: 'blk', v: p => p.blk ?? '—', tot: 'blk' },
+  { h: 'TO', need: 'tov', any: 'tov', v: p => p.tov ?? '—', tot: 'tov' },
+  { h: 'FG', pair: ['fg', 'fga'] },
+  { h: '3PT', need: 'tp', any: 'tpa', pair: ['tp', 'tpa'] },
+  { h: 'FT', pair: ['ft', 'fta'] },
+  { h: '+/-', need: 'pm', v: p => (p.pm == null ? '—' : p.pm > 0 ? `+${p.pm}` : p.pm) },
+]
+const split = (m, a, showA = true) => (m == null ? '—' : showA ? `${m}-${a ?? '—'}` : `${m}`)
+
+function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, selectPlayer }) {
+  const cols = STAT_COLS.filter(c => (!c.need || has?.has(c.need)) && (!c.any || avail.has(c.any)))
+  const cell = (c, p) => (c.pair ? split(p[c.pair[0]], p[c.pair[1]], avail.has(c.pair[1])) : c.v(p))
+  const starters = has?.has('st')
+  const sorted = [...rows].sort((a, b) => (starters ? b.st - a.st : 0) || (b.mp || 0) - (a.mp || 0) || (b.pts || 0) - (a.pts || 0))
   const max = Math.max(8, ...rows.map(p => Math.abs(p.post - p.pre)))
   const tot = k => rows.reduce((s, p) => s + (p[k] || 0), 0)
   const net = rows.reduce((s, p) => s + p.post - p.pre, 0)
-  const split = (m, a) => (m == null ? '—' : `${m}-${a}`)
 
   return (
     <div className={styles.teamBox} style={{ '--tc': tColor(t) }}>
@@ -349,8 +437,7 @@ function TeamBox({ t, rows, N, shots, focus, setFocus, selectPlayer }) {
         <table className={styles.box}>
           <thead><tr>
             <th className={styles.sticky}>Player</th>
-            <th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th>
-            <th>FG</th><th>3PT</th><th>FT</th><th>+/-</th>
+            {cols.map(c => <th key={c.h}>{c.h}</th>)}
             <th className={styles.gsH}>GmSc</th>
             <th className={styles.eloH} title={`Head-to-head duels won against the other ${N - 1} players in the game, with the number Elo expected`}>Duels</th>
             <th className={styles.eloH}>Pre</th><th className={styles.eloH}>Post</th>
@@ -360,19 +447,16 @@ function TeamBox({ t, rows, N, shots, focus, setFocus, selectPlayer }) {
             {sorted.map((p, i) => {
               const d = p.post - p.pre
               return (
-                <tr key={p.n} className={`${focus === p.n ? styles.focus : ''} ${i > 0 && !p.st && sorted[i - 1].st ? styles.benchStart : ''}`}
+                <tr key={p.n} className={`${focus === p.n ? styles.focus : ''} ${starters && i > 0 && !p.st && sorted[i - 1].st ? styles.benchStart : ''}`}
                   onMouseEnter={() => setFocus(p.n)} onMouseLeave={() => setFocus(null)}>
                   <td className={styles.sticky}>
                     <span className={styles.pl}>
                       <Headshot name={p.n} shots={shots} color={tColor(t)} />
                       <span><button className={styles.pName} onClick={() => selectPlayer(p.n)}>{shortName(p.n)}</button>
-                        <small>{p.pos}{p.st ? '' : ' · Bench'}</small></span>
+                        <small>{[p.pos, starters && !p.st ? 'Bench' : ''].filter(Boolean).join(' · ')}</small></span>
                     </span>
                   </td>
-                  <td>{p.mp ?? '—'}</td><td className={styles.pts}>{p.pts}</td><td>{p.trb}</td><td>{p.ast}</td>
-                  <td>{p.stl}</td><td>{p.blk}</td><td>{p.tov}</td>
-                  <td>{split(p.fg, p.fga)}</td><td>{split(p.tp, p.tpa)}</td><td>{split(p.ft, p.fta)}</td>
-                  <td>{p.pm == null ? '—' : p.pm > 0 ? `+${p.pm}` : p.pm}</td>
+                  {cols.map(c => <td key={c.h} className={c.cls ? styles[c.cls] : undefined}>{cell(c, p)}</td>)}
                   <td className={styles.gs}>{p.gs.toFixed(1)}</td>
                   <td className={styles.duels} title={`Won ${p.w} of ${N - 1}; Elo expected ${p.xw.toFixed(1)}`}>
                     {Number.isInteger(p.w) ? p.w : p.w.toFixed(1)}<small>/{N - 1}</small>
@@ -391,10 +475,10 @@ function TeamBox({ t, rows, N, shots, focus, setFocus, selectPlayer }) {
             })}
             <tr className={styles.totals}>
               <td className={styles.sticky}>Team</td>
-              <td></td><td className={styles.pts}>{tot('pts')}</td><td>{tot('trb')}</td><td>{tot('ast')}</td>
-              <td>{tot('stl')}</td><td>{tot('blk')}</td><td>{tot('tov')}</td>
-              <td>{split(tot('fg'), tot('fga'))}</td><td>{split(tot('tp'), tot('tpa'))}</td><td>{split(tot('ft'), tot('fta'))}</td>
-              <td></td><td></td><td></td><td></td><td></td>
+              {cols.map(c => <td key={c.h} className={c.cls ? styles[c.cls] : undefined}>
+                {c.pair ? split(tot(c.pair[0]), tot(c.pair[1]), avail.has(c.pair[1])) : c.tot ? tot(c.tot) : ''}
+              </td>)}
+              <td></td><td></td><td></td><td></td>
               <td className={styles.swing}><b className={net >= 0 ? styles.up : styles.down}>{sgn(net)}</b></td>
             </tr>
           </tbody>
@@ -480,7 +564,7 @@ function Progression({ team, games, selectPlayer }) {
   // x = 0 is the season start; x = i + 1 is after the team's i-th game
   const data = useMemo(() => {
     const rows = [{ x: 0, label: 'Start' }, ...games.map((g, i) => ({
-      x: i + 1, label: `G${i + 1} ${g.home === false ? '@' : 'vs'} ${g.opp}`, res: `${g.res} ${g.pts}-${g.opp_pts}`, date: g.date,
+      x: i + 1, label: `G${i + 1} ${g.home === false ? '@' : 'vs'} ${tCode(g.opp)}`, res: `${g.res} ${g.pts}-${g.opp_pts}`, date: g.date,
     }))]
     roster.forEach(r => {
       rows[r.first][r.n] = r.start
