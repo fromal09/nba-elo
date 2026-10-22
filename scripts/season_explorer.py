@@ -127,7 +127,8 @@ _index = []          # one summary per written season
 _NA_COLS = []
 _final = {}          # team id -> lineup Elo after its last game of the previous written season
 _best = {}           # player -> [best league rank, season label]
-_last_cur = {}       # league -> {player: Elo} at the end of the previous written season
+_pool = defaultdict(dict)        # league -> {player: (team, last date, Elo)}
+_team_dates = defaultdict(list)  # team -> its recent game dates
 _recent = defaultdict(lambda: deque(maxlen=10))  # player -> last 10 appearances (date, team, minutes)
 
 
@@ -184,7 +185,7 @@ def bind(df):
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
     OUT_DIR.mkdir(parents=True)
-    _games.clear(); _index.clear(); _final.clear(); _best.clear(); _recent.clear(); _last_cur.clear(); _cur[0] = None
+    _games.clear(); _index.clear(); _final.clear(); _best.clear(); _recent.clear(); _pool.clear(); _team_dates.clear(); _cur[0] = None
 
 
 def _v(x):
@@ -343,41 +344,50 @@ def _write_season(sy, raw_games, latest=False):
                     "w": w, "l": l, "pw": pw, "pl": pl, "gp": w + l + pw + pl,
                     "elo": round(sum(latest[t][n] for n in top8) / len(top8), 1) if top8 else None}
 
-    # League rank entering each game: every player who appears this season, at his latest Elo
-    # (his first pre-game Elo before his debut), ranked within his league.
-    cur = defaultdict(dict)
-    for g in games:
-        for r in g["rows"]:
-            cur[lg_of(r[1])].setdefault(r[0], r[22])
-    # The season in progress also counts last season's players who haven't played yet
-    if latest:
-        for lg, d in _last_cur.items():
-            for n, v in d.items():
-                cur[lg].setdefault(n, v)
+    # League rank entering and leaving each game, among FPR-eligible players at that moment:
+    # a player counts while his last appearance falls within his team's last 20 games
+    # (the Top 100 rule), and for at most a year so players of defunct teams drop out.
+    # State carries across seasons, so October ranks include last season's players.
     by_date = defaultdict(list)
     for g in games:
         by_date[g["date"]].append(g)
+
+    def snapshot(day):
+        today = date.fromisoformat(day)
+        cut = {t: (d[-20] if len(d) >= 20 else d[0]) for t, d in _team_dates.items() if d}
+        out = {}
+        for lg, pool in _pool.items():
+            stale = [n for n, (t, d, v) in pool.items() if (today - date.fromisoformat(d)).days > 365]
+            for n in stale:
+                del pool[n]
+            out[lg] = sorted(v for t, d, v in pool.values() if d >= cut.get(t, d))
+        return out
+
+    def rank_in(snap, lg, v):
+        vals = snap.get(lg, [])
+        return 1 + len(vals) - bisect_right(vals, v)
+
     for day in sorted(by_date):
-        snap = {lg: sorted(v.values()) for lg, v in cur.items()}
+        snap = snapshot(day)
         for g in by_date[day]:
             for r in g["rows"]:
-                vals = snap[lg_of(r[1])]
-                rank = 1 + len(vals) - bisect_right(vals, r[22])
+                rank = rank_in(snap, lg_of(r[1]), r[22])
                 r.append(rank)
                 b = _best.get(r[0])
                 if not b or rank < b[0]:
                     _best[r[0]] = [rank, label]
                 _recent[r[0]].append((day, r[1], r[4]))
         for g in by_date[day]:
+            for t in g["teams"]:
+                if not _team_dates[t] or _team_dates[t][-1] != day:
+                    _team_dates[t].append(day)
+                    del _team_dates[t][:-40]
             for r in g["rows"]:
-                cur[lg_of(r[1])][r[0]] = r[23]
-        snap = {lg: sorted(v.values()) for lg, v in cur.items()}
+                _pool[lg_of(r[1])][r[0]] = (r[1], day, r[23])
+        snap = snapshot(day)
         for g in by_date[day]:
             for r in g["rows"]:
-                vals = snap[lg_of(r[1])]
-                r.append(1 + len(vals) - bisect_right(vals, r[23]))
-    _last_cur.clear()
-    _last_cur.update({lg: {n: v for n, v in d.items()} for lg, d in cur.items()})
+                r.append(rank_in(snap, lg_of(r[1]), r[23]))
 
     # Lineup Elo (minutes-weighted post-game Elo) after each team's final game: seeds next season's ranks
     seed = dict(_final)
