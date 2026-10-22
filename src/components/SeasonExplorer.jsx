@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
 import PlayerCard, { tierFor } from './PlayerCard'
+import { buildForecaster, blendWeight } from './predict'
 
 // ── Team info ────────────────────────────────────────────────────────────────
 // Names, colors and groups come from each season file (historical names). This
@@ -24,7 +25,7 @@ const TWO_WORD = ['Trail Blazers', 'Red Skins']
 
 // Set from the loaded season before children render (one season is on screen at a time)
 let TEAMINFO = {}
-let CAREER = { byName: {}, rank: {} } // elo.json players + all-time peak Elo rank
+let CAREER = { byName: {}, rank: {}, best: {} } // elo.json players, all-time peak Elo rank, best active rank
 const tName = t => TEAMINFO[t]?.name || t
 const tShort = t => {
   const n = tName(t)
@@ -192,13 +193,24 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
   const [sd, setSd] = useState(null)
   const [open, setOpen] = useState(null)
   const [shots, setShots] = useState({})
+  const [sched, setSched] = useState(null)       // ESPN schedule + injuries (current season only)
+  const [rotation, setRotation] = useState(null) // recent minutes per player
+  const [best, setBest] = useState({})           // best rank among active players, per player
 
   useEffect(() => {
     getJSON('/data/explorer/index.json')
       .then(d => { setIndex(d); setSeason(d.seasons[0]?.season) })
       .catch(() => setErr('Season data not found. Run the build pipeline to generate it.'))
     getHeadshots().then(setShots)
+    getJSON('/data/explorer/ranks.json').then(setBest).catch(() => {})
   }, [])
+
+  const newest = !!index && season === index.seasons[0]?.season
+  useEffect(() => {
+    if (!newest || sched) return
+    getJSON('/api/schedule').then(d => d.games && setSched(d)).catch(() => {})
+    getJSON('/data/explorer/rotation.json').then(setRotation).catch(() => setRotation({ players: {} }))
+  }, [newest, sched])
 
   useEffect(() => {
     if (!season) return
@@ -213,7 +225,7 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
   const peakRank = useMemo(() => {
     const m = {}; [...(players || [])].sort((a, b) => b.peak_elo - a.peak_elo).forEach((p, i) => { m[p.name] = i + 1 }); return m
   }, [players])
-  CAREER = { byName, rank: peakRank }
+  CAREER = { byName, rank: peakRank, best }
 
   const teams = useMemo(() => {
     if (!sd) return {}
@@ -227,6 +239,29 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
     return t
   }, [sd, index])
   TEAMINFO = teams
+
+  // Forecasts for the newest season: remaining games per team and projected records
+  const fc = useMemo(() => {
+    if (!newest || !sd || !sched || !rotation || !players) return null
+    const roster = Object.fromEntries(Object.entries(shots || {}).filter(([, v]) => v.team))
+    const gamesPlayed = Object.fromEntries(Object.entries(teams).map(([t, x]) => [t, x.gp]))
+    const f = buildForecaster({ players, roster, rotation, injuries: sched.injuries, fetched: sched.fetched, gamesPlayed, winChance, sy: sd.sy })
+    const through = sd.games.length ? sd.games[sd.games.length - 1].date : '0000-00-00'
+    const upcoming = {}, proj = {}
+    Object.keys(teams).forEach(t => { upcoming[t] = []; proj[t] = [teams[t].w, teams[t].l] })
+    for (const g of sched.games) {
+      if (g.day <= through || !teams[g.home] || !teams[g.away]) continue
+      const fg = g.done ? null : f.game(g.home, g.away, g.day)
+      for (const t of [g.home, g.away]) {
+        const home = t === g.home, p = fg ? (home ? fg.pHome : fg.pAway) : null
+        const won = g.done ? (home ? g.hs > g.as : g.as > g.hs) : null
+        upcoming[t].push({ ...g, opp: home ? g.away : g.home, isHome: home, p, won, fg })
+        proj[t][0] += g.done ? +won : p
+        proj[t][1] += g.done ? +!won : 1 - p
+      }
+    }
+    return { f, upcoming, proj, through, fetched: sched.fetched }
+  }, [newest, sd, sched, rotation, players, shots, teams])
 
   if (err) return <div className={styles.page}><div className={styles.empty}>{err}</div></div>
   if (!index) return <div className={styles.page}><div className={styles.empty}>Loading seasons…</div></div>
@@ -257,7 +292,7 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
       {!sd ? <div className={styles.empty}>Loading {s.season}…</div> : (
         <div className={styles.confs}>
           {groups.map(g => (
-            <Standings key={g} label={GROUP_LABEL[g] || g} group={g} sd={sd} teams={teams} open={open}
+            <Standings key={g} label={GROUP_LABEL[g] || g} group={g} sd={sd} teams={teams} open={open} fc={fc}
               setOpen={t => setOpen(o => (o === t ? null : t))}
               shots={shots} selectPlayer={selectPlayer} />
           ))}
@@ -268,7 +303,7 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
 }
 
 // ── Standings table with expandable team rows ───────────────────────────────
-function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer }) {
+function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer, fc }) {
   const rows = Object.entries(teams).filter(([, x]) => x.group === group).map(([t, x]) =>
     ({ t, ...x, pct: x.w + x.l ? x.w / (x.w + x.l) : 0 })
   ).sort((a, b) => b.pct - a.pct || b.w - a.w || (b.elo || 0) - (a.elo || 0))
@@ -276,11 +311,12 @@ function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer
   const anyPost = rows.some(r => r.pw + r.pl)
 
   return (
-    <section className={styles.conf} style={{ '--cols': `minmax(0, 1fr) 44px 44px 58px 50px ${anyPost ? '74px ' : ''}104px` }}>
+    <section className={styles.conf} style={{ '--cols': `minmax(0, 1fr) 44px 44px 58px 50px ${anyPost ? '74px ' : ''}${fc ? '84px ' : ''}104px` }}>
       <h2 className={styles.confHead}>{label}</h2>
       <div className={styles.standHead}>
         <span>Team</span><span>W</span><span>L</span><span>Pct</span><span>GB</span>
         {anyPost && <span className={styles.hideSm}>Playoffs</span>}
+        {fc && <span className={styles.hideSm} title="Current record plus the Elo win chance of every remaining game">Proj W-L</span>}
         <span title="Average Elo of the eight players with the most minutes for this team">Roster Elo</span>
       </div>
       {rows.map((r, i) => {
@@ -288,7 +324,7 @@ function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer
         const isOpen = open === r.t
         return (
           <Fragment key={r.t}>
-            <button className={`${styles.standRow} ${isOpen ? styles.rowOpen : ''}`} disabled={!r.gp}
+            <button className={`${styles.standRow} ${isOpen ? styles.rowOpen : ''}`} disabled={!r.gp && !fc?.upcoming[r.t]?.length}
               onClick={() => setOpen(r.t)} style={{ '--tc': tColor(r.t) }}>
               <span className={styles.teamCell}>
                 <em>{i + 1}</em><TeamMark t={r.t} />
@@ -298,9 +334,10 @@ function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer
               <span>{r.w + r.l ? r.pct.toFixed(3).replace(/^0/, '') : '—'}</span>
               <span>{r.gp && gb ? gb.toFixed(1) : '—'}</span>
               {anyPost && <span className={styles.hideSm}>{r.pw + r.pl ? `${r.pw}-${r.pl}` : '—'}</span>}
-              <span className={styles.eloCell}>{r0(r.elo)}<i>{r.gp ? (isOpen ? '▴' : '▾') : ''}</i></span>
+              {fc && <span className={`${styles.hideSm} ${styles.projCell}`}>{fc.proj[r.t] ? `${Math.round(fc.proj[r.t][0])}-${Math.round(fc.proj[r.t][1])}` : '—'}</span>}
+              <span className={styles.eloCell}>{r0(r.elo)}<i>{r.gp || fc?.upcoming[r.t]?.length ? (isOpen ? '▴' : '▾') : ''}</i></span>
             </button>
-            {isOpen && <TeamPanel team={r.t} sd={sd} shots={shots} selectPlayer={selectPlayer} />}
+            {isOpen && <TeamPanel team={r.t} sd={sd} shots={shots} selectPlayer={selectPlayer} fc={fc} />}
           </Fragment>
         )
       })}
@@ -309,9 +346,10 @@ function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer
 }
 
 // ── Team panel: schedule + Elo progression ──────────────────────────────────
-function TeamPanel({ team, sd, shots, selectPlayer }) {
+function TeamPanel({ team, sd, shots, selectPlayer, fc }) {
   const [tab, setTab] = useState('schedule')
   const [box, setBox] = useState(null)
+  const [preview, setPreview] = useState(null)
   const [card, setCard] = useState(null) // player name, from a box-score click
   const games = useMemo(() => teamGames(sd, team), [sd, team])
   const cardRow = card && box?.players.find(p => p.n === card)
@@ -323,15 +361,16 @@ function TeamPanel({ team, sd, shots, selectPlayer }) {
         <button className={tab === 'elo' ? styles.on : ''} onClick={() => setTab('elo')}>Elo Progression</button>
       </div>
       {tab === 'schedule'
-        ? <Schedule team={team} games={games} onBox={setBox} />
+        ? <Schedule team={team} games={games} onBox={setBox} upcoming={fc?.upcoming[team] || []} onPreview={setPreview} fetched={fc?.fetched} />
         : <Progression team={team} games={games} selectPlayer={selectPlayer} />}
+      {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
       {box && <BoxScore team={team} game={box} has={sd.has} shots={shots} onCard={setCard} onClose={() => setBox(null)} />}
       {cardRow && (
         <PlayerCard name={card} row={cardRow} sd={sd}
-          game={{ date: box.date, home: cardRow.t === team ? box.home : box.home == null ? null : !box.home, oppAbbr: tCode(cardRow.t === team ? box.opp : team), players: box.players }}
+          game={{ id: box.id, date: box.date, home: cardRow.t === team ? box.home : box.home == null ? null : !box.home, oppAbbr: tCode(cardRow.t === team ? box.opp : team), players: box.players }}
           team={{ name: tName(cardRow.t), color: tColor(cardRow.t), abbr: tCode(cardRow.t) }}
           logo={logoUrl(cardRow.t)} headshot={shots?.[norm(card)]?.headshot}
-          career={CAREER.byName[card] || null} peakRank={CAREER.rank[card]}
+          career={CAREER.byName[card] || null} peakRank={CAREER.rank[card]} bestRank={CAREER.best[card]}
           onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }}
           onClose={() => setCard(null)} />
       )}
@@ -346,10 +385,11 @@ function teamSummary(g, team) {
   return { net, star }
 }
 
-function Schedule({ team, games, onBox }) {
+function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
   const parts = [['Regular Season', games.filter(g => !g.post)], ['Postseason', games.filter(g => g.post)]]
   return (
     <div className={styles.sched}>
+      {games.length === 0 && upcoming.length === 0 && <div className={styles.empty}>No games yet.</div>}
       {parts.map(([label, gs]) => gs.length > 0 && (
         <div key={label}>
           <div className={styles.schedLabel}>{label}</div>
@@ -366,7 +406,8 @@ function Schedule({ team, games, onBox }) {
                   const { net, star } = teamSummary(g, team)
                   const wp = g.wp[team], upset = (wp < 0.5) === (g.res === 'W')
                   return (
-                    <tr key={g.id} onClick={() => onBox(g)}>
+                    <tr key={g.id} onClick={() => onBox(g)}
+                      className={upset ? (g.res === 'W' ? styles.rowUpsetW : styles.rowUpsetL) : (g.res === 'W' ? styles.rowW : styles.rowL)}>
                       <td className={styles.date}>{fmtDate(g.date)}</td>
                       <td><span className={styles.opp}>
                         <i>{g.home === false ? '@' : 'vs'}</i><TeamMark t={g.opp} size={22} />
@@ -390,6 +431,129 @@ function Schedule({ team, games, onBox }) {
           </div>
         </div>
       ))}
+      {upcoming.length > 0 && (
+        <div>
+          <div className={styles.schedLabel}>Upcoming · Elo forecast
+            <small>Current Elo, recent minutes, injury report{fetched ? ` as of ${fmtDate(fetched.slice(0, 10), { month: 'short', day: 'numeric' })}` : ''}</small></div>
+          <div className={styles.tableWrap}>
+            <table className={`${styles.schedTable} ${styles.upTable}`}>
+              <thead><tr><th>Date</th><th>Opponent</th><th>Elo Win %</th><th>Projected</th><th>Out</th><th></th></tr></thead>
+              <tbody>
+                {upcoming.map(g => {
+                  const mine = g.fg && (g.isHome ? g.fg.home : g.fg.away)
+                  const outs = mine ? mine.rows.filter(r => r.out) : []
+                  return (
+                    <tr key={g.id} onClick={() => g.fg && onPreview(g)} className={g.done ? `${styles.pending} ${g.won ? styles.rowW : styles.rowL}` : ''}>
+                      <td className={styles.date}>{fmtDate(g.day)}</td>
+                      <td><span className={styles.opp}>
+                        <i>{g.isHome ? 'vs' : '@'}</i><TeamMark t={g.opp} size={22} />
+                        <span className={styles.full}>{tName(g.opp)}</span><span className={styles.abbr}>{tCode(g.opp)}</span>
+                      </span></td>
+                      {g.done ? <>
+                        <td colSpan={3}><b className={g.won ? styles.win : styles.loss}>{g.won ? 'W' : 'L'}</b> {g.isHome ? `${g.hs}-${g.as}` : `${g.as}-${g.hs}`} <small className={styles.muted}>Box score after the next data update</small></td>
+                        <td></td>
+                      </> : <>
+                        <td className={styles.num}><span className={styles.wpCell}>
+                          <span className={styles.wpBar}><span style={{ width: `${g.p * 100}%` }} /></span>
+                          {Math.round(g.p * 100)}%
+                        </span></td>
+                        <td>{g.p >= 0.5 ? <span className={styles.favTag}>Favored</span> : <span className={styles.dogTag}>Underdog</span>}</td>
+                        <td className={styles.outs}>{outs.length ? outs.map(r => r.name).join(', ') : '—'}</td>
+                        <td><span className={styles.boxBtn}>Preview</span></td>
+                      </>}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Game preview (forecast) ──────────────────────────────────────────────────
+function Preview({ g, shots, fetched, onClose }) {
+  const { home, away, pHome, pAway } = g.fg
+  useEffect(() => {
+    const k = e => e.key === 'Escape' && onClose()
+    addEventListener('keydown', k); document.body.style.overflow = 'hidden'
+    return () => { removeEventListener('keydown', k); document.body.style.overflow = '' }
+  }, [onClose])
+  const P = { [home.team]: pHome, [away.team]: pAway }
+  return (
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+        <button className={styles.close} onClick={onClose} aria-label="Close">×</button>
+        <div className={styles.scoreboard}>
+          {[away, home].map((x, i) => (
+            <Fragment key={x.team}>
+              {i === 1 && <div className={styles.final}>
+                <b>Preview</b>
+                <span>{fmtDate(g.day, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                <div className={styles.wp}>
+                  <em className={styles.wpCap}>Pre-game Elo win chance</em>
+                  <div className={styles.wpLab}><span>{Math.round(pAway * 100)}%</span><span>{Math.round(pHome * 100)}%</span></div>
+                  <div className={styles.wpTrack}>
+                    <span style={{ width: `${pAway * 100}%`, background: tColor(away.team) }} />
+                    <span style={{ width: `${pHome * 100}%`, background: tColor(home.team) }} />
+                  </div>
+                </div>
+              </div>}
+              <div className={`${styles.sbTeam} ${i ? styles.sbHome : ''} ${styles.sbWin}`}>
+                <span className={styles.sbLogo}><TeamMark t={x.team} size={52} /></span>
+                <div className={styles.sbInfo}>
+                  <div className={styles.sbName}>{tShort(x.team)}</div>
+                  <div className={styles.sbCap}>Forecast rating</div>
+                  <div className={styles.sbElo}><span>{r0(x.rating)}</span></div>
+                </div>
+                <div className={styles.sbPts}>{Math.round(P[x.team] * 100)}<small>%</small></div>
+              </div>
+            </Fragment>
+          ))}
+        </div>
+        <div className={styles.cards}>
+          <StoryCard tag="How the forecast works" tone="blue">
+            Each team's rating blends its <b>rotation Elo</b> (current player Elo weighted by projected minutes) with its <b>roster Elo</b> (top 8 healthy players, unweighted).
+            The rotation gets more weight as the season's sample grows: {Math.round(blendWeight(home.n) * 100)}% for {tShort(home.team)} after {home.n} game{home.n === 1 ? '' : 's'}.
+          </StoryCard>
+          <StoryCard tag="Injury report" tone="gold">
+            Players listed out are removed and their minutes go to the rest of the rotation{fetched ? `. Report as of ${fmtDate(fetched.slice(0, 10), { month: 'short', day: 'numeric' })}` : ''}.
+          </StoryCard>
+        </div>
+        {[away, home].map(x => <ProjBox key={x.team} x={x} shots={shots} />)}
+      </div>
+    </div>
+  )
+}
+
+function ProjBox({ x, shots }) {
+  const rows = x.rows.filter(r => r.mp > 0.5 || r.out || r.status)
+  return (
+    <div className={styles.teamBox} style={{ '--tc': tColor(x.team) }}>
+      <div className={styles.teamBoxHead}><TeamMark t={x.team} size={30} /><span>{tName(x.team)}</span>
+        <span className={styles.projSum}>Rotation {r0(x.rot)} × {Math.round(x.w * 100)}% + Roster {r0(x.raw)} × {Math.round((1 - x.w) * 100)}% = <b>{r0(x.rating)}</b></span></div>
+      <div className={styles.tableWrap}>
+        <table className={`${styles.box} ${styles.projTable}`}>
+          <thead><tr>
+            <th className={styles.sticky}>Player</th><th>Status</th><th>Current Elo</th><th>Proj MIN</th><th className={styles.swingH}>Share of rotation</th>
+          </tr></thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.key} className={r.out ? styles.outRow : ''}>
+                <td className={styles.sticky}><span className={styles.pl}><Headshot name={r.name} shots={shots} color={tColor(x.team)} />
+                  <span><b className={styles.pName}>{shortName(r.name)}</b>{!r.rated && <small>No Elo yet · 1,500</small>}</span></span></td>
+                <td>{r.status ? <span className={r.out ? styles.outTag : styles.dtdTag} title={r.detail}>{r.status}</span> : ''}</td>
+                <td className={styles.elo}><b>{r0(r.elo)}</b></td>
+                <td>{r.out ? '—' : r.mp.toFixed(1)}</td>
+                <td className={styles.swing}><span className={styles.swingIn}><span className={styles.bar}>
+                  <span className={styles.barUp} style={{ left: 0, width: `${(r.mp / 42) * 100}%` }} /></span></span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -443,7 +607,8 @@ function BoxScore({ team, game, has, shots, onCard, onClose }) {
                   <span>{fmtDate(game.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
                   {game.post && <span className={styles.postTag}>Postseason</span>}
                   <div className={styles.wp}>
-                    <div className={styles.wpLab}><span>{Math.round(game.wp[away] * 100)}%</span><em>Elo win chance</em><span>{Math.round(game.wp[home] * 100)}%</span></div>
+                    <em className={styles.wpCap}>Pre-game Elo win chance</em>
+                    <div className={styles.wpLab}><span>{Math.round(game.wp[away] * 100)}%</span><span>{Math.round(game.wp[home] * 100)}%</span></div>
                     <div className={styles.wpTrack}>
                       <span style={{ width: `${game.wp[away] * 100}%`, background: tColor(away) }} />
                       <span style={{ width: `${game.wp[home] * 100}%`, background: tColor(home) }} />
@@ -454,6 +619,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose }) {
                   <span className={styles.sbLogo}><TeamMark t={t} size={52} /></span>
                   <div className={styles.sbInfo}>
                     <div className={styles.sbName}>{tShort(t)}</div>
+                    <div className={styles.sbCap} title="Average Elo of the players who played, weighted by their minutes. The schedule's Roster Elo is the unweighted top-8 average.">Lineup Elo · minutes-weighted</div>
                     <div className={styles.sbElo}>
                       <span><small>Pre</small>{r0(e.pre)}<i>{ord(e.preRank.rank)} of {e.preRank.of}</i></span>
                       <span className={styles.sbArrow}>→</span>
@@ -551,7 +717,7 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
           <span className={styles.pl}>
             <Headshot name={p.n} shots={shots} color={tColor(t)} />
             <span><button className={styles.pName} onClick={() => onCard(p.n)} title="Open player card">{shortName(p.n)}</button>
-              <small>{[p.pos, tierFor(CAREER.rank[p.n]).id !== 'common' && tierFor(CAREER.rank[p.n]).label].filter(Boolean).join(' · ')}</small></span>
+              <small>{[p.pos, tierFor(p.lr).id !== 'common' && tierFor(p.lr).label].filter(Boolean).join(' · ')}</small></span>
           </span>
         </td>
         {groups.map(G => G.cols.map((c, j) => (

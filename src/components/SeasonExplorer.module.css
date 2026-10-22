@@ -233,3 +233,38 @@
 }
 .rowLab { position: sticky; left: 0; z-index: 2; background: #fff; }
 .rowLab.lit { background: #eef4fb; }
+
+/* forecasts + banner captions */
+.sbCap { font-size: 9.5px; text-transform: uppercase; letter-spacing: 1.1px; color: #7fa3c7; font-weight: 700; margin-top: 3px; cursor: help; }
+.sbPts small { font-size: .45em; margin-left: 2px; opacity: .7; }
+.projCell { font-weight: 700; color: #1a5fa8; }
+.schedLabel small { display: block; font-size: 11px; text-transform: none; letter-spacing: 0; color: #8a96a3; font-weight: 500; margin-top: 2px; }
+.pending td { color: #888; }
+.muted { color: #999; margin-left: 6px; }
+.favTag, .dogTag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; padding: 2px 7px; border-radius: 3px; }
+.favTag { color: #1a5fa8; background: #e8f0fa; }
+.dogTag { color: #8a6a12; background: #fbf3df; }
+.outs { color: #a83232; font-size: 12px; white-space: normal !important; max-width: 220px; }
+.projSum { margin-left: auto; font-size: 12px; font-weight: 600; opacity: .92; }
+.projSum b { font-weight: 800; }
+.projTable { min-width: 640px; }
+.projTable .bar::after { display: none; }
+.outRow td { color: #aaa !important; }
+.outRow td.sticky { text-decoration: line-through; }
+.outTag, .dtdTag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; padding: 2px 7px; border-radius: 3px; }
+.outTag { color: #fff; background: #a83232; }
+.dtdTag { color: #8a6a12; background: #fbf3df; }
+.upTable { }
+.wpCap { display: block; font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: 1.2px; color: #7fa3c7; font-weight: 700; text-align: center; margin-bottom: 3px; }
+
+/* result tints: light for expected results, vivid for upsets */
+.schedTable tbody tr.rowW td { background: #f1f9f4; }
+.schedTable tbody tr.rowL td { background: #fcf3f3; }
+.schedTable tbody tr.rowUpsetW td { background: #d4f3df; }
+.schedTable tbody tr.rowUpsetL td { background: #f6d6d6; }
+.schedTable tbody tr.rowW:hover td, .schedTable tbody tr.rowL:hover td,
+.schedTable tbody tr.rowUpsetW:hover td, .schedTable tbody tr.rowUpsetL:hover td { filter: brightness(.97); }
+.rowUpsetW td:first-child { box-shadow: inset 4px 0 0 #1aa35a; }
+.rowUpsetL td:first-child { box-shadow: inset 4px 0 0 #b02a2a; }
+.rowUpsetW .upsetTag { color: #fff; background: #1aa35a; }
+.rowUpsetL .upsetTag { color: #fff; background: #b02a2a; }

@@ -17,13 +17,15 @@ Player row = list in COLS order:
   gp (career games before this one, drives K), xw (expected duels won), w (duels won)
 """
 import json, math, re, shutil
-from collections import defaultdict, Counter
+from bisect import bisect_right
+from collections import defaultdict, Counter, deque
 from datetime import date
 from pathlib import Path
 
 OUT_DIR = Path("public/data/explorer")
 COLS = ["n", "t", "st", "pos", "mp", "pts", "fg", "fga", "tp", "tpa", "ft", "fta", "orb", "drb", "trb",
-        "ast", "stl", "blk", "tov", "pf", "pm", "gs", "pre", "post", "gp", "xw", "w"]
+        "ast", "stl", "blk", "tov", "pf", "pm", "gs", "pre", "post", "gp", "xw", "w", "lr"]
+# lr: pre-game Elo rank among that season's players (same league) on that date
 STAT_SRC = {"pts": "PTS", "fg": "FG", "fga": "FGA", "tp": "3P", "tpa": "3PA", "ft": "FT", "fta": "FTA",
             "orb": "ORB", "drb": "DRB", "trb": "TRB", "ast": "AST", "stl": "STL", "blk": "BLK",
             "tov": "TOV", "pf": "PF"}
@@ -124,6 +126,9 @@ _cur = [None]        # that season's start year
 _index = []          # one summary per written season
 _NA_COLS = []
 _final = {}          # team id -> lineup Elo after its last game of the previous written season
+_best = {}           # player -> [best league rank, season label]
+_last_cur = {}       # league -> {player: Elo} at the end of the previous written season
+_recent = defaultdict(lambda: deque(maxlen=10))  # player -> last 10 appearances (date, team, minutes)
 
 
 def mark_missing(df, cols):
@@ -179,7 +184,7 @@ def bind(df):
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
     OUT_DIR.mkdir(parents=True)
-    _games.clear(); _index.clear(); _final.clear(); _cur[0] = None
+    _games.clear(); _index.clear(); _final.clear(); _best.clear(); _recent.clear(); _last_cur.clear(); _cur[0] = None
 
 
 def _v(x):
@@ -266,8 +271,21 @@ def _season_of(d):
 
 def write():
     if _games:
-        _write_season(_cur[0], _games)
+        _write_season(_cur[0], _games, latest=True)
         _games.clear()
+    (OUT_DIR / "ranks.json").write_text(json.dumps(_best, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    # Recent minutes for the prediction model: players seen in the last ~400 days
+    last_day = max((q[-1][0] for q in _recent.values() if q), default="0000-00-00")
+    y, m, d = map(int, last_day.split("-"))
+    cutoff = f"{y - 1}-{m:02d}-{d:02d}"
+    rot = {}
+    for n, q in _recent.items():
+        if q and q[-1][0] >= cutoff:
+            mins = [x[2] for x in q if x[2] is not None]
+            rot[n] = {"mp": round(sum(mins) / len(mins), 1) if mins else None, "n": len(q), "team": q[-1][1], "last": q[-1][0],
+                      "log": [[x[0], x[1], x[2]] for x in q]}
+    (OUT_DIR / "rotation.json").write_text(json.dumps({"through": last_day, "players": rot}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
     index = {"generated": date.today().isoformat(), "cols": COLS,
              "seasons": sorted(_index, key=lambda x: x["season"], reverse=True)}
     (OUT_DIR / "index.json").write_text(json.dumps(index, separators=(",", ":")), encoding="utf-8")
@@ -275,7 +293,7 @@ def write():
     print(f"  Explorer: {len(_index)} seasons, {sum(s['games'] for s in _index):,} games, {total / 1e6:.0f} MB")
 
 
-def _write_season(sy, raw_games):
+def _write_season(sy, raw_games, latest=False):
     games = sorted((f for f in map(_finish, raw_games) if f), key=lambda g: (g["date"], g["id"]))
     if not games:
         return
@@ -324,6 +342,37 @@ def _write_season(sy, raw_games):
         teams[t] = {"code": code, "name": name, "color": _color(code, name, lg), "group": group,
                     "w": w, "l": l, "pw": pw, "pl": pl, "gp": w + l + pw + pl,
                     "elo": round(sum(latest[t][n] for n in top8) / len(top8), 1) if top8 else None}
+
+    # League rank entering each game: every player who appears this season, at his latest Elo
+    # (his first pre-game Elo before his debut), ranked within his league.
+    cur = defaultdict(dict)
+    for g in games:
+        for r in g["rows"]:
+            cur[lg_of(r[1])].setdefault(r[0], r[22])
+    # The season in progress also counts last season's players who haven't played yet
+    if latest:
+        for lg, d in _last_cur.items():
+            for n, v in d.items():
+                cur[lg].setdefault(n, v)
+    by_date = defaultdict(list)
+    for g in games:
+        by_date[g["date"]].append(g)
+    for day in sorted(by_date):
+        snap = {lg: sorted(v.values()) for lg, v in cur.items()}
+        for g in by_date[day]:
+            for r in g["rows"]:
+                vals = snap[lg_of(r[1])]
+                rank = 1 + len(vals) - bisect_right(vals, r[22])
+                r.append(rank)
+                b = _best.get(r[0])
+                if not b or rank < b[0]:
+                    _best[r[0]] = [rank, label]
+                _recent[r[0]].append((day, r[1], r[4]))
+        for g in by_date[day]:
+            for r in g["rows"]:
+                cur[lg_of(r[1])][r[0]] = r[23]
+    _last_cur.clear()
+    _last_cur.update({lg: {n: v for n, v in d.items()} for lg, d in cur.items()})
 
     # Lineup Elo (minutes-weighted post-game Elo) after each team's final game: seeds next season's ranks
     seed = dict(_final)

@@ -1,12 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import styles from './PlayerCard.module.css'
 
-// Rarity by all-time peak Elo rank (same five tiers as the Franchise Tenures cards)
+// Rarity by where the player stood entering this game: his pre-game Elo rank among every
+// player in that season (same tier names as the Franchise Tenures cards)
 export const TIERS = [
-  { id: 'goat', label: '★ GOAT', max: 10 },
-  { id: 'icon', label: 'Icon', max: 50 },
-  { id: 'legend', label: 'Legend', max: 150 },
-  { id: 'rare', label: 'Rare', max: 500 },
+  { id: 'goat', label: '★ GOAT', max: 5 },
+  { id: 'icon', label: 'Icon', max: 20 },
+  { id: 'legend', label: 'Legend', max: 50 },
+  { id: 'rare', label: 'Rare', max: 125 },
   { id: 'common', label: 'Common', max: Infinity },
 ]
 export const tierFor = rank => TIERS.find(t => rank != null && rank <= t.max) || TIERS[TIERS.length - 1]
@@ -18,28 +19,48 @@ const baseName = n => n.replace(/\s*\(.*\)$/, '')
 const fmtDate = (d, o = { month: 'short', day: 'numeric', year: 'numeric' }) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', o)
 const ordinal = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 >> 3 ^ 1 && n % 10) || 0] || 'th')
 
-function seasonLine(sd, name) {
-  const gs = sd.games.filter(g => g.players.some(p => p.n === name))
-  const rows = gs.map(g => ({ g, p: g.players.find(p => p.n === name) }))
+function seasonLine(sd, name, gameId) {
+  const rows = []
+  sd.games.forEach(g => { const p = g.players.find(x => x.n === name); if (p) rows.push({ g, p, N: g.players.length }) })
   if (!rows.length) return null
   const avg = k => rows.reduce((s, r) => s + (r.p[k] || 0), 0) / rows.length
-  const best = rows.reduce((b, r) => (!b || r.p.gs > b.p.gs ? r : b), null)
   const path = [rows[0].p.pre, ...rows.map(r => r.p.post)]
+  const duels = rows.reduce((s, r) => s + r.N - 1, 0)
   return {
-    gp: rows.length, pts: avg('pts'), trb: avg('trb'), ast: avg('ast'), gs: avg('gs'), mp: avg('mp'),
-    start: rows[0].p.pre, end: rows[rows.length - 1].p.post, peak: Math.max(...path), path, best,
+    gp: rows.length, pts: avg('pts'), trb: avg('trb'), ast: avg('ast'),
+    start: rows[0].p.pre, end: rows[rows.length - 1].p.post, path,
+    peak: Math.max(...path), peakAt: path.indexOf(Math.max(...path)),
+    at: rows.findIndex(r => r.g.id === gameId) + 1, // index in path of this game's post-game Elo
+    duelPct: duels ? rows.reduce((s, r) => s + r.p.w, 0) / duels : null,
     hasReb: rows.some(r => r.p.trb), hasAst: rows.some(r => r.p.ast),
   }
 }
 
-function Spark({ path, color }) {
-  if (path.length < 2) return null
-  const W = 260, H = 54, lo = Math.min(...path), hi = Math.max(...path), span = hi - lo || 1
-  const pts = path.map((v, i) => `${(i / (path.length - 1)) * W},${H - 4 - ((v - lo) / span) * (H - 8)}`).join(' ')
+// Season Elo path with a y-axis, the season peak and this game marked
+function SeasonChart({ path, peakAt, at, color }) {
+  if (path.length < 2) return <div className={styles.chartEmpty}>Elo path appears after a second game</div>
+  const W = 300, H = 100, L = 38, R = 8, T = 14, B = 14
+  const lo0 = Math.min(...path), hi0 = Math.max(...path), pad = Math.max(8, (hi0 - lo0) * 0.12)
+  const lo = lo0 - pad, hi = hi0 + pad
+  const x = i => L + (i / (path.length - 1)) * (W - L - R)
+  const y = v => T + (1 - (v - lo) / (hi - lo)) * (H - T - B)
+  const pts = path.map((v, i) => `${x(i)},${y(v)}`).join(' ')
+  const ticks = [lo0, (lo0 + hi0) / 2, hi0]
+  const lab = i => { const px = x(i); return px > W - 90 ? { x: px + 4, a: 'end' } : px < L + 50 ? { x: px - 4, a: 'start' } : { x: px, a: 'middle' } }
   return (
-    <svg className={styles.spark} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-      <polyline points={`0,${H} ${pts} ${W},${H}`} fill={color} opacity=".12" stroke="none" />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+    <svg className={styles.chart} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+      {ticks.map((v, i) => <g key={i}>
+        <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="#e2ddd0" strokeDasharray={i === 1 ? '2 3' : ''} />
+        <text x={L - 5} y={y(v) + 3} textAnchor="end" className={styles.tick}>{Math.round(v).toLocaleString()}</text>
+      </g>)}
+      <polyline points={`${x(0)},${H - B} ${pts} ${x(path.length - 1)},${H - B}`} fill={color} opacity=".1" />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+      <circle cx={x(peakAt)} cy={y(path[peakAt])} r="4.5" fill="#e7c160" stroke="#8a6a12" strokeWidth="1" />
+      <text x={lab(peakAt).x} y={y(path[peakAt]) - 7} textAnchor={lab(peakAt).a} className={styles.peakLab}>{at === peakAt ? 'Peak · this game' : 'Peak'} {Math.round(path[peakAt]).toLocaleString()}</text>
+      {at > 0 && at !== peakAt && <>
+        <circle cx={x(at)} cy={y(path[at])} r="5.5" fill="#fff" stroke={color} strokeWidth="2.5" />
+        <text x={lab(at).x} y={Math.min(y(path[at]) + 16, H - 2)} textAnchor={lab(at).a} className={styles.gameLab} fill={color}>This game {Math.round(path[at]).toLocaleString()}</text>
+      </>}
     </svg>
   )
 }
@@ -48,13 +69,17 @@ function Spark({ path, color }) {
  * props: name, row (this game's box-score row), game, sd (season data), team (info: name, color, code),
  *        logo (url|null), headshot (url|null), career (elo.json player|null), peakRank, onProfile, onClose
  */
-export default function PlayerCard({ name, row, game, sd, team, logo, headshot, career, peakRank, onProfile, onClose }) {
+export default function PlayerCard({ name, row, game, sd, team, logo, headshot, career, peakRank, bestRank, onProfile, onClose }) {
   const [flipped, setFlipped] = useState(false)
   const [imgBad, setImgBad] = useState(false)
   const ref = useRef(null)
   const lastRef = useRef(null)
-  const tier = tierFor(peakRank)
-  const season = useMemo(() => seasonLine(sd, name), [sd, name])
+  const backNameRef = useRef(null)
+  const tier = tierFor(row.lr)
+  const season = useMemo(() => seasonLine(sd, name, game.id), [sd, name, game.id])
+  const avgElo = useMemo(() => {
+    const h = career?.elo_history; return h?.length ? h.reduce((s, e) => s + e[1], 0) / h.length : null
+  }, [career])
   const [first, ...rest] = baseName(name).split(' ')
   const last = rest.join(' ') || first
   const color = team?.color || '#173657'
@@ -63,7 +88,8 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
   // Shrink long last names to fit the plate
   useLayoutEffect(() => {
     const el = lastRef.current; if (!el) return
-    const fit = () => { let s = 34; el.style.fontSize = s + 'px'; while (el.scrollWidth > el.clientWidth && s > 18) el.style.fontSize = --s + 'px' }
+    const fitEl = (e, max, min) => { if (!e) return; let s = max; e.style.fontSize = s + 'px'; while (e.scrollWidth > e.clientWidth && s > min) e.style.fontSize = --s + 'px' }
+    const fit = () => { fitEl(el, 34, 18); fitEl(backNameRef.current, 24, 14) }
     fit(); document.fonts?.ready.then(fit)
   }, [name])
 
@@ -133,7 +159,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
               <div className={styles.backIn}>
                 <div className={styles.backHead}>
                   <div>
-                    <div className={styles.backName}>{baseName(name)}</div>
+                    <div ref={backNameRef} className={styles.backName}>{baseName(name)}</div>
                     <div className={styles.backSub}>{team?.name} · {sd.season}</div>
                   </div>
                   <span className={styles.tierTag}>{tier.label}</span>
@@ -141,39 +167,37 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
 
                 <section>
                   <h4>This game <span>{fmtDate(game.date)} {game.home === false ? '@' : 'vs'} {game.oppAbbr}</span></h4>
-                  <div className={styles.grid4}>
+                  <div className={styles.grid5}>
                     <div><b>{row.pts ?? '—'}</b><small>PTS</small></div>
                     <div><b>{row.trb ?? '—'}</b><small>REB</small></div>
                     <div><b>{row.ast ?? '—'}</b><small>AST</small></div>
-                    <div><b>{row.gs.toFixed(1)}</b><small>GmSc</small></div>
+                    <div><b>{Number.isInteger(row.w) ? row.w : row.w.toFixed(1)}<i>/{game.players.length - 1}</i></b><small>Duels</small></div>
+                    <div><b className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</b><small>Elo Δ</small></div>
                   </div>
-                  <div className={styles.line}>Elo {r0(row.pre)} → <b>{r0(row.post)}</b> <em className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</em> · won {Number.isInteger(row.w) ? row.w : row.w.toFixed(1)} of {game.players.length - 1} duels</div>
                 </section>
 
                 {season && <section>
                   <h4>{sd.season} season <span>{season.gp} game{season.gp === 1 ? '' : 's'}</span></h4>
-                  <div className={styles.grid4}>
+                  <div className={styles.grid5}>
                     <div><b>{f1(season.pts)}</b><small>PPG</small></div>
                     <div><b>{season.hasReb ? f1(season.trb) : '—'}</b><small>RPG</small></div>
                     <div><b>{season.hasAst ? f1(season.ast) : '—'}</b><small>APG</small></div>
-                    <div><b>{f1(season.gs)}</b><small>GmSc</small></div>
+                    <div><b>{season.duelPct == null ? '—' : (season.duelPct * 100).toFixed(1)}<i>%</i></b><small>Duel %</small></div>
+                    <div><b className={season.end >= season.start ? styles.up : styles.down}>{sgn(season.end - season.start)}</b><small>Elo Δ</small></div>
                   </div>
-                  <Spark path={season.path} color={color} />
-                  <div className={styles.line}>Elo {r0(season.start)} → <b>{r0(season.end)}</b> <em className={season.end >= season.start ? styles.up : styles.down}>{sgn(season.end - season.start)}</em> · peak {r0(season.peak)}
-                    {season.gp > 1 && <> · best game <b>{season.best.p.gs.toFixed(1)}</b> GmSc, {fmtDate(season.best.g.date, { month: 'short', day: 'numeric' })}</>}</div>
+                  <SeasonChart path={season.path} peakAt={season.peakAt} at={season.at} color={color} />
                 </section>}
 
                 {career && <section>
                   <h4>Career</h4>
-                  <div className={styles.grid4}>
+                  <div className={styles.grid5}>
                     <div><b>{career.games_played.toLocaleString()}</b><small>Games</small></div>
-                    <div><b>{f1(career.career_gmsc_avg)}</b><small>GmSc avg</small></div>
+                    <div><b>{r0(career.current_elo)}</b><small>{career.is_fpr_eligible ? 'Current' : 'Final'} Elo</small></div>
                     <div><b>{r0(career.peak_elo)}</b><small>Peak Elo</small></div>
-                    <div><b>{career.peak_fpr_rank ? ordinal(career.peak_fpr_rank) : '—'}</b><small>Best rank</small></div>
+                    <div><b>{r0(avgElo)}</b><small>Avg Elo</small></div>
+                    <div><b>{bestRank ? ordinal(bestRank[0]) : '—'}</b><small>Best rank</small></div>
                   </div>
-                  {career.badges?.length > 0 && <div className={styles.badges}>
-                    {career.badges.slice(0, 4).map(b => <span key={b.id} title={b.label}>{b.emoji} {b.label}</span>)}
-                  </div>}
+                  {bestRank && <div className={styles.note}>Best rank among active players: {ordinal(bestRank[0])} in {bestRank[1]}</div>}
                 </section>}
 
                 <div className={styles.backFoot}>

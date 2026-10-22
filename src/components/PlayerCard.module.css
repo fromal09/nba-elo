@@ -48,8 +48,9 @@
 .back { background: #f6f3ea; color: #1d2633; }
 .back::before { content: ""; position: absolute; inset: 9px; border-radius: 10px; border: 2px solid var(--tc); pointer-events: none; }
 .backIn { position: absolute; inset: 9px; padding: 12px 12px 46px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; scrollbar-width: thin; }
+.backHead > div:first-child { min-width: 0; flex: 1; }
 .backHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding-bottom: 9px; border-bottom: 2px solid var(--tc); }
-.backName { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; text-transform: uppercase; font-size: 24px; line-height: 1; color: var(--tc); filter: saturate(1.1) brightness(.85); }
+.backName { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; text-transform: uppercase; font-size: 24px; line-height: 1.05; color: var(--tc); filter: saturate(1.1) brightness(.85); white-space: nowrap; overflow: hidden; }
 .backSub { font-size: 11px; color: #5c6876; margin-top: 3px; }
 .backHead .tierTag { background: var(--tc); }
 .back section h4 { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px; color: #6a7684; display: flex; justify-content: space-between; margin-bottom: 5px; }
@@ -85,11 +86,15 @@
 [data-tier=rare] .tierTag { background: #8a5a32; }
 [data-tier=rare] .holo { background: linear-gradient(115deg, transparent 30%, rgba(255,190,140,.22) 48%, transparent 62%); background-size: 250% 250%; animation: sweep 7s ease-in-out infinite; mix-blend-mode: screen; }
 
-/* Legend: silver double frame, white sheen */
-[data-tier=legend] .front { background: linear-gradient(135deg, #8d98a5, #eef2f6 30%, #9aa6b3 52%, #f6f8fa 74%, #8d98a5); padding: 11px; }
-[data-tier=legend] .frame { box-shadow: 0 0 0 2px #fff, 0 0 0 3px #9aa6b3; }
-[data-tier=legend] .tierTag { background: linear-gradient(135deg, #6f7b88, #aab5c1); }
-[data-tier=legend] .holo { background: linear-gradient(115deg, transparent 25%, rgba(255,255,255,.34) 45%, rgba(255,255,255,.08) 52%, transparent 65%); background-size: 260% 260%; animation: sweep 5.5s ease-in-out infinite; mix-blend-mode: screen; }
+/* Legend: polished chrome double frame with a moving specular band */
+[data-tier=legend] .front { background: linear-gradient(135deg, #3b444e 0%, #f7f9fb 14%, #6a7581 28%, #ffffff 42%, #545e69 56%, #e9eef3 70%, #444e58 84%, #f2f5f8 100%);
+  background-size: 260% 260%; animation: chrome 6s ease-in-out infinite alternate; padding: 11px; }
+[data-tier=legend] .frame { box-shadow: 0 0 0 2px #fff, 0 0 0 3px #4a545e, inset 0 0 0 1px rgba(255,255,255,.25); }
+[data-tier=legend] .tierTag { background: linear-gradient(135deg, #3b444e, #c9d2dc 50%, #3b444e); background-size: 200% 200%; animation: chrome 3s ease-in-out infinite alternate; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+[data-tier=legend] .holo { background: linear-gradient(110deg, transparent 32%, rgba(255,255,255,.0) 40%, rgba(255,255,255,.55) 47%, rgba(255,255,255,.9) 50%, rgba(255,255,255,.55) 53%, transparent 60%);
+  background-size: 300% 100%; mix-blend-mode: overlay; animation: band 4.2s ease-in-out infinite; }
+[data-tier=legend] .glitter { background: repeating-linear-gradient(110deg, rgba(255,255,255,0) 0 18px, rgba(255,255,255,.08) 18px 20px); mix-blend-mode: screen; }
+[data-tier=legend] .shine { opacity: .7; }
 
 /* Icon: gold frame, gold-biased holo with constant shimmer */
 [data-tier=icon] .front { background: linear-gradient(135deg, #9a6d12, #f4d27a 25%, #b8871e 48%, #ffe9a8 70%, #a8791a); padding: 11px; }
@@ -105,15 +110,22 @@
   background-size: 140px 140px; mix-blend-mode: screen; animation: twinkle 2.6s ease-in-out infinite alternate; }
 [data-tier=icon] .shine, [data-tier=goat] .shine { opacity: .6; }
 
-/* GOAT: white-gold double frame, full-spectrum holo, glow */
-[data-tier=goat] .face.front { box-shadow: 0 0 0 1px rgba(255,255,255,.7), 0 0 38px rgba(255,220,140,.55), 0 24px 60px rgba(0,0,0,.5); animation: glow 2.8s ease-in-out infinite alternate; }
-[data-tier=goat] .front { background: linear-gradient(135deg, #fff8e1, #e7c160 22%, #ffffff 45%, #d9a93a 68%, #fff3c4); padding: 12px; }
-[data-tier=goat] .frame { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #e7c160; }
-[data-tier=goat] .tierTag { background: linear-gradient(90deg, #ff4fa3, #ffd34d, #3dffc0, #4fa8ff, #b45cff); color: #1a1030; text-shadow: 0 0 6px rgba(255,255,255,.7); }
+/* GOAT: saturated prismatic frame, rainbow foil that deepens color instead of washing it out */
+[data-tier=goat] .face.front { box-shadow: 0 0 0 1px rgba(255,255,255,.8), 0 0 38px rgba(255,200,120,.6), 0 24px 60px rgba(0,0,0,.5); animation: glow 2.8s ease-in-out infinite alternate; }
+[data-tier=goat] .front { background: linear-gradient(120deg, #ff2d95, #ffb52d 14%, #fff3b0 22%, #2dffb4 34%, #2d9bff 48%, #ffffff 56%, #b42dff 66%, #ff2d95 80%, #ffd32d 92%, #2dffb4);
+  background-size: 300% 300%; animation: holo 4s linear infinite; padding: 12px; }
+[data-tier=goat] .frame { box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(26,16,48,.55); }
+[data-tier=goat] .tierTag { background: linear-gradient(90deg, #ff2d95, #ffd32d, #2dffb4, #2d9bff, #b42dff, #ff2d95); background-size: 200% 100%; animation: holo 3s linear infinite; color: #1a1030; text-shadow: 0 0 6px rgba(255,255,255,.8); }
 [data-tier=goat] .holo { background-image: linear-gradient(115deg, #ff2d95 0%, #ffd32d 16%, #2dffb4 33%, #2d9bff 50%, #b42dff 66%, #ff2d95 83%, #ffd32d 100%);
-  background-size: 300% 300%; mix-blend-mode: color-dodge; opacity: .26; animation: holo 5s linear infinite, hue 12s linear infinite; }
+  background-size: 300% 300%; mix-blend-mode: overlay; opacity: .34; animation: holo 5s linear infinite; }
 [data-tier=goat] .glitter { animation-duration: 1.8s; }
+[data-tier=goat] .shine { background:
+    radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.45), transparent 40%),
+    linear-gradient(110deg, transparent 40%, rgba(255,255,255,.55) 50%, transparent 60%);
+  background-size: 100% 100%, 300% 100%; mix-blend-mode: soft-light; opacity: 1; animation: band 3.6s ease-in-out infinite; }
 
+@keyframes chrome { 0% { background-position: 0% 0% } 100% { background-position: 100% 100% } }
+@keyframes band { 0% { background-position: 150% 0, 150% 0 } 70%, 100% { background-position: -50% 0, -50% 0 } }
 @keyframes sweep { 0% { background-position: 120% 120% } 60%, 100% { background-position: -20% -20% } }
 @keyframes holo { 0% { background-position: 0% 50% } 100% { background-position: 100% 50% } }
 @keyframes hue { to { filter: hue-rotate(360deg) } }
@@ -123,6 +135,19 @@
 
 @media (prefers-reduced-motion: reduce) {
   .stage, .overlay { animation: none; }
-  .holo, .glitter, [data-tier=goat] .face.front { animation: none !important; }
+  .holo, .glitter, .shine, .front, .tierTag, [data-tier=goat] .face.front { animation: none !important; }
   .flip, .tilt { transition: none; }
 }
+
+/* back: five-box rows and season chart */
+.grid5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.grid5 > div { background: #fff; border-radius: 6px; padding: 5px 1px 4px; text-align: center; display: flex; flex-direction: column; box-shadow: 0 1px 0 rgba(0,0,0,.05); min-width: 0; }
+.grid5 b { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: -.2px; }
+.grid5 b i { font-style: normal; font-size: 10px; font-weight: 700; color: #8a95a2; }
+.grid5 small { font-size: 7.5px; font-weight: 700; letter-spacing: .6px; color: #8a95a2; text-transform: uppercase; line-height: 1.15; }
+.chart { width: 100%; height: auto; display: block; margin-top: 6px; background: #fff; border-radius: 6px; overflow: visible; }
+.chartEmpty { margin-top: 6px; font-size: 11px; color: #8a95a2; background: #fff; border-radius: 6px; padding: 14px; text-align: center; }
+.tick { font-size: 9px; fill: #8a95a2; font-family: 'Inter', sans-serif; font-variant-numeric: tabular-nums; }
+.peakLab { font-size: 9px; font-weight: 800; fill: #8a6a12; font-family: 'Inter', sans-serif; }
+.gameLab { font-size: 9px; font-weight: 800; font-family: 'Inter', sans-serif; }
+.note { font-size: 10px; color: #8a95a2; margin-top: 5px; }
