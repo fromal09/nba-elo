@@ -24,8 +24,8 @@ from pathlib import Path
 
 OUT_DIR = Path("public/data/explorer")
 COLS = ["n", "t", "st", "pos", "mp", "pts", "fg", "fga", "tp", "tpa", "ft", "fta", "orb", "drb", "trb",
-        "ast", "stl", "blk", "tov", "pf", "pm", "gs", "pre", "post", "gp", "xw", "w", "lr"]
-# lr: pre-game Elo rank among that season's players (same league) on that date
+        "ast", "stl", "blk", "tov", "pf", "pm", "gs", "pre", "post", "gp", "xw", "w", "lr", "lrp"]
+# lr / lrp: Elo rank before / after the game among that season's players (same league) on that date
 STAT_SRC = {"pts": "PTS", "fg": "FG", "fga": "FGA", "tp": "3P", "tpa": "3PA", "ft": "FT", "fta": "FTA",
             "orb": "ORB", "drb": "DRB", "trb": "TRB", "ast": "AST", "stl": "STL", "blk": "BLK",
             "tov": "TOV", "pf": "PF"}
@@ -371,6 +371,11 @@ def _write_season(sy, raw_games, latest=False):
         for g in by_date[day]:
             for r in g["rows"]:
                 cur[lg_of(r[1])][r[0]] = r[23]
+        snap = {lg: sorted(v.values()) for lg, v in cur.items()}
+        for g in by_date[day]:
+            for r in g["rows"]:
+                vals = snap[lg_of(r[1])]
+                r.append(1 + len(vals) - bisect_right(vals, r[23]))
     _last_cur.clear()
     _last_cur.update({lg: {n: v for n, v in d.items()} for lg, d in cur.items()})
 

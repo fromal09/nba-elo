@@ -151,3 +151,28 @@
 .peakLab { font-size: 9px; font-weight: 800; fill: #8a6a12; font-family: 'Inter', sans-serif; }
 .gameLab { font-size: 9px; font-weight: 800; font-family: 'Inter', sans-serif; }
 .note { font-size: 10px; color: #8a95a2; margin-top: 5px; }
+
+/* ── Front layout B2: rank medallion top-left, name over the photo ── */
+[data-tier=goat] { --tier: #e7c160; } [data-tier=icon] { --tier: #e0b040; } [data-tier=legend] { --tier: #c9d2dc; }
+[data-tier=rare] { --tier: #d08a52; } [data-tier=common] { --tier: #7d8ba0; }
+.front .top { display: none; }
+.frame .shot { height: min(282px, 74%); width: auto; bottom: 0; } /* same headshot scale as the plate layout, anchored low so the name sits on the jersey */
+.fade { position: absolute; left: 0; right: 0; bottom: 0; height: 58%; z-index: 3; pointer-events: none;
+  background: linear-gradient(180deg, rgba(13,27,46,0) 0%, color-mix(in srgb, var(--tc) 30%, rgba(13,27,46,.55)) 42%, rgba(13,27,46,.96) 100%); }
+.medal { position: absolute; z-index: 5; left: 12px; top: 12px; width: 70px; height: 70px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #23305a, #0d1b2e 70%); box-shadow: 0 0 0 3px var(--tier), 0 0 0 5px rgba(255,255,255,.35), 0 8px 18px rgba(0,0,0,.45);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; line-height: 1; }
+.medal span { font-size: 7.5px; font-weight: 800; letter-spacing: 1.2px; opacity: .7; text-transform: uppercase; }
+.medal b { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 28px; margin-top: 1px; letter-spacing: -.5px; }
+.medal i { position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 10px; color: #fff; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.medalUp { background: #1a7a4a; } .medalDown { background: #a83232; } .medalFlat { background: #5c6876; }
+.photo .season { position: absolute; z-index: 5; top: 10px; right: 12px; }
+.photo .logo, .photo .logoMark { top: 36px; bottom: auto; right: 10px; width: 44px; height: 44px; z-index: 5; }
+.photo .logoMark { font-size: 13px; }
+.nameOver { position: absolute; z-index: 5; left: 14px; right: 14px; bottom: 10px; color: #fff; }
+.nameOver .first { font-size: 13px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; opacity: .9; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+.nameOver .last { font-size: 70px; line-height: .84; letter-spacing: -1px; text-shadow: 0 4px 16px rgba(0,0,0,.55); }
+.nameOver .meta { font-size: 11px; font-weight: 600; opacity: .8; margin-top: 4px; }
+.front .plate { display: none; }
+.front .strip { border-top: 2px solid var(--tier); padding-top: 9px; }
+.frame .mono { inset: 0 0 34% 0; }

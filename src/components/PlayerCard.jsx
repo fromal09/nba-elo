@@ -82,6 +82,9 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
   const lastRef = useRef(null)
   const backNameRef = useRef(null)
   const tier = tierFor(row.lr)
+  // Elo rank after this game (falls back to the pre-game rank on older data) and how far it moved
+  const rank = row.lrp ?? row.lr ?? null
+  const move = row.lrp != null && row.lr != null ? row.lr - row.lrp : null
   const season = useMemo(() => seasonLine(sd, name, game.id), [sd, name, game.id])
   const avgElo = useMemo(() => {
     const h = career?.elo_history; return h?.length ? h.reduce((s, e) => s + e[1], 0) / h.length : null
@@ -104,7 +107,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
   useLayoutEffect(() => {
     const el = lastRef.current; if (!el) return
     const fitEl = (e, max, min) => { if (!e) return; let s = max; e.style.fontSize = s + 'px'; while (e.scrollWidth > e.clientWidth && s > min) e.style.fontSize = --s + 'px' }
-    const fit = () => { fitEl(el, 34, 18); fitEl(backNameRef.current, 24, 14) }
+    const fit = () => { fitEl(el, 70, 22); fitEl(backNameRef.current, 24, 14) }
     fit(); document.fonts?.ready.then(fit)
   }, [name])
 
@@ -140,10 +143,6 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
             {/* ── Front ── */}
             <div className={`${styles.face} ${styles.front}`}>
               <div className={styles.frame}>
-                <div className={styles.top}>
-                  <span className={styles.tierTag}>{tier.label}</span>
-                  <span className={styles.season}>{sd.season}</span>
-                </div>
                 <div className={styles.photo}>
                   <div className={styles.photoBg} />
                   {/* foil sits behind the player so the headshot stays crisp */}
@@ -152,14 +151,21 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
                   {headshot && !imgBad
                     ? <img className={styles.shot} src={headshot} alt={baseName(name)} onError={() => setImgBad(true)} />
                     : <span className={styles.mono}>{first[0]}{last[0]}</span>}
+                  <div className={styles.fade} />
+                  {rank != null && <div className={styles.medal}>
+                    <span>Elo rank</span><b>#{rank}</b>
+                    {move != null && <i className={move > 0 ? styles.medalUp : move < 0 ? styles.medalDown : styles.medalFlat}>
+                      {move > 0 ? `▲ ${move}` : move < 0 ? `▼ ${-move}` : '–'}</i>}
+                  </div>}
+                  <span className={styles.season}>{sd.season}</span>
                   {logo
                     ? <img className={styles.logo} src={logo} alt="" />
                     : <span className={styles.logoMark}>{team?.abbr}</span>}
-                </div>
-                <div className={styles.plate}>
-                  <div className={styles.first}>{first}</div>
-                  <div ref={lastRef} className={styles.last}>{last}</div>
-                  <div className={styles.meta}>{[row.pos, team?.name].filter(Boolean).join(' · ')}</div>
+                  <div className={styles.nameOver}>
+                    <div className={styles.first}>{first}</div>
+                    <div ref={lastRef} className={styles.last}>{last}</div>
+                    <div className={styles.meta}>{[row.pos, team?.name].filter(Boolean).join(' · ')}</div>
+                  </div>
                 </div>
                 <div className={styles.strip}>
                   <div><small>Elo</small><b>{r0(row.post)}</b><em className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</em></div>
