@@ -10,6 +10,7 @@ import H2H from './components/H2H'
 import Teams from './components/Teams'
 import Seasons from './components/Seasons'
 import Daily from './components/Daily'
+import SeasonExplorer from './components/SeasonExplorer'
 import Methodology from './components/Methodology'
 import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
@@ -89,6 +90,9 @@ export default function App() {
       )}
       {view === 'daily' && (
         <Daily players={data.players} onSelectPlayer={setSelectedPlayer} />
+      )}
+      {view === 'explorer' && (
+        <SeasonExplorer players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
       {view === 'methodology' && <Methodology />}
 

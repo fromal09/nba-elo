@@ -2,6 +2,7 @@ import styles from './Nav.module.css'
 
 const NAV_ITEMS = [
   { view: 'rankings',    label: 'Current Rankings' },
+  { view: 'explorer',    label: 'Season Explorer' },
   { view: 'historical',  label: 'Historical Elo' },
   { view: 'franchise', label: "Who's Been Here?" },
   { view: 'tenures',   label: 'Franchise Tenures' },

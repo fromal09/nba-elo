@@ -18,6 +18,14 @@ export default function Homepage({ data, setView }) {
       color: '#e8f0e0', iconColor: '#2d5a1a',
     },
     {
+      icon: '🗓️',
+      title: 'Season Explorer',
+      desc: 'Every team\'s schedule and box scores with pre- and post-game Elo, the Duel Grid, and roster Elo progressions.',
+      meta: `${CURRENT_SEASON_YEAR}-${String(CURRENT_SEASON_YEAR + 1).slice(-2)} · game by game`,
+      view: 'explorer',
+      color: '#e6ecf5', iconColor: '#173657',
+    },
+    {
       icon: '📊',
       title: 'Historical Elo Snapshots',
       desc: 'All-time rankings sorted by peak Elo, plus rankings on any day in league history. Covers 1946 to present.',

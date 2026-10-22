@@ -39,6 +39,7 @@ def season_label(y=None):
 
 sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from team_canonical import canon_team
+import season_explorer
 
 try:
     import pandas as pd
@@ -444,6 +445,8 @@ def build_elo(df):
             games_played[player] = 0
             peak_elo[player]     = 1500
 
+    EXPORT_FROM = season_explorer.export_from(season_start_year())
+
     game_order  = df.drop_duplicates("game_id").sort_values("Date")["game_id"].tolist()
     game_groups = {gid: grp for gid, grp in df.groupby("game_id")}
 
@@ -507,6 +510,15 @@ def build_elo(df):
                     k_eff *= margin_factor
                 deltas[a] += k_eff * (act_a - exp_a)
 
+        if date_str >= EXPORT_FROM:
+            pre_elo = {p: elo[p] for p in players}
+            pre_gp  = {p: games_played[p] for p in players}
+            xw, wins = defaultdict(float), defaultdict(float)
+            for a in players:
+                for b in players:
+                    if a == b: continue
+                    xw[a] += 1 / (1 + 10 ** ((elo[b] - elo[a]) / 620))
+                    wins[a] += 1.0 if gmsc[a] > gmsc[b] else (0.5 if gmsc[a] == gmsc[b] else 0.0)
         for p in players:
             elo[p]          += deltas[p]
             games_played[p] += 1
@@ -517,6 +529,10 @@ def build_elo(df):
             cur_team = team_map.get(p, '')
             if not team_hist[p] or team_hist[p][-1][1] != cur_team:
                 team_hist[p].append([date_str, cur_team])
+
+        if date_str >= EXPORT_FROM:
+            season_explorer.record_game(game_id, date_str, players, group_by_player, team_map,
+                                        pre_elo, pre_gp, gmsc, elo, xw, wins)
 
         sorted_by_elo = sorted(players, key=lambda p: -elo[p])
         # Global FPR rank snapshot — sort ALL players after every game
@@ -912,5 +928,8 @@ if __name__ == "__main__":
     games_path = Path("public/data/games.json")
     games_path.write_text(json.dumps(games_out, separators=(",", ":")), encoding="utf-8")
     print(f"  Written {games_path} ({games_path.stat().st_size/1024:.0f} KB, {len(games_list):,} games)")
+
+    print("  Building Season Explorer...")
+    season_explorer.write()
 
     print("Done.")
