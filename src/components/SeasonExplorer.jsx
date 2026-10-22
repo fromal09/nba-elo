@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
+import PlayerCard, { tierFor } from './PlayerCard'
 
 // ── Team info ────────────────────────────────────────────────────────────────
 // Names, colors and groups come from each season file (historical names). This
@@ -23,6 +24,7 @@ const TWO_WORD = ['Trail Blazers', 'Red Skins']
 
 // Set from the loaded season before children render (one season is on screen at a time)
 let TEAMINFO = {}
+let CAREER = { byName: {}, rank: {} } // elo.json players + all-time peak Elo rank
 const tName = t => TEAMINFO[t]?.name || t
 const tShort = t => {
   const n = tName(t)
@@ -131,11 +133,15 @@ function winChance(sy, eloA, eloB, homeA) {
 const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 >> 3 ^ 1 && n % 10) || 0] || 'th')
 
 // ── Season loading ───────────────────────────────────────────────────────────
-function loadSeason(label) {
+function loadSeason(label, newest) {
   return getJSON(`/data/explorer/${label}.json`).then(d => {
     if (d._ready) return d
     const C = d.cols, sy = +d.season.slice(0, 4)
-    const latest = {} // team -> lineup Elo after its most recent game
+    // team -> lineup Elo after its most recent game. Teams start from last season's final
+    // lineup Elo, so ranks cover the whole league from opening night.
+    const inSeason = new Set(Object.keys(d.teams))
+    if (newest && Object.values(d.teams).some(t => t.group.endsWith('Conference'))) Object.keys(CURRENT).forEach(c => inSeason.add(c))
+    const latest = Object.fromEntries(Object.entries(d.seed || {}).filter(([t]) => inSeason.has(t)))
     const rankOf = (t, v) => {
       const others = Object.entries(latest).filter(([k]) => k !== t && !k.includes('@') === !t.includes('@'))
       return { rank: 1 + others.filter(([, x]) => x > v).length, of: others.length + 1 }
@@ -197,13 +203,17 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
   useEffect(() => {
     if (!season) return
     setSd(null); setOpen(null)
-    loadSeason(season).then(setSd).catch(() => setErr(`Couldn't load ${season}.`))
+    loadSeason(season, season === index?.seasons[0]?.season).then(setSd).catch(() => setErr(`Couldn't load ${season}.`))
   }, [season])
 
   const byName = useMemo(() => {
     const m = {}; players?.forEach(p => { m[p.name] = p }); return m
   }, [players])
   const selectPlayer = n => byName[n] && onSelectPlayer?.(byName[n])
+  const peakRank = useMemo(() => {
+    const m = {}; [...(players || [])].sort((a, b) => b.peak_elo - a.peak_elo).forEach((p, i) => { m[p.name] = i + 1 }); return m
+  }, [players])
+  CAREER = { byName, rank: peakRank }
 
   const teams = useMemo(() => {
     if (!sd) return {}
@@ -302,7 +312,9 @@ function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer
 function TeamPanel({ team, sd, shots, selectPlayer }) {
   const [tab, setTab] = useState('schedule')
   const [box, setBox] = useState(null)
+  const [card, setCard] = useState(null) // player name, from a box-score click
   const games = useMemo(() => teamGames(sd, team), [sd, team])
+  const cardRow = card && box?.players.find(p => p.n === card)
 
   return (
     <div className={styles.panel} style={{ '--tc': tColor(team) }}>
@@ -313,7 +325,16 @@ function TeamPanel({ team, sd, shots, selectPlayer }) {
       {tab === 'schedule'
         ? <Schedule team={team} games={games} onBox={setBox} />
         : <Progression team={team} games={games} selectPlayer={selectPlayer} />}
-      {box && <BoxScore team={team} game={box} has={sd.has} shots={shots} selectPlayer={selectPlayer} onClose={() => setBox(null)} />}
+      {box && <BoxScore team={team} game={box} has={sd.has} shots={shots} onCard={setCard} onClose={() => setBox(null)} />}
+      {cardRow && (
+        <PlayerCard name={card} row={cardRow} sd={sd}
+          game={{ date: box.date, home: cardRow.t === team ? box.home : box.home == null ? null : !box.home, oppAbbr: tCode(cardRow.t === team ? box.opp : team), players: box.players }}
+          team={{ name: tName(cardRow.t), color: tColor(cardRow.t), abbr: tCode(cardRow.t) }}
+          logo={logoUrl(cardRow.t)} headshot={shots?.[norm(card)]?.headshot}
+          career={CAREER.byName[card] || null} peakRank={CAREER.rank[card]}
+          onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }}
+          onClose={() => setCard(null)} />
+      )}
     </div>
   )
 }
@@ -374,7 +395,7 @@ function Schedule({ team, games, onBox }) {
 }
 
 // ── Box score ────────────────────────────────────────────────────────────────
-function BoxScore({ team, game, has, shots, selectPlayer, onClose }) {
+function BoxScore({ team, game, has, shots, onCard, onClose }) {
   const [focus, setFocus] = useState(null)
   const P = game.players, N = P.length
   const opp = game.opp
@@ -465,7 +486,7 @@ function BoxScore({ team, game, has, shots, selectPlayer, onClose }) {
 
         {[away, home].map(t => (
           <TeamBox key={t} t={t} rows={P.filter(p => p.t === t)} N={N} has={has} avail={avail} shots={shots}
-            focus={focus} setFocus={setFocus} selectPlayer={selectPlayer} />
+            focus={focus} setFocus={setFocus} onCard={onCard} />
         ))}
 
         <DuelGrid P={P} focus={focus} setFocus={setFocus} />
@@ -507,7 +528,7 @@ const BOX_GROUPS = [
 const sum = (rows, k) => rows.reduce((s, p) => s + (p[k] || 0), 0)
 const split = (m, a, showA = true) => (m == null ? '—' : showA ? `${m}-${a ?? '—'}` : `${m}`)
 
-function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, selectPlayer }) {
+function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
   const groups = BOX_GROUPS.map(G => ({ ...G, cols: G.cols.filter(c => (!c.need || has?.has(c.need)) && (!c.any || avail.has(c.any))) }))
     .filter(G => G.cols.length)
   const cell = c => p => c.pair ? split(p[c.pair[0]], p[c.pair[1]], avail.has(c.pair[1]))
@@ -529,8 +550,8 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, selectPlayer 
         <td className={styles.sticky}>
           <span className={styles.pl}>
             <Headshot name={p.n} shots={shots} color={tColor(t)} />
-            <span><button className={styles.pName} onClick={() => selectPlayer(p.n)}>{shortName(p.n)}</button>
-              {p.pos && <small>{p.pos}</small>}</span>
+            <span><button className={styles.pName} onClick={() => onCard(p.n)} title="Open player card">{shortName(p.n)}</button>
+              <small>{[p.pos, tierFor(CAREER.rank[p.n]).id !== 'common' && tierFor(CAREER.rank[p.n]).label].filter(Boolean).join(' · ')}</small></span>
           </span>
         </td>
         {groups.map(G => G.cols.map((c, j) => (

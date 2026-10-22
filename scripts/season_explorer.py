@@ -123,6 +123,7 @@ _games = []          # games of the season currently being recorded
 _cur = [None]        # that season's start year
 _index = []          # one summary per written season
 _NA_COLS = []
+_final = {}          # team id -> lineup Elo after its last game of the previous written season
 
 
 def mark_missing(df, cols):
@@ -178,7 +179,7 @@ def bind(df):
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
     OUT_DIR.mkdir(parents=True)
-    _games.clear(); _index.clear(); _cur[0] = None
+    _games.clear(); _index.clear(); _final.clear(); _cur[0] = None
 
 
 def _v(x):
@@ -324,7 +325,16 @@ def _write_season(sy, raw_games):
                     "w": w, "l": l, "pw": pw, "pl": pl, "gp": w + l + pw + pl,
                     "elo": round(sum(latest[t][n] for n in top8) / len(top8), 1) if top8 else None}
 
-    out = {"season": label, "cols": COLS, "stats": [k for k, v in present_stats.items() if v],
+    # Lineup Elo (minutes-weighted post-game Elo) after each team's final game: seeds next season's ranks
+    seed = dict(_final)
+    _final.clear()
+    for g in games:
+        for t in g["teams"]:
+            ps = [r for r in g["rows"] if r[1] == t]
+            m = sum(r[4] or 0 for r in ps)
+            _final[t] = round(sum(r[23] * (r[4] or 0) for r in ps) / m if m else sum(r[23] for r in ps) / len(ps), 1)
+
+    out = {"season": label, "cols": COLS, "seed": seed, "stats": [k for k, v in present_stats.items() if v],
            "teams": teams, "games": [{k: g[k] for k in ("id", "date", "teams", "pts", "home", "ot", "post", "rows")} for g in games]}
     (OUT_DIR / f"{label}.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     _index.append({"season": label, "games": len(games), "first": games[0]["date"], "last": games[-1]["date"],
