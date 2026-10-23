@@ -101,6 +101,7 @@ function Builder({ lg, setLg, cat, byId, onSimulate }) {
     let list = cat.filter(r => {
       if (decade !== 'all' && r.s.slice(0, 3) !== decade) return false
       if (sort === 'champs' && !r.champ) return false
+      if (sort === 'live' && !r.live) return false
       const hay = `${r.name} ${r.s} ${r.t} ${r.lg}`.toLowerCase()
       return words.every(w => (/^\d{2}$/.test(w) ? r.s.slice(2, 4) === w || r.s.slice(5) === w : hay.includes(w)))
     })
@@ -120,7 +121,7 @@ function Builder({ lg, setLg, cat, byId, onSimulate }) {
         <Year ts={r} big />
         <div className={styles.tileMain}>
           <b>{r.name}{r.champ ? <span className={styles.ring} title="Won the title">🏆</span> : null}</b>
-          <small>{r.w}-{r.l} in real life{r.lg !== 'NBA' ? ` · ${r.lg}` : ''}</small>
+          <small>{r.live ? <><span className={styles.liveTag}>In progress</span> {r.w}-{r.l} so far</> : <>{r.w}-{r.l} in real life{r.lg !== 'NBA' ? ` · ${r.lg}` : ''}</>}</small>
         </div>
         <div className={styles.tileRate}><b>{fmt(rated(r))}</b><small>#{rankOf.get(r.id)} of {lg.teams.length}</small></div>
         <div className={styles.tileBtns}>
@@ -181,7 +182,7 @@ function Builder({ lg, setLg, cat, byId, onSimulate }) {
             <small>{results.n.toLocaleString()}</small>
           </div>
           <div className={styles.filters}>
-            {[['best', 'Best first'], ['champs', 'Champions'], ['new', 'Newest']].map(([v, l]) => (
+            {[['best', 'Best first'], ['champs', 'Champions'], ['new', 'Newest'], ['live', 'This season']].map(([v, l]) => (
               <button key={v} type="button" className={sort === v ? styles.fOn : ''} onClick={() => setSort(v)}>{l}</button>
             ))}
             <select value={decade} onChange={e => setDecade(e.target.value)}>
@@ -196,7 +197,7 @@ function Builder({ lg, setLg, cat, byId, onSimulate }) {
               <Year ts={r} />
               <div className={styles.pickMain}>
                 <b>{r.name}{r.champ ? <span className={styles.ring}>🏆</span> : null}</b>
-                <small>{r.w}-{r.l} · {r.mov >= 0 ? '+' : ''}{r.mov} margin{r.lg !== 'NBA' ? ` · ${r.lg}` : ''}</small>
+                <small>{r.live ? <><span className={styles.liveTag}>In progress</span> {r.w}-{r.l} so far · rated on current rosters</> : <>{r.w}-{r.l} · {r.mov >= 0 ? '+' : ''}{r.mov} margin{r.lg !== 'NBA' ? ` · ${r.lg}` : ''}</>}</small>
               </div>
               <b className={styles.pickRate}>{fmt(rated(r))}</b>
               {inLeague.has(r.id) ? <span className={styles.inTag}>In</span>
@@ -264,7 +265,9 @@ function BoxModal({ game, onClose }) {
             </tbody>
           </table>
         </div>
-        <p className={styles.src}>Lines from {md(b.src.date)} {b.src.home ? 'vs' : '@'} {b.src.opp.replace(/@.*/, '')} ({b.src.us > b.src.them ? 'W' : 'L'} {b.src.us}-{b.src.them}), scaled ×{b.src.f.toFixed(2)} to a {TM.PACE}-point pace</p>
+        <p className={styles.src}>{b.src.synthetic
+          ? <>Season in progress: each player's line is one of his own recent games, fitted to 240 team minutes and scaled ×{b.src.f.toFixed(2)} to a {TM.PACE}-point pace</>
+          : <>Lines from {md(b.src.date)} {b.src.home ? 'vs' : '@'} {b.src.opp.replace(/@.*/, '')} ({b.src.us > b.src.them ? 'W' : 'L'} {b.src.us}-{b.src.them}), scaled ×{b.src.f.toFixed(2)} to a {TM.PACE}-point pace</>}</p>
       </section>
     )
   }

@@ -231,3 +231,4 @@
 .tabs button { white-space: nowrap; flex: none; }
 .seasonBar { min-width: 0; }
 @media (max-width: 760px) { .tabs { width: 100%; } .tabs button { padding: 7px 11px; } .barBtns { width: 100%; } .barBtns .btn { flex: 1; } }
+.liveTag { font-size: 9px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: #fff; background: #1a7a4a; padding: 1px 5px; border-radius: 3px; margin-right: 3px; vertical-align: 1px; }

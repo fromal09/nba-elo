@@ -339,7 +339,7 @@ export function boxScore(key, home, away, hw) {
     const by = lines.some(p => p.mp != null) ? 'mp' : 'pts'
     ;[...lines].sort((a, b) => (b[by] || 0) - (a[by] || 0)).slice(0, 5).forEach(p => { p.start = true })
   }
-  const src = (g, side) => ({ date: g.date, opp: g.opp, home: g.home, us: g.us, them: g.them, f: f(side) })
+  const src = (g, side) => ({ date: g.date, opp: g.opp, home: g.home, us: g.us, them: g.them, f: f(side), synthetic: g.synthetic })
   return {
     home: { lines: best.lh.sort((a, b) => (b.mp || 0) - (a.mp || 0) || b.pts - a.pts), pts: best.ph, src: src(best.gh, home) },
     away: { lines: best.la.sort((a, b) => (b.mp || 0) - (a.mp || 0) || b.pts - a.pts), pts: best.pa, src: src(best.ga, away) },
@@ -352,7 +352,7 @@ export const logFile = ts => `/data/explorer/tm/${ts.s.slice(0, 4)}${ts.t.replac
 export function parseTeamLog(d) {
   const C = d.cols
   const games = d.games.map(([date, opp, home, us, them, rows]) => ({
-    date, opp, home: !!home, us, them, won: us > them,
+    date, opp, home: !!home, us, them, won: us > them, synthetic: !!d.synthetic,
     rows: rows.map(r => Object.fromEntries(C.map((k, i) => [k, r[i]]))),
   }))
   return { games, rookies: new Set(d.rk || []) }
