@@ -38,8 +38,11 @@ const projText = (fg, homeFirst = false) => {
 function liveFinal(fg, live, ptsHome, ptsAway) {
   const s = Array.isArray(fg) ? fg : PROJECT?.(fg)
   if (!s || !live?.period) return null
-  const [m, sec] = String(live.clock || '0:00').split(':').map(Number)
-  const left = (live.period <= 4 ? (4 - live.period) * 12 : 0) + (isNaN(m) ? 0 : m + (sec || 0) / 60)
+  // ESPN's clock is "M:SS", or plain seconds ("20.2") in a period's last minute
+  const ck = String(live.clock ?? '0:00')
+  const [m, sec] = ck.includes(':') ? ck.split(':').map(Number) : [0, Number(ck)]
+  const inPeriod = Math.min(live.period <= 4 ? 12 : 5, (isNaN(m) ? 0 : m) + (isNaN(sec) ? 0 : sec) / 60)
+  const left = (live.period <= 4 ? (4 - live.period) * 12 : 0) + inPeriod
   const r = Math.max(0, left) / 48
   return [Math.round(ptsHome + s[0] * r), Math.round(ptsAway + s[1] * r)]
 }
