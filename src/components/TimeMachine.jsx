@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import styles from './TimeMachine.module.css'
 import * as TM from './timemachine.js'
+import { StatsTab, AwardsTab } from './TimeMachineStats.jsx'
 
 // Time Machine: build a league from any team-seasons, play a season, open any game's box score.
 // The league lives in the URL (?l=...), so a link replays the same season.
@@ -16,11 +17,11 @@ const getJSON = url => {
   if (!cache.has(url)) cache.set(url, fetch(url).then(r => { if (!r.ok) throw new Error(url); return r.json() }))
   return cache.get(url)
 }
-const gamesCache = new Map()
-const teamGames = ts => {
-  const k = ts.s + '|' + ts.t
-  if (!gamesCache.has(k)) gamesCache.set(k, getJSON(`/data/explorer/${ts.s}.json`).then(d => TM.teamGamesOf(d, ts.t)))
-  return gamesCache.get(k)
+// One team-season's real games (the lines simulated games borrow), loaded once and shared
+const sideCache = new Map()
+const loadSide = ts => {
+  if (!sideCache.has(ts.id)) sideCache.set(ts.id, getJSON(TM.logFile(ts)).then(d => ({ ts, ...TM.parseTeamLog(d) })))
+  return sideCache.get(ts.id)
 }
 
 const fromUrl = () => {
@@ -225,9 +226,9 @@ function BoxModal({ game, onClose }) {
   const [err, setErr] = useState(null)
   useEffect(() => {
     let live = true
-    Promise.all([teamGames(game.home), teamGames(game.away)]).then(([gh, ga]) => {
+    Promise.all([loadSide(game.home), loadSide(game.away)]).then(([sh, sa]) => {
       if (!live) return
-      const b = TM.boxScore(game.key, { ts: game.home, games: gh }, { ts: game.away, games: ga }, game.hw)
+      const b = TM.boxScore(game.key, sh, sa, game.hw)
       if (b) setBox(b); else setErr('No box scores on file for one of these team-seasons.')
     }).catch(() => live && setErr("Couldn't load the season data."))
     return () => { live = false }
@@ -334,6 +335,29 @@ function Season({ lg, setLg, byId, onEdit }) {
   }
   const roundName = s => s.label === 'Finals' ? 'Finals' : `${s.label === 'League' ? '' : s.label + ' '}${s.round === s.of - 1 ? (s.label === 'League' ? 'Final' : 'final') : s.of - s.round === 2 ? 'semis' : `round ${s.round + 1}`}`.trim()
 
+  // Box scores for every game, added up into season stats and awards (built when those tabs open)
+  const [sides, setSides] = useState(null)
+  const [stats, setStats] = useState(null)
+  useEffect(() => {
+    let live = true
+    setSides(null)
+    Promise.all(T.map(loadSide)).then(x => live && setSides(x)).catch(() => live && setSides('error'))
+    return () => { live = false }
+  }, [lg.teams])
+  const poGames = useMemo(() => {
+    const series = [...S.po.conf.flatMap(b => b.rounds.flat()), ...(lg.confs === 2 ? [S.po.finals] : [])]
+    return series.flatMap(s => s.games.map((gm, n) => ({ ...gm, key: `${key}|p${s.label}${s.round}${s.hi}-${s.lo}g${n}`, finals: s === S.po.finals })))
+  }, [S, key])
+  useEffect(() => { setStats(null) }, [key])
+  useEffect(() => {
+    if (!['stats', 'awards'].includes(tab) || stats || !Array.isArray(sides)) return
+    const t = setTimeout(() => {
+      const list = TM.seasonStats(key, sched, S.results, sides, poGames.filter(g => g.finals))
+      setStats({ list, awards: TM.awards(list, S.w, lg.games, S.po.champ) })
+    }, 30)
+    return () => clearTimeout(t)
+  }, [tab, stats, sides, key])
+
   const share = () => {
     const url = window.location.origin + '/timemachine?l=' + encodeURIComponent(key)
     ;(navigator.clipboard?.writeText(url) || Promise.reject()).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800) }).catch(() => window.prompt('Copy this link', url))
@@ -424,7 +448,7 @@ function Season({ lg, setLg, byId, onEdit }) {
     <div className={styles.season}>
       <div className={styles.seasonBar}>
         <div className={styles.tabs}>
-          {[['standings', 'Standings'], ['schedule', 'Schedule'], ['playoffs', 'Playoffs'], ['odds', 'Odds']].map(([v, l]) => (
+          {[['standings', 'Standings'], ['schedule', 'Schedule'], ['playoffs', 'Playoffs'], ['stats', 'Player stats'], ['awards', 'Awards'], ['odds', 'Odds']].map(([v, l]) => (
             <button key={v} type="button" className={tab === v ? styles.tabOn : ''} onClick={() => setTab(v)}>{l}</button>
           ))}
         </div>
@@ -468,6 +492,10 @@ function Season({ lg, setLg, byId, onEdit }) {
               }) })()}
             </div>
           </div>}
+          {(tab === 'stats' || tab === 'awards') && (sides === 'error' ? <p className={styles.none}>Couldn't load the game logs for these team-seasons.</p>
+            : !stats ? <p className={styles.none}>Building {(sched.length).toLocaleString()} box scores…</p>
+            : tab === 'stats' ? <StatsTab stats={stats.list} T={T} games={lg.games} />
+            : <AwardsTab A={stats.awards} T={T} games={lg.games} />)}
           {tab === 'odds' && <div className={styles.card}>
             <div className={styles.hd}><h3>Odds</h3><span>{ODDS_N.toLocaleString()} simulated seasons</span></div>
             {!odds ? <p className={styles.none}>Simulating {ODDS_N.toLocaleString()} seasons…</p> : (

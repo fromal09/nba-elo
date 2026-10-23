@@ -297,8 +297,11 @@ function scaleLine(p, f) {
 export function boxScore(key, home, away, hw) {
   const R = rng(hash('box', key))
   const pick = (side, won) => {
-    const pool = side.games.filter(g => g.won === won && g.rows.length)
-    const list = pool.length ? pool : side.games.filter(g => g.rows.length)
+    if (!side.pools) {
+      const ok = side.games.filter(g => g.rows.length)
+      side.pools = { true: ok.filter(g => g.won), false: ok.filter(g => !g.won), all: ok }
+    }
+    const list = side.pools[won].length ? side.pools[won] : side.pools.all
     return list[Math.floor(R() * list.length)]
   }
   const f = side => PACE / side.ts.ppg
@@ -331,10 +334,103 @@ export function boxScore(key, home, away, hw) {
   }
   const potg = all.reduce((m, x) => (!m || x.p.gs > m.p.gs ? x : m), null)
   if (potg) potg.p.potg = true
+  // Starters: the five who played the most minutes (points when minutes weren't kept)
+  for (const lines of [best.lh, best.la]) {
+    const by = lines.some(p => p.mp != null) ? 'mp' : 'pts'
+    ;[...lines].sort((a, b) => (b[by] || 0) - (a[by] || 0)).slice(0, 5).forEach(p => { p.start = true })
+  }
   const src = (g, side) => ({ date: g.date, opp: g.opp, home: g.home, us: g.us, them: g.them, f: f(side) })
   return {
     home: { lines: best.lh.sort((a, b) => (b.mp || 0) - (a.mp || 0) || b.pts - a.pts), pts: best.ph, src: src(best.gh, home) },
     away: { lines: best.la.sort((a, b) => (b.mp || 0) - (a.mp || 0) || b.pts - a.pts), pts: best.pa, src: src(best.ga, away) },
     ot,
+  }
+}
+
+// ── Team-season game logs (explorer/tm/<year><code>.json) ───────────────────
+export const logFile = ts => `/data/explorer/tm/${ts.s.slice(0, 4)}${ts.t.replace('@', '_')}.json`
+export function parseTeamLog(d) {
+  const C = d.cols
+  const games = d.games.map(([date, opp, home, us, them, rows]) => ({
+    date, opp, home: !!home, us, them, won: us > them,
+    rows: rows.map(r => Object.fromEntries(C.map((k, i) => [k, r[i]]))),
+  }))
+  return { games, rookies: new Set(d.rk || []) }
+}
+
+// ── Season stats ────────────────────────────────────────────────────────────
+// Every regular-season game's box score, added up per player. sides[i] = { ts, games, rookies }.
+const STAT_KEYS = ['mp', 'pts', 'fg', 'fga', 'tp', 'tpa', 'ft', 'fta', 'orb', 'drb', 'trb', 'ast', 'stl', 'blk', 'tov', 'pf', 'gs']
+export function seasonStats(key, sched, results, sides, playoffGames = []) {
+  const P = new Map()
+  const add = (team, p, won, isPost) => {
+    const id = team + '|' + p.n
+    let x = P.get(id)
+    if (!x) {
+      x = { id, n: p.n, team, rookie: sides[team].rookies.has(p.n), gp: 0, st: 0, w: 0, potg: 0, dw: 0, dl: 0, has: {}, cnt: {}, post: { gp: 0, gs: 0, pts: 0, trb: 0, ast: 0 } }
+      STAT_KEYS.forEach(k => { x[k] = 0 })
+      P.set(id, x)
+    }
+    if (isPost) { x.post.gp++; x.post.gs += p.gs; x.post.pts += p.pts; x.post.trb += p.trb || 0; x.post.ast += p.ast || 0; return }
+    x.gp++; if (p.start) x.st++; if (won) x.w++; if (p.potg) x.potg++
+    x.dw += p.dw; x.dl += p.dl
+    for (const k of STAT_KEYS) if (p[k] != null) { x[k] += p[k]; x.cnt[k] = (x.cnt[k] || 0) + 1 }
+  }
+  sched.forEach((g, j) => {
+    const b = boxScore(`${key}|r${j}`, sides[g.h], sides[g.a], results[j])
+    if (!b) return
+    b.home.lines.forEach(p => add(g.h, p, results[j], false))
+    b.away.lines.forEach(p => add(g.a, p, !results[j], false))
+  })
+  for (const pg of playoffGames) {
+    const b = boxScore(pg.key, sides[pg.h], sides[pg.a], pg.hw)
+    if (!b) continue
+    b.home.lines.forEach(p => add(pg.h, p, pg.hw, true))
+    b.away.lines.forEach(p => add(pg.a, p, !pg.hw, true))
+  }
+  // A stat counts when it was kept in at least half his games (early box scores skip some);
+  // per-game averages divide by the games that kept it
+  const out = [...P.values()]
+  for (const x of out) for (const k of STAT_KEYS) x.has[k] = (x.cnt[k] || 0) >= x.gp / 2
+  return out
+}
+export const perGame = (x, k) => (x.cnt[k] ? x[k] / x.cnt[k] : 0)
+
+// ── Awards ──────────────────────────────────────────────────────────────────
+// Built from the simulated season: production (Game Score per game), availability and winning.
+// Positions aren't in the data, so the All-League teams are the top 15 without positions.
+// A player who appears on two team-seasons in one league can win once, for his better season.
+export function awards(stats, w, games, champ) {
+  const qual = stats.filter(x => x.gp >= games * 0.65)
+  const per = (x, k) => (k === 'gs' || x.has[k] ? perGame(x, k) : 0)
+  const winPct = t => w[t] / games
+  const mvpScore = x => per(x, 'gs') * Math.sqrt(x.gp / games) * (0.6 + winPct(x.team))
+  // A player on two team-seasons in the same league gets one spot: his better season
+  const top = (list, score, n = 5) => {
+    const seen = new Set(), out = []
+    for (const x of [...list].sort((a, b) => score(b) - score(a))) {
+      if (seen.has(x.n)) continue
+      seen.add(x.n); out.push({ x, v: score(x) })
+      if (out.length === n) break
+    }
+    return out
+  }
+  const hasDef = x => x.has.stl || x.has.blk
+  const dpoyScore = x => (hasDef(x) ? per(x, 'stl') * 1.4 + per(x, 'blk') * 1.2 + per(x, 'drb') * 0.3 : per(x, 'trb') * 0.35) * (0.7 + winPct(x.team) * 0.6)
+  const mvp = top(qual, mvpScore, 10)
+  const total = mvp.reduce((s, r) => s + r.v ** 4, 0)
+  mvp.forEach(r => { r.share = r.v ** 4 / total })
+  const all = top(qual, mvpScore, 15)
+  const leaders = k => top(qual.filter(x => x.has[k]), x => per(x, k), 5)
+  const champs = stats.filter(x => x.team === champ && x.post.gp)
+  const fmvp = top(champs, x => x.post.gs / x.post.gp * Math.sqrt(x.post.gp), 3)
+  return {
+    mvp,
+    dpoy: top(qual, dpoyScore),
+    roy: top(stats.filter(x => x.rookie && x.gp >= games * 0.5), x => per(x, 'gs') * Math.sqrt(x.gp / games)),
+    sixth: top(stats.filter(x => x.gp >= games * 0.5 && x.st / x.gp < 0.4), x => per(x, 'gs') * Math.sqrt(x.gp / games)),
+    fmvp,
+    teams: [all.slice(0, 5), all.slice(5, 10), all.slice(10, 15)],
+    leaders: { pts: leaders('pts'), trb: leaders('trb'), ast: leaders('ast'), stl: leaders('stl'), blk: leaders('blk'), gs: leaders('gs') },
   }
 }

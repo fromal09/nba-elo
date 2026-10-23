@@ -12,6 +12,10 @@ league that season (NBA, ABA or BAA), so every era lands on one scale:
   eloz  season-average lineup Elo (pre-game, minutes-weighted) z-score
 The site turns these into ratings (Results, Blend or Player Elo) and shrinks small leagues.
 
+Also writes one game log per team-season, public/data/explorer/tm/<year><code>.json ('@' becomes '_'):
+  {"cols": [...], "rk": [rookies], "games": [[date, opp, home, us, them, [[player row], ...]], ...]}
+Simulated games borrow these lines for box scores and season stats.
+
 Run after build_elo.py:  python3 scripts/build_timemachine.py
 """
 import json, statistics as st
@@ -20,6 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 EXP = ROOT / "public" / "data" / "explorer"
 COLS = ["s", "t", "name", "color", "w", "l", "champ", "lg", "movz", "eloz", "mov", "elo"]
+LINE = ["n", "mp", "pts", "fg", "fga", "tp", "tpa", "ft", "fta", "orb", "drb", "trb", "ast", "stl", "blk", "tov", "pf", "gs"]
 
 
 def league_of(code, group):
@@ -31,9 +36,14 @@ def league_of(code, group):
 def main():
     rows, leagues = [], {}
     files = sorted(p for p in EXP.glob("[12][0-9][0-9][0-9]-[0-9][0-9].json"))
+    tm_dir = EXP / "tm"
+    tm_dir.mkdir(exist_ok=True)
+    seen_players = set()   # anyone seen in an earlier season is not a rookie
     for f in files:
         d = json.loads(f.read_text(encoding="utf-8"))
         C = d["cols"]
+        li = [C.index(k) for k in LINE]
+        logs = {}
         it, ipre, imp, ipts = C.index("t"), C.index("pre"), C.index("mp"), C.index("pts")
         teams = d["teams"]
         lg = {t: league_of(t, v.get("group", "")) for t, v in teams.items()}
@@ -50,6 +60,9 @@ def main():
                 ps = [r for r in g["rows"] if r[it] == t]
                 if not ps:
                     continue
+                opp = b if t == a else a
+                logs.setdefault(t, []).append([g["date"], opp, 1 if g.get("home") == t else 0, us, them,
+                                               [[r[i] for i in li] for r in ps]])
                 m = sum(r[imp] or 0 for r in ps)
                 v = sum(r[ipre] * (r[imp] or 0) for r in ps) / m if m else st.mean(r[ipre] for r in ps)
                 elo.setdefault(t, []).append(v)
@@ -66,10 +79,17 @@ def main():
             leagues[f"{d['season']}|{L}"] = {"n": len(ts), "ppg": round(st.mean(p for t in ts for p in pts[t]), 1)}
             for t in ts:
                 v = teams[t]
+                names = {r[0] for gm in logs.get(t, []) for r in gm[5]}
+                tm = {"cols": LINE, "rk": sorted(names - seen_players), "games": logs.get(t, [])}
+                (tm_dir / f"{d['season'][:4]}{t.replace('@', '_')}.json").write_text(
+                    json.dumps(tm, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
                 rows.append([d["season"], t, v["name"], v.get("color") or "#555555", v["w"], v["l"],
                              1 if champ.get(L) == t else 0, L,
                              round((mm[t] - mmu) / msd, 3), round((em[t] - emu) / esd, 3),
                              round(mm[t], 1), round(em[t])])
+        for gs in logs.values():
+            for gm in gs:
+                seen_players.update(r[0] for r in gm[5])
     out = {"cols": COLS, "teams": rows, "leagues": leagues}
     (EXP / "timemachine.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"  Time Machine: {len(rows)} team-seasons across {len(leagues)} league-seasons")
