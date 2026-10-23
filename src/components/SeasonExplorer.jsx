@@ -5,6 +5,7 @@ import PlayerCard, { MiniCard, tierFor, momentsFor } from './PlayerCard'
 import { buildForecaster, blendWeight } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
 import { simulateOdds } from './odds.js'
+import { raceAwards } from './awardsRace.js'
 
 // ── Team info ────────────────────────────────────────────────────────────────
 // Names, colors and groups come from each season file (historical names). This
@@ -330,7 +331,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
   const [odds, setOdds] = useState(null)
   useEffect(() => {
     setOdds(null)
-    if (!fc || !sd || standView !== 'odds') return
+    if (!fc || !sd || (standView !== 'odds' && standView !== 'awards')) return
     const conf = t => (teams[t]?.group === 'Eastern Conference' ? 'E' : teams[t]?.group === 'Western Conference' ? 'W' : null)
     const T = Object.fromEntries(Object.keys(teams).filter(conf).map(t => [t, { conf: conf(t), w: teams[t].w, l: teams[t].l }]))
     const day = addDays(fc.last, 1)
@@ -338,7 +339,22 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     const { scale, home } = WP(sd.sy)
     return simulateOdds({ teams: T, games: fc.remaining, known: fc.known, rating, scale, home,
       left: fc.total ? fc.remaining.length / fc.total : 1, n: ODDS_N, seed: fc.remaining.length + 1 }, setOdds)
-  }, [fc, standView])
+  }, [fc, standView === 'standings'])
+
+  // Award races: this season so far, last season as the prior, team wins from the odds simulation
+  const [prevSd, setPrevSd] = useState(null)
+  const [race, setRace] = useState(null)
+  useEffect(() => {
+    if (standView !== 'awards' || !sd || prevSd) return
+    const prev = index?.seasons[1]?.season
+    if (prev) loadSeason(prev, false).then(setPrevSd).catch(() => setPrevSd({ games: [] }))
+  }, [standView, sd, prevSd, index])
+  useEffect(() => {
+    setRace(null)
+    if (standView !== 'awards' || !fc || !sd || !prevSd || !odds) return
+    const t = setTimeout(() => setRace(buildRace({ sd, prevSd, fc, odds, byName })), 30)
+    return () => clearTimeout(t)
+  }, [standView, fc, sd, prevSd, odds])
 
   if (err) return <div className={styles.page}><div className={styles.empty}>{err}</div></div>
   if (!index) return <div className={styles.page}><div className={styles.empty}>Loading seasons…</div></div>
@@ -389,14 +405,18 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           <div className={styles.standTabs}>
             <button className={standView === 'standings' ? styles.standOn : ''} onClick={() => setStandView('standings')}>Standings</button>
             <button className={standView === 'odds' ? styles.standOn : ''} onClick={() => setStandView('odds')}>Playoff odds</button>
+            <button className={standView === 'awards' ? styles.standOn : ''} onClick={() => setStandView('awards')}>Award races</button>
           </div>
           {standView === 'odds' && <span>{ODDS_N.toLocaleString()} simulated seasons · updates with every result</span>}
+          {standView === 'awards' && <span>{RACE_N.toLocaleString()} simulated seasons · this season so far plus a projection for the rest</span>}
         </div>
       )}
       {view === 'today' ? (
         <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} />
       ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (
         <OddsView odds={odds} teams={teams} sd={sd} fc={fc} />
+      ) : standView === 'awards' && fc ? (
+        <AwardRaces race={race} shots={shots} selectPlayer={selectPlayer} />
       ) : (
         <div className={styles.confs}>
           {groups.map(g => (
@@ -519,6 +539,98 @@ function TeamOdds({ t, o, games }) {
           <p className={styles.tCap}>Win chance: {Math.round(nx.pWin * 100)}%. The result moves its playoff odds {Math.round(Math.abs(nx.poW - nx.poL) * 100)} points.</p>
         </div>}
       </div>
+    </div>
+  )
+}
+
+// ── Award races ─────────────────────────────────────────────────────────────
+const RACE_N = 2000
+const RACE_KEYS = ['gs', 'pts', 'trb', 'ast', 'stl', 'blk', 'drb', 'mp']
+function seasonSums(sdx) {
+  const out = {}
+  for (const g of sdx.games || []) {
+    if (g.post) continue
+    for (const p of g.players) {
+      const x = out[p.n] ??= { gp: 0, t: p.t, ...Object.fromEntries(RACE_KEYS.map(k => [k, 0])) }
+      x.gp++; x.t = p.t
+      for (const k of RACE_KEYS) x[k] += p[k] || 0
+    }
+  }
+  return out
+}
+function buildRace({ sd, prevSd, fc, odds, byName }) {
+  const cur = seasonSums(sd), prev = seasonSums(prevSd)
+  const day = addDays(fc.through, 1)
+  const G = 82
+  // Team wins: a sampler over the playoff-odds simulation's win distribution
+  const cdf = {}
+  for (const [t, o] of Object.entries(odds.teams)) {
+    const e = Object.entries(o.hist).map(([w, c]) => [+w, c]).sort((a, b) => a[0] - b[0])
+    let acc = 0
+    cdf[t] = e.map(([w, c]) => [w, (acc += c) / odds.n])
+  }
+  const teamWins = (t, R) => { const c = cdf[t]; if (!c) return G / 2; const u = R(); return (c.find(x => x[1] >= u) || c[c.length - 1])[0] }
+  const pool = []
+  for (const t of Object.keys(odds.teams)) {
+    const roster = fc.f.team(t, day).rows
+    // Bench = outside the top five by usual minutes: this season's average once he has 5 games, else
+    // last season's (20+ games), else his recent minutes. Season averages keep late-season tanking
+    // minutes and a starter's injury from making him a sixth man
+    const usual = r => {
+      const c = cur[r.name], pv = prev[r.name]
+      if (c?.gp >= 5) return c.mp / c.gp
+      if (pv?.gp >= 20) return pv.mp / pv.gp
+      return r.base || 0
+    }
+    const ranked = [...roster].sort((a, b) => usual(b) - usual(a))
+    const games = fc.remaining.filter(g => g.home === t || g.away === t)
+    ranked.forEach((r, i) => {
+      const c = cur[r.name] || { gp: 0, ...Object.fromEntries(RACE_KEYS.map(k => [k, 0])) }
+      if ((r.base || 0) < 10 && c.gp === 0) return
+      const pv = prev[r.name]
+      const pp = pv && pv.gp ? { gp: pv.gp, ...Object.fromEntries(RACE_KEYS.map(k => [k, pv[k] / pv.gp])) } : null
+      const left = games.filter(g => !fc.f.team(t, g.day).rows.find(x => x.name === r.name)?.out).length
+      const career = byName[r.name]?.games_played ?? 0
+      pool.push({
+        n: r.name, t, cur: c, prev: pp, left, bench: i >= 5,
+        avail: pp ? Math.max(0.55, Math.min(0.97, pp.gp / 82 + 0.05)) : 0.85,
+        rookie: !pp && career <= c.gp,
+      })
+    })
+  }
+  return raceAwards({ pool, teamWins, G, n: RACE_N, seed: fc.remaining.length + 3 })
+}
+
+function AwardRaces({ race, shots, selectPlayer }) {
+  if (!race) return <div className={styles.empty}>Simulating the season…</div>
+  const fmt1 = v => v.toFixed(1)
+  const row = (r, i, extra) => (
+    <button key={r.p.n} type="button" className={styles.raceP} onClick={() => selectPlayer(r.p.n)}>
+      <span className={styles.raceRank}>{i + 1}</span>
+      <Headshot name={r.p.n} shots={shots} color={tColor(r.p.t)} />
+      <span className={styles.racePWho}><b>{r.p.n}</b>
+        <small>{tShort(r.p.t)} · {fmt1(r.line.pts)} pts · {fmt1(r.line.trb)} reb · {fmt1(r.line.ast)} ast{extra ? ` · ${extra(r)}` : ''} · {fmt1(r.line.gs)} GmSc · {Math.round(r.line.gp)} GP</small></span>
+      <span className={styles.raceChance}><i style={{ width: `${Math.max(2, r.chance * 100)}%` }} /><em>{r.chance >= 0.995 ? '>99' : r.chance < 0.01 ? '<1' : Math.round(r.chance * 100)}%</em></span>
+    </button>
+  )
+  const card = (title, list, sub, extra, big) => (
+    <section className={`${styles.conf} ${big ? styles.raceBig : ''}`} key={title}>
+      <h2 className={styles.confHead}>{title}<small>{sub}</small></h2>
+      {list.length && list[0].chance < 0.1 && <p className={styles.raceOpen}>Wide open: no one wins more than 1 in 10 simulated seasons yet.</p>}
+      {list.length ? list.map((r, i) => row(r, i, extra)) : <div className={styles.empty}>No one qualifies yet.</div>}
+    </section>
+  )
+  return (
+    <div className={styles.confs}>
+      {card('Most Valuable Player', race.mvp, 'Chance to win · projected final line', null, true)}
+      <div className={styles.raceGrid}>
+        {card('Defensive Player of the Year', race.dpoy.slice(0, 6), 'Steals, blocks, defensive boards', r => `${fmt1(r.line.stl)} stl · ${fmt1(r.line.blk)} blk`)}
+        {card('Rookie of the Year', race.roy.slice(0, 6), 'First NBA season')}
+        {card('Sixth Man of the Year', race.sixth.slice(0, 6), 'Outside his team\u2019s top five in minutes')}
+        {card('Most Improved Player', race.mip.slice(0, 6), 'Biggest Game Score jump from last season')}
+      </div>
+      {card('All-NBA', race.allNba.slice(0, 15), 'Chance to finish in the top 15 by the MVP formula')}
+      <p className={styles.oNote}>Each simulated season adds a projection for every remaining game to the season so far. A player's projection starts from last season's per-game line and shifts toward this season's as games come in; rookies start from a typical rookie line. Games left skip any the injury report has him out for. MVP is Game Score per game × availability × team winning percentage, with team wins drawn from the playoff-odds simulation. MVP, DPOY, MIP and All-NBA require 65 games. This models production and winning, not voters' narratives.</p>
     </div>
   )
 }
