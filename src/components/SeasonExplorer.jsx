@@ -1142,7 +1142,7 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
   const [feed, setFeed] = useState(null)
   const [feedErr, setFeedErr] = useState(null)
   const [box, setBox] = useState(null)        // { id, team }
-  const [card, setCard] = useState(null)      // player name
+  const [card, setCard] = useState(null)      // { id: game id, name }
   const [preview, setPreview] = useState(null)
   const sdOk = sd && (sd.season === seasonFor(day) || (sd.season === index.seasons[0]?.season && seasonFor(day) > sd.season))
   const sy = +seasonFor(day).slice(0, 4)
@@ -1203,8 +1203,11 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
   const openBox = (g, team) => setBox({ id: g.id, team: team || (g.home && g.teams.find(t => t !== g.home)) || g.teams[0] })
   const boxGame = box && scored.find(g => g.id === box.id)
   const boxView = boxGame && viewFor(boxGame, box.team, sy)
-  const cardRow = card && boxView?.players.find(p => p.n === card)
-  const cardSd = boxGame && (sdOk && sd.games.includes(boxGame) ? sd : { season: seasonFor(day), games: [...(sdOk ? sd.games.filter(g => g.date < day) : []), boxGame] })
+  const openCard = (g, p) => setCard({ id: g.id, name: p.n })
+  const cardGame = card && scored.find(g => g.id === card.id)
+  const cardRow = cardGame?.players.find(p => p.n === card.name)
+  const cardView = cardRow && viewFor(cardGame, cardRow.t, sy)
+  const cardSd = cardGame && (sdOk && sd.games.includes(cardGame) ? sd : { season: seasonFor(day), games: [...(sdOk ? sd.games.filter(g => g.date < day) : []), cardGame] })
   const liveN = cards.filter(c => c.state === 'in').length
   const provisional = scored.some(g => g.live)
   const loading = (wantsLive && !feed && !feedErr) || (!sdOk && day <= asof)
@@ -1228,17 +1231,17 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
           </div>
 
           {scored.length > 0 && <>
-            <PerfTable rows={boards.performers} shots={shots} onOpen={openBox} />
+            <PerfTable rows={boards.performers} shots={shots} onOpen={openCard} />
 
             <div className={styles.boards4}>
-              <Board title="Elo risers" sub="Elo change" rows={boards.risers} shots={shots} onOpen={openBox}
+              <Board title="Elo risers" sub="Elo change" rows={boards.risers} shots={shots} onOpen={openCard}
                 val={({ p }) => sgn(p.post - p.pre)} valCls={styles.up} line={({ p }) => `${r0(p.pre)} → ${r0(p.post)} · ${p.gs.toFixed(1)} GmSc`} />
-              <Board title="Elo fallers" sub="Elo change" rows={boards.fallers} shots={shots} onOpen={openBox}
+              <Board title="Elo fallers" sub="Elo change" rows={boards.fallers} shots={shots} onOpen={openCard}
                 val={({ p }) => sgn(p.post - p.pre)} valCls={styles.down} line={({ p }) => `${r0(p.pre)} → ${r0(p.post)} · ${p.gs.toFixed(1)} GmSc`} />
-              <Board title="Top 100 risers" sub="League rank" rows={boards.top100Risers} shots={shots} onOpen={openBox} empty="Nobody climbed inside the top 100."
+              <Board title="Top 100 risers" sub="League rank" rows={boards.top100Risers} shots={shots} onOpen={openCard} empty="Nobody climbed inside the top 100."
                 val={({ p }) => `▲${p.lr - p.lrp}`} valCls={styles.up}
                 line={({ p }) => `#${p.lr} → #${p.lrp}${p.lr > 100 ? ' · enters top 100' : ''}`} />
-              <Board title="Top 100 fallers" sub="League rank" rows={boards.top100Fallers} shots={shots} onOpen={openBox} empty="Nobody in the top 100 slipped."
+              <Board title="Top 100 fallers" sub="League rank" rows={boards.top100Fallers} shots={shots} onOpen={openCard} empty="Nobody in the top 100 slipped."
                 val={({ p }) => `▼${p.lrp - p.lr}`} valCls={styles.down}
                 line={({ p }) => `#${p.lr} → #${p.lrp}${p.lrp > 100 ? ' · drops out' : ''}`} />
             </div>
@@ -1261,7 +1264,7 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
               <section className={styles.board}>
                 <header><h3>Biggest upsets · Players</h3><span>Pre-game duel chance</span></header>
                 {boards.duelUpsets.length ? boards.duelUpsets.map(u => (
-                  <button key={u.g.id + u.a.n + u.b.n} className={styles.bRow} onClick={() => openBox(u.g, u.a.t)}>
+                  <button key={u.g.id + u.a.n + u.b.n} className={styles.bRow} onClick={() => openCard(u.g, u.a)}>
                     <Headshot name={u.a.n} shots={shots} color={tColor(u.a.t)} />
                     <span className={styles.bWho}><b>{shortName(u.a.n)} <i>over</i> {shortName(u.b.n)}</b>
                       <small>{u.a.gs.toFixed(1)} vs {u.b.gs.toFixed(1)} GmSc · {r0(u.a.pre)} vs {r0(u.b.pre)} Elo</small></span>
@@ -1276,13 +1279,14 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
         </>}
 
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
-      {boxView && <BoxScore key={box.id} team={box.team} game={boxView} has={boxGame.live ? FULL_STATS : sd?.has} shots={shots} onCard={setCard} onClose={() => setBox(null)} />}
-      {cardRow && (
-        <PlayerCard name={card} row={cardRow} sd={cardSd}
-          game={{ id: boxView.id, date: boxView.date, home: cardRow.t === box.team ? boxView.home : boxView.home == null ? null : !boxView.home, oppAbbr: tCode(cardRow.t === box.team ? boxView.opp : box.team), players: boxView.players }}
+      {boxView && <BoxScore key={box.id} team={box.team} game={boxView} has={boxGame.live ? FULL_STATS : sd?.has} shots={shots}
+        onCard={n => setCard({ id: box.id, name: n })} onClose={() => setBox(null)} />}
+      {cardView && (
+        <PlayerCard name={card.name} row={cardRow} sd={cardSd}
+          game={{ id: cardView.id, date: cardView.date, home: cardView.home, oppAbbr: tCode(cardView.opp), players: cardView.players }}
           team={{ name: tName(cardRow.t), color: tColor(cardRow.t), abbr: tCode(cardRow.t) }}
-          logo={logoUrl(cardRow.t)} headshot={shots?.[norm(card)]?.headshot}
-          career={CAREER.byName[card] || null} peakRank={CAREER.rank[card]} bestRank={CAREER.best[card]}
+          logo={logoUrl(cardRow.t)} headshot={shots?.[norm(card.name)]?.headshot}
+          career={CAREER.byName[card.name] || null} peakRank={CAREER.rank[card.name]} bestRank={CAREER.best[card.name]}
           onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }}
           onClose={() => setCard(null)} />
       )}
@@ -1345,7 +1349,7 @@ function Board({ title, sub, rows, shots, onOpen, val, valCls, line, delta, empt
       <header><h3>{title}</h3><span>{sub}</span></header>
       {!rows.length && <p className={styles.bNone}>{empty || 'Nothing yet.'}</p>}
       {rows.map(({ p, g }, i) => (
-        <button key={g.id + p.n} className={styles.bRow} onClick={() => onOpen(g, p.t)}>
+        <button key={g.id + p.n} className={styles.bRow} onClick={() => onOpen(g, p)}>
           <em className={styles.bRank}>{i + 1}</em>
           <Headshot name={p.n} shots={shots} color={tColor(p.t)} />
           <span className={styles.bWho}><b>{shortName(p.n)} <small className={styles.bTeam}>{tCode(p.t)}{g.live?.state === 'in' ? ' · live' : ''}</small></b><small>{line({ p, g })}</small></span>
@@ -1376,7 +1380,7 @@ function PerfTable({ rows, shots, onOpen }) {
             {rows.map(({ p, g }, i) => {
               const o = g.teams.find(t => t !== p.t), d = p.post - p.pre
               return (
-                <tr key={g.id + p.n} onClick={() => onOpen(g, p.t)}>
+                <tr key={g.id + p.n} onClick={() => onOpen(g, p)}>
                   <td className={styles.bRank}>{i + 1}</td>
                   <td className={styles.pLeft}><span className={styles.pWho}><Headshot name={p.n} shots={shots} color={tColor(p.t)} />
                     <span><b>{shortName(p.n)}</b><small>{tCode(p.t)}{p.pos ? ` · ${p.pos}` : ''}</small></span></span></td>
