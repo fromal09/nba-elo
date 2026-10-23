@@ -648,3 +648,66 @@
 .rivMuted { font-size: 12px; color: #8a95a2; margin: 0; }
 .keyRiv { border-color: #e6d6ae; background: #fffaf0; }
 .keyRiv:hover { border-color: #b07d1a; background: #fbf3df; }
+
+/* ── Standings / Playoff odds toggle ── */
+.standBar { max-width: 1240px; margin: 0 auto; padding: 20px 20px 0; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.standBar > span { font-size: 11.5px; color: #7a8694; }
+.standTabs { display: inline-flex; background: #e6e9ee; border-radius: 8px; padding: 3px; gap: 2px; }
+.standTabs button { border: 0; background: none; font-size: 12.5px; font-weight: 600; color: #5d6a78; padding: 6px 14px; border-radius: 6px; cursor: pointer; }
+.standTabs button.standOn { background: #fff; color: #173657; font-weight: 800; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.confHead small { float: right; font-size: 10.5px; letter-spacing: .3px; text-transform: none; color: #8a95a0; font-weight: 600; margin-top: 2px; }
+.oddsWrap { overflow-x: auto; }
+.oddsTable { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; min-width: 920px; }
+.oddsTable th { font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: #7a8694; font-weight: 800; padding: 9px 6px; border-bottom: 1px solid #e3e6ea; text-align: center; white-space: nowrap; }
+.oddsTable td { padding: 6px 6px; border-bottom: 1px solid #f0f2f5; text-align: center; white-space: nowrap; }
+.oddsTable .oLeft { text-align: left; }
+.oddsTable th.oGold { color: #b07d1a; }
+.oRow { cursor: pointer; }
+.oRow:hover td:not(.oPct) { background: #f7f9fc; }
+.oOpen td:not(.oPct) { background: #f4f8fd; }
+.oNum { color: #8a95a0; font-weight: 700; width: 34px; }
+.oMuted { color: #5d6a78; }
+.oTeam { display: inline-flex; align-items: center; gap: 8px; }
+.oTeam b { font-size: 13px; }
+.oProj { display: flex; align-items: center; gap: 10px; min-width: 230px; }
+.oProj b { width: 48px; font-size: 13px; }
+.oBar { position: relative; flex: 1; height: 16px; background: #f0f2f5; border-radius: 3px; }
+.oBar i { position: absolute; top: 4px; bottom: 4px; border-radius: 3px; opacity: .28; }
+.oBar em { position: absolute; top: 1px; bottom: 1px; width: 3px; margin-left: -1.5px; border-radius: 2px; }
+.oPct { font-weight: 700; width: 62px; border-left: 2px solid #fff; }
+.oCutPi td, .oCutOut td { padding: 0; height: 0; border-bottom: 2px dashed #c9a24a; position: relative; }
+.oCutOut td { border-bottom-color: #c3c9d1; }
+.oCutPi span, .oCutOut span { position: absolute; right: 8px; top: -8px; background: #fff; padding: 0 6px; font-size: 9.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #b07d1a; }
+.oCutOut span { color: #8a95a0; }
+.oPanelRow td { padding: 0; background: #fafbfd; text-align: left; white-space: normal; }
+.tOdds { padding: 16px 18px 18px; border-left: 4px solid var(--tc, #173657); }
+.tPath { display: flex; gap: 8px; flex-wrap: wrap; }
+.tPath > div { flex: 1; min-width: 90px; background: #fff; border: 1px solid #e8ebef; border-radius: 8px; padding: 8px 10px; }
+.tPath small { display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: #7a8694; }
+.tPath b { font-size: 19px; color: #173657; }
+.tGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 22px; margin-top: 16px; align-items: start; }
+.tLab { font-size: 10.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #7a8694; margin-bottom: 8px; }
+.tSeeds { display: flex; align-items: flex-end; gap: 3px; height: 130px; }
+.tSeeds > div { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.tSeeds span { font-size: 9.5px; color: #5d6a78; font-weight: 700; min-height: 12px; }
+.tSeeds i { width: 100%; border-radius: 2px 2px 0 0; display: block; }
+.tSeeds em { font-style: normal; font-size: 10px; color: #8a95a0; font-weight: 700; }
+.tHist { display: flex; align-items: flex-end; gap: 1px; height: 84px; }
+.tHist i { flex: 1; display: block; border-radius: 1px 1px 0 0; }
+.tAxis { display: flex; justify-content: space-between; font-size: 10px; color: #8a95a0; margin-top: 3px; }
+.tCap { font-size: 12px; color: #4a5562; margin: 8px 0 0; line-height: 1.45; }
+.tStake { border: 1px solid #e6d6ae; background: #fffaf0; border-radius: 10px; padding: 12px 14px; }
+.tStake .tLab { color: #b07d1a; }
+.tStakeRow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tStakeRow small { display: block; font-size: 11px; color: #5d6a78; font-weight: 600; }
+.tStakeRow b { font-size: 20px; }
+.tStakeRow span { display: block; font-size: 11px; color: #8a95a0; }
+.race { padding: 10px 16px 14px; }
+.raceRow { display: grid; grid-template-columns: 90px 1fr 54px; align-items: center; gap: 12px; padding: 5px 0; border-bottom: 1px solid #f0f2f5; }
+.raceBar { position: relative; height: 18px; }
+.raceBar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+.raceVal { text-align: right; color: #8a6414; font-size: 14px; font-variant-numeric: tabular-nums; }
+.raceLegend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 11.5px; color: #4a5562; font-weight: 600; }
+.raceLegend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.oNote { font-size: 11.5px; color: #7a8694; line-height: 1.5; margin: 0; }
+@media (max-width: 900px) { .tGrid { grid-template-columns: 1fr; } .confHead small { float: none; display: block; margin-top: 4px; } .tOdds { position: sticky; left: 0; width: calc(100vw - 42px); box-sizing: border-box; } .tPath > div { min-width: 70px; } }

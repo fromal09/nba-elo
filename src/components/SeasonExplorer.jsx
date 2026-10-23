@@ -4,6 +4,7 @@ import styles from './SeasonExplorer.module.css'
 import PlayerCard, { MiniCard, tierFor, momentsFor } from './PlayerCard'
 import { buildForecaster, blendWeight } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
+import { simulateOdds } from './odds.js'
 
 // ── Team info ────────────────────────────────────────────────────────────────
 // Names, colors and groups come from each season file (historical names). This
@@ -304,11 +305,14 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     const gamesPlayed = Object.fromEntries(Object.entries(teams).map(([t, x]) => [t, x.gp]))
     const f = buildForecaster({ players, roster, rotation, injuries: sched.injuries, fetched: sched.fetched, gamesPlayed, winChance, sy: sd.sy })
     const through = sd.games.length ? sd.games[sd.games.length - 1].date : '0000-00-00'
-    const upcoming = {}, proj = {}
+    const upcoming = {}, proj = {}, remaining = [], known = []
+    const HCA = WP(sd.sy).home
     Object.keys(teams).forEach(t => { upcoming[t] = []; proj[t] = [teams[t].w, teams[t].l] })
     for (const g of sched.games) {
       if (g.day <= through || !teams[g.home] || !teams[g.away]) continue
       const fg = g.done ? null : f.game(g.home, g.away, g.day)
+      if (fg) remaining.push({ home: g.home, away: g.away, day: g.day, d: fg.home.rating - fg.away.rating + HCA })
+      else known.push({ home: g.home, away: g.away, homeWon: g.hs > g.as })
       for (const t of [g.home, g.away]) {
         const home = t === g.home, p = fg ? (home ? fg.pHome : fg.pAway) : null
         const won = g.done ? (home ? g.hs > g.as : g.as > g.hs) : null
@@ -317,8 +321,24 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
         proj[t][1] += g.done ? +!won : 1 - p
       }
     }
-    return { f, upcoming, proj, through, fetched: sched.fetched }
+    const last = sched.games.length ? sched.games[sched.games.length - 1].day : through
+    return { f, upcoming, proj, through, fetched: sched.fetched, remaining, known, last, total: sched.games.length }
   }, [newest, sd, sched, rotation, players, shots, teams])
+
+  // Playoff and title odds: the rest of the schedule played out many times
+  const [standView, setStandView] = useState('standings')
+  const [odds, setOdds] = useState(null)
+  useEffect(() => {
+    setOdds(null)
+    if (!fc || !sd || standView !== 'odds') return
+    const conf = t => (teams[t]?.group === 'Eastern Conference' ? 'E' : teams[t]?.group === 'Western Conference' ? 'W' : null)
+    const T = Object.fromEntries(Object.keys(teams).filter(conf).map(t => [t, { conf: conf(t), w: teams[t].w, l: teams[t].l }]))
+    const day = addDays(fc.last, 1)
+    const rating = Object.fromEntries(Object.keys(T).map(t => [t, fc.f.team(t, day).rating]))
+    const { scale, home } = WP(sd.sy)
+    return simulateOdds({ teams: T, games: fc.remaining, known: fc.known, rating, scale, home,
+      left: fc.total ? fc.remaining.length / fc.total : 1, n: ODDS_N, seed: fc.remaining.length + 1 }, setOdds)
+  }, [fc, standView])
 
   if (err) return <div className={styles.page}><div className={styles.empty}>{err}</div></div>
   if (!index) return <div className={styles.page}><div className={styles.empty}>Loading seasons…</div></div>
@@ -364,9 +384,20 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
         )}
       </div>
 
+      {view === 'standings' && fc && sd && (
+        <div className={styles.standBar}>
+          <div className={styles.standTabs}>
+            <button className={standView === 'standings' ? styles.standOn : ''} onClick={() => setStandView('standings')}>Standings</button>
+            <button className={standView === 'odds' ? styles.standOn : ''} onClick={() => setStandView('odds')}>Playoff odds</button>
+          </div>
+          {standView === 'odds' && <span>{ODDS_N.toLocaleString()} simulated seasons · updates with every result</span>}
+        </div>
+      )}
       {view === 'today' ? (
         <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} />
-      ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : (
+      ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (
+        <OddsView odds={odds} teams={teams} sd={sd} fc={fc} />
+      ) : (
         <div className={styles.confs}>
           {groups.map(g => (
             <Standings key={g} label={GROUP_LABEL[g] || g} group={g} sd={sd} teams={teams} open={open} fc={fc}
@@ -375,6 +406,119 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Playoff and title odds ──────────────────────────────────────────────────
+const ODDS_N = 10000
+const opct = v => (v >= 0.995 ? '>99' : v < 0.0005 ? '—' : v < 0.01 ? '<1' : `${Math.round(v * 100)}`)
+const oTint = (v, k) => {
+  if (v < 0.005) return { color: '#b4bcc6' }
+  if (k === 'pi') return { background: `rgba(201,162,74,${0.08 + v * 0.55})`, color: '#6b4c0c' }
+  if (k === 'title') return { background: `rgba(201,162,74,${0.12 + Math.min(1, v / 0.4) * 0.75})`, color: v >= 0.25 ? '#fff' : '#6b4c0c' }
+  return { background: `rgba(26,95,168,${0.06 + v * 0.62})`, color: v > 0.7 ? '#fff' : '#173657' }
+}
+const ODD_COLS = [['po', 'Playoffs'], ['top6', 'Top 6'], ['pi', 'Play-In'], ['r2', '2nd Rd'], ['cf', 'Conf F'], ['fin', 'Finals'], ['title', 'Title']]
+
+function OddsView({ odds, teams, sd, fc }) {
+  const [open, setOpen] = useState(null)
+  if (!odds) return <div className={styles.empty}>Simulating {ODDS_N.toLocaleString()} seasons…</div>
+  const O = odds.teams
+  const confs = [['W', 'Western Conference'], ['E', 'Eastern Conference']]
+  const lo = 10, hi = 72, x = v => ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * 100
+  const race = Object.keys(O).sort((a, b) => O[b].title - O[a].title).slice(0, 16)
+  return (
+    <div className={styles.confs}>
+      {confs.map(([c, group]) => {
+        const ts = Object.keys(O).filter(t => teams[t]?.group === group).sort((a, b) => O[b].w - O[a].w || O[b].po - O[a].po)
+        return (
+          <section key={c} className={styles.conf}>
+            <h2 className={styles.confHead}>{group}<small>Sorted by projected record · bar is the 10th to 90th percentile of wins</small></h2>
+            <div className={styles.oddsWrap}>
+              <table className={styles.oddsTable}>
+                <thead><tr><th>Proj</th><th className={styles.oLeft}>Team</th><th>W-L</th><th>Elo</th><th className={styles.oLeft}>Projected record</th>
+                  {ODD_COLS.map(([k, l]) => <th key={k} className={k === 'title' ? styles.oGold : ''}>{l}</th>)}</tr></thead>
+                <tbody>
+                  {ts.map((t, i) => {
+                    const o = O[t], pw = Math.round(o.w)
+                    return (
+                      <Fragment key={t}>
+                        {(i === 6 || i === 10) && <tr className={i === 6 ? styles.oCutPi : styles.oCutOut}><td colSpan={12}><span>{i === 6 ? 'Play-In' : 'Out'}</span></td></tr>}
+                        <tr className={`${styles.oRow} ${open === t ? styles.oOpen : ''}`} onClick={() => setOpen(v => (v === t ? null : t))} style={{ '--tc': tColor(t) }}>
+                          <td className={styles.oNum}>{i + 1}</td>
+                          <td className={styles.oLeft}><span className={styles.oTeam}><TeamMark t={t} size={24} /><b className={styles.full}>{tName(t)}</b><b className={styles.abbr}>{tShort(t)}</b></span></td>
+                          <td>{teams[t].w}-{teams[t].l}</td>
+                          <td className={styles.oMuted}>{r0(fc.f.team(t, addDays(fc.through, 1)).rating)}</td>
+                          <td className={styles.oLeft}><span className={styles.oProj}><b>{pw}-{o.games - pw}</b>
+                            <span className={styles.oBar}><i style={{ left: `${x(o.w10)}%`, width: `${x(o.w90) - x(o.w10)}%`, background: tColor(t) }} /><em style={{ left: `${x(o.w)}%`, background: tColor(t) }} /></span></span></td>
+                          {ODD_COLS.map(([k]) => <td key={k} className={styles.oPct} style={oTint(o[k], k)}>{opct(o[k])}</td>)}
+                        </tr>
+                        {open === t && <tr className={styles.oPanelRow}><td colSpan={12}><TeamOdds t={t} o={o} games={o.games} /></td></tr>}
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )
+      })}
+      <section className={styles.conf}>
+        <h2 className={styles.confHead}>Title race<small>Chance of reaching each round · gold is the title</small></h2>
+        <div className={styles.race}>
+          {race.map(t => (
+            <div key={t} className={styles.raceRow}>
+              <span className={styles.oTeam}><TeamMark t={t} size={22} /><b>{tShort(t)}</b></span>
+              <span className={styles.raceBar}>
+                {[['po', '#d9e4f1'], ['r2', '#a9c3e0'], ['cf', '#6f9acb'], ['fin', '#2f67a6'], ['title', '#c9a24a']].map(([k, c]) => <i key={k} style={{ width: `${O[t][k] * 100}%`, background: c }} />)}
+              </span>
+              <b className={styles.raceVal}>{opct(O[t].title)}%</b>
+            </div>
+          ))}
+          <div className={styles.raceLegend}>{[['Playoffs', '#d9e4f1'], ['2nd round', '#a9c3e0'], ['Conf. Finals', '#6f9acb'], ['Finals', '#2f67a6'], ['Title', '#c9a24a']].map(([l, c]) => <span key={l}><i style={{ background: c }} />{l}</span>)}</div>
+        </div>
+      </section>
+      <p className={styles.oNote}>Each simulated season plays every remaining game with the forecaster's win chance (projected minutes, injury report, current Elo), then the play-in and four best-of-seven rounds. Team ratings get a random shift each season, smaller as the season goes on. Ties are broken at random; the NBA's tiebreakers aren't modeled.</p>
+    </div>
+  )
+}
+
+function TeamOdds({ t, o, games }) {
+  const mx = Math.max(...o.seeds, 0.001)
+  const hk = Object.keys(o.hist).map(Number), hmax = Math.max(...Object.values(o.hist))
+  const lo = Math.max(0, Math.min(...hk) - 2), hi = Math.min(games, Math.max(...hk) + 2)
+  const path = [['Playoffs', o.po], ['Top 6', o.top6], ['2nd round', o.r2], ['Conf. Finals', o.cf], ['Finals', o.fin], ['Title', o.title]]
+  const nx = o.next
+  return (
+    <div className={styles.tOdds} style={{ "--tc": tColor(t) }}>
+      <div className={styles.tPath}>{path.map(([l, v]) => <div key={l}><small>{l}</small><b>{opct(v)}%</b></div>)}</div>
+      <div className={styles.tGrid}>
+        <div>
+          <div className={styles.tLab}>Final seed</div>
+          <div className={styles.tSeeds}>{o.seeds.map((v, i) => (
+            <div key={i}><span>{v >= 0.01 ? Math.round(v * 100) : ''}</span>
+              <i style={{ height: `${Math.max(2, (v / mx) * 100)}px`, background: i < 6 ? '#1a5fa8' : i < 10 ? '#c9a24a' : '#c3c9d1' }} /><em>{i + 1}</em></div>
+          ))}</div>
+        </div>
+        <div>
+          <div className={styles.tLab}>Win total</div>
+          <div className={styles.tHist}>{Array.from({ length: hi - lo + 1 }, (_, k) => lo + k).map(wv => (
+            <i key={wv} title={`${wv} wins: ${(((o.hist[wv] || 0) / ODDS_N) * 100).toFixed(1)}%`}
+              style={{ height: `${((o.hist[wv] || 0) / hmax) * 80}px`, background: tColor(t), opacity: wv >= o.w10 && wv <= o.w90 ? 1 : 0.3 }} />
+          ))}</div>
+          <div className={styles.tAxis}><span>{lo}</span><span>{hi}</span></div>
+          <p className={styles.tCap}>8 in 10 seasons land between <b>{o.w10}</b> and <b>{o.w90}</b> wins.</p>
+        </div>
+        {nx && <div className={styles.tStake}>
+          <div className={styles.tLab}>What's at stake · next game {nx.home ? 'vs' : '@'} {tShort(nx.opp)}, {fmtDate(nx.game.day, { month: 'short', day: 'numeric' })}</div>
+          <div className={styles.tStakeRow}>
+            <div><small>With a win</small><b className={styles.up}>{opct(nx.poW)}%</b><span>playoffs · {opct(nx.tiW)}% title</span></div>
+            <div><small>With a loss</small><b className={styles.down}>{opct(nx.poL)}%</b><span>playoffs · {opct(nx.tiL)}% title</span></div>
+          </div>
+          <p className={styles.tCap}>Win chance: {Math.round(nx.pWin * 100)}%. The result moves its playoff odds {Math.round(Math.abs(nx.poW - nx.poL) * 100)} points.</p>
+        </div>}
+      </div>
     </div>
   )
 }
