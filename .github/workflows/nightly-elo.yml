@@ -62,6 +62,7 @@ jobs:
           set -o pipefail
           python3 scripts/build_elo.py $(ls data/[0-9]*.csv | grep -v playoffs | sort) 2>&1 | tail -20
           python3 scripts/validate_output.py
+          python3 scripts/split_elo.py
           python3 scripts/build_top100.py
           python3 scripts/build_timemachine.py
 

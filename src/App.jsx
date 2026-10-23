@@ -18,6 +18,10 @@ import Nav from './components/Nav'
 import FanSidedHeader from './components/FanSidedHeader'
 import Homepage from './components/Homepage'
 import styles from './App.module.css'
+import { loadHistory } from './history.js'
+
+// Views that read every player's game-by-game Elo wait for history.json
+const NEEDS_HISTORY = new Set(['historical', 'franchise', 'tenures', 'bestx', 'mystery', 'h2h', 'seasons', 'daily'])
 
 export default function App() {
   const [data, setData] = useState(null)
@@ -49,12 +53,19 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
+  // players.json renders the site; career histories follow in the background
+  const [histReady, setHistReady] = useState(false)
+  const [histError, setHistError] = useState(false)
   useEffect(() => {
-    fetch('/data/elo.json')
+    fetch('/data/players.json')
       .then(r => { if (!r.ok) throw new Error('Failed to load data'); return r.json() })
-      .then(d => { setData(d); setLoading(false) })
+      .then(d => {
+        setData(d); setLoading(false)
+        loadHistory(d.players).then(() => setHistReady(true)).catch(() => setHistError(true))
+      })
       .catch(e => { setError(e.message); setLoading(false) })
   }, [])
+  const waiting = NEEDS_HISTORY.has(view) && !histReady
 
   if (loading) return (
     <div className={styles.splash}>
@@ -82,37 +93,45 @@ export default function App() {
         <Nav meta={data} view={view} setView={setView} />
       )}
       {view === 'home' && <Homepage data={data} setView={setView} />}
+      {waiting && (
+        <div className={styles.splash} style={{ minHeight: '50vh' }}>
+          <div className={styles.splashInner}>
+            <div className={styles.splashSub}>{histError ? "Couldn't load career histories. Refresh to try again." : 'Loading career histories…'}</div>
+            {!histError && <div className={styles.spinner} />}
+          </div>
+        </div>
+      )}
       {view === 'rankings' && (
         <Rankings players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {view === 'historical' && (
+      {view === 'historical' && !waiting && (
         <Historical players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {view === 'franchise' && (
+      {view === 'franchise' && !waiting && (
         <FranchiseThreshold players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {view === 'tenures' && (
+      {view === 'tenures' && !waiting && (
         <FranchiseTenures players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {view === 'bestx' && (
+      {view === 'bestx' && !waiting && (
         <BestThroughX players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {view === 'mystery' && (
+      {view === 'mystery' && !waiting && (
         <MysteryPlayer players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
       {view === 'games' && (
         <GameExplorer />
       )}
-      {view === 'h2h' && (
+      {view === 'h2h' && !waiting && (
         <H2H players={data.players} />
       )}
       {view === 'teams' && (
         <Teams players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {view === 'seasons' && (
+      {view === 'seasons' && !waiting && (
         <Seasons players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {view === 'daily' && (
+      {view === 'daily' && !waiting && (
         <Daily players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
       {(view === 'explorer' || view === 'scoreboard') && (
@@ -123,7 +142,12 @@ export default function App() {
       {view === 'timemachine' && <TimeMachine />}
       {view === 'methodology' && <Methodology />}
 
-      {selectedPlayer && (
+      {selectedPlayer && !histReady && (
+        <div className={styles.splash} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(23,54,87,.85)' }} onClick={() => setSelectedPlayer(null)}>
+          <div className={styles.splashInner}><div className={styles.splashSub}>{histError ? "Couldn't load career histories." : 'Loading career history…'}</div>{!histError && <div className={styles.spinner} />}</div>
+        </div>
+      )}
+      {selectedPlayer && histReady && (
         <PlayerModal
           player={selectedPlayer}
           allPlayers={data.players}
