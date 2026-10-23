@@ -625,6 +625,7 @@ function ProjBox({ x, shots }) {
 function BoxScore({ team, game, has, shots, onCard, onClose }) {
   const [focus, setFocus] = useState(null)
   const [side, setSide] = useState(team) // which team's table shows; starts on the team you came from
+  const [stat, setStat] = useState('standard') // box score view, kept when switching teams
   const P = game.players, N = P.length
   const opp = game.opp
   const home = game.home === false ? opp : team
@@ -651,7 +652,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose }) {
     return { climb, drop, gk }
   }, [P])
 
-  const avail = useMemo(() => new Set(['mp', 'trb', 'ast', 'stl', 'blk', 'tov', 'tpa', 'fga', 'fta'].filter(k => P.some(p => (p[k] || 0) > 0))), [P])
+  const avail = useMemo(() => new Set(['mp', 'orb', 'drb', 'trb', 'ast', 'stl', 'blk', 'tov', 'pf', 'tpa', 'fga', 'fta'].filter(k => P.some(p => (p[k] || 0) > 0))), [P])
   const st = game.live?.state
   const tied = game.pts === game.opp_pts
   const winner = tied ? null : game.res === 'W' ? team : opp
@@ -727,8 +728,8 @@ function BoxScore({ team, game, has, shots, onCard, onClose }) {
             </button>
           ))}
         </div>
-        <TeamBox key={side} t={side} rows={P.filter(p => p.t === side)} N={N} has={has} avail={avail} shots={shots}
-          focus={focus} setFocus={setFocus} onCard={onCard} />
+        <TeamBox key={side} t={side} rows={P.filter(p => p.t === side)} P={P} N={N} has={has} avail={avail} shots={shots}
+          focus={focus} setFocus={setFocus} onCard={onCard} stat={stat} setStat={setStat} />
 
         <DuelGrid P={P} focus={focus} setFocus={setFocus} shots={shots} />
       </div>
@@ -740,39 +741,49 @@ function StoryCard({ tag, tone, children }) {
   return <div className={`${styles.card} ${styles['t_' + tone]}`}><div className={styles.cardTag}>{tag}</div><div>{children}</div></div>
 }
 
-// Box score columns in three groups. `need`: the season must have recorded the stat.
+// Box score stat views. `need`: the season must have recorded the stat.
 // `any`: hide when nobody in this game has a nonzero value (older box scores log unrecorded stats as 0).
 const fmtPct = (m, a) => (a ? (m / a).toFixed(3).replace(/^0/, '') : '—')
+const dec3 = v => (v == null ? '—' : v.toFixed(3).replace(/^0/, ''))
 const ts = p => { const d = 2 * ((p.fga || 0) + 0.44 * (p.fta || 0)); return d ? (p.pts || 0) / d : null }
-const BOX_GROUPS = [
-  { g: 'Raw Stats', cls: 'gRaw', cols: [
+const efg = p => (p.fga ? ((p.fg || 0) + 0.5 * (p.tp || 0)) / p.fga : null)
+const sum = (rows, k) => rows.reduce((s, p) => s + (p[k] || 0), 0)
+const split = (m, a, showA = true) => (m == null ? '—' : showA ? `${m}-${a ?? '—'}` : `${m}`)
+const fmtW = w => (Number.isInteger(w) ? w : w.toFixed(1))
+
+const STAT_VIEWS = [
+  { id: 'standard', label: 'Standard' },
+  { id: 'shooting', label: 'Shooting' },
+  { id: 'elo', label: 'Elo' },
+]
+const STAT_COLS = {
+  standard: [
     { h: 'MIN', need: 'mp', any: 'mp', v: p => p.mp ?? '—', tot: () => '' },
     { h: 'PTS', v: p => p.pts ?? '—', cls: 'pts', sum: 'pts' },
+    { h: 'OREB', need: 'orb', any: 'orb', v: p => p.orb ?? '—', sum: 'orb' },
+    { h: 'DREB', need: 'drb', any: 'drb', v: p => p.drb ?? '—', sum: 'drb' },
     { h: 'REB', any: 'trb', v: p => p.trb ?? '—', sum: 'trb' },
     { h: 'AST', any: 'ast', v: p => p.ast ?? '—', sum: 'ast' },
     { h: 'STL', need: 'stl', any: 'stl', v: p => p.stl ?? '—', sum: 'stl' },
     { h: 'BLK', need: 'blk', any: 'blk', v: p => p.blk ?? '—', sum: 'blk' },
     { h: 'TO', need: 'tov', any: 'tov', v: p => p.tov ?? '—', sum: 'tov' },
-    { h: '+/-', need: 'pm', v: p => (p.pm == null ? '—' : p.pm > 0 ? `+${p.pm}` : p.pm), tot: () => '' },
-  ] },
-  { g: 'Shooting', cls: 'gShoot', cols: [
+    { h: 'PF', need: 'pf', any: 'pf', v: p => p.pf ?? '—', sum: 'pf' },
+    { h: 'GmSc', v: p => p.gs.toFixed(1), cls: 'gs', tot: () => '' },
+  ],
+  shooting: [
+    { h: 'PTS', v: p => p.pts ?? '—', cls: 'pts', sum: 'pts' },
     { h: 'FG', pair: ['fg', 'fga'] },
     { h: 'FG%', any: 'fga', pct: ['fg', 'fga'] },
     { h: '3PT', need: 'tp', any: 'tpa', pair: ['tp', 'tpa'] },
     { h: '3P%', need: 'tp', any: 'tpa', pct: ['tp', 'tpa'] },
     { h: 'FT', pair: ['ft', 'fta'] },
     { h: 'FT%', any: 'fta', pct: ['ft', 'fta'] },
-    { h: 'TS%', any: 'fga', v: p => { const v = ts(p); return v == null ? '—' : v.toFixed(3).replace(/^0/, '') },
-      tot: rows => { const v = ts({ pts: sum(rows, 'pts'), fga: sum(rows, 'fga'), fta: sum(rows, 'fta') }); return v == null ? '—' : v.toFixed(3).replace(/^0/, '') } },
-  ] },
-]
-const sum = (rows, k) => rows.reduce((s, p) => s + (p[k] || 0), 0)
-const split = (m, a, showA = true) => (m == null ? '—' : showA ? `${m}-${a ?? '—'}` : `${m}`)
+    { h: 'eFG%', need: 'tp', any: 'fga', v: p => dec3(efg(p)), tot: rows => dec3(efg({ fg: sum(rows, 'fg'), tp: sum(rows, 'tp'), fga: sum(rows, 'fga') })) },
+    { h: 'TS%', any: 'fga', v: p => dec3(ts(p)), tot: rows => dec3(ts({ pts: sum(rows, 'pts'), fga: sum(rows, 'fga'), fta: sum(rows, 'fta') })) },
+  ],
+}
 
-// Raw stats gain GmSc (the stat every duel is decided on) at the end
-const RAW_EXTRA = { h: 'GmSc', v: p => p.gs.toFixed(1), cls: 'gs', tot: () => '' }
-
-// Elo journey: pre-game Elo, duels expected vs. won on a 0..N-1 track, post-game Elo, change
+// Elo view: pre-game Elo, duels expected vs. won on a 0..N-1 track, post-game Elo, change
 function DuelTrack({ w, xw, n }) {
   const pc = v => `${(Math.max(0, Math.min(n, v)) / n) * 100}%`
   const beat = w >= xw, lo = Math.min(w, xw), hi = Math.max(w, xw), diff = w - xw
@@ -790,40 +801,69 @@ function DuelTrack({ w, xw, n }) {
   )
 }
 
-function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
-  const groups = BOX_GROUPS.map(G => ({ ...G, cols: [...G.cols.filter(c => (!c.need || has?.has(c.need)) && (!c.any || avail.has(c.any))), ...(G.g === 'Raw Stats' ? [RAW_EXTRA] : [])] }))
-    .filter(G => G.cols.length)
-  const cell = c => p => c.pair ? split(p[c.pair[0]], p[c.pair[1]], avail.has(c.pair[1]))
-    : c.pct ? fmtPct(p[c.pct[0]] || 0, p[c.pct[1]] || 0) : c.v(p)
-  const total = c => c.pair ? split(sum(rows, c.pair[0]), sum(rows, c.pair[1]), avail.has(c.pair[1]))
-    : c.pct ? fmtPct(sum(rows, c.pct[0]), sum(rows, c.pct[1])) : c.sum ? sum(rows, c.sum) : c.tot ? c.tot(rows) : ''
+function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, stat, setStat }) {
+  const n = N - 1
   const starters = has?.has('st') && rows.some(p => p.st)
   const sorted = [...rows].sort((a, b) => (starters ? b.st - a.st : 0) || (b.mp || 0) - (a.mp || 0) || (b.pts || 0) - (a.pts || 0))
   const sections = starters ? [['Starters', sorted.filter(p => p.st)], ['Bench', sorted.filter(p => !p.st)]] : [[null, sorted]]
   const net = rows.reduce((s, p) => s + p.post - p.pre, 0)
-  const ELO_COLS = 4
-  const width = 2 + ELO_COLS + groups.reduce((s, G) => s + G.cols.length, 0)
-  const n = N - 1
+
+  // Each player's most valuable duel win and costliest loss in the grid
+  const ext = useMemo(() => {
+    if (stat !== 'elo') return {}
+    return Object.fromEntries(rows.map(a => {
+      let best = null, worst = null
+      const tm = [0, 0], op = [0, 0]
+      for (const b of P) {
+        if (a === b) continue
+        const c = duel(a, b, N)
+        const r = b.t === a.t ? tm : op
+        r[0] += c.act; r[1] += 1 - c.act
+        if (c.act === 1 && (!best || c.delta > best.c.delta)) best = { b, c }
+        if (c.act === 0 && (!worst || c.delta < worst.c.delta)) worst = { b, c }
+      }
+      return [a.n, { best, worst, tm, op }]
+    }))
+  }, [stat, rows, P, N])
+
+  const cols = stat === 'elo' ? [] : STAT_COLS[stat].filter(c => (!c.need || has?.has(c.need)) && (!c.any || avail.has(c.any)))
+  const cell = c => p => c.pair ? split(p[c.pair[0]], p[c.pair[1]], avail.has(c.pair[1]))
+    : c.pct ? fmtPct(p[c.pct[0]] || 0, p[c.pct[1]] || 0) : c.v(p)
+  const total = c => c.pair ? split(sum(rows, c.pair[0]), sum(rows, c.pair[1]), avail.has(c.pair[1]))
+    : c.pct ? fmtPct(sum(rows, c.pct[0]), sum(rows, c.pct[1])) : c.sum ? sum(rows, c.sum) : c.tot ? c.tot(rows) : ''
+  const ELO_HEAD = ['Current Elo', 'Pregame Elo', 'Elo Δ', 'track', 'Teammate duels', 'Opponent duels', 'Best win', 'Costliest loss']
+  const width = 2 + (stat === 'elo' ? ELO_HEAD.length : cols.length)
+
+  const duelLink = (x, up) => x
+    ? <span className={styles.duelPick} title={`${Math.round((up ? x.c.exp : 1 - x.c.exp) * 100)}% pre-game duel chance for ${up ? 'the winner' : 'the loser'}`}>
+        <span>{shortName(x.b.n)}</span><em className={up ? styles.up : styles.down}>{sgn(x.c.delta)}</em></span>
+    : <span className={styles.muted}>—</span>
 
   const row = p => {
-    const d = p.post - p.pre
+    const d = p.post - p.pre, e = ext[p.n]
+    const rec = r => (r ? `${fmtW(r[0])}–${fmtW(r[1])}` : '—')
     return (
       <tr key={p.n} className={focus === p.n ? styles.focus : ''} onMouseEnter={() => setFocus(p.n)} onMouseLeave={() => setFocus(null)}>
         <td className={styles.sticky}>
           <span className={styles.pl}>
             <Headshot name={p.n} shots={shots} color={tColor(t)} />
             <span><button className={styles.pName} onClick={() => onCard(p.n)} title="Open player card">{shortName(p.n)}</button>
-              <small>{[p.pos, tierFor(p.lr).id !== 'common' && tierFor(p.lr).label].filter(Boolean).join(' · ')}</small></span>
+              {p.pos && <small>{p.pos}</small>}</span>
           </span>
         </td>
         <td className={styles.rankCell}><RankCell p={p} /></td>
-        <td className={`${styles.gElo} ${styles.gStart} ${styles.eloPre}`}>{r0(p.pre)}</td>
-        <td className={`${styles.gElo} ${styles.trackCell}`}><DuelTrack w={p.w} xw={p.xw} n={n} /></td>
-        <td className={`${styles.gElo} ${styles.eloPost}`}>{r0(p.post)}</td>
-        <td className={`${styles.gElo} ${styles.eloDelta} ${d >= 0 ? styles.up : styles.down}`}>{sgn(d)}</td>
-        {groups.map(G => G.cols.map((c, j) => (
-          <td key={G.g + c.h} className={`${styles[G.cls]} ${j === 0 ? styles.gStart : ''} ${c.cls ? styles[c.cls] : ''}`}>{cell(c)(p)}</td>
-        )))}
+        {stat === 'elo' ? <>
+          <td className={`${styles.gStart} ${styles.eloPost}`}>{r0(p.post)}</td>
+          <td className={styles.eloPre}>{r0(p.pre)}</td>
+          <td className={`${styles.eloDelta} ${d >= 0 ? styles.up : styles.down}`}>{sgn(d)}</td>
+          <td className={styles.trackCell}><DuelTrack w={p.w} xw={p.xw} n={n} /></td>
+          <td className={styles.recCell}>{rec(e?.tm)}</td>
+          <td className={styles.recCell}>{rec(e?.op)}</td>
+          <td className={styles.duelCell}>{duelLink(e?.best, true)}</td>
+          <td className={styles.duelCell}>{duelLink(e?.worst, false)}</td>
+        </> : cols.map((c, j) => (
+          <td key={c.h} className={`${j === 0 ? styles.gStart : ''} ${c.cls ? styles[c.cls] : ''}`}>{cell(c)(p)}</td>
+        ))}
       </tr>
     )
   }
@@ -831,26 +871,28 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
   return (
     <div className={styles.teamBox} style={{ '--tc': tColor(t) }}>
       <div className={styles.teamBoxHead}><TeamMark t={t} size={30} /><span>{tName(t)}</span>
-        <span className={styles.boxLegend}><i className={styles.legExp} />Duels Elo expected<i className={styles.legWon} />Duels won</span></div>
+        <span className={styles.statSwitch} role="tablist" aria-label="Box score view">
+          {STAT_VIEWS.map(v => (
+            <button key={v.id} type="button" role="tab" aria-selected={stat === v.id} className={stat === v.id ? styles.statOn : ''} onClick={() => setStat(v.id)}>{v.label}</button>
+          ))}
+        </span></div>
+      {stat === 'elo' && <div className={styles.eloNote}>
+        <span className={styles.boxLegend}><i className={styles.legExp} />Duels Elo expected<i className={styles.legWon} />Duels won</span>
+        <span>Every player duels the other {n} on Game Score. <b>Best win</b> and <b>costliest loss</b> are the single duels that moved his Elo most.</span>
+      </div>}
       <div className={styles.tableWrap}>
-        <table className={styles.box}>
+        <table className={`${styles.box} ${styles['box_' + stat]}`}>
           <thead>
-            <tr className={styles.groupRow}>
-              <th className={styles.sticky} /><th />
-              <th colSpan={ELO_COLS} className={`${styles.gElo} ${styles.gStart}`}><span>Elo</span></th>
-              {groups.map(G => <th key={G.g} colSpan={G.cols.length} className={`${styles[G.cls]} ${styles.gStart}`}><span>{G.g === 'Raw Stats' ? 'Raw' : G.g}</span></th>)}
-            </tr>
             <tr>
               <th className={styles.sticky}>Player</th>
-              <th className={styles.rankHead} title="League Elo rank after this game, among FPR-qualified players">Rank</th>
-              <th className={`${styles.gElo} ${styles.gStart}`}>Pre</th>
-              <th className={`${styles.gElo} ${styles.trackHead}`} title={`Every player duels the other ${n} on Game Score`}>
-                <span>Duels: expected → won</span>
-                <span className={styles.trackScale}><i style={{ left: '0%' }}>0</i><i style={{ left: '50%' }}>{Math.round(n / 2)}</i><i style={{ left: '100%' }}>{n}</i></span>
-              </th>
-              <th className={styles.gElo}>Post</th>
-              <th className={styles.gElo}>Elo Δ</th>
-              {groups.map(G => G.cols.map((c, j) => <th key={G.g + c.h} className={`${styles[G.cls]} ${j === 0 ? styles.gStart : ''}`}>{c.h}</th>))}
+              <th className={styles.rankHead} title="League Elo rank after this game, among FPR-qualified players, and the change from before it">Player Rank</th>
+              {stat === 'elo' ? ELO_HEAD.map((h, j) => h === 'track'
+                ? <th key={h} className={styles.trackHead} title={`Every player duels the other ${n} on Game Score`}>
+                    <span>Duels: expected → won</span>
+                    <span className={styles.trackScale}><i style={{ left: '0%' }}>0</i><i style={{ left: '50%' }}>{Math.round(n / 2)}</i><i style={{ left: '100%' }}>{n}</i></span>
+                  </th>
+                : <th key={h} className={`${j === 0 ? styles.gStart : ''} ${h.startsWith('Best') || h.startsWith('Cost') ? styles.duelHead : ''} ${h.endsWith('duels') ? styles.recHead : ''}`}>{h}</th>)
+                : cols.map((c, j) => <th key={c.h} className={j === 0 ? styles.gStart : ''}>{c.h}</th>)}
             </tr>
           </thead>
           {sections.map(([label, ps]) => (
@@ -861,13 +903,13 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
           ))}
           <tbody>
             <tr className={styles.totals}>
-              <td className={styles.sticky}>Team</td>
-              <td />
-              <td className={`${styles.gElo} ${styles.gStart}`} /><td className={styles.gElo} /><td className={styles.gElo} />
-              <td className={`${styles.gElo} ${styles.eloDelta} ${net >= 0 ? styles.up : styles.down}`}>{sgn(net)}</td>
-              {groups.map(G => G.cols.map((c, j) => (
-                <td key={G.g + c.h} className={`${styles[G.cls]} ${j === 0 ? styles.gStart : ''} ${c.cls ? styles[c.cls] : ''}`}>{total(c)}</td>
-              )))}
+              <td className={styles.sticky}>Team</td><td />
+              {stat === 'elo' ? <>
+                <td className={styles.gStart} /><td />
+                <td className={`${styles.eloDelta} ${net >= 0 ? styles.up : styles.down}`}>{sgn(net)}</td><td /><td /><td /><td /><td />
+              </> : cols.map((c, j) => (
+                <td key={c.h} className={`${j === 0 ? styles.gStart : ''} ${c.cls ? styles[c.cls] : ''}`}>{total(c)}</td>
+              ))}
             </tr>
           </tbody>
         </table>
@@ -883,7 +925,7 @@ function RankCell({ p }) {
   const mv = p.lrp != null && p.lr != null ? p.lr - p.lrp : 0
   return (
     <span className={styles.rankVal} title={p.lrp != null && p.lr != null ? `#${p.lr} before the game` : undefined}>
-      <b>#{rank}</b>{mv !== 0 && <i className={mv > 0 ? styles.up : styles.down}>{mv > 0 ? '▲' : '▼'}{Math.abs(mv)}</i>}
+      <b>#{rank}</b>{mv !== 0 && <i className={mv > 0 ? styles.up : styles.down}>({mv > 0 ? '▲' : '▼'}{Math.abs(mv)})</i>}
     </span>
   )
 }

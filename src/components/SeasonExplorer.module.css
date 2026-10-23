@@ -468,3 +468,39 @@
 .pGame .liveTxt { font-style: normal; font-size: 10.5px; text-transform: uppercase; }
 .pPts { font-weight: 800; }
 .pGs { font-weight: 800; color: #173657; font-size: 14px; }
+
+/* Box score views: Standard / Shooting / Elo */
+.statSwitch { margin-left: auto; display: inline-flex; gap: 2px; background: rgba(0,0,0,.22); border-radius: 18px; padding: 3px; }
+.statSwitch button { border: 0; background: transparent; color: rgba(255,255,255,.85); font: inherit; font-size: 12.5px; font-weight: 700; padding: 5px 13px; border-radius: 15px; cursor: pointer; }
+.statSwitch button:hover { color: #fff; }
+.statSwitch button.statOn { background: #fff; color: #1d2633; }
+.box_standard { min-width: 760px; }
+.box_shooting { min-width: 720px; }
+.box_elo { min-width: 1080px; }
+.box_standard td, .box_shooting td { font-size: 13.5px; padding-top: 8px; padding-bottom: 8px; }
+.eloNote { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 9px 16px; font-size: 12px; color: #5d6875; background: #f4f8fd; border-bottom: 1px solid #e4e8ee; }
+.eloNote .boxLegend { margin-left: 0; color: #4a5560; }
+.eloNote .legExp { border-color: #7a8694; }
+.eloNote .legWon { background: #1a7a4a; }
+.box_elo td.eloPost { text-align: right; padding-left: 8px; }
+.box td.recCell { font-weight: 700; color: #2a2f36; }
+.box th.duelHead, .box td.duelCell { text-align: left; }
+.duelPick { display: inline-flex; gap: 6px; align-items: baseline; }
+.duelPick span { color: #2a2f36; }
+.duelPick em { font-style: normal; font-weight: 800; font-size: 12px; }
+@media (max-width: 700px) {
+  .statSwitch button { padding: 5px 9px; font-size: 12px; }
+  .teamBoxHead > span:nth-child(2) { display: none; }
+}
+
+/* Box score: inline rank change, bold player names */
+.rankVal { flex-direction: row; align-items: baseline; gap: 5px; white-space: nowrap; }
+.rankVal i { font-size: 11px; }
+/* Bold, darker column headers so the views are easy to scan */
+.box thead th { font-weight: 800; color: #1d2633; font-size: 11px; letter-spacing: .4px; }
+.box thead th.trackHead > span:first-child { color: #1a5fa8; }
+.box_elo td.eloPre { text-align: right; }
+.box_elo td.eloPost { font-size: 15px; }
+.box_elo td.recCell { text-align: center; }
+.box_elo th.duelHead, .box_elo td.duelCell { padding-left: 16px; }
+.box_elo th.recHead { text-align: center; }
