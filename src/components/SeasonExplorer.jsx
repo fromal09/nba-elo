@@ -1490,7 +1490,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
               <div className={styles.sideLab}>{label}<span>{shortName(p.n)} · {sgn(p.post - p.pre)} Elo</span></div>
               <button type="button" className={styles.sideMini} onClick={() => openCard(g, p)} aria-label={`${label}: ${p.n}, open card`}>
                 <span className={styles.sideScale}>
-                  <MiniCard name={p.n} row={p} game={cardGameInfo(g, p.t, daySd, p)} team={{ name: tName(p.t), color: tColor(p.t), abbr: tCode(p.t) }} headshot={shots?.[norm(p.n)]?.headshot} />
+                  <MiniCard name={p.n} row={p} game={cardGameInfo(g, p.t, daySd, p)} team={{ name: tName(p.t), color: tColor(p.t), abbr: tCode(p.t), logo: logoUrl(p.t) }} headshot={shots?.[norm(p.n)]?.headshot} />
                 </span>
               </button>
             </div>
@@ -1682,7 +1682,7 @@ function SeasonCard({ name, g, sd, shots, onProfile, onClose, onBinder, info, te
   if (!row) return null
   return (
     <PlayerCard name={name} row={row} sd={sd} game={info || cardGameInfo(g, row.t, sd, row)}
-      team={team || { name: tName(row.t), color: tColor(row.t), abbr: tCode(row.t) }}
+      team={team || { name: tName(row.t), color: tColor(row.t), abbr: tCode(row.t), logo: logoUrl(row.t) }}
       logo={logoUrl(row.t)} headshot={shots?.[norm(name)]?.headshot}
       career={CAREER.byName[name] || null} peakRank={CAREER.rank[name]} bestRank={CAREER.best[name]}
       onProfile={onProfile} onClose={onClose} onBinder={onBinder} />
@@ -1723,7 +1723,7 @@ function Binder({ name, sd: startSd, shots, onClose, onProfile }) {
       if (!p) continue
       if (!g.post) reg++
       const info = cardGameInfo(g, p.t, sd, p)
-      list.push({ g, p, info, team: { name: tName(p.t), color: tColor(p.t), abbr: tCode(p.t) }, label: g.post ? info.band.label : `G${reg}` })
+      list.push({ g, p, info, team: { name: tName(p.t), color: tColor(p.t), abbr: tCode(p.t), logo: logoUrl(p.t) }, label: g.post ? info.band.label : `G${reg}` })
     }
     return list
     } finally { TEAMINFO = prev }

@@ -146,8 +146,13 @@ export function CardFront({ name, row, game, team, headshot }) {
             {move > 0 ? `▲ ${move}` : `▼ ${-move}`}</i>}
         </div>}
         <div className={styles.gameTag}>
-          <div className={styles.gameWhen}><b>{fmtDay(game.date)}</b><span>{where} {game.oppAbbr}</span></div>
-          <OppMark game={game} />
+          <b className={styles.gameDay}>{fmtDay(game.date)}</b>
+          {/* Both teams, so the opponent's logo never reads as the player's own */}
+          <div className={styles.matchup}>
+            <TeamLogo src={team?.logo} abbr={team?.abbr} color={team?.color} />
+            <span>{where}</span>
+            <TeamLogo src={game.oppLogo} abbr={game.oppAbbr} color={game.oppColor} />
+          </div>
         </div>
         <div className={styles.nameOver}>
           {moments.stamps.length > 0 && <div className={styles.stamps}>
@@ -158,8 +163,10 @@ export function CardFront({ name, row, game, team, headshot }) {
           <div ref={lastRef} className={styles.last}>{last}</div>
           <div className={styles.metaRow}>
             <span className={styles.meta}>{[row.pos, team?.name].filter(Boolean).join(' · ')}</span>
-            {game.score && <span className={game.won ? styles.resW : styles.resL}>{game.won ? 'W' : 'L'} {game.score}{game.ot ? ` ${game.ot}` : ''}</span>}
           </div>
+          {game.score && <div className={styles.scoreRow}>
+            <span className={game.won ? styles.resW : styles.resL}>{game.won ? 'W' : 'L'} {game.score}{game.ot ? ` ${game.ot}` : ''}</span>
+          </div>}
         </div>
       </div>
       {game.honor && <div className={styles.honorSeam}><span className={game.honor === 'potd' ? styles.pillDay : styles.pillGame}>{game.honor === 'potd' ? 'Player of the Day' : 'Player of the Game'}</span></div>}
@@ -197,11 +204,11 @@ export function MiniCard({ name, row, game, team, headshot }) {
   )
 }
 
-function OppMark({ game }) {
+function TeamLogo({ src, abbr, color }) {
   const [bad, setBad] = useState(false)
-  return game.oppLogo && !bad
-    ? <img className={styles.oppLogo} src={game.oppLogo} alt={game.oppAbbr} onError={() => setBad(true)} />
-    : <span className={styles.oppMark} style={{ '--oc': game.oppColor || '#173657' }}>{game.oppAbbr}</span>
+  return src && !bad
+    ? <img className={styles.oppLogo} src={src} alt={abbr} onError={() => setBad(true)} />
+    : <span className={styles.oppMark} style={{ '--oc': color || '#173657' }}>{abbr}</span>
 }
 
 /**
