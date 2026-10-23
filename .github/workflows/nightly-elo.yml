@@ -66,6 +66,7 @@ jobs:
           python3 scripts/build_top100.py
           python3 scripts/build_timemachine.py
           python3 scripts/build_draft.py
+          python3 scripts/build_scoring.py
 
       - name: Upload changed data
         if: steps.fetch.outputs.new_games != '0'

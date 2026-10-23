@@ -1,12 +1,19 @@
 // Playoff and title odds for the current season: plays out the rest of the schedule many times with
-// the game forecaster's win chances, then the play-in and four best-of-seven rounds.
+// the forecast's projected margins (win chance = Φ(margin / sigma), the same model as the site's
+// win percentages and projected scores), then the play-in and four best-of-seven rounds.
 //
-// Uncertainty: each simulated season shifts every team's rating by a random amount (normal, SD
-// RATING_SD scaled by how much of the season is left), so a team that is better or worse than its
-// rating shows up in the spread, not only game-to-game luck.
+// Uncertainty: each simulated season shifts every team's strength by a random amount (normal, SD
+// SHIFT_SD points scaled by how much of the season is left), so a team that is better or worse than
+// its projection shows up in the spread, not only game-to-game luck.
 // Ties in the standings are broken at random (the NBA's tiebreakers aren't modeled).
 
-const RATING_SD = 60
+const SHIFT_SD = 2.5   // points of margin per game, full season to go
+// Standard normal CDF (Abramowitz–Stegun 7.1.26)
+const Phi = x => {
+  const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2)
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2)
+  return x >= 0 ? (1 + y) / 2 : (1 - y) / 2
+}
 
 function rng(seed) {
   let a = seed >>> 0
@@ -22,25 +29,25 @@ const gauss = R => { let u = 0; while (!u) u = R(); return Math.sqrt(-2 * Math.l
 
 // input:
 //   teams:  { code: { conf: 'E'|'W', w, l } }
-//   games:  [{ home, away, d }]  d = home rating − away rating + home court, Elo points (unplayed games)
+//   games:  [{ home, away, m, day }]  m = projected home margin in points (unplayed games)
 //   known:  [{ home, away, homeWon }]  finals not yet in the season data
-//   rating: { code: rating } for the playoffs
-//   scale, home: the win-chance fit (scale in Elo points, home-court edge)
+//   strength: { code: points } for the playoffs (margin between two teams = strength gap ± home)
+//   sigma, home: spread of margins around the projection, and home court in points
 //   left:   share of the season still to play (0..1)
 // returns per team: mean wins, 10th/90th percentile wins, win histogram, seed distribution, and the
 // chance of each outcome; plus, for each team's next game, playoff and title odds with a win or a loss
-export function simulateOdds({ teams, games, known, rating, scale, home, left, n = 10000, seed = 1 }, onDone) {
+export function simulateOdds({ teams, games, known, strength, sigma, home, left, n = 10000, seed = 1 }, onDone) {
   const codes = Object.keys(teams), N = codes.length, ix = Object.fromEntries(codes.map((c, i) => [c, i]))
   const conf = codes.map(c => teams[c].conf)
   const base = codes.map(c => teams[c].w)
   for (const k of known) base[ix[k.homeWon ? k.home : k.away]]++
-  const G = games.filter(g => g.home in ix && g.away in ix).map(g => ({ h: ix[g.home], a: ix[g.away], d: g.d, day: g.day }))
-  const rat = codes.map(c => rating[c] ?? 1500)
+  const G = games.filter(g => g.home in ix && g.away in ix).map(g => ({ h: ix[g.home], a: ix[g.away], m: g.m, day: g.day }))
+  const rat = codes.map(c => strength[c] ?? 0)
   // Season length per team: games already played, finals not yet in the data, and games left
   const total = codes.map(c => teams[c].w + teams[c].l)
   for (const k of known) { total[ix[k.home]]++; total[ix[k.away]]++ }
   for (const g of G) { total[g.h]++; total[g.a]++ }
-  const sd = RATING_SD * Math.sqrt(Math.max(0.05, left))
+  const sd = SHIFT_SD * Math.sqrt(Math.max(0.05, left))
   // Each team's next game, for "what's at stake"
   const next = new Array(N).fill(-1)
   G.forEach((g, j) => { if (next[g.h] < 0) next[g.h] = j; if (next[g.a] < 0) next[g.a] = j })
@@ -51,7 +58,7 @@ export function simulateOdds({ teams, games, known, rating, scale, home, left, n
   const winsAll = codes.map(() => [])
   const stake = codes.map(() => ({ wN: 0, wPo: 0, wTi: 0, lN: 0, lPo: 0, lTi: 0 }))
   const R = rng(seed)
-  const P = (d) => 1 / (1 + 10 ** (-d / scale))
+  const P = m => Phi(m / sigma)
   let done = 0, stopped = false
 
   const one = () => {
@@ -60,7 +67,7 @@ export function simulateOdds({ teams, games, known, rating, scale, home, left, n
     const nextWon = new Array(N).fill(null)
     for (let j = 0; j < G.length; j++) {
       const g = G[j]
-      const hw = R() < P(g.d + shift[g.h] - shift[g.a])
+      const hw = R() < P(g.m + shift[g.h] - shift[g.a])
       w[hw ? g.h : g.a]++
       if (next[g.h] === j) nextWon[g.h] = hw
       if (next[g.a] === j) nextWon[g.a] = !hw

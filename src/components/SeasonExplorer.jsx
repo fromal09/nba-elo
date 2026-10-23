@@ -28,6 +28,21 @@ const TWO_WORD = ['Trail Blazers', 'Red Skins']
 
 // Set from the loaded season before children render (one season is on screen at a time)
 let TEAMINFO = {}
+// Projected score for a forecast game (set once the season's scoring rates load): fg -> [home, away]
+let PROJECT = null
+const projText = (fg, homeFirst = false) => {
+  const s = PROJECT?.(fg)
+  return s ? (homeFirst ? `${s[0]}–${s[1]}` : `${s[1]}–${s[0]}`) : null
+}
+// Projected final for a game in progress: the score so far plus the pre-game projection for the time left
+function liveFinal(fg, live, ptsHome, ptsAway) {
+  const s = PROJECT?.(fg)
+  if (!s || !live?.period) return null
+  const [m, sec] = String(live.clock || '0:00').split(':').map(Number)
+  const left = (live.period <= 4 ? (4 - live.period) * 12 : 0) + (isNaN(m) ? 0 : m + (sec || 0) / 60)
+  const r = Math.max(0, left) / 48
+  return [Math.round(ptsHome + s[0] * r), Math.round(ptsAway + s[1] * r)]
+}
 let CAREER = { byName: {}, rank: {}, best: {} } // elo.json players, all-time peak Elo rank, best active rank
 const tName = t => TEAMINFO[t]?.name || CURRENT[t]?.[0] || t
 const tShort = t => {
@@ -78,7 +93,7 @@ function viewFor(g, team, sy) {
   const i = g.teams.indexOf(team), o = g.teams[1 - i]
   return {
     id: g.id, date: g.date, opp: o, home: g.home == null ? null : g.home === team, pts: g.pts[i], opp_pts: g.pts[1 - i],
-    ot: g.ot, res: g.pts[i] > g.pts[1 - i] ? 'W' : 'L', post: g.post, players: g.players, elo: g.elo, wp: g.wp, sy, live: g.live, riv: g.riv,
+    ot: g.ot, res: g.pts[i] > g.pts[1 - i] ? 'W' : 'L', post: g.post, players: g.players, elo: g.elo, wp: g.wp, fcwp: g.fcwp, sy, live: g.live, riv: g.riv,
   }
 }
 
@@ -265,8 +280,10 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     if (target && target !== season) setSeason(target)
   }, [view, day, index])
   const ratings = useMemo(() => buildRatings(players || []), [players])
+  const [scoring, setScoring] = useState(null)
   useEffect(() => {
     if (!newest || sched) return
+    getJSON('/data/explorer/scoring.json').then(setScoring).catch(() => {})
     getJSON('/api/schedule').then(d => d.games && setSched(d)).catch(() => {})
     getJSON('/data/explorer/rotation.json').then(setRotation).catch(() => setRotation({ players: {} }))
   }, [newest, sched])
@@ -304,7 +321,13 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     if (!newest || !sd || !sched || !rotation || !players) return null
     const roster = Object.fromEntries(Object.entries(shots || {}).filter(([, v]) => v.team))
     const gamesPlayed = Object.fromEntries(Object.entries(teams).map(([t, x]) => [t, x.gp]))
-    const f = buildForecaster({ players, roster, rotation, injuries: sched.injuries, fetched: sched.fetched, gamesPlayed, winChance, sy: sd.sy })
+    const base = buildForecaster({ players, roster, rotation, injuries: sched.injuries, fetched: sched.fetched, gamesPlayed, winChance, sy: sd.sy })
+    // One model for everything: once scoring.json loads, win chances come from the projected margin
+    const model = makeProjector(scoring, sched)
+    const f = !model ? base : { ...base, game: (h, a, day) => {
+      const g = base.game(h, a, day), m = model.margin(g), p = model.win(m)
+      return { ...g, margin: m, pHome: p, pAway: 1 - p }
+    } }
     const through = sd.games.length ? sd.games[sd.games.length - 1].date : '0000-00-00'
     const upcoming = {}, proj = {}, remaining = [], known = []
     const HCA = WP(sd.sy).home
@@ -312,7 +335,8 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     for (const g of sched.games) {
       if (g.day <= through || !teams[g.home] || !teams[g.away]) continue
       const fg = g.done ? null : f.game(g.home, g.away, g.day)
-      if (fg) remaining.push({ home: g.home, away: g.away, day: g.day, d: fg.home.rating - fg.away.rating + HCA })
+      // projected home margin in points (Elo-only conversion until scoring.json loads)
+      if (fg) remaining.push({ home: g.home, away: g.away, day: g.day, m: fg.margin ?? (fg.home.rating - fg.away.rating + HCA) * 0.0376 })
       else known.push({ home: g.home, away: g.away, homeWon: g.hs > g.as })
       for (const t of [g.home, g.away]) {
         const home = t === g.home, p = fg ? (home ? fg.pHome : fg.pAway) : null
@@ -323,8 +347,9 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
       }
     }
     const last = sched.games.length ? sched.games[sched.games.length - 1].day : through
-    return { f, upcoming, proj, through, fetched: sched.fetched, remaining, known, last, total: sched.games.length }
-  }, [newest, sd, sched, rotation, players, shots, teams])
+    return { f, upcoming, proj, through, fetched: sched.fetched, remaining, known, last, total: sched.games.length, model, project: model?.score || null }
+  }, [newest, sd, sched, rotation, players, shots, teams, scoring])
+  PROJECT = fc?.project || null
 
   // Playoff and title odds: the rest of the schedule played out many times
   const [standView, setStandView] = useState('standings')
@@ -335,9 +360,9 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     const conf = t => (teams[t]?.group === 'Eastern Conference' ? 'E' : teams[t]?.group === 'Western Conference' ? 'W' : null)
     const T = Object.fromEntries(Object.keys(teams).filter(conf).map(t => [t, { conf: conf(t), w: teams[t].w, l: teams[t].l }]))
     const day = addDays(fc.last, 1)
-    const rating = Object.fromEntries(Object.keys(T).map(t => [t, fc.f.team(t, day).rating]))
-    const { scale, home } = WP(sd.sy)
-    return simulateOdds({ teams: T, games: fc.remaining, known: fc.known, rating, scale, home,
+    const M = fc.model
+    const strength = Object.fromEntries(Object.keys(T).map(t => [t, M ? M.strength(t, fc.f.team(t, day).rating) : fc.f.team(t, day).rating * 0.0376]))
+    return simulateOdds({ teams: T, games: fc.remaining, known: fc.known, strength, sigma: M?.sigma || 13.7, home: M?.home ?? 1.66,
       left: fc.total ? fc.remaining.length / fc.total : 1, n: ODDS_N, seed: fc.remaining.length + 1 }, setOdds)
   }, [fc, standView === 'standings'])
 
@@ -499,7 +524,7 @@ function OddsView({ odds, teams, sd, fc }) {
           <div className={styles.raceLegend}>{[['Playoffs', '#d9e4f1'], ['2nd round', '#a9c3e0'], ['Conf. Finals', '#6f9acb'], ['Finals', '#2f67a6'], ['Title', '#c9a24a']].map(([l, c]) => <span key={l}><i style={{ background: c }} />{l}</span>)}</div>
         </div>
       </section>
-      <p className={styles.oNote}>Each simulated season plays every remaining game with the forecaster's win chance (projected minutes, injury report, current Elo), then the play-in and four best-of-seven rounds. Team ratings get a random shift each season, smaller as the season goes on. Ties are broken at random; the NBA's tiebreakers aren't modeled.</p>
+      <p className={styles.oNote}>Each simulated season plays every remaining game from its projected margin (lineup Elo from projected minutes and the injury report, plus each team's scoring margin and back-to-backs), then the play-in and four best-of-seven rounds. Team ratings get a random shift each season, smaller as the season goes on. Ties are broken at random; the NBA's tiebreakers aren't modeled.</p>
     </div>
   )
 }
@@ -541,6 +566,37 @@ function TeamOdds({ t, o, games }) {
       </div>
     </div>
   )
+}
+
+// ── Projected scores ────────────────────────────────────────────────────────
+// From scoring.json (scripts/build_scoring.py), fitted and backtested on every game since 2020-21:
+//   margin = home court + Elo gap of the forecast ratings + gap in team net scoring + back-to-backs
+//   total  = each team's offense + the other's defense − twice the league average, less for back-to-backs
+// Team offense/defense weight recent games more, with last season as a 10-game prior.
+function makeProjector(sc, sched) {
+  if (!sc || !sc.teams) return null
+  const [c0, cElo, cNet, cB2bH, cB2bA] = sc.margin
+  const lg = sc.league, sigma = sc.sigma || 13.7
+  const played = new Set((sched?.games || []).map(g => [g.home + '|' + g.day, g.away + '|' + g.day]).flat())
+  const b2b = (t, day) => (day && played.has(t + '|' + addDays(day, -1)) ? 1 : 0)
+  const rate = t => sc.teams[t] || [lg, lg]
+  const net = t => rate(t)[0] - rate(t)[1]
+  const margin = fg => c0 + cElo * (fg.home.rating - fg.away.rating) + cNet * (net(fg.home.team) - net(fg.away.team))
+    + cB2bH * b2b(fg.home.team, fg.home.day) + cB2bA * b2b(fg.away.team, fg.home.day)
+  const score = fg => {
+    if (!fg) return null
+    const h = fg.home.team, v = fg.away.team, day = fg.home.day
+    const [oh, dh] = rate(h), [ov, dv] = rate(v)
+    const total = oh + dv + ov + dh - 2 * lg + sc.total_b2b * (b2b(h, day) + b2b(v, day))
+    const m = fg.margin ?? margin(fg)
+    return [Math.round(total / 2 + m / 2), Math.round(total / 2 - m / 2)]
+  }
+  return { margin, score, sigma, home: c0, win: m => normCdf(m / sigma), strength: (t, rating) => cElo * rating + cNet * net(t) }
+}
+const normCdf = x => {
+  const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2)
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2)
+  return x >= 0 ? (1 + y) / 2 : (1 - y) / 2
 }
 
 // ── Award races ─────────────────────────────────────────────────────────────
@@ -649,7 +705,7 @@ function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer
       <div className={styles.standHead}>
         <span>Team</span><span>W</span><span>L</span><span>Pct</span><span>GB</span>
         {anyPost && <span className={styles.hideSm}>Playoffs</span>}
-        {fc && <span className={styles.hideSm} title="Current record plus the Elo win chance of every remaining game">Proj W-L</span>}
+        {fc && <span className={styles.hideSm} title="Current record plus the win chance of every remaining game">Proj W-L</span>}
         <span title="Average Elo of the eight players with the most minutes for this team">Roster Elo</span>
       </div>
       {rows.map((r, i) => {
@@ -763,11 +819,11 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched, goDay
       ))}
       {upcoming.length > 0 && (
         <div>
-          <div className={styles.schedLabel}>Upcoming · Elo forecast
+          <div className={styles.schedLabel}>Upcoming · forecast
             <small>Current Elo, recent minutes, injury report{fetched ? ` as of ${fmtDate(fetched.slice(0, 10), { month: 'short', day: 'numeric' })}` : ''}</small></div>
           <div className={styles.tableWrap}>
             <table className={`${styles.schedTable} ${styles.upTable}`}>
-              <thead><tr><th>Date</th><th>Opponent</th><th>Elo Win %</th><th>Projected</th><th title="Each team's highest-rated healthy player">Top player matchup</th><th></th></tr></thead>
+              <thead><tr><th>Date</th><th>Opponent</th><th>Win %</th><th>Projected</th><th title="Each team's highest-rated healthy player">Top player matchup</th><th></th></tr></thead>
               <tbody>
                 {upcoming.map(g => {
                   const mine = g.fg && (g.isHome ? g.fg.home : g.fg.away), theirs = g.fg && (g.isHome ? g.fg.away : g.fg.home)
@@ -788,7 +844,8 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched, goDay
                           <span className={styles.wpBar}><span style={{ width: `${g.p * 100}%` }} /></span>
                           {Math.round(g.p * 100)}%
                         </span></td>
-                        <td>{g.p >= 0.5 ? <span className={styles.favTag}>Favored</span> : <span className={styles.dogTag}>Underdog</span>}</td>
+                        <td>{g.p >= 0.5 ? <span className={styles.favTag}>Favored</span> : <span className={styles.dogTag}>Underdog</span>}
+                          {PROJECT && (() => { const sc = PROJECT(g.fg); if (!sc) return null; const me = g.isHome ? sc[0] : sc[1], op = g.isHome ? sc[1] : sc[0]; return <span className={styles.projScore}>{me > op ? 'W' : 'L'} {me}–{op}</span> })()}</td>
                         <td>{tm && to ? <span className={styles.topMatch}>
                           <span className={tm.elo >= to.elo ? styles.topWin : ''}>{shortName(tm.name)} <b>{r0(tm.elo)}</b></span>
                           <i>vs</i>
@@ -827,8 +884,9 @@ function Preview({ g, shots, fetched, onClose }) {
               {i === 1 && <div className={styles.final}>
                 <b>Preview</b>
                 <span>{fmtDate(g.day, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                {projText(g.fg) && <div className={styles.previewProj}><em>Projected score</em><b>{tShort(away.team)} {PROJECT(g.fg)[1]}, {tShort(home.team)} {PROJECT(g.fg)[0]}</b></div>}
                 <div className={styles.wp}>
-                  <em className={styles.wpCap}>Pre-game Elo win chance</em>
+                  <em className={styles.wpCap}>Pre-game win chance</em>
                   <div className={styles.wpLab}><span>{Math.round(pAway * 100)}%</span><span>{Math.round(pHome * 100)}%</span></div>
                   <div className={styles.wpTrack}>
                     <span style={{ width: `${pAway * 100}%`, background: tColor(away.team) }} />
@@ -949,7 +1007,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair }) {
                   {game.post && <span className={styles.postTag}>Postseason</span>}
                   {game.live && <span className={styles.provTag} title="Scored from ESPN's box score. Official once the pipeline processes this game.">Provisional Elo</span>}
                   <div className={styles.wp}>
-                    <em className={styles.wpCap}>Pre-game Elo win chance</em>
+                    <em className={styles.wpCap}>Pre-game {game.fcwp ? '' : 'Elo '}win chance</em>
                     <div className={styles.wpLab}><span>{Math.round(game.wp[away] * 100)}%</span><span>{Math.round(game.wp[home] * 100)}%</span></div>
                     <div className={styles.wpTrack}>
                       <span style={{ width: `${game.wp[away] * 100}%`, background: tColor(away) }} />
@@ -1229,7 +1287,7 @@ const GLOSSARY = [
   ['Teams and forecasts', [
     ['Lineup Elo', 'The average Elo of the players who played, weighted by minutes.'],
     ['Roster Elo', 'The average current Elo of the team’s eight players with the most minutes.'],
-    ['Pre-game win chance', 'The odds from the two lineups’ Elo plus home court, worth about 44 Elo points since 2020.'],
+    ['Pre-game win chance', 'For upcoming and live games: the projected margin (lineup Elo, each team’s scoring margin, home court, back-to-backs) turned into odds. For finished games: the two lineups’ Elo plus home court.'],
     ['Forecast rating', 'For games not yet played: a blend of rotation-weighted Elo (recent minutes, injured players removed) and the top-8 roster average. The rotation gets more weight as the season goes on.'],
     ['Proj W-L', 'Current record plus the win chances of every remaining game.'],
     ['Provisional Elo', 'Live or just-finished games scored from ESPN’s box score. Official once the nightly update processes the game.'],
@@ -1739,10 +1797,16 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
       const b = careers[p.n]
       p.fx = b && !p.unrated && p.gp >= 20 ? (p.gs > b[0] ? 1 : 0) | (p.lrp < b[1] ? 2 : 0) | (p.post > b[2] ? 4 : 0) : 0
     }))
+    // Live games show the forecast's pre-game chance (the same model as previews), not the lineup's
+    if (fc) live.forEach(g => {
+      const home = g.home || g.teams[1], away = g.teams.find(t => t !== home)
+      const pf = safeGame(fc.f, home, away, day)
+      if (pf?.margin != null) { g.wp = { [home]: pf.pHome, [away]: pf.pAway }; g.fcwp = true }
+    })
     markHonors([...data, ...live]) // Player of the Day covers every game of the day, live or official
     const unmatched = live.flatMap(g => g.players.filter(p => p.unrated).map(p => `${p.espnName} (${tCode(p.t)})`))
     return { scored: [...data, ...live], sched, unmatched }
-  }, [sd, sdOk, day, feed, ratings, teamLatest, sy, careers])
+  }, [sd, sdOk, day, feed, ratings, teamLatest, sy, careers, fc])
 
   const boards = useMemo(() => dayBoards(scored), [scored])
   // Rivalries: pipeline games carry theirs; live games look up career totals among active players
@@ -1773,8 +1837,13 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
   const cards = useMemo(() => {
     const order = { in: 0, pre: 1, post: 2 }
     const list = [
-      ...scored.map(g => ({ key: g.id, g, state: g.live?.state || 'post', tip: g.tip || '' })),
-      ...sched.map(x => ({ key: x.id, x, state: x.state, tip: x.tip || '', fg: fc && x.state === 'pre' ? safeGame(fc.f, x.home, x.away, day) : null })),
+      ...scored.map(g => {
+        const home = g.home || g.teams[1], away = g.teams.find(t => t !== home)
+        // pre-game forecast for a game in progress, for its projected final
+        return { key: g.id, g, state: g.live?.state || 'post', tip: g.tip || '', pfg: fc && g.live?.state === 'in' ? safeGame(fc.f, home, away, day) : null }
+      }),
+      ...sched.map(x => ({ key: x.id, x, state: x.state, tip: x.tip || '', fg: fc && x.state === 'pre' ? safeGame(fc.f, x.home, x.away, day) : null,
+        pfg: fc && x.state === 'in' ? safeGame(fc.f, x.home, x.away, day) : null })),
     ]
     return list.sort((a, b) => order[a.state] - order[b.state] || a.tip.localeCompare(b.tip) || a.key.localeCompare(b.key))
   }, [scored, sched, fc, day])
@@ -1969,12 +2038,14 @@ function GameCard({ c, shots, onOpen }) {
           <b className={styles.gPts}>{started ? pts[t] ?? '–' : wp ? `${Math.round(wp[t] * 100)}%` : ''}</b>
         </div>
       ))}
-      {wp && <div className={styles.gWp}>
-        <div className={styles.gWpTrack}>
+      {(wp || c.pfg) && <div className={styles.gWp}>
+        {wp && <div className={styles.gWpTrack}>
           <span style={{ width: `${wp[away] * 100}%`, background: tColor(away) }} />
           <span style={{ width: `${wp[home] * 100}%`, background: tColor(home) }} />
-        </div>
-        <small>{started ? `Pre-game Elo ${Math.round(wp[away] * 100)}–${Math.round(wp[home] * 100)}` : 'Elo forecast'}</small>
+        </div>}
+        <small>{!wp ? '' : started ? `Pre-game ${g?.fcwp ? '' : 'Elo '}${Math.round(wp[away] * 100)}–${Math.round(wp[home] * 100)}` : 'Forecast'}
+          {c.state === 'pre' && c.fg && projText(c.fg) && <b className={styles.gProj}> · Proj {projText(c.fg)}</b>}
+          {c.state === 'in' && c.pfg && (() => { const f = liveFinal(c.pfg, (g?.live || x), pts[home] || 0, pts[away] || 0); return f ? <b className={styles.gProj}>{wp ? ' · ' : ''}Proj final {f[1]}–{f[0]}</b> : null })()}</small>
       </div>}
       <div className={styles.gFoot}>
         {top ? <>

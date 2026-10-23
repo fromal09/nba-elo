@@ -90,7 +90,7 @@ export function scoreGame(g, R, date, winChance, sy) {
   const wpA = winChance(sy, elo[a].pre, elo[b].pre, g.home === a)
   return {
     id: `live-${g.id}`, espnId: g.id, date, tip: g.tip, teams, pts: [pts[a], pts[b]], home: g.home, ot: g.ot, post: g.post,
-    live: { state: g.state, detail: g.detail }, players: rows, elo, wp: { [a]: wpA, [b]: 1 - wpA },
+    live: { state: g.state, detail: g.detail, period: g.period, clock: g.clock }, players: rows, elo, wp: { [a]: wpA, [b]: 1 - wpA },
   }
 }
 
