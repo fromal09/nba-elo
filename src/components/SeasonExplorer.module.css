@@ -272,12 +272,12 @@
 .box td.eloPre { color: #7a8694; font-size: 13.5px; }
 .box td.eloPost { color: #173657; font-weight: 800; font-size: 14px; text-align: left; padding-left: 4px; }
 .box td.eloDelta { font-size: 17px; font-weight: 800; letter-spacing: -.4px; padding-right: 14px; }
-.box th.trackHead { text-align: center; min-width: 200px; padding-bottom: 4px; }
+.box th.trackHead { text-align: center; min-width: 164px; padding-bottom: 4px; }
 .trackHead > span:first-child { display: block; color: #1a5fa8; }
 .trackScale { position: relative; display: block; height: 12px; margin: 3px 14px 0; }
 .trackScale i { position: absolute; transform: translateX(-50%); font-style: normal; font-weight: 600; color: #98a2ad; text-transform: none; letter-spacing: 0; }
 .box td.trackCell { padding: 0 14px; }
-.track { position: relative; display: block; height: 24px; min-width: 180px; }
+.track { position: relative; display: block; height: 24px; min-width: 140px; }
 .trackLine { position: absolute; left: 0; right: 0; top: 11px; height: 2px; background: #dfe5ec; }
 .trackTick { position: absolute; top: 7px; width: 1px; height: 10px; background: #d7dde4; }
 .trackUp, .trackDown { position: absolute; top: 8px; height: 8px; border-radius: 4px; }
@@ -344,8 +344,8 @@
   .box th.sticky, .box td.sticky { min-width: 140px; }
   .box td.sticky .hs { width: 28px; height: 28px; }
   .pName { font-size: 12.5px; }
-  .box th.trackHead { min-width: 150px; }
-  .track { min-width: 140px; }
+  .box th.trackHead { min-width: 130px; }
+  .track { min-width: 110px; }
   .box td.trackCell { padding: 0 9px; }
   .trackScale { margin: 3px 9px 0; }
   .box td.eloDelta { font-size: 15px; padding-right: 8px; }
@@ -434,3 +434,37 @@
   .boards { grid-template-columns: 1fr; }
   .dayNav input { width: 140px; }
 }
+
+/* Box score: league rank column */
+.box th.rankHead { text-align: center; padding-left: 10px; padding-right: 10px; }
+.box td.rankCell { text-align: center; padding-left: 8px; padding-right: 10px; }
+.rankVal { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.1; }
+.rankVal b { font-weight: 800; color: #173657; font-size: 13.5px; }
+.rankVal i { font-style: normal; font-size: 10px; font-weight: 800; }
+.rankNone { color: #a7b0ba; font-weight: 700; }
+
+/* Games by day: leaderboard rows */
+.perf { margin-top: 24px; }
+.boards4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; align-items: start; }
+.boards2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; align-items: start; }
+.boards4 .bRow { padding: 8px 10px; gap: 8px; }
+.boards4 .hs { width: 30px; height: 30px; }
+@media (max-width: 1180px) { .boards4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .boards4, .boards2 { grid-template-columns: 1fr; } }
+.perfTable { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; min-width: 980px; }
+.perfTable th { font-size: 10.5px; font-weight: 700; color: #7a8694; text-transform: uppercase; letter-spacing: .3px; padding: 8px 8px; text-align: right; border-bottom: 1px solid #e4e8ee; white-space: nowrap; }
+.perfTable td { padding: 7px 8px; text-align: right; border-bottom: 1px solid #f2f2f2; white-space: nowrap; }
+.perfTable tbody tr { cursor: pointer; }
+.perfTable tbody tr:hover td { background: #f4f8fd; }
+.perfTable tbody tr:last-child td { border-bottom: 0; }
+.perfTable .pLeft { text-align: left; }
+.perfTable .pGap { border-left: 1px solid #eef0f3; padding-left: 12px; }
+.perfTable td.bRank { width: 26px; color: #aab; font-weight: 700; font-size: 12px; }
+.pWho { display: inline-flex; align-items: center; gap: 9px; }
+.pWho > span { display: flex; flex-direction: column; line-height: 1.2; }
+.pWho b { font-weight: 700; font-size: 13.5px; }
+.pWho small { font-size: 11px; color: #8a95a0; font-weight: 600; }
+.pGame { color: #555; display: inline-flex; align-items: center; gap: 8px; }
+.pGame .liveTxt { font-style: normal; font-size: 10.5px; text-transform: uppercase; }
+.pPts { font-weight: 800; }
+.pGs { font-weight: 800; color: #173657; font-size: 14px; }

@@ -791,7 +791,7 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
   const sections = starters ? [['Starters', sorted.filter(p => p.st)], ['Bench', sorted.filter(p => !p.st)]] : [[null, sorted]]
   const net = rows.reduce((s, p) => s + p.post - p.pre, 0)
   const ELO_COLS = 4
-  const width = 1 + ELO_COLS + groups.reduce((s, G) => s + G.cols.length, 0)
+  const width = 2 + ELO_COLS + groups.reduce((s, G) => s + G.cols.length, 0)
   const n = N - 1
 
   const row = p => {
@@ -805,6 +805,7 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
               <small>{[p.pos, tierFor(p.lr).id !== 'common' && tierFor(p.lr).label].filter(Boolean).join(' · ')}</small></span>
           </span>
         </td>
+        <td className={styles.rankCell}><RankCell p={p} /></td>
         <td className={`${styles.gElo} ${styles.gStart} ${styles.eloPre}`}>{r0(p.pre)}</td>
         <td className={`${styles.gElo} ${styles.trackCell}`}><DuelTrack w={p.w} xw={p.xw} n={n} /></td>
         <td className={`${styles.gElo} ${styles.eloPost}`}>{r0(p.post)}</td>
@@ -824,12 +825,13 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
         <table className={styles.box}>
           <thead>
             <tr className={styles.groupRow}>
-              <th className={styles.sticky} />
+              <th className={styles.sticky} /><th />
               <th colSpan={ELO_COLS} className={`${styles.gElo} ${styles.gStart}`}><span>Elo</span></th>
               {groups.map(G => <th key={G.g} colSpan={G.cols.length} className={`${styles[G.cls]} ${styles.gStart}`}><span>{G.g === 'Raw Stats' ? 'Raw' : G.g}</span></th>)}
             </tr>
             <tr>
               <th className={styles.sticky}>Player</th>
+              <th className={styles.rankHead} title="League Elo rank after this game, among FPR-qualified players">Rank</th>
               <th className={`${styles.gElo} ${styles.gStart}`}>Pre</th>
               <th className={`${styles.gElo} ${styles.trackHead}`} title={`Every player duels the other ${n} on Game Score`}>
                 <span>Duels: expected → won</span>
@@ -849,6 +851,7 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
           <tbody>
             <tr className={styles.totals}>
               <td className={styles.sticky}>Team</td>
+              <td />
               <td className={`${styles.gElo} ${styles.gStart}`} /><td className={styles.gElo} /><td className={styles.gElo} />
               <td className={`${styles.gElo} ${styles.eloDelta} ${net >= 0 ? styles.up : styles.down}`}>{sgn(net)}</td>
               {groups.map(G => G.cols.map((c, j) => (
@@ -859,6 +862,18 @@ function TeamBox({ t, rows, N, has, avail, shots, focus, setFocus, onCard }) {
         </table>
       </div>
     </div>
+  )
+}
+
+// League Elo rank after the game (pre-game rank on data without it), with the move; -- when unranked
+function RankCell({ p }) {
+  const rank = p.unrated ? null : p.lrp ?? p.lr ?? null
+  if (rank == null) return <span className={styles.rankNone} title="Not ranked">--</span>
+  const mv = p.lrp != null && p.lr != null ? p.lr - p.lrp : 0
+  return (
+    <span className={styles.rankVal} title={p.lrp != null && p.lr != null ? `#${p.lr} before the game` : undefined}>
+      <b>#{rank}</b>{mv !== 0 && <i className={mv > 0 ? styles.up : styles.down}>{mv > 0 ? '▲' : '▼'}{Math.abs(mv)}</i>}
+    </span>
   )
 }
 
@@ -1212,14 +1227,23 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
               onOpen={c.g ? () => openBox(c.g) : c.fg ? () => setPreview({ day, fg: c.fg }) : null} />)}
           </div>
 
-          {scored.length > 0 && (
-            <div className={styles.boards}>
-              <Board title="Top performers" sub="Game Score" rows={boards.performers} shots={shots} onOpen={openBox}
-                val={({ p }) => p.gs.toFixed(1)} line={({ p }) => `${p.pts ?? 0} PTS · ${p.trb ?? 0} REB · ${p.ast ?? 0} AST`} delta />
+          {scored.length > 0 && <>
+            <PerfTable rows={boards.performers} shots={shots} onOpen={openBox} />
+
+            <div className={styles.boards4}>
               <Board title="Elo risers" sub="Elo change" rows={boards.risers} shots={shots} onOpen={openBox}
                 val={({ p }) => sgn(p.post - p.pre)} valCls={styles.up} line={({ p }) => `${r0(p.pre)} → ${r0(p.post)} · ${p.gs.toFixed(1)} GmSc`} />
               <Board title="Elo fallers" sub="Elo change" rows={boards.fallers} shots={shots} onOpen={openBox}
                 val={({ p }) => sgn(p.post - p.pre)} valCls={styles.down} line={({ p }) => `${r0(p.pre)} → ${r0(p.post)} · ${p.gs.toFixed(1)} GmSc`} />
+              <Board title="Top 100 risers" sub="League rank" rows={boards.top100Risers} shots={shots} onOpen={openBox} empty="Nobody climbed inside the top 100."
+                val={({ p }) => `▲${p.lr - p.lrp}`} valCls={styles.up}
+                line={({ p }) => `#${p.lr} → #${p.lrp}${p.lr > 100 ? ' · enters top 100' : ''}`} />
+              <Board title="Top 100 fallers" sub="League rank" rows={boards.top100Fallers} shots={shots} onOpen={openBox} empty="Nobody in the top 100 slipped."
+                val={({ p }) => `▼${p.lrp - p.lr}`} valCls={styles.down}
+                line={({ p }) => `#${p.lr} → #${p.lrp}${p.lrp > 100 ? ' · drops out' : ''}`} />
+            </div>
+
+            <div className={styles.boards2}>
               <section className={styles.board}>
                 <header><h3>Biggest upsets · Games</h3><span>Winner's pre-game chance</span></header>
                 {boards.gameUpsets.length ? boards.gameUpsets.map(u => {
@@ -1246,7 +1270,7 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
                 )) : <p className={styles.bNone}>No qualifying upsets yet.</p>}
               </section>
             </div>
-          )}
+          </>}
           {unmatched.length > 0 && <p className={styles.unmatched} title="ESPN names with no match in the ratings. They're scored as new players at 1,500 until the pipeline links them.">
             Rated as new players (no ratings match): {unmatched.join(', ')}</p>}
         </>}
@@ -1315,10 +1339,11 @@ function GameCard({ c, shots, onOpen }) {
   )
 }
 
-function Board({ title, sub, rows, shots, onOpen, val, valCls, line, delta }) {
+function Board({ title, sub, rows, shots, onOpen, val, valCls, line, delta, empty }) {
   return (
     <section className={styles.board}>
       <header><h3>{title}</h3><span>{sub}</span></header>
+      {!rows.length && <p className={styles.bNone}>{empty || 'Nothing yet.'}</p>}
       {rows.map(({ p, g }, i) => (
         <button key={g.id + p.n} className={styles.bRow} onClick={() => onOpen(g, p.t)}>
           <em className={styles.bRank}>{i + 1}</em>
@@ -1328,6 +1353,47 @@ function Board({ title, sub, rows, shots, onOpen, val, valCls, line, delta }) {
             {delta && <small className={p.post >= p.pre ? styles.up : styles.down}>{sgn(p.post - p.pre)} Elo</small>}</span>
         </button>
       ))}
+    </section>
+  )
+}
+
+// Top performers across the day, with the raw and shooting line behind each Game Score
+function PerfTable({ rows, shots, onOpen }) {
+  const ts = p => { const d = 2 * ((p.fga || 0) + 0.44 * (p.fta || 0)); return d ? ((p.pts || 0) / d).toFixed(3).replace(/^0/, '') : '—' }
+  const sh = (m, a) => (m == null ? '—' : `${m}-${a ?? 0}`)
+  return (
+    <section className={`${styles.board} ${styles.perf}`}>
+      <header><h3>Top performers</h3><span>Ranked by Game Score, the stat every duel is decided on</span></header>
+      <div className={styles.tableWrap}>
+        <table className={styles.perfTable}>
+          <thead><tr>
+            <th /><th className={styles.pLeft}>Player</th><th className={styles.pLeft}>Game</th>
+            <th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th>
+            <th className={styles.pGap}>FG</th><th>3PT</th><th>FT</th><th>TS%</th>
+            <th className={styles.pGap}>GmSc</th><th>Elo Δ</th><th>Rank</th>
+          </tr></thead>
+          <tbody>
+            {rows.map(({ p, g }, i) => {
+              const o = g.teams.find(t => t !== p.t), d = p.post - p.pre
+              return (
+                <tr key={g.id + p.n} onClick={() => onOpen(g, p.t)}>
+                  <td className={styles.bRank}>{i + 1}</td>
+                  <td className={styles.pLeft}><span className={styles.pWho}><Headshot name={p.n} shots={shots} color={tColor(p.t)} />
+                    <span><b>{shortName(p.n)}</b><small>{tCode(p.t)}{p.pos ? ` · ${p.pos}` : ''}</small></span></span></td>
+                  <td className={styles.pLeft}><span className={styles.pGame}>{g.home === p.t ? 'vs' : '@'} {tCode(o)}
+                    {g.live?.state === 'in' && <i className={styles.liveTxt}><i className={styles.liveDot} />live</i>}</span></td>
+                  <td>{p.mp ?? '—'}</td><td className={styles.pPts}>{p.pts ?? '—'}</td><td>{p.trb ?? '—'}</td><td>{p.ast ?? '—'}</td>
+                  <td>{p.stl ?? '—'}</td><td>{p.blk ?? '—'}</td><td>{p.tov ?? '—'}</td>
+                  <td className={styles.pGap}>{sh(p.fg, p.fga)}</td><td>{sh(p.tp, p.tpa)}</td><td>{sh(p.ft, p.fta)}</td><td>{ts(p)}</td>
+                  <td className={`${styles.pGap} ${styles.pGs}`}>{p.gs.toFixed(1)}</td>
+                  <td className={d >= 0 ? styles.up : styles.down}><b>{sgn(d)}</b></td>
+                  <td><RankCell p={p} /></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   )
 }

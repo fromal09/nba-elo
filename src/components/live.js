@@ -109,7 +109,7 @@ export function assignRanks(games, R) {
 export function dayBoards(games) {
   const all = games.flatMap(g => g.players.map(p => ({ p, g })))
   const d = x => x.p.post - x.p.pre
-  const performers = [...all].sort((x, y) => y.p.gs - x.p.gs).slice(0, 10)
+  const performers = [...all].sort((x, y) => y.p.gs - x.p.gs).slice(0, 15)
   const risers = [...all].sort((x, y) => d(y) - d(x)).slice(0, 10)
   const fallers = [...all].sort((x, y) => d(x) - d(y)).slice(0, 10)
   const gameUpsets = games.map(g => {
@@ -133,5 +133,10 @@ export function dayBoards(games) {
     seen.add(k); duelUpsets.push(u)
     if (duelUpsets.length === 10) break
   }
-  return { performers, risers, fallers, gameUpsets, duelUpsets }
+  // Movement inside the league's top 100 (ranks among FPR-qualified players, before vs after the day's games)
+  const ranked = all.filter(x => x.p.lr != null && x.p.lrp != null && !x.p.unrated)
+  const mv = x => x.p.lr - x.p.lrp
+  const top100Risers = ranked.filter(x => x.p.lrp <= 100 && mv(x) > 0).sort((x, y) => mv(y) - mv(x) || x.p.lrp - y.p.lrp).slice(0, 10)
+  const top100Fallers = ranked.filter(x => x.p.lr <= 100 && mv(x) < 0).sort((x, y) => mv(x) - mv(y) || x.p.lr - y.p.lr).slice(0, 10)
+  return { performers, risers, fallers, top100Risers, top100Fallers, gameUpsets, duelUpsets }
 }
