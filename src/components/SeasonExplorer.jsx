@@ -76,7 +76,7 @@ function viewFor(g, team, sy) {
   const i = g.teams.indexOf(team), o = g.teams[1 - i]
   return {
     id: g.id, date: g.date, opp: o, home: g.home == null ? null : g.home === team, pts: g.pts[i], opp_pts: g.pts[1 - i],
-    ot: g.ot, res: g.pts[i] > g.pts[1 - i] ? 'W' : 'L', post: g.post, players: g.players, elo: g.elo, wp: g.wp, sy, live: g.live,
+    ot: g.ot, res: g.pts[i] > g.pts[1 - i] ? 'W' : 'L', post: g.post, players: g.players, elo: g.elo, wp: g.wp, sy, live: g.live, riv: g.riv,
   }
 }
 
@@ -213,7 +213,7 @@ function teamGames(sd, team) {
     return {
       id: g.id, date: g.date, opp: o, home: g.home == null ? null : g.home === team,
       pts: g.pts[i], opp_pts: g.pts[1 - i], ot: g.ot, res: won ? 'W' : 'L', post: g.post,
-      rec: `${r[0]}-${r[1]}`, players: g.players, elo: g.elo, wp: g.wp, sy: sd.sy,
+      rec: `${r[0]}-${r[1]}`, players: g.players, elo: g.elo, wp: g.wp, sy: sd.sy, riv: g.riv,
     }
   })
 }
@@ -442,7 +442,7 @@ function TeamPanel({ team, sd, shots, selectPlayer, fc, goDay }) {
         ? <Schedule team={team} games={games} onBox={setBox} upcoming={fc?.upcoming[team] || []} onPreview={setPreview} fetched={fc?.fetched} goDay={goDay} />
         : <Progression team={team} games={games} selectPlayer={selectPlayer} />}
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
-      {box && <BoxScore team={team} game={box} has={sd.has} shots={shots} onCard={setCard} onClose={() => setBox(null)} />}
+      {box && <BoxScore team={team} game={box} has={sd.has} shots={shots} sd={sd} onCard={setCard} onClose={() => setBox(null)} />}
       {card && rawBox && <SeasonCard name={card} g={rawBox} sd={sd} shots={shots}
         onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }} onClose={() => setCard(null)}
         onBinder={() => { setBinder(card); setCard(null) }} />}
@@ -638,7 +638,7 @@ function ProjBox({ x, shots }) {
 }
 
 // ── Box score ────────────────────────────────────────────────────────────────
-function BoxScore({ team, game, has, shots, onCard, onClose }) {
+function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair }) {
   const [focus, setFocus] = useState(null)
   const [side, setSide] = useState(team) // which team's table shows; starts on the team you came from
   const [stat, setStat] = useState('standard') // box score view, kept when switching teams
@@ -747,7 +747,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose }) {
         <TeamBox key={side} t={side} rows={P.filter(p => p.t === side)} P={P} N={N} has={has} avail={avail} shots={shots}
           focus={focus} setFocus={setFocus} onCard={onCard} stat={stat} setStat={setStat} />
 
-        <DuelGrid P={P} focus={focus} setFocus={setFocus} shots={shots} />
+        <DuelGrid P={P} focus={focus} setFocus={setFocus} shots={shots} game={game} sd={sd} pinPair={pinPair} />
       </div>
     </div>
   )
@@ -1061,8 +1061,93 @@ function RankCell({ p }) {
   )
 }
 
+// ── Rivalries: head-to-head duel history going into a game ─────────────────
+// Per-player files from the pipeline (scripts/rivalries.py); the name hash matches its fnv()
+const fnv = str => { let h = 0x811c9dc5; for (const b of new TextEncoder().encode(str)) { h ^= b; h = Math.imul(h, 0x01000193) >>> 0 } return h.toString(16).padStart(8, '0') }
+const rivalSlug = n => (n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x00-\x7f]/g, '').toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'player') + '-' + fnv(n)
+const getRivals = n => getJSON(`/data/explorer/rivals/${rivalSlug(n)}.json`).catch(() => null)
+
+// One pipeline rivalry row, oriented so the player ahead in the series comes first
+// (or, with byOver, the player beating expectation)
+function rivRow(r, byOver) {
+  let [a, b, aw, bw, t, axw, ae, be] = r
+  const flip = byOver ? aw + t / 2 - axw < 0 : bw > aw
+  if (flip) { axw = aw + bw + t - axw; [a, b, aw, bw, ae, be] = [b, a, bw, aw, be, ae] }
+  const n = aw + bw + t
+  return { a, b, aw, bw, t, axw, ae, be, n, over: aw + t / 2 - axw,
+    lead: aw === bw ? `Tied ${aw}–${bw}` : `${shortName(a)} leads ${aw}–${bw}` }
+}
+
+// Opponent and teammate records going into the game on `date`: earlier seasons from the files,
+// earlier games this season from the loaded season data
+// The same picks as rivalries._notable: two longest histories (5+ duels), two furthest from expectation (20+)
+function notableRivals(players, car) {
+  const c = []
+  for (const x of players) for (const y of players) {
+    if (x.t === y.t || x.n >= y.n) continue
+    const r = car.get(x.n + '|' + y.n)
+    if (r) c.push(r)
+  }
+  const n = r => r[2] + r[3] + r[4], seen = new Set(), out = []
+  for (const r of [...c].sort((p, q) => n(q) - n(p)).slice(0, 2)) if (n(r) >= 5) { out.push(r); seen.add(r) }
+  const off = r => Math.abs(r[2] + r[4] / 2 - r[5])
+  for (const r of c.filter(r => n(r) >= 20).sort((p, q) => off(q) - off(p)).slice(0, 2)) if (!seen.has(r)) out.push(r)
+  return out
+}
+
+async function rivalryGoingIn(a, b, sd, date) {
+  const [fa, fb] = await Promise.all([getRivals(a), getRivals(b)])
+  const sy = sd.sy ?? +String(sd.season).slice(0, 4)
+  const blank = () => ({ w: 0, l: 0, t: 0, xw: 0, ea: 0, eb: 0 })
+  const out = { o: blank(), m: blank() }
+  for (const k of ['o', 'm']) {
+    const ra = fa?.[k]?.[b] || [], rb = fb?.[k]?.[a] || []
+    for (let i = 0; i < ra.length; i += 6) if (ra[i] < sy) { const r = out[k]; r.w += ra[i + 1]; r.l += ra[i + 2]; r.t += ra[i + 3]; r.xw += ra[i + 4]; r.ea += ra[i + 5] }
+    for (let i = 0; i < rb.length; i += 6) if (rb[i] < sy) out[k].eb += rb[i + 5]
+  }
+  for (const g of sd.games || []) {
+    if (g.date >= date) continue
+    const pa = g.players.find(p => p.n === a), pb = pa && g.players.find(p => p.n === b)
+    if (!pb) continue
+    const N = g.players.length, c = duel(pa, pb, N), cb = duel(pb, pa, N), r = out[pa.t === pb.t ? 'm' : 'o']
+    if (c.act === 1) r.w++; else if (c.act === 0) r.l++; else r.t++
+    r.xw += c.exp; r.ea += c.delta; r.eb += cb.delta
+  }
+  return out
+}
+
+function RivalryBox({ a, b, sd, date }) {
+  const [h, setH] = useState(null)
+  useEffect(() => {
+    let live = true
+    setH(null)
+    rivalryGoingIn(a, b, sd, date).then(x => { if (live) setH(x) })
+    return () => { live = false }
+  }, [a, b, sd, date])
+  const A = shortName(a), B = shortName(b)
+  const n = r => r.w + r.l + r.t
+  const rec = (r, x, y) => r.w === r.l ? `Even at ${r.w}–${r.l}` : r.w > r.l ? `${x} leads ${r.w}–${r.l}` : `${y} leads ${r.l}–${r.w}`
+  return (
+    <div className={styles.rivBox}>
+      <em className={styles.dChanceCap}>Rivalry going in</em>
+      {!h ? <p className={styles.rivMuted}>Loading their history…</p>
+        : !n(h.o) && !n(h.m) ? <p className={styles.rivMuted}>First meeting.</p>
+        : <>
+          {n(h.o) > 0 && <>
+            <div className={styles.rivHead}><b>{rec(h.o, A, B)}</b><small>{n(h.o)} duel{n(h.o) === 1 ? '' : 's'} as opponents{h.o.t ? ` · ${h.o.t} tie${h.o.t === 1 ? '' : 's'}` : ''}</small></div>
+            <div className={styles.rivLine}><span>{A} vs expected</span><b className={h.o.w + h.o.t / 2 - h.o.xw >= 0 ? styles.up : styles.down}>{sgn(h.o.w + h.o.t / 2 - h.o.xw)} wins</b></div>
+            <div className={styles.rivLine}><span>Elo gained · {A}</span><b className={h.o.ea >= 0 ? styles.up : styles.down}>{sgn(h.o.ea)}</b></div>
+            <div className={styles.rivLine}><span>Elo gained · {B}</span><b className={h.o.eb >= 0 ? styles.up : styles.down}>{sgn(h.o.eb)}</b></div>
+          </>}
+          {n(h.m) > 0 && <div className={`${styles.rivLine} ${styles.rivMate}`}><span>As teammates</span><b>{rec(h.m, A, B)}</b></div>}
+        </>}
+    </div>
+  )
+}
+
 // The differentiator: FPR scores a game as a round robin. Every cell is one duel.
-function DuelGrid({ P, focus, setFocus, shots }) {
+function DuelGrid({ P, focus, setFocus, shots, game, sd, pinPair }) {
   const [hover, setHover] = useState(null)
   const [pin, setPin] = useState(null)
   const [cellPx, setCellPx] = useState(22)
@@ -1104,6 +1189,19 @@ function DuelGrid({ P, focus, setFocus, shots }) {
 
   const sel = hover || pin
   const pick = (i, j) => setPin(p => (p && p[0] === i && p[1] === j ? null : [i, j]))
+  const idx = n => order.findIndex(p => p.n === n)
+  // Opened from a rivalry board: start with that duel pinned
+  useEffect(() => {
+    if (!pinPair) return
+    const i = idx(pinPair[0]), j = idx(pinPair[1])
+    if (i >= 0 && j >= 0) setPin([i, j])
+  }, [pinPair, order])
+  // Rivalry of the game: the opposing pair with the deepest history going in
+  const rotg = useMemo(() => {
+    const r = game?.riv?.[0]; if (!r) return null
+    const x = rivRow(r), i = idx(x.a), j = idx(x.b)
+    return i >= 0 && j >= 0 ? { ...x, i, j } : null
+  }, [game, order])
   const lab = p => shortName(p.n).replace(/^(.)\. /, '$1.')
   const cs = cellPx
 
@@ -1134,6 +1232,7 @@ function DuelGrid({ P, focus, setFocus, shots }) {
           ? `${shortName(c.act === 1 ? a.n : b.n)} had a ${Math.round((c.act === 1 ? c.exp : 1 - c.exp) * 100)}% chance and won anyway, so the swing is larger.`
           : c.act === 0.5 ? 'Equal Game Scores split the duel.'
           : `The favorite won, so the Elo moved ${Math.abs(c.delta) < 1 ? 'only a little' : 'modestly'}.`}</p>
+        {sd && game && <RivalryBox a={a.n} b={b.n} sd={sd} date={game.date} />}
       </div>
     )
   }
@@ -1197,6 +1296,14 @@ function DuelGrid({ P, focus, setFocus, shots }) {
                   <b className={styles.up}>{sgn(c.delta, 2)}</b>
                 </button>
               ))}
+              {rotg && <>
+                <div className={`${styles.dTag} ${styles.dTagGap}`}>Rivalry of the game</div>
+                <button type="button" className={`${styles.keyRow} ${styles.keyRiv}`} onClick={() => pick(rotg.i, rotg.j)}>
+                  <span className={styles.keyWho}><b>{shortName(rotg.a)}</b> vs {shortName(rotg.b)}</span>
+                  <span className={styles.keyMeta}>{rotg.n} opponent duels going in</span>
+                  <b>{rotg.aw}–{rotg.bw}</b>
+                </button>
+              </>}
               {key.upset && <>
                 <div className={`${styles.dTag} ${styles.dTagGap}`}>Biggest upset</div>
                 <button type="button" className={`${styles.keyRow} ${styles.keyUpset}`} onClick={() => pick(key.upset.i, key.upset.j)}>
@@ -1382,6 +1489,31 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
   }, [sd, sdOk, day, feed, ratings, teamLatest, sy, careers])
 
   const boards = useMemo(() => dayBoards(scored), [scored])
+  // Rivalries: pipeline games carry theirs; live games look up career totals among active players
+  const [activeRiv, setActiveRiv] = useState(null)
+  const anyLive = scored.some(g => g.live)
+  useEffect(() => {
+    if (!anyLive || activeRiv) return
+    getJSON('/data/explorer/rivals_active.json').then(rows => setActiveRiv(new Map(rows.map(r => [r[0] + '|' + r[1], r])))).catch(() => {})
+  }, [anyLive, activeRiv])
+  const rivals = useMemo(() => {
+    const all = []
+    for (const g of scored) {
+      if (g.live && activeRiv) g.riv = notableRivals(g.players, activeRiv)
+      for (const r of g.riv || []) all.push({ g, r })
+    }
+    const key = x => x.r[0] + '|' + x.r[1]
+    const uniq = list => { const s = new Set(); return list.filter(x => !s.has(key(x)) && s.add(key(x))) }
+    const n = r => r[2] + r[3] + r[4], off = r => Math.abs(r[2] + r[4] / 2 - r[5])
+    return {
+      longest: uniq([...all].sort((x, y) => n(y.r) - n(x.r))).slice(0, 8).map(x => ({ g: x.g, ...rivRow(x.r) })),
+      lopsided: uniq(all.filter(x => n(x.r) >= 20).sort((x, y) => off(y.r) - off(x.r))).slice(0, 8).map(x => ({ g: x.g, ...rivRow(x.r, true) })),
+    }
+  }, [scored, activeRiv])
+  const openRival = x => {
+    const p = x.g.players.find(q => q.n === x.a)
+    setBox({ id: x.g.id, team: p?.t || x.g.teams[0], pin: [x.a, x.b] })
+  }
   const cards = useMemo(() => {
     const order = { in: 0, pre: 1, post: 2 }
     const list = [
@@ -1480,6 +1612,31 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
                 )) : <p className={styles.bNone}>No qualifying upsets yet.</p>}
               </section>
             </div>
+
+            <div className={styles.boards2}>
+              <section className={styles.board}>
+                <header><h3>Rivalries · Longest history</h3><span>Opponent duels going in</span></header>
+                {rivals.longest.length ? rivals.longest.map(x => (
+                  <button key={x.g.id + x.a + x.b} className={styles.bRow} onClick={() => openRival(x)}>
+                    <Headshot name={x.a} shots={shots} color={tColor(x.g.players.find(q => q.n === x.a)?.t)} />
+                    <span className={styles.bWho}><b>{shortName(x.a)} <i>vs</i> {shortName(x.b)}</b>
+                      <small>{x.lead}{x.t ? ` · ${x.t} tie${x.t === 1 ? '' : 's'}` : ''}</small></span>
+                    <b className={styles.bVal}>{x.n}</b>
+                  </button>
+                )) : <p className={styles.bNone}>{anyLive && !activeRiv ? 'Loading rivalries…' : 'No pairs with 5+ duels tonight.'}</p>}
+              </section>
+              <section className={styles.board}>
+                <header><h3>Rivalries · Most lopsided</h3><span>Wins over expected · 20+ duels</span></header>
+                {rivals.lopsided.length ? rivals.lopsided.map(x => (
+                  <button key={x.g.id + x.a + x.b} className={styles.bRow} onClick={() => openRival(x)}>
+                    <Headshot name={x.a} shots={shots} color={tColor(x.g.players.find(q => q.n === x.a)?.t)} />
+                    <span className={styles.bWho}><b>{shortName(x.a)} <i>vs</i> {shortName(x.b)}</b>
+                      <small>{x.aw}–{x.bw}{x.t ? `–${x.t}` : ''} · expected {x.axw.toFixed(1)} wins of {x.n}</small></span>
+                    <b className={`${styles.bVal} ${styles.up}`}>{sgn(x.over)}</b>
+                  </button>
+                )) : <p className={styles.bNone}>No pairs with 20+ duels tonight.</p>}
+              </section>
+            </div>
           </>}
           {unmatched.length > 0 && <p className={styles.unmatched} title="ESPN names with no match in the ratings. They're scored as new players at 1,500 until the pipeline links them.">
             Rated as new players (no ratings match): {unmatched.join(', ')}</p>}
@@ -1515,7 +1672,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
         </div>}
 
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
-      {boxView && <BoxScore key={box.id} team={box.team} game={boxView} has={boxGame.live ? FULL_STATS : sd?.has} shots={shots}
+      {boxView && <BoxScore key={box.id} team={box.team} game={boxView} has={boxGame.live ? FULL_STATS : sd?.has} shots={shots} sd={daySd} pinPair={box.pin}
         onCard={n => setCard({ id: box.id, name: n })} onClose={() => setBox(null)} />}
       {cardView && <SeasonCard name={card.name} g={cardGame} sd={cardSd} shots={shots}
         onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }} onClose={() => setCard(null)}

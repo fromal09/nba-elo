@@ -1,5 +1,6 @@
 {
   "rewrites": [
-    { "source": "/scoreboard", "destination": "/index.html" }
+    { "source": "/scoreboard", "destination": "/index.html" },
+    { "source": "/timemachine", "destination": "/index.html" }
   ]
 }

@@ -22,6 +22,8 @@ from collections import defaultdict, Counter, deque
 from datetime import date
 from pathlib import Path
 
+import rivalries
+
 OUT_DIR = Path("public/data/explorer")
 COLS = ["n", "t", "st", "pos", "mp", "pts", "fg", "fga", "tp", "tpa", "ft", "fta", "orb", "drb", "trb",
         "ast", "stl", "blk", "tov", "pf", "pm", "gs", "pre", "post", "gp", "xw", "w", "lr", "lrp", "fx"]
@@ -189,7 +191,7 @@ def bind(df):
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
     OUT_DIR.mkdir(parents=True)
-    _games.clear(); _index.clear(); _final.clear(); _best.clear(); _recent.clear(); _pool.clear(); _team_dates.clear(); _career.clear(); _cur[0] = None
+    _games.clear(); _index.clear(); _final.clear(); _best.clear(); _recent.clear(); _pool.clear(); _team_dates.clear(); _career.clear(); rivalries.reset(); _cur[0] = None
 
 
 def _v(x):
@@ -293,6 +295,8 @@ def write():
             mins = [x[2] for x in q if x[2] is not None]
             rot[n] = {"mp": round(sum(mins) / len(mins), 1) if mins else None, "n": len(q), "team": q[-1][1], "last": q[-1][0],
                       "log": [[x[0], x[1], x[2]] for x in q]}
+    nfiles, npairs = rivalries.write(OUT_DIR, set(rot))
+    print(f"  Rivalries: {nfiles:,} player files, {npairs:,} active opponent pairs")
     (OUT_DIR / "rotation.json").write_text(json.dumps({"through": last_day, "players": rot}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     index = {"generated": date.today().isoformat(), "cols": COLS,
@@ -405,6 +409,9 @@ def _write_season(sy, raw_games, latest=False):
                 r.append(fx)
                 _career[r[0]] = [max(gs, best[0]), min(rp, best[1]), max(post, best[2])] if best else [gs, rp, post]
 
+    # Head-to-head duel history: each game's notable rivalries going in, then the game's duels
+    rivalries.process_season(sy, games)
+
     # Lineup Elo (minutes-weighted post-game Elo) after each team's final game: seeds next season's ranks
     seed = dict(_final)
     _final.clear()
@@ -415,7 +422,7 @@ def _write_season(sy, raw_games, latest=False):
             _final[t] = round(sum(r[23] * (r[4] or 0) for r in ps) / m if m else sum(r[23] for r in ps) / len(ps), 1)
 
     out = {"season": label, "cols": COLS, "seed": seed, "stats": [k for k, v in present_stats.items() if v],
-           "teams": teams, "games": [{k: g[k] for k in ("id", "date", "teams", "pts", "home", "ot", "post", "rows")} for g in games]}
+           "teams": teams, "games": [{k: g[k] for k in ("id", "date", "teams", "pts", "home", "ot", "post", "rows", "riv")} for g in games]}
     (OUT_DIR / f"{label}.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     _index.append({"season": label, "games": len(games), "first": games[0]["date"], "last": games[-1]["date"],
                              "leagues": sorted({t["group"] if t["group"] in ("ABA", "BAA") else "NBA" for t in teams.values()})})

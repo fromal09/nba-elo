@@ -54,6 +54,7 @@ jobs:
           python3 scripts/build_elo.py $(ls data/[0-9]*.csv | grep -v playoffs | sort) 2>&1 | tail -20
           python3 scripts/validate_output.py
           python3 scripts/build_top100.py
+          python3 scripts/build_timemachine.py
 
       - name: Guard against a partial build
         if: steps.fetch.outputs.new_games != '0'
@@ -71,7 +72,7 @@ jobs:
               print(f"::error::The rebuild has fewer seasons or games than the committed data (missing: {', '.join(missing) or 'none'}). A source CSV is probably not in the repo.")
               sys.exit(1)
           PY
-          deleted=$(git status --porcelain public/data | grep -c '^ D' || true)
+          deleted=$(git status --porcelain public/data | grep '^ D' | grep -vc '/rivals/' || true)
           if [ "$deleted" != "0" ]; then echo "::error::The rebuild deleted $deleted data files"; git status --porcelain public/data | grep '^ D' | head -20; exit 1; fi
 
       - name: Commit and push

@@ -11,6 +11,7 @@ import Teams from './components/Teams'
 import Seasons from './components/Seasons'
 import Daily from './components/Daily'
 import SeasonExplorer from './components/SeasonExplorer'
+import TimeMachine from './components/TimeMachine'
 import Methodology from './components/Methodology'
 import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
@@ -23,22 +24,26 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
-  // /scoreboard opens the Season Explorer's games-by-day view; every other view lives at /
-  const viewFromPath = () => (window.location.pathname.replace(/\/+$/, '') === '/scoreboard' ? 'scoreboard' : 'home')
+  // /scoreboard and /timemachine have their own URLs; every other view lives at /
+  const PATHS = { scoreboard: '/scoreboard', timemachine: '/timemachine' }
+  const viewFromPath = () => {
+    const p = window.location.pathname.replace(/\/+$/, '')
+    return Object.keys(PATHS).find(v => PATHS[v] === p) || 'home'
+  }
   const [view, setView] = useState(viewFromPath)
 
   useEffect(() => {
-    const path = view === 'scoreboard' ? '/scoreboard' : '/'
+    const path = PATHS[view] || '/'
     if (window.location.pathname.replace(/\/+$/, '') !== path.replace(/\/+$/, '')) {
       window.history.pushState(null, '', path)
     }
-    document.title = view === 'scoreboard' ? 'NBA Scoreboard · FPR' : 'NBA Floor Performance Rankings'
+    document.title = view === 'scoreboard' ? 'NBA Scoreboard · FPR' : view === 'timemachine' ? 'Time Machine · FPR' : 'NBA Floor Performance Rankings'
   }, [view])
 
   useEffect(() => {
     const onPop = () => setView(v => {
       const next = viewFromPath()
-      return next === 'scoreboard' ? 'scoreboard' : v === 'scoreboard' ? 'explorer' : v
+      return PATHS[next] ? next : PATHS[v] ? 'explorer' : v
     })
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
@@ -115,6 +120,7 @@ export default function App() {
           mode={view === 'scoreboard' ? 'today' : 'standings'}
           onMode={m => setView(m === 'today' ? 'scoreboard' : 'explorer')} />
       )}
+      {view === 'timemachine' && <TimeMachine />}
       {view === 'methodology' && <Methodology />}
 
       {selectedPlayer && (

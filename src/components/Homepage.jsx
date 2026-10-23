@@ -26,6 +26,14 @@ export default function Homepage({ data, setView }) {
       color: '#e6ecf5', iconColor: '#173657',
     },
     {
+      icon: '⏳',
+      title: 'Time Machine',
+      desc: 'Build a league from any team-seasons in history, play an 82-game season and the playoffs, and open a box score for every game.',
+      meta: 'Era-adjusted · shareable leagues',
+      view: 'timemachine',
+      color: '#f5efe0', iconColor: '#8a6414',
+    },
+    {
       icon: '📊',
       title: 'Historical Elo Snapshots',
       desc: 'All-time rankings sorted by peak Elo, plus rankings on any day in league history. Covers 1946 to present.',
