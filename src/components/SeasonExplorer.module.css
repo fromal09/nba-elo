@@ -732,3 +732,13 @@
 .previewProj em { display: block; font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: 1px; color: #8a95a2; font-weight: 700; }
 .previewProj b { font-size: 15px; color: #173657; font-variant-numeric: tabular-nums; }
 .gProj { font-weight: 800; color: #173657; }
+
+.gPre { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.gPre > span { display: inline-flex; align-items: center; gap: 4px; }
+.gPre + .gPre { margin-top: 3px; }
+.scoreLine { display: inline-flex; align-items: center; gap: 3px; font-weight: 800; color: #173657; font-variant-numeric: tabular-nums; }
+.scoreLine i { font-style: normal; margin: 0 3px; color: #8a95a0; font-weight: 600; }
+.gLiveProj .scoreLine { color: #b3261e; }
+.wpProj { margin-top: 7px; text-align: center; }
+.wpProj em { display: block; font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: 1.2px; color: #7fa3c7; font-weight: 700; }
+.final .wpProj b { font-size: 13px; color: #fff; text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums; }

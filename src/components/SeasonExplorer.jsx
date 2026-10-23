@@ -36,7 +36,7 @@ const projText = (fg, homeFirst = false) => {
 }
 // Projected final for a game in progress: the score so far plus the pre-game projection for the time left
 function liveFinal(fg, live, ptsHome, ptsAway) {
-  const s = PROJECT?.(fg)
+  const s = Array.isArray(fg) ? fg : PROJECT?.(fg)
   if (!s || !live?.period) return null
   const [m, sec] = String(live.clock || '0:00').split(':').map(Number)
   const left = (live.period <= 4 ? (4 - live.period) * 12 : 0) + (isNaN(m) ? 0 : m + (sec || 0) / 60)
@@ -93,7 +93,7 @@ function viewFor(g, team, sy) {
   const i = g.teams.indexOf(team), o = g.teams[1 - i]
   return {
     id: g.id, date: g.date, opp: o, home: g.home == null ? null : g.home === team, pts: g.pts[i], opp_pts: g.pts[1 - i],
-    ot: g.ot, res: g.pts[i] > g.pts[1 - i] ? 'W' : 'L', post: g.post, players: g.players, elo: g.elo, wp: g.wp, fcwp: g.fcwp, sy, live: g.live, riv: g.riv,
+    ot: g.ot, res: g.pts[i] > g.pts[1 - i] ? 'W' : 'L', post: g.post, players: g.players, elo: g.elo, wp: g.wp, fcwp: g.fcwp, proj: g.proj, sy, live: g.live, riv: g.riv,
   }
 }
 
@@ -1013,6 +1013,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair }) {
                       <span style={{ width: `${game.wp[away] * 100}%`, background: tColor(away) }} />
                       <span style={{ width: `${game.wp[home] * 100}%`, background: tColor(home) }} />
                     </div>
+                    {game.proj && <div className={styles.wpProj}><em>Projected score</em><b>{tShort(away)} {game.proj[away]}, {tShort(home)} {game.proj[home]}</b></div>}
                   </div>
                 </div>}
                 <div className={`${styles.sbTeam} ${i ? styles.sbHome : ''} ${t === winner ? styles.sbWin : ''}`}>
@@ -1802,6 +1803,8 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
       const home = g.home || g.teams[1], away = g.teams.find(t => t !== home)
       const pf = safeGame(fc.f, home, away, day)
       if (pf?.margin != null) { g.wp = { [home]: pf.pHome, [away]: pf.pAway }; g.fcwp = true }
+      const pr = pf && fc.project?.(pf)
+      if (pr) g.proj = { [home]: pr[0], [away]: pr[1] }   // pre-game projected score
     })
     markHonors([...data, ...live]) // Player of the Day covers every game of the day, live or official
     const unmatched = live.flatMap(g => g.players.filter(p => p.unrated).map(p => `${p.espnName} (${tCode(p.t)})`))
@@ -2010,6 +2013,9 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
 
 const safeGame = (f, home, away, day) => { try { return f.game(home, away, day) } catch { return null } }
 
+const ScoreLine = ({ fav, dog, s }) => (
+  <b className={styles.scoreLine}><TeamMark t={fav} size={16} />{s[fav]}<i>–</i><TeamMark t={dog} size={16} />{s[dog]}</b>
+)
 function GameCard({ c, shots, onOpen }) {
   const g = c.g, x = c.x
   const home = g ? (g.home || g.teams[1]) : x.home
@@ -2025,6 +2031,13 @@ function GameCard({ c, shots, onOpen }) {
   const mover = g && [...g.players].sort((a, b) => Math.abs(b.post - b.pre) - Math.abs(a.post - a.pre))[0]
   const best = side => side && [...side.rows].filter(r => !r.out).sort((a, b) => b.elo - a.elo)[0]
   const tm = c.fg && [best(c.fg.away), best(c.fg.home)]
+  // Started games: the pre-game projected score, and for games in progress the live projection
+  const pp = g?.proj || (c.pfg && PROJECT?.(c.pfg))
+  const preProj = !started || !pp ? null : Array.isArray(pp) ? { [home]: pp[0], [away]: pp[1] } : pp
+  // Pre-game favorite: by win chance, else by projected score
+  const fav = wp ? (wp[home] >= wp[away] ? home : away) : preProj && preProj[away] > preProj[home] ? away : home
+  const dog = fav === home ? away : home
+  const liveProj = c.state === 'in' && preProj ? liveFinal([preProj[home], preProj[away]], g?.live || x, pts[home] || 0, pts[away] || 0) : null
   return (
     <button type="button" className={`${styles.gCard} ${c.state === 'in' ? styles.gLive : ''}`} onClick={onOpen || undefined} disabled={!onOpen}>
       <div className={styles.gHead}>
@@ -2038,14 +2051,18 @@ function GameCard({ c, shots, onOpen }) {
           <b className={styles.gPts}>{started ? pts[t] ?? '–' : wp ? `${Math.round(wp[t] * 100)}%` : ''}</b>
         </div>
       ))}
-      {(wp || c.pfg) && <div className={styles.gWp}>
+      {(wp || preProj) && <div className={styles.gWp}>
         {wp && <div className={styles.gWpTrack}>
           <span style={{ width: `${wp[away] * 100}%`, background: tColor(away) }} />
           <span style={{ width: `${wp[home] * 100}%`, background: tColor(home) }} />
         </div>}
-        <small>{!wp ? '' : started ? `Pre-game ${g?.fcwp ? '' : 'Elo '}${Math.round(wp[away] * 100)}–${Math.round(wp[home] * 100)}` : 'Forecast'}
-          {c.state === 'pre' && c.fg && projText(c.fg) && <b className={styles.gProj}> · Proj {projText(c.fg)}</b>}
-          {c.state === 'in' && c.pfg && (() => { const f = liveFinal(c.pfg, (g?.live || x), pts[home] || 0, pts[away] || 0); return f ? <b className={styles.gProj}>{wp ? ' · ' : ''}Proj final {f[1]}–{f[0]}</b> : null })()}</small>
+        {!started ? <small>{wp ? 'Forecast' : ''}{c.fg && projText(c.fg) && <b className={styles.gProj}> · Proj {projText(c.fg)}</b>}</small> : <>
+          <small className={styles.gPre}>
+            {wp && <span>Pre-game{g?.fcwp ? '' : ' Elo'}: <b className={styles.gProj}>{Math.round(wp[fav] * 100)}%</b><TeamMark t={fav} size={16} /></span>}
+            {preProj && <span>Projected score: <ScoreLine fav={fav} dog={dog} s={preProj} /></span>}
+          </small>
+          {liveProj && <small className={`${styles.gPre} ${styles.gLiveProj}`}><span>Live projection: <ScoreLine fav={fav} dog={dog} s={{ [home]: liveProj[0], [away]: liveProj[1] }} /></span></small>}
+        </>}
       </div>}
       <div className={styles.gFoot}>
         {top ? <>
