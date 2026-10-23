@@ -202,7 +202,7 @@ function teamGames(sd, team) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-export default function SeasonExplorer({ players, onSelectPlayer }) {
+export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }) {
   const [index, setIndex] = useState(null)
   const [err, setErr] = useState(null)
   const [season, setSeason] = useState(null)
@@ -212,8 +212,19 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
   const [sched, setSched] = useState(null)       // ESPN schedule + injuries (current season only)
   const [rotation, setRotation] = useState(null) // recent minutes per player
   const [best, setBest] = useState({})           // best rank among active players, per player
-  const [view, setView] = useState('standings')  // 'standings' | 'today'
-  const [day, setDay] = useState(etToday)
+  // 'standings' | 'today'; App owns it so the games view can live at /scoreboard
+  const view = mode === 'today' ? 'today' : 'standings'
+  const setView = v => onMode?.(v)
+  const [day, setDay] = useState(() => {
+    const q = new URLSearchParams(window.location.search).get('date')
+    return q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : etToday()
+  })
+  // Keep the address shareable: /scoreboard for today, /scoreboard?date=YYYY-MM-DD for any other day
+  useEffect(() => {
+    if (view !== 'today') return
+    const url = day === etToday() ? '/scoreboard' : `/scoreboard?date=${day}`
+    if (window.location.pathname + window.location.search !== url) window.history.replaceState(null, '', url)
+  }, [view, day])
   const goDay = d => { setDay(d); setView('today'); window.scrollTo({ top: 0 }) }
 
   useEffect(() => {

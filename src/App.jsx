@@ -23,7 +23,26 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
-  const [view, setView] = useState('home') // 'home' | 'rankings' | 'methodology'
+  // /scoreboard opens the Season Explorer's games-by-day view; every other view lives at /
+  const viewFromPath = () => (window.location.pathname.replace(/\/+$/, '') === '/scoreboard' ? 'scoreboard' : 'home')
+  const [view, setView] = useState(viewFromPath)
+
+  useEffect(() => {
+    const path = view === 'scoreboard' ? '/scoreboard' : '/'
+    if (window.location.pathname.replace(/\/+$/, '') !== path.replace(/\/+$/, '')) {
+      window.history.pushState(null, '', path)
+    }
+    document.title = view === 'scoreboard' ? 'NBA Scoreboard · FPR' : 'NBA Floor Performance Rankings'
+  }, [view])
+
+  useEffect(() => {
+    const onPop = () => setView(v => {
+      const next = viewFromPath()
+      return next === 'scoreboard' ? 'scoreboard' : v === 'scoreboard' ? 'explorer' : v
+    })
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   useEffect(() => {
     fetch('/data/elo.json')
@@ -91,8 +110,10 @@ export default function App() {
       {view === 'daily' && (
         <Daily players={data.players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {view === 'explorer' && (
-        <SeasonExplorer players={data.players} onSelectPlayer={setSelectedPlayer} />
+      {(view === 'explorer' || view === 'scoreboard') && (
+        <SeasonExplorer players={data.players} onSelectPlayer={setSelectedPlayer}
+          mode={view === 'scoreboard' ? 'today' : 'standings'}
+          onMode={m => setView(m === 'today' ? 'scoreboard' : 'explorer')} />
       )}
       {view === 'methodology' && <Methodology />}
 
