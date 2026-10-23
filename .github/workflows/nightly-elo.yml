@@ -1,0 +1,75 @@
+# Nightly sweep: makes the night's games official without a manual update.
+# Pulls every final box score ESPN has that the data doesn't, rebuilds the ratings, validates
+# them and pushes. The push triggers the Vercel deploy. Runs that find nothing new end in seconds.
+name: Nightly Elo update
+
+on:
+  schedule:
+    - cron: '30 6 * * *'    # ~2:30 a.m. ET: most nights' games are final
+    - cron: '30 9 * * *'    # ~5:30 a.m. ET: late West Coast finishes and ESPN stat corrections
+    - cron: '0 15 * * *'    # ~11 a.m. ET: catch-up if an earlier run failed
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'First day to check (YYYY-MM-DD). Leave blank for the latest day in the data.'
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-elo
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pandas
+
+      - name: Check source data is in the repo
+        run: |
+          for f in data/bbref-pre1974.csv data/bbref-aba.csv data/charlotte.csv public/data/elo.json; do
+            [ -f "$f" ] || { echo "::error::$f is missing from the repo; the build would not match a local build"; exit 1; }
+          done
+
+      - name: Fetch final ESPN box scores
+        id: fetch
+        run: python3 scripts/fetch_espn.py --github-output "$GITHUB_OUTPUT" ${{ inputs.since && format('--since {0}', inputs.since) || '' }}
+
+      - name: Rebuild ratings
+        if: steps.fetch.outputs.new_games != '0'
+        run: |
+          set -o pipefail
+          python3 scripts/build_elo.py $(ls data/[0-9]*.csv | grep -v playoffs | sort) 2>&1 | tail -20
+          python3 scripts/validate_output.py
+          python3 scripts/build_top100.py
+
+      - name: Commit and push
+        if: steps.fetch.outputs.new_games != '0'
+        run: |
+          git config user.name "fpr-nightly"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/espn_updates.csv public/data
+          git commit -m "data: ${{ steps.fetch.outputs.new_games }} games through ${{ steps.fetch.outputs.through }} (ESPN nightly)"
+          for i in 1 2 3; do
+            git pull --rebase && git push && exit 0
+            sleep 10
+          done
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Nightly Elo update" >> "$GITHUB_STEP_SUMMARY"
+          echo "- New final games: ${{ steps.fetch.outputs.new_games || 'n/a' }} (through ${{ steps.fetch.outputs.through || 'n/a' }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Not final yet: ${{ steps.fetch.outputs.pending || 'n/a' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Players with no ratings match (rated as new): ${{ steps.fetch.outputs.unmatched || 'n/a' }}" >> "$GITHUB_STEP_SUMMARY"

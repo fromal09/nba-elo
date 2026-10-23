@@ -118,6 +118,13 @@ def parse_csv(paths):
         all_paths.append(str(updates_path))
         print(f"  + including data/nbaupdates.csv")
 
+    # Auto-include espn_updates.csv (written nightly by scripts/fetch_espn.py). A game that also
+    # appears in another source is taken from that source; ESPN only fills games nothing else has.
+    espn_path = Path("data/espn_updates.csv")
+    if espn_path.exists() and str(espn_path) not in all_paths:
+        all_paths.append(str(espn_path))
+        print(f"  + including data/espn_updates.csv")
+
     for path in all_paths:
         raw = Path(path).read_text(encoding="utf-8", errors="replace")
         lines = raw.split("\n")
@@ -129,6 +136,7 @@ def parse_csv(paths):
             filtered.append(line)
         frame = pd.read_csv(io.StringIO("\n".join(filtered)), low_memory=False)
         frame["_lg"] = "ABA" if Path(path).name == "bbref-aba.csv" else "NBA"
+        frame["_src"] = "espn" if Path(path).name == "espn_updates.csv" else ""
         frames.append(frame)
 
     df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
@@ -414,6 +422,14 @@ def build_elo(df):
         return f"{row['Date'].strftime('%Y-%m-%d')}_{teams[0]}_{teams[1]}"
 
     df["game_id"] = df.apply(make_game_id, axis=1)
+
+    # ESPN rows only fill games no other source has (Stathead exports win when both exist)
+    if "_src" in df.columns:
+        is_espn = df["_src"].eq("espn")
+        covered = is_espn & df["game_id"].isin(set(df.loc[~is_espn, "game_id"]))
+        if covered.any():
+            print(f"  - {df.loc[covered, 'game_id'].nunique()} ESPN games also in other sources (using those)")
+            df = df.loc[~covered].copy()
 
     # Deduplicate
     df = df.sort_values("Date")
