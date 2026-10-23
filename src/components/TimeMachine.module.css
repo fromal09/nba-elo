@@ -232,3 +232,23 @@
 .seasonBar { min-width: 0; }
 @media (max-width: 760px) { .tabs { width: 100%; } .tabs button { padding: 7px 11px; } .barBtns { width: 100%; } .barBtns .btn { flex: 1; } }
 .liveTag { font-size: 9px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: #fff; background: #1a7a4a; padding: 1px 5px; border-radius: 3px; margin-right: 3px; vertical-align: 1px; }
+
+/* Draft */
+.kindTabs { display: inline-flex; gap: 2px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 20px; padding: 3px; margin-top: 14px; }
+.kindTabs button { border: 0; background: transparent; color: #b9cde2; font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 14px; border-radius: 16px; cursor: pointer; }
+.kindTabs button.kindOn { background: #fff; color: #173657; }
+.origin { margin-left: 6px; font-size: 10.5px; font-weight: 700; color: #8a95a0; }
+.draftMain { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.clock { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-left: 4px solid #c9a24a; }
+.clock b { font-size: 15px; color: #173657; }
+.clock span { font-size: 13px; font-weight: 800; }
+.draftTeams { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.dTeam { border-top: 4px solid var(--tc); padding-bottom: 6px; }
+.dOn { box-shadow: 0 0 0 2px #c9a24a; }
+.dHead { display: flex; justify-content: space-between; align-items: baseline; padding: 9px 12px 6px; }
+.dHead b { font-size: 13.5px; color: var(--tc); }
+.dHead span { font-size: 12px; font-weight: 800; color: #173657; font-variant-numeric: tabular-nums; }
+.dRow { display: grid; grid-template-columns: 46px minmax(0, 1fr) 30px; gap: 6px; padding: 3px 12px; font-size: 12px; align-items: center; }
+.dRow span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dRow em { font-style: normal; color: #8a95a0; font-size: 11px; text-align: right; }
+.dEmpty { padding: 3px 12px; font-size: 12px; color: #c3c9d1; }

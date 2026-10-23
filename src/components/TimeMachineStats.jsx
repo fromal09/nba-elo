@@ -18,15 +18,15 @@ const COLS = [
   { k: 'stl', l: 'STL', per: true },
   { k: 'blk', l: 'BLK', per: true },
   { k: 'tov', l: 'TO', per: true },
-  { k: 'fgp', l: 'FG%', v: x => (x.fga ? x.fg / x.fga : null), fmt: (v, x) => pct(x.fg, x.fga) },
+  { k: 'fgp', l: 'FG%', v: x => (x.has.fga && x.fga ? (x.fgm || 0) / x.fga : null), fmt: (v, x) => (x.has.fga ? pct(x.fgm || 0, x.fga) : '—') },
   { k: 'tpp', l: '3P%', v: x => (x.has.tpa && x.tpa ? x.tp / x.tpa : null), fmt: (v, x) => (x.has.tpa ? pct(x.tp, x.tpa) : '—') },
-  { k: 'ftp', l: 'FT%', v: x => (x.fta ? x.ft / x.fta : null), fmt: (v, x) => pct(x.ft, x.fta) },
+  { k: 'ftp', l: 'FT%', v: x => (x.has.fta && x.fta ? (x.ftm || 0) / x.fta : null), fmt: (v, x) => (x.has.fta ? pct(x.ftm || 0, x.fta) : '—') },
   { k: 'gs', l: 'GmSc', per: true, bold: true },
   { k: 'duel', l: 'Duel %', v: x => (x.dw + x.dl ? x.dw / (x.dw + x.dl) : null), fmt: v => (v == null ? '—' : (v * 100).toFixed(0)), title: 'Share of Game Score duels won against everyone in the game' },
   { k: 'potg', l: 'PotG', v: x => x.potg, total: true, title: 'Player of the Game awards' },
 ]
 
-export function StatsTab({ stats, T, games }) {
+export function StatsTab({ stats, T, games, origin }) {
   const [mode, setMode] = useState('per')
   const [sort, setSort] = useState({ k: 'pts', dir: -1 })
   const [team, setTeam] = useState('all')
@@ -84,7 +84,7 @@ export function StatsTab({ stats, T, games }) {
             {rows.map((x, i) => (
               <tr key={x.id}>
                 <td className={styles.muted}>{i + 1}</td>
-                <td className={styles.left}><b>{x.n}</b>{x.rookie && <span className={styles.rkTag} title="Rookie season">R</span>}</td>
+                <td className={styles.left}><b>{x.n}</b>{x.rookie && <span className={styles.rkTag} title="Rookie season">R</span>}{origin && <small className={styles.origin}>{origin(x)}</small>}</td>
                 <td className={styles.left}><span className={styles.teamCell}><Year ts={T[x.team]} />{TM.nickname(T[x.team].name)}</span></td>
                 {COLS.map(c => <td key={c.k} className={sort.k === c.k ? styles.sortedCell : ''}>{c.bold ? <b>{show(c, x)}</b> : show(c, x)}</td>)}
               </tr>
@@ -105,13 +105,13 @@ function Line({ x, games }) {
   bits.push(`${pg('gs')} GmSc`)
   return <small>{bits.join(' · ')} · {g}/{games} games</small>
 }
-function Entry({ r, T, games, rank, share, extra }) {
+function Entry({ r, T, games, rank, share, extra, origin }) {
   const ts = T[r.x.team]
   return (
     <div className={`${styles.award} ${rank === 0 ? styles.awardTop : ''}`}>
       <span className={styles.awardRank}>{rank + 1}</span>
       <div className={styles.awardMain}>
-        <b>{r.x.n}</b>
+        <b>{r.x.n}{origin && <small className={styles.origin}>{origin(r.x)}</small>}</b>
         <span className={styles.teamCell}><Year ts={ts} />{TM.nickname(ts.name)}</span>
         {extra || <Line x={r.x} games={games} />}
       </div>
@@ -120,11 +120,11 @@ function Entry({ r, T, games, rank, share, extra }) {
   )
 }
 
-export function AwardsTab({ A, T, games }) {
+export function AwardsTab({ A, T, games, origin }) {
   const card = (title, list, opts = {}) => (
     <section className={`${styles.card} ${styles.awardCard}`} key={title}>
       <div className={styles.hd}><h3>{title}</h3>{opts.sub && <span>{opts.sub}</span>}</div>
-      {list.length ? list.map((r, i) => <Entry key={r.x.id} r={r} T={T} games={games} rank={i} share={opts.share ? r.share : null} extra={opts.extra?.(r)} />)
+      {list.length ? list.map((r, i) => <Entry key={r.x.id} r={r} T={T} games={games} rank={i} share={opts.share ? r.share : null} extra={opts.extra?.(r)} origin={origin} />)
         : <p className={styles.none}>No one qualifies.</p>}
     </section>
   )

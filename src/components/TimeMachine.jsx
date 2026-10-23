@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import styles from './TimeMachine.module.css'
 import * as TM from './timemachine.js'
 import { StatsTab, AwardsTab } from './TimeMachineStats.jsx'
+import { DraftRoom, DRAFT_DEFAULT } from './TimeMachineDraft.jsx'
 
 // Time Machine: build a league from any team-seasons, play a season, open any game's box score.
 // The league lives in the URL (?l=...), so a link replays the same season.
@@ -19,7 +20,19 @@ const getJSON = url => {
 }
 // One team-season's real games (the lines simulated games borrow), loaded once and shared
 const sideCache = new Map()
+let LEAGUES = {}
+const realLog = (s, t) => getJSON(TM.logFile({ s, t })).then(d => TM.parseTeamLog(d))
 const loadSide = ts => {
+  if (ts.draft) {
+    // A drafted team: every player's real games from his own team-season
+    const key = ts.id + '|' + ts.draft.map(p => p.id).join(',')
+    if (!sideCache.has(key)) {
+      const src = [...new Set(ts.draft.map(p => p.s + '|' + p.t))]
+      sideCache.set(key, Promise.all(src.map(k => realLog(...k.split('|')).then(l => [k, l])))
+        .then(pairs => TM.draftSide(ts, new Map(pairs), p => LEAGUES[`${p.s}|${p.lg}`]?.ppg)))
+    }
+    return sideCache.get(key)
+  }
   if (!sideCache.has(ts.id)) sideCache.set(ts.id, getJSON(TM.logFile(ts)).then(d => ({ ts, ...TM.parseTeamLog(d) })))
   return sideCache.get(ts.id)
 }
@@ -266,7 +279,8 @@ function BoxModal({ game, onClose }) {
           </table>
         </div>
         <p className={styles.src}>{b.src.synthetic
-          ? <>Season in progress: each player's line is one of his own recent games, fitted to 240 team minutes and scaled ×{b.src.f.toFixed(2)} to a {TM.PACE}-point pace</>
+          ? ts.draft ? <>Drafted team: each player's line is one of his own games from that season, pace-adjusted, fitted to the minutes this roster gives him, and scaled so the team shares one ball</>
+            : <>Season in progress: each player's line is one of his own recent games, fitted to 240 team minutes and scaled ×{b.src.f.toFixed(2)} to a {TM.PACE}-point pace</>
           : <>Lines from {md(b.src.date)} {b.src.home ? 'vs' : '@'} {b.src.opp.replace(/@.*/, '')} ({b.src.us > b.src.them ? 'W' : 'L'} {b.src.us}-{b.src.them}), scaled ×{b.src.f.toFixed(2)} to a {TM.PACE}-point pace</>}</p>
       </section>
     )
@@ -293,7 +307,7 @@ function BoxModal({ game, onClose }) {
 }
 
 // ── Season ─────────────────────────────────────────────────────────────────
-function Season({ lg, setLg, byId, onEdit }) {
+function Season({ lg, setLg, byId, onEdit, shareUrl, origin }) {
   const [tab, setTab] = useState('standings')
   const [box, setBox] = useState(null)
   const [odds, setOdds] = useState(null)
@@ -362,7 +376,7 @@ function Season({ lg, setLg, byId, onEdit }) {
   }, [tab, stats, sides, key])
 
   const share = () => {
-    const url = window.location.origin + '/timemachine?l=' + encodeURIComponent(key)
+    const url = shareUrl || window.location.origin + '/timemachine?l=' + encodeURIComponent(key)
     ;(navigator.clipboard?.writeText(url) || Promise.reject()).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800) }).catch(() => window.prompt('Copy this link', url))
   }
 
@@ -430,11 +444,11 @@ function Season({ lg, setLg, byId, onEdit }) {
   const stories = useMemo(() => {
     const out = []
     const best = [...T.keys()].sort((a, b) => w[b] - w[a])[0]
-    out.push(['Best record', `${T[best].s} ${T[best].name} go ${w[best]}-${lg.games - w[best]}.`])
+    out.push(['Best record', `${TM.fullName(T[best])} go ${w[best]}-${lg.games - w[best]}.`])
     const dv = [...T.keys()].map(i => [i, w[i] - proj[i]])
     const over = dv.reduce((m, x) => (x[1] > m[1] ? x : m)), flop = dv.reduce((m, x) => (x[1] < m[1] ? x : m))
-    if (over[1] >= 2) out.push(['Overachiever', `${T[over[0]].s} ${T[over[0]].name}: ${w[over[0]]} wins on a ${Math.round(proj[over[0]])}-win projection.`])
-    if (flop[1] <= -2) out.push(['Flop', `${T[flop[0]].s} ${T[flop[0]].name}: ${w[flop[0]]} wins, ${Math.round(-flop[1])} below projection.`])
+    if (over[1] >= 2) out.push(['Overachiever', `${TM.fullName(T[over[0]])}: ${w[over[0]]} wins on a ${Math.round(proj[over[0]])}-win projection.`])
+    if (flop[1] <= -2) out.push(['Flop', `${TM.fullName(T[flop[0]])}: ${w[flop[0]]} wins, ${Math.round(-flop[1])} below projection.`])
     const all = [...S.po.conf.flatMap(b => b.rounds.flat()), ...(lg.confs === 2 ? [S.po.finals] : [])]
     const ups = all.filter(s => s.win === s.lo && s.label !== 'Finals' && seedOf.get(s.lo) > seedOf.get(s.hi)).sort((a, b) => (ratings[b.hi] - ratings[b.lo]) - (ratings[a.hi] - ratings[a.lo]))[0]
     if (ups) out.push(['Upset', `No. ${seedOf.get(ups.lo)} ${TM.yearLabel(T[ups.lo].s)} ${TM.nickname(T[ups.lo].name)} knock out No. ${seedOf.get(ups.hi)} ${TM.yearLabel(T[ups.hi].s)} ${TM.nickname(T[ups.hi].name)}, ${ups.score[1]}-${ups.score[0]}.`])
@@ -477,7 +491,7 @@ function Season({ lg, setLg, byId, onEdit }) {
           {tab === 'schedule' && <div className={styles.card}>
             <div className={styles.hd}><h3>Game log</h3>
               <select value={focus} onChange={e => setFocus(+e.target.value)} className={styles.teamSel}>
-                {T.map((r, i) => <option key={i} value={i}>{r.s} {r.name}</option>)}
+                {T.map((r, i) => <option key={i} value={i}>{TM.fullName(r)}</option>)}
               </select></div>
             <div className={styles.log}>
               {(() => { let ww = 0, ll = 0; return logs[focus].map(x => {
@@ -497,8 +511,8 @@ function Season({ lg, setLg, byId, onEdit }) {
           </div>}
           {(tab === 'stats' || tab === 'awards') && (sides === 'error' ? <p className={styles.none}>Couldn't load the game logs for these team-seasons.</p>
             : !stats ? <p className={styles.none}>Building {(sched.length).toLocaleString()} box scores…</p>
-            : tab === 'stats' ? <StatsTab stats={stats.list} T={T} games={lg.games} />
-            : <AwardsTab A={stats.awards} T={T} games={lg.games} />)}
+            : tab === 'stats' ? <StatsTab stats={stats.list} T={T} games={lg.games} origin={origin} />
+            : <AwardsTab A={stats.awards} T={T} games={lg.games} origin={origin} />)}
           {tab === 'odds' && <div className={styles.card}>
             <div className={styles.hd}><h3>Odds</h3><span>{ODDS_N.toLocaleString()} simulated seasons</span></div>
             {!odds ? <p className={styles.none}>Simulating {ODDS_N.toLocaleString()} seasons…</p> : (
@@ -519,7 +533,7 @@ function Season({ lg, setLg, byId, onEdit }) {
         <aside className={styles.side}>
           <div className={styles.banner}>
             <span>🏆</span>
-            <div><small>Champion</small><b>{ct.s} {ct.name}</b>
+            <div><small>Champion</small><b>{TM.fullName(ct)}</b>
               <p>{w[champ]}-{lg.games - w[champ]}, {lg.confs === 2 ? `the ${CONF[lg.teams[champ].conf]}'s` : 'the'} No. {seedOf.get(champ)} seed · beat the {TM.yearLabel(T[fin.win === fin.hi ? fin.lo : fin.hi].s)} {TM.nickname(T[fin.win === fin.hi ? fin.lo : fin.hi].name)} {Math.max(...fin.score)}-{Math.min(...fin.score)} in the Finals</p></div>
           </div>
           <div className={styles.card}>
@@ -542,44 +556,77 @@ function Season({ lg, setLg, byId, onEdit }) {
 // ── Page ───────────────────────────────────────────────────────────────────
 export default function TimeMachine() {
   const [cat, setCat] = useState(null)
+  const [pool, setPool] = useState(null)
   const [err, setErr] = useState(null)
   const initial = useRef(fromUrl())
+  const initialDraft = useRef((() => { const p = new URLSearchParams(window.location.search).get('d'); return p ? TM.decodeDraft(p) : null })())
+  const [kind, setKind] = useState(initialDraft.current ? 'draft' : 'teams')
   const [lg, setLg] = useState(() => initial.current || presetLeague())
-  const [view, setView] = useState(() => (initial.current && initial.current.teams.length >= initial.current.size ? 'season' : 'build'))
+  const [dl, setDl] = useState(() => (initialDraft.current ? { ...DRAFT_DEFAULT, ...initialDraft.current, type: 'commish' } : DRAFT_DEFAULT))
+  const [view, setView] = useState(() => {
+    if (initialDraft.current) return initialDraft.current.picks.flat().length >= initialDraft.current.size * initialDraft.current.roster ? 'season' : 'build'
+    return initial.current && initial.current.teams.length >= initial.current.size ? 'season' : 'build'
+  })
 
   useEffect(() => {
-    getJSON('/data/explorer/timemachine.json').then(d => setCat(TM.parseCatalog(d))).catch(() => setErr("Couldn't load the team-season catalog."))
+    getJSON('/data/explorer/timemachine.json').then(d => { LEAGUES = d.leagues; setCat(TM.parseCatalog(d)) }).catch(() => setErr("Couldn't load the team-season catalog."))
   }, [])
+  useEffect(() => {
+    if (kind !== 'draft' || pool) return
+    getJSON('/data/explorer/draft.json').then(d => setPool(TM.parseDraftPool(d))).catch(() => setErr("Couldn't load the draft pool."))
+  }, [kind, pool])
   const byId = useMemo(() => Object.fromEntries((cat || []).map(r => [r.id, r])), [cat])
   // Drop team-seasons the catalog doesn't know (an old link, a renamed franchise)
   useEffect(() => {
     if (!cat) return
     const ok = lg.teams.filter(t => byId[t.id])
-    if (ok.length !== lg.teams.length) { setLg({ ...lg, teams: ok }); setView('build') }
+    if (ok.length !== lg.teams.length) { setLg({ ...lg, teams: ok }); if (kind === 'teams') setView('build') }
   }, [cat])
   useEffect(() => {
-    const url = '/timemachine?l=' + encodeURIComponent(TM.encodeLeague(lg))
+    const url = kind === 'draft' ? '/timemachine?d=' + encodeURIComponent(TM.encodeDraft(dl)) : '/timemachine?l=' + encodeURIComponent(TM.encodeLeague(lg))
     window.history.replaceState(null, '', url)
-  }, [lg])
-  const full = lg.teams.length >= lg.size
+  }, [lg, dl, kind])
+
+  // A finished draft becomes a league of pseudo team-seasons the season view can play
+  const draft = useMemo(() => {
+    if (kind !== 'draft' || !pool) return null
+    const rows = dl.picks.slice(0, dl.size).map((ids, i) => TM.draftTeam(ids.map(id => pool.byId[id]).filter(Boolean), pool.coef, i))
+    const league = { size: dl.size, confs: dl.confs, games: dl.games, po: dl.po, mode: dl.mode, home: dl.home, uniq: false, seed: dl.seed,
+      teams: rows.map((r, i) => ({ id: r.id, conf: dl.confs === 2 ? i % 2 : 0 })) }
+    const where = new Map(rows.flatMap((r, i) => r.draft.map(p => [i + '|' + p.n, p])))
+    return { rows, league, byId: Object.fromEntries(rows.map(r => [r.id, r])), origin: x => { const p = where.get(x.team + '|' + x.n); return p ? `${TM.yearLabel(p.s)} ${p.t.replace(/@.*/, '')}` : '' } }
+  }, [kind, pool, dl])
+  const full = kind === 'draft' ? !!draft && dl.picks.flat().length >= dl.size * dl.roster : lg.teams.length >= lg.size
+  const switchKind = k => { setKind(k); setView('build') }
+  const shown = kind === 'draft' ? draft?.league : lg
 
   return (
     <div className={styles.page}>
       <div className={styles.hero}>
         <div>
           <div className={styles.kicker}>Time Machine</div>
-          <div className={styles.title}>{view === 'season' ? <>Season results <span>· run {lg.seed}</span></> : 'Build a league'}</div>
-          <p className={styles.sub}>Any team-season from 1946-47 to today. Each team is rated against its own league that year, then everyone plays on one scale.</p>
+          <div className={styles.title}>{view === 'season' ? <>Season results <span>· run {shown?.seed}</span></> : kind === 'draft' ? 'Draft a league' : 'Build a league'}</div>
+          <p className={styles.sub}>{kind === 'draft'
+            ? 'Draft players from any season since 1946-47. Each player is rated against his own league that year, and box scores use his real games from that season.'
+            : 'Any team-season from 1946-47 to today. Each team is rated against its own league that year, then everyone plays on one scale.'}</p>
+          {view === 'build' && <div className={styles.kindTabs}>
+            <button type="button" className={kind === 'teams' ? styles.kindOn : ''} onClick={() => switchKind('teams')}>Team-seasons</button>
+            <button type="button" className={kind === 'draft' ? styles.kindOn : ''} onClick={() => switchKind('draft')}>Player draft</button>
+          </div>}
         </div>
-        <div className={styles.heroStats}>
-          <span><b>{lg.size}</b> teams</span><span><b>{lg.games}</b> games</span><span><b>{TM.MODES[lg.mode]}</b> ratings</span>
-        </div>
+        {shown && <div className={styles.heroStats}>
+          <span><b>{shown.size}</b> teams</span><span><b>{shown.games}</b> games</span><span><b>{TM.MODES[shown.mode]}</b> ratings</span>
+        </div>}
       </div>
       {err && <p className={styles.none}>{err}</p>}
-      {!cat && !err && <p className={styles.none}>Loading team-seasons…</p>}
-      {cat && (view === 'season' && full
+      {(!cat || (kind === 'draft' && !pool)) && !err && <p className={styles.none}>Loading {kind === 'draft' ? 'player-seasons' : 'team-seasons'}…</p>}
+      {cat && kind === 'teams' && (view === 'season' && full
         ? <Season lg={lg} setLg={setLg} byId={byId} onEdit={() => setView('build')} />
         : <Builder lg={lg} setLg={setLg} cat={cat} byId={byId} onSimulate={() => setView('season')} />)}
+      {cat && kind === 'draft' && pool && (view === 'season' && full
+        ? <Season lg={draft.league} setLg={x => setDl(d => ({ ...d, seed: x.seed }))} byId={draft.byId} origin={draft.origin}
+            shareUrl={window.location.origin + '/timemachine?d=' + encodeURIComponent(TM.encodeDraft(dl))} onEdit={() => setView('build')} />
+        : <DraftRoom pool={pool} dl={dl} setDl={setDl} catalogLeagues={LEAGUES} onSimulate={() => setView('season')} />)}
     </div>
   )
 }

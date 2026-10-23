@@ -25,7 +25,8 @@ export const hash = (...parts) => {
 
 // ── Team-season catalog ─────────────────────────────────────────────────────
 export const tsId = r => `${r.s.slice(0, 4)}${r.t}`
-export const yearLabel = s => `'${s.slice(2, 4)}–${s.slice(5)}`
+export const yearLabel = s => (s ? `'${s.slice(2, 4)}–${s.slice(5)}` : '')
+export const fullName = ts => (ts.s ? `${ts.s} ${ts.name}` : ts.name)
 export const nickname = name => {
   const two = ['Trail Blazers', 'Red Sox', 'Royals', 'Supersonics']
   const hit = two.find(x => name.endsWith(x))
@@ -355,6 +356,15 @@ export function parseTeamLog(d) {
     date, opp, home: !!home, us, them, won: us > them, synthetic: !!d.synthetic,
     rows: rows.map(r => Object.fromEntries(C.map((k, i) => [k, r[i]]))),
   }))
+  // Early box scores fill unrecorded stats with 0: a stat that's 0 for the whole team all season
+  // wasn't kept, and makes without attempts mean the attempts weren't kept
+  for (const k of ['trb', 'orb', 'drb', 'ast', 'stl', 'blk', 'tov', 'pf', 'mp']) {
+    if (games.every(g => g.rows.every(r => !r[k]))) games.forEach(g => g.rows.forEach(r => { r[k] = null }))
+  }
+  for (const g of games) for (const r of g.rows) {
+    if (r.fga === 0 && r.fg > 0) r.fga = null
+    if (r.fta === 0 && r.ft > 0) r.fta = null
+  }
   return { games, rookies: new Set(d.rk || []) }
 }
 
@@ -375,6 +385,9 @@ export function seasonStats(key, sched, results, sides, playoffGames = []) {
     x.gp++; if (p.start) x.st++; if (won) x.w++; if (p.potg) x.potg++
     x.dw += p.dw; x.dl += p.dl
     for (const k of STAT_KEYS) if (p[k] != null) { x[k] += p[k]; x.cnt[k] = (x.cnt[k] || 0) + 1 }
+    // Shooting percentages only from games that kept attempts
+    if (p.fga != null) x.fgm = (x.fgm || 0) + (p.fg || 0)
+    if (p.fta != null) x.ftm = (x.ftm || 0) + (p.ft || 0)
   }
   sched.forEach((g, j) => {
     const b = boxScore(`${key}|r${j}`, sides[g.h], sides[g.a], results[j])
@@ -433,4 +446,113 @@ export function awards(stats, w, games, champ) {
     teams: [all.slice(0, 5), all.slice(5, 10), all.slice(10, 15)],
     leaders: { pts: leaders('pts'), trb: leaders('trb'), ast: leaders('ast'), stl: leaders('stl'), blk: leaders('blk'), gs: leaders('gs') },
   }
+}
+
+// ── Draft: leagues built from player-seasons ────────────────────────────────
+// draft.json (scripts/build_draft.py): every player-season with era z-scores, and the fit that turns a
+// roster's minutes-weighted z-scores into team z-scores on the same scale as real team-seasons.
+export const DRAFT_NAMES = ['Aces', 'Bandits', 'Comets', 'Dukes', 'Embers', 'Flyers', 'Giants', 'Hurricanes', 'Knights', 'Lions',
+  'Monarchs', 'Pilots', 'Stars', 'Titans', 'Vipers', 'Admirals', 'Barons', 'Cougars', 'Dragons', 'Express', 'Falcons', 'Generals',
+  'Jets', 'Mariners', 'Outlaws', 'Panthers', 'Rangers', 'Sentinels', 'Thunderbirds', 'Wolves']
+export const DRAFT_COLORS = ['#1a5fa8', '#c8102e', '#00843d', '#6f2da8', '#e07b00', '#008b8b', '#b5121b', '#2d3e50', '#c9a24a', '#5a7d2a',
+  '#a0306e', '#3d5a99', '#d14d1f', '#1f7a6e', '#7a1fa2', '#004c97', '#8a6414', '#00695c', '#ad1457', '#37474f', '#ef6c00', '#283593',
+  '#558b2f', '#6d4c41', '#0277bd', '#9e9d24', '#c62828', '#4527a0', '#00838f', '#5d4037']
+const b36 = n => (n >>> 0).toString(36)
+export const playerId = r => `${r.s.slice(0, 4)}${r.t}:${b36(hash(r.n))}`
+export function parseDraftPool(d) {
+  const C = d.cols
+  const rows = d.rows.map(row => {
+    const r = Object.fromEntries(C.map((k, i) => [k, row[i]]))
+    r.id = playerId(r)
+    r.value = (r.ez + r.gz) / 2
+    return r
+  })
+  return { rows, coef: d.coef, byId: Object.fromEntries(rows.map(r => [r.id, r])) }
+}
+
+// Minutes: a rotation by value rank (starters ~34, then a shrinking bench), always 240 in total
+const ROTATION = [36, 35, 34, 33, 32, 24, 18, 12, 8, 5, 2, 1]
+export function allocate(players) {
+  const list = [...players].sort((a, b) => b.value - a.value)
+  const raw = list.map((_, i) => ROTATION[i] ?? 1)
+  const tot = raw.reduce((s, x) => s + x, 0) || 1
+  return list.map((p, i) => ({ p, mp: (raw[i] * 240) / tot }))
+}
+
+export function draftTeam(players, coef, i, name) {
+  const alloc = allocate(players)
+  const W = alloc.reduce((s, x) => s + x.mp, 0) || 1
+  const xe = alloc.reduce((s, x) => s + x.mp * x.p.ez, 0) / W
+  const xg = alloc.reduce((s, x) => s + x.mp * x.p.gz, 0) / W
+  const f = c => c[0] + c[1] * xe + c[2] * xg
+  return {
+    id: `D${i}`, s: '', t: `D${i}`, name: name || DRAFT_NAMES[i % DRAFT_NAMES.length], color: DRAFT_COLORS[i % DRAFT_COLORS.length],
+    movz: players.length ? f(coef.movz) : -3, eloz: players.length ? f(coef.eloz) : -3, n: 30, ppg: PACE, lg: 'NBA',
+    w: 0, l: 0, champ: 0, mov: 0, live: 0, draft: players, alloc,
+  }
+}
+
+// A drafted team's games: each player's line is one of his own games that season (pace-adjusted to
+// 110 points), scaled to the minutes this roster gives him. logs: Map "season|team" -> parsed log
+export function draftSide(ts, logs, leaguePpg) {
+  const per = ts.alloc.map(({ p, mp }) => {
+    const log = logs.get(p.s + '|' + p.t)
+    const lines = log ? log.games.flatMap(g => g.rows.filter(r => r.n === p.n)) : []
+    return { p, mp, lines, f: PACE / (leaguePpg(p) || PACE) }
+  }).filter(x => x.lines.length)
+  const games = []
+  for (let k = 0; k < 82; k++) {
+    const rows = per.map(({ p, mp, lines, f }, j) => {
+      const src = lines[(k * 7 + j * 3 + hash(p.n) % 13) % lines.length]
+      const m = src.mp || p.mp || 30
+      const k2 = (mp / m) * f
+      const o = { n: p.n, mp: Math.round(mp) }
+      for (const key of SCALED) o[key] = src[key] == null ? null : src[key] * k2
+      o.pts = (src.pts || 0) * k2
+      o.gs = (src.gs || 0) * k2
+      return o
+    })
+    games.push({ date: '', opp: '', home: k % 2 === 0, won: k % 2 === 0, synthetic: true, draft: true, rows })
+  }
+  // One ball: ten stars can't each take their usual shots. Scale scoring and playmaking so the team
+  // averages a normal 112 points, and rebounds to a normal 44, keeping game-to-game variation.
+  const mean = key => games.reduce((s, g) => s + g.rows.reduce((t, r) => t + (r[key] || 0), 0), 0) / games.length
+  const fPts = mean('pts') ? 112 / mean('pts') : 1, fReb = mean('trb') ? 44 / mean('trb') : 1
+  for (const g of games) {
+    for (const r of g.rows) {
+      for (const key of ['fg', 'fga', 'tp', 'tpa', 'ft', 'fta', 'ast', 'tov', 'pts', 'gs']) if (r[key] != null) r[key] *= fPts
+      for (const key of ['orb', 'drb', 'trb']) if (r[key] != null) r[key] *= fReb
+    }
+    g.us = g.rows.reduce((s, r) => s + r.pts, 0); g.them = g.us + (g.won ? -1 : 1)
+  }
+  // already pace-adjusted, so the box score's pace factor is 1
+  return { ts: { ...ts, ppg: PACE }, games, rookies: new Set() }
+}
+
+// CPU pick: the best available by value, with a little randomness among the top few
+export function cpuPick(available, R) {
+  const top = available.slice(0, 4)
+  const w = top.map((_, i) => [0.55, 0.25, 0.13, 0.07][i])
+  let u = R() * w.reduce((a, b) => a + b, 0)
+  for (let i = 0; i < top.length; i++) { u -= w[i]; if (u <= 0) return top[i] }
+  return top[0]
+}
+
+// Snake order: team index for overall pick k
+export const snakeTeam = (k, N) => { const r = Math.floor(k / N), i = k % N; return r % 2 ? N - 1 - i : i }
+
+// Share links: settings plus every team's picks
+export function encodeDraft(dl) {
+  const teams = dl.picks.map(ps => ps.join(',')).join('.')
+  return ['d1', dl.size, dl.roster, dl.confs, dl.games, dl.po, dl.mode, dl.home ? 1 : 0, dl.seed, dl.you, teams].join('~')
+}
+export function decodeDraft(s) {
+  try {
+    const p = s.split('~')
+    if (p[0] !== 'd1') return null
+    const dl = { size: +p[1], roster: +p[2], confs: +p[3], games: +p[4], po: +p[5], mode: p[6], home: p[7] === '1', seed: +p[8], you: +p[9] }
+    dl.picks = (p[10] || '').split('.').map(x => (x ? x.split(',') : []))
+    while (dl.picks.length < dl.size) dl.picks.push([])
+    return dl
+  } catch { return null }
 }
