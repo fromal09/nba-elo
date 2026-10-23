@@ -507,4 +507,4 @@
 
 /* Name and rank columns hug their content; the stat columns share the rest of the width */
 .box th.sticky, .box td.sticky { width: 1%; white-space: nowrap; padding-right: 18px; }
-.box th.rankHead, .box td.rankCell { width: 1%; white-space: nowrap; text-align: left; padding-left: 4px; padding-right: 22px; }
+.box th.rankHead, .box td.rankCell { width: 1%; white-space: nowrap; text-align: center; padding-left: 16px; padding-right: 16px; }
