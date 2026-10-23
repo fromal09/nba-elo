@@ -2032,8 +2032,8 @@ function GameCard({ c, shots, onOpen }) {
   const best = side => side && [...side.rows].filter(r => !r.out).sort((a, b) => b.elo - a.elo)[0]
   const tm = c.fg && [best(c.fg.away), best(c.fg.home)]
   // Started games: the pre-game projected score, and for games in progress the live projection
-  const pp = g?.proj || (c.pfg && PROJECT?.(c.pfg))
-  const preProj = !started || !pp ? null : Array.isArray(pp) ? { [home]: pp[0], [away]: pp[1] } : pp
+  const pp = g?.proj || ((started ? c.pfg : c.fg) && PROJECT?.(started ? c.pfg : c.fg))
+  const preProj = !pp ? null : Array.isArray(pp) ? { [home]: pp[0], [away]: pp[1] } : pp
   // Pre-game favorite: by win chance, else by projected score
   const fav = wp ? (wp[home] >= wp[away] ? home : away) : preProj && preProj[away] > preProj[home] ? away : home
   const dog = fav === home ? away : home
@@ -2056,9 +2056,9 @@ function GameCard({ c, shots, onOpen }) {
           <span style={{ width: `${wp[away] * 100}%`, background: tColor(away) }} />
           <span style={{ width: `${wp[home] * 100}%`, background: tColor(home) }} />
         </div>}
-        {!started ? <small>{wp ? 'Forecast' : ''}{c.fg && projText(c.fg) && <b className={styles.gProj}> · Proj {projText(c.fg)}</b>}</small> : <>
+        {<>
           <small className={styles.gPre}>
-            {wp && <span>Pre-game{g?.fcwp ? '' : ' Elo'}: <b className={styles.gProj}>{Math.round(wp[fav] * 100)}%</b><TeamMark t={fav} size={16} /></span>}
+            {wp && <span>Pre-game{g && !g.fcwp ? ' Elo' : ''}: <b className={styles.gProj}>{Math.round(wp[fav] * 100)}%</b><TeamMark t={fav} size={16} /></span>}
             {preProj && <span>Projected score: <ScoreLine fav={fav} dog={dog} s={preProj} /></span>}
           </small>
           {liveProj && <small className={`${styles.gPre} ${styles.gLiveProj}`}><span>Live projection: <ScoreLine fav={fav} dog={dog} s={{ [home]: liveProj[0], [away]: liveProj[1] }} /></span></small>}
