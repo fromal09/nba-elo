@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import styles from './SeasonExplorer.module.css'
 import PlayerCard, { tierFor } from './PlayerCard'
 import { buildForecaster, blendWeight } from './predict'
+import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
 
 // ── Team info ────────────────────────────────────────────────────────────────
 // Names, colors and groups come from each season file (historical names). This
@@ -26,12 +27,12 @@ const TWO_WORD = ['Trail Blazers', 'Red Skins']
 // Set from the loaded season before children render (one season is on screen at a time)
 let TEAMINFO = {}
 let CAREER = { byName: {}, rank: {}, best: {} } // elo.json players, all-time peak Elo rank, best active rank
-const tName = t => TEAMINFO[t]?.name || t
+const tName = t => TEAMINFO[t]?.name || CURRENT[t]?.[0] || t
 const tShort = t => {
   const n = tName(t)
   return TWO_WORD.find(w => n.endsWith(w)) || n.replace(/^The /, '').split(' ').slice(-1)[0]
 }
-const tColor = t => TEAMINFO[t]?.color || '#173657'
+const tColor = t => TEAMINFO[t]?.color || CURRENT[t]?.[1] || '#173657'
 // Period-correct abbreviations (Basketball-Reference style) for renamed and relocated teams
 const HIST_ABBR = {
   'Seattle SuperSonics': 'SEA', 'Baltimore Bullets': 'BAL', 'Capital Bullets': 'CAP', 'Washington Bullets': 'WSB',
@@ -64,6 +65,20 @@ const r0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
 const sgn = (v, d = 1) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(d)
 const shortName = n => { const b = n.replace(/\s*\(.*\)$/, ''); const i = b.indexOf(' '); return i < 0 ? b : `${b[0]}. ${b.slice(i + 1)}` }
 const pct = (m, a) => (a ? `${m}-${a}` : '0-0')
+const etToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+const addDays = (day, k) => { const d = new Date(day + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + k); return d.toISOString().slice(0, 10) }
+const seasonFor = day => { const y = +day.slice(0, 4), sy = +day.slice(5, 7) >= 9 ? y : y - 1; return `${sy}-${String(sy + 1).slice(-2)}` }
+const FULL_STATS = new Set(['st', 'pos', 'mp', 'tp', 'tpa', 'orb', 'drb', 'stl', 'blk', 'tov', 'pf', 'pm'])
+const tipTime = iso => (iso ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '')
+
+// One game from a team's point of view (the shape the schedule and box score use)
+function viewFor(g, team, sy) {
+  const i = g.teams.indexOf(team), o = g.teams[1 - i]
+  return {
+    id: g.id, date: g.date, opp: o, home: g.home == null ? null : g.home === team, pts: g.pts[i], opp_pts: g.pts[1 - i],
+    ot: g.ot, res: g.pts[i] > g.pts[1 - i] ? 'W' : 'L', post: g.post, players: g.players, elo: g.elo, wp: g.wp, sy, live: g.live,
+  }
+}
 
 // Mirrors build_elo.py: every player duels every other player in the game on Game Score.
 const kFactor = n => (n < 20 ? 40 : n < 100 ? 50 : 28)
@@ -197,6 +212,9 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
   const [sched, setSched] = useState(null)       // ESPN schedule + injuries (current season only)
   const [rotation, setRotation] = useState(null) // recent minutes per player
   const [best, setBest] = useState({})           // best rank among active players, per player
+  const [view, setView] = useState('standings')  // 'standings' | 'today'
+  const [day, setDay] = useState(etToday)
+  const goDay = d => { setDay(d); setView('today'); window.scrollTo({ top: 0 }) }
 
   useEffect(() => {
     getJSON('/data/explorer/index.json')
@@ -207,6 +225,14 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
   }, [])
 
   const newest = !!index && season === index.seasons[0]?.season
+  // Games view: the loaded season follows the chosen day (the newest season for days past the data)
+  useEffect(() => {
+    if (view !== 'today' || !index) return
+    const lab = seasonFor(day)
+    const target = index.seasons.some(x => x.season === lab) ? lab : lab > index.seasons[0].season ? index.seasons[0].season : null
+    if (target && target !== season) setSeason(target)
+  }, [view, day, index])
+  const ratings = useMemo(() => buildRatings(players || []), [players])
   useEffect(() => {
     if (!newest || sched) return
     getJSON('/api/schedule').then(d => d.games && setSched(d)).catch(() => {})
@@ -276,26 +302,46 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
       <div className={styles.hero}>
         <div>
           <div className={styles.kicker}>Season Explorer</div>
-          <h1 className={styles.title}>{s.season} <span>{league} season</span></h1>
-          <p className={styles.sub}>
-            {s.games.toLocaleString()} games, {fmtDate(s.first, { month: 'short', day: 'numeric', year: 'numeric' })} to {fmtDate(s.last, { month: 'short', day: 'numeric', year: 'numeric' })}.
-            Pick a team for its schedule, box scores with pre- and post-game Elo, and every player's Elo path.
-          </p>
+          <div className={styles.viewTabs} role="tablist">
+            <button role="tab" aria-selected={view === 'standings'} className={view === 'standings' ? styles.viewOn : ''} onClick={() => setView('standings')}>Standings</button>
+            <button role="tab" aria-selected={view === 'today'} className={view === 'today' ? styles.viewOn : ''} onClick={() => setView('today')}>Games by day</button>
+          </div>
+          {view === 'standings' ? <>
+            <h1 className={styles.title}>{s.season} <span>{league} season</span></h1>
+            <p className={styles.sub}>
+              {s.games.toLocaleString()} games, {fmtDate(s.first, { month: 'short', day: 'numeric', year: 'numeric' })} to {fmtDate(s.last, { month: 'short', day: 'numeric', year: 'numeric' })}.
+              Pick a team for its schedule, box scores with pre- and post-game Elo, and every player's Elo path.
+            </p>
+          </> : <>
+            <h1 className={styles.title}>{fmtDate(day, { weekday: 'long', month: 'long', day: 'numeric' })} <span>{day.slice(0, 4)}</span></h1>
+            <p className={styles.sub}>Every game of the day with live Elo, the night's top performers, biggest movers and biggest upsets. Click a game for its box score.</p>
+          </>}
         </div>
-        <label className={styles.seasonPick}>
-          <span>Season</span>
-          <select value={s.season} onChange={e => setSeason(e.target.value)}>
-            {index.seasons.map(x => <option key={x.season} value={x.season}>{x.season}{x.leagues?.includes('ABA') ? ' · NBA & ABA' : x.leagues?.includes('BAA') ? ' · BAA' : ''}</option>)}
-          </select>
-        </label>
+        {view === 'standings' ? (
+          <label className={styles.seasonPick}>
+            <span>Season</span>
+            <select value={s.season} onChange={e => setSeason(e.target.value)}>
+              {index.seasons.map(x => <option key={x.season} value={x.season}>{x.season}{x.leagues?.includes('ABA') ? ' · NBA & ABA' : x.leagues?.includes('BAA') ? ' · BAA' : ''}</option>)}
+            </select>
+          </label>
+        ) : (
+          <div className={styles.dayNav}>
+            <button onClick={() => setDay(d => addDays(d, -1))} aria-label="Previous day">‹</button>
+            <input type="date" value={day} onChange={e => e.target.value && setDay(e.target.value)} />
+            <button onClick={() => setDay(d => addDays(d, 1))} aria-label="Next day">›</button>
+            {day !== etToday() && <button className={styles.todayBtn} onClick={() => setDay(etToday())}>Today</button>}
+          </div>
+        )}
       </div>
 
-      {!sd ? <div className={styles.empty}>Loading {s.season}…</div> : (
+      {view === 'today' ? (
+        <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} selectPlayer={selectPlayer} />
+      ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : (
         <div className={styles.confs}>
           {groups.map(g => (
             <Standings key={g} label={GROUP_LABEL[g] || g} group={g} sd={sd} teams={teams} open={open} fc={fc}
               setOpen={t => setOpen(o => (o === t ? null : t))}
-              shots={shots} selectPlayer={selectPlayer} />
+              shots={shots} selectPlayer={selectPlayer} goDay={goDay} />
           ))}
         </div>
       )}
@@ -304,7 +350,7 @@ export default function SeasonExplorer({ players, onSelectPlayer }) {
 }
 
 // ── Standings table with expandable team rows ───────────────────────────────
-function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer, fc }) {
+function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer, fc, goDay }) {
   const rows = Object.entries(teams).filter(([, x]) => x.group === group).map(([t, x]) =>
     ({ t, ...x, pct: x.w + x.l ? x.w / (x.w + x.l) : 0 })
   ).sort((a, b) => b.pct - a.pct || b.w - a.w || (b.elo || 0) - (a.elo || 0))
@@ -338,7 +384,7 @@ function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer
               {fc && <span className={`${styles.hideSm} ${styles.projCell}`}>{fc.proj[r.t] ? `${Math.round(fc.proj[r.t][0])}-${Math.round(fc.proj[r.t][1])}` : '—'}</span>}
               <span className={styles.eloCell}>{r0(r.elo)}<i>{r.gp || fc?.upcoming[r.t]?.length ? (isOpen ? '▴' : '▾') : ''}</i></span>
             </button>
-            {isOpen && <TeamPanel team={r.t} sd={sd} shots={shots} selectPlayer={selectPlayer} fc={fc} />}
+            {isOpen && <TeamPanel team={r.t} sd={sd} shots={shots} selectPlayer={selectPlayer} fc={fc} goDay={goDay} />}
           </Fragment>
         )
       })}
@@ -347,7 +393,7 @@ function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer
 }
 
 // ── Team panel: schedule + Elo progression ──────────────────────────────────
-function TeamPanel({ team, sd, shots, selectPlayer, fc }) {
+function TeamPanel({ team, sd, shots, selectPlayer, fc, goDay }) {
   const [tab, setTab] = useState('schedule')
   const [box, setBox] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -362,7 +408,7 @@ function TeamPanel({ team, sd, shots, selectPlayer, fc }) {
         <button className={tab === 'elo' ? styles.on : ''} onClick={() => setTab('elo')}>Elo Progression</button>
       </div>
       {tab === 'schedule'
-        ? <Schedule team={team} games={games} onBox={setBox} upcoming={fc?.upcoming[team] || []} onPreview={setPreview} fetched={fc?.fetched} />
+        ? <Schedule team={team} games={games} onBox={setBox} upcoming={fc?.upcoming[team] || []} onPreview={setPreview} fetched={fc?.fetched} goDay={goDay} />
         : <Progression team={team} games={games} selectPlayer={selectPlayer} />}
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
       {box && <BoxScore team={team} game={box} has={sd.has} shots={shots} onCard={setCard} onClose={() => setBox(null)} />}
@@ -386,7 +432,7 @@ function teamSummary(g, team) {
   return { net, star }
 }
 
-function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
+function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched, goDay }) {
   const parts = [['Regular Season', games.filter(g => !g.post)], ['Postseason', games.filter(g => g.post)]]
   return (
     <div className={styles.sched}>
@@ -445,14 +491,14 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched }) {
                   const best = x => x && [...x.rows].filter(r => !r.out).sort((a, b) => b.elo - a.elo)[0]
                   const tm = best(mine), to = best(theirs)
                   return (
-                    <tr key={g.id} onClick={() => g.fg && onPreview(g)} className={g.done ? `${styles.pending} ${g.won ? styles.rowW : styles.rowL}` : ''}>
+                    <tr key={g.id} onClick={() => (g.done ? goDay?.(g.day) : g.fg && onPreview(g))} className={g.done ? `${styles.pending} ${g.won ? styles.rowW : styles.rowL}` : ''}>
                       <td className={styles.date}>{fmtDate(g.day)}</td>
                       <td><span className={styles.opp}>
                         <i>{g.isHome ? 'vs' : '@'}</i><TeamMark t={g.opp} size={22} />
                         <span className={styles.full}>{tName(g.opp)}</span><span className={styles.abbr}>{tCode(g.opp)}</span>
                       </span></td>
                       {g.done ? <>
-                        <td colSpan={3}><b className={g.won ? styles.win : styles.loss}>{g.won ? 'W' : 'L'}</b> {g.isHome ? `${g.hs}-${g.as}` : `${g.as}-${g.hs}`} <small className={styles.muted}>Box score after the next data update</small></td>
+                        <td colSpan={3}><b className={g.won ? styles.win : styles.loss}>{g.won ? 'W' : 'L'}</b> {g.isHome ? `${g.hs}-${g.as}` : `${g.as}-${g.hs}`} <small className={styles.muted}>Live box score in Games by day</small></td>
                         <td></td>
                       </> : <>
                         <td className={styles.num}><span className={styles.wpCell}>
@@ -586,14 +632,18 @@ function BoxScore({ team, game, has, shots, onCard, onClose }) {
     const drop = [...P].sort((a, b) => d(a) - d(b))[0]
     let gk = null
     for (const a of P) for (const b of P) {
-      // A real upset: both played real minutes and the winner cleared the loser by 5+ Game Score
-      if ((a.mp || 0) >= 12 && (b.mp || 0) >= 12 && a.gs >= 10 && a.gs - b.gs >= 5 && b.pre - a.pre > (gk ? gk.gap : 0)) gk = { a, b, gap: b.pre - a.pre }
+      // The biggest upset in the grid: the duel the winner was least expected to win (largest Elo gap),
+      // among players who both logged real minutes and a winner with a meaningful line
+      if ((a.mp || 0) >= 12 && (b.mp || 0) >= 12 && a.gs >= 10 && a.gs > b.gs && b.pre - a.pre > (gk ? gk.gap : 0))
+        gk = { a, b, gap: b.pre - a.pre, wc: 1 / (1 + 10 ** ((b.pre - a.pre) / 620)) }
     }
     return { climb, drop, gk }
   }, [P])
 
   const avail = useMemo(() => new Set(['mp', 'trb', 'ast', 'stl', 'blk', 'tov', 'tpa', 'fga', 'fta'].filter(k => P.some(p => (p[k] || 0) > 0))), [P])
-  const winner = game.res === 'W' ? team : opp
+  const st = game.live?.state
+  const tied = game.pts === game.opp_pts
+  const winner = tied ? null : game.res === 'W' ? team : opp
   const fav = game.wp[team] >= 0.5 ? team : opp
   const favWon = fav === winner
   const favPct = Math.round(game.wp[fav] * 100)
@@ -610,9 +660,10 @@ function BoxScore({ team, game, has, shots, onCard, onClose }) {
             return (
               <Fragment key={t}>
                 {i === 1 && <div className={styles.final}>
-                  <b>Final{game.ot ? `/${game.ot}` : ''}</b>
+                  <b>{st === 'in' ? <><i className={styles.liveDot} />Live · {game.live.detail}</> : `Final${game.ot ? `/${game.ot}` : ''}`}</b>
                   <span>{fmtDate(game.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
                   {game.post && <span className={styles.postTag}>Postseason</span>}
+                  {game.live && <span className={styles.provTag} title="Scored from ESPN's box score. Official once the pipeline processes this game.">Provisional Elo</span>}
                   <div className={styles.wp}>
                     <em className={styles.wpCap}>Pre-game Elo win chance</em>
                     <div className={styles.wpLab}><span>{Math.round(game.wp[away] * 100)}%</span><span>{Math.round(game.wp[home] * 100)}%</span></div>
@@ -644,7 +695,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose }) {
         <div className={styles.cards}>
           <StoryCard tag="Elo Forecast" tone={favWon ? 'blue' : 'gold'}>
             <b>{tShort(fav)}</b> were {favPct}% favorites{venue}
-            {favWon ? ' and won.' : '. Upset.'}
+            {st === 'in' ? (tied ? '. Tied.' : favWon ? ' and lead.' : ' and trail.') : favWon ? ' and won.' : '. Upset.'}
           </StoryCard>
           <StoryCard tag="Biggest Climb" tone="up">
             <b>{story.climb.n}</b> {r0(story.climb.pre)} → {r0(story.climb.post)} <em className={styles.up}>{sgn(story.climb.post - story.climb.pre)}</em>
@@ -653,7 +704,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose }) {
             <b>{story.drop.n}</b> {r0(story.drop.pre)} → {r0(story.drop.post)} <em className={styles.down}>{sgn(story.drop.post - story.drop.pre)}</em>
           </StoryCard>
           {story.gk && <StoryCard tag="Giant Killer" tone="gold">
-            <b>{story.gk.a.n}</b> ({r0(story.gk.a.pre)}) out-scored <b>{story.gk.b.n}</b> ({r0(story.gk.b.pre)}): a {r0(story.gk.gap)}-point Elo gap.
+            <b>{story.gk.a.n}</b> ({r0(story.gk.a.pre)}) out-scored <b>{story.gk.b.n}</b> ({r0(story.gk.b.pre)}): a {r0(story.gk.gap)}-point Elo gap, {Math.max(1, Math.round(story.gk.wc * 100))}% pre-game duel win chance.
           </StoryCard>}
         </div>
 
@@ -1064,5 +1115,219 @@ function Progression({ team, games, selectPlayer }) {
         </table>
       </div>
     </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Games by day: scoreboard, leaderboards, box scores. Days already in the data use the
+// pipeline's Elo; later days (and games the data doesn't have yet) are scored live from ESPN.
+function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
+  const asof = index.seasons[0]?.last || '0000-00-00'
+  const wantsLive = day >= asof
+  const [feed, setFeed] = useState(null)
+  const [feedErr, setFeedErr] = useState(null)
+  const [box, setBox] = useState(null)        // { id, team }
+  const [card, setCard] = useState(null)      // player name
+  const [preview, setPreview] = useState(null)
+  const sdOk = sd && (sd.season === seasonFor(day) || (sd.season === index.seasons[0]?.season && seasonFor(day) > sd.season))
+  const sy = +seasonFor(day).slice(0, 4)
+
+  useEffect(() => {
+    setFeed(null); setFeedErr(null); setBox(null); setCard(null)
+    if (!wantsLive) return
+    let stop = false, timer
+    const load = () => fetch(`/api/live?date=${day}`).then(r => r.json()).then(d => {
+      if (stop) return
+      setFeed(d)
+      setFeedErr(!d.games?.length && d.errors?.length ? d.errors[0] : null)
+      // Poll while games are live; check back every 2 minutes on a game day before tip-off
+      const wait = d.live ? 30000 : d.games?.some(g => g.state === 'pre') && day === etToday() ? 120000 : 0
+      if (wait) timer = setTimeout(load, wait)
+    }).catch(e => { if (!stop) { setFeedErr(e.message); timer = setTimeout(load, 60000) } })
+    load()
+    return () => { stop = true; clearTimeout(timer) }
+  }, [day, wantsLive])
+
+  // Each team's lineup Elo going into the day, for league ranks on live games
+  const teamLatest = useMemo(() => {
+    if (!sdOk) return {}
+    const m = { ...(sd.seed || {}) }
+    sd.games.forEach(g => { if (g.date < day) g.teams.forEach(t => { m[t] = g.elo[t].post }) })
+    return m
+  }, [sd, sdOk, day])
+
+  const { scored, sched, unmatched } = useMemo(() => {
+    const data = sdOk ? sd.games.filter(g => g.date === day) : []
+    const have = new Set(data.map(g => [...g.teams].sort().join('|')))
+    const live = [], sched = []
+    for (const x of feed?.games || []) {
+      if (have.has([x.home, x.away].sort().join('|'))) continue
+      const g = x.box ? scoreGame(x, ratings, day, winChance, sy) : null
+      if (g) live.push(g); else sched.push(x)
+    }
+    assignRanks(live, ratings)
+    const rankOf = (t, v) => {
+      const others = Object.entries(teamLatest).filter(([k]) => k !== t && !k.includes('@'))
+      return { rank: 1 + others.filter(([, x]) => x > v).length, of: others.length + 1 }
+    }
+    live.forEach(g => g.teams.forEach(t => Object.assign(g.elo[t], { preRank: rankOf(t, g.elo[t].pre), postRank: rankOf(t, g.elo[t].post) })))
+    const unmatched = live.flatMap(g => g.players.filter(p => p.unrated).map(p => `${p.espnName} (${tCode(p.t)})`))
+    return { scored: [...data, ...live], sched, unmatched }
+  }, [sd, sdOk, day, feed, ratings, teamLatest, sy])
+
+  const boards = useMemo(() => dayBoards(scored), [scored])
+  const cards = useMemo(() => {
+    const order = { in: 0, pre: 1, post: 2 }
+    const list = [
+      ...scored.map(g => ({ key: g.id, g, state: g.live?.state || 'post', tip: g.tip || '' })),
+      ...sched.map(x => ({ key: x.id, x, state: x.state, tip: x.tip || '', fg: fc && x.state === 'pre' ? safeGame(fc.f, x.home, x.away, day) : null })),
+    ]
+    return list.sort((a, b) => order[a.state] - order[b.state] || a.tip.localeCompare(b.tip) || a.key.localeCompare(b.key))
+  }, [scored, sched, fc, day])
+
+  const openBox = (g, team) => setBox({ id: g.id, team: team || (g.home && g.teams.find(t => t !== g.home)) || g.teams[0] })
+  const boxGame = box && scored.find(g => g.id === box.id)
+  const boxView = boxGame && viewFor(boxGame, box.team, sy)
+  const cardRow = card && boxView?.players.find(p => p.n === card)
+  const cardSd = boxGame && (sdOk && sd.games.includes(boxGame) ? sd : { season: seasonFor(day), games: [...(sdOk ? sd.games.filter(g => g.date < day) : []), boxGame] })
+  const liveN = cards.filter(c => c.state === 'in').length
+  const provisional = scored.some(g => g.live)
+  const loading = (wantsLive && !feed && !feedErr) || (!sdOk && day <= asof)
+
+  return (
+    <div className={styles.dayPage}>
+      <div className={styles.dayBar}>
+        <span><b>{cards.length || 'No'}</b> game{cards.length === 1 ? '' : 's'}{liveN ? <> · <span className={styles.liveTxt}><i className={styles.liveDot} />{liveN} live</span></> : ''}</span>
+        {provisional && <span className={styles.muted}>Live and unprocessed games use ratings through {fmtDate(ratings.asof || asof, { month: 'short', day: 'numeric' })}. Elo is provisional until the next data update.</span>}
+        {!provisional && day <= asof && cards.length > 0 && <span className={styles.muted}>Official Elo from the ratings pipeline.</span>}
+        {feed?.fetched && wantsLive && <span className={styles.muted}>Updated {new Date(feed.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
+      </div>
+
+      {loading ? <div className={styles.empty}>Loading games…</div>
+        : feedErr && !cards.length ? <div className={styles.empty}>Couldn't load the scoreboard: {feedErr}</div>
+        : !cards.length ? <div className={styles.empty}>No games on {fmtDate(day, { weekday: 'long', month: 'long', day: 'numeric' })}.</div>
+        : <>
+          <div className={styles.gGrid}>
+            {cards.map(c => <GameCard key={c.key} c={c} shots={shots}
+              onOpen={c.g ? () => openBox(c.g) : c.fg ? () => setPreview({ day, fg: c.fg }) : null} />)}
+          </div>
+
+          {scored.length > 0 && (
+            <div className={styles.boards}>
+              <Board title="Top performers" sub="Game Score" rows={boards.performers} shots={shots} onOpen={openBox}
+                val={({ p }) => p.gs.toFixed(1)} line={({ p }) => `${p.pts ?? 0} PTS · ${p.trb ?? 0} REB · ${p.ast ?? 0} AST`} delta />
+              <Board title="Elo risers" sub="Elo change" rows={boards.risers} shots={shots} onOpen={openBox}
+                val={({ p }) => sgn(p.post - p.pre)} valCls={styles.up} line={({ p }) => `${r0(p.pre)} → ${r0(p.post)} · ${p.gs.toFixed(1)} GmSc`} />
+              <Board title="Elo fallers" sub="Elo change" rows={boards.fallers} shots={shots} onOpen={openBox}
+                val={({ p }) => sgn(p.post - p.pre)} valCls={styles.down} line={({ p }) => `${r0(p.pre)} → ${r0(p.post)} · ${p.gs.toFixed(1)} GmSc`} />
+              <section className={styles.board}>
+                <header><h3>Biggest upsets · Games</h3><span>Winner's pre-game chance</span></header>
+                {boards.gameUpsets.length ? boards.gameUpsets.map(u => {
+                  const ongoing = u.g.live?.state === 'in', i = u.g.teams.indexOf(u.team)
+                  return (
+                    <button key={u.g.id} className={styles.bRow} onClick={() => openBox(u.g, u.team)}>
+                      <span className={styles.bLogo}><TeamMark t={u.team} size={30} /></span>
+                      <span className={styles.bWho}><b>{tShort(u.team)} {ongoing ? 'lead' : 'over'} {tShort(u.opp)}</b>
+                        <small>{u.g.pts[i]}-{u.g.pts[1 - i]}{ongoing ? ` · ${u.g.live.detail}` : ''}</small></span>
+                      <b className={styles.bVal}>{Math.round(u.chance * 100)}%</b>
+                    </button>
+                  )
+                }) : <p className={styles.bNone}>Every favorite {scored.some(g => g.live?.state === 'in') ? 'leads or won' : 'won'}.</p>}
+              </section>
+              <section className={styles.board}>
+                <header><h3>Biggest upsets · Players</h3><span>Pre-game duel chance</span></header>
+                {boards.duelUpsets.length ? boards.duelUpsets.map(u => (
+                  <button key={u.g.id + u.a.n + u.b.n} className={styles.bRow} onClick={() => openBox(u.g, u.a.t)}>
+                    <Headshot name={u.a.n} shots={shots} color={tColor(u.a.t)} />
+                    <span className={styles.bWho}><b>{shortName(u.a.n)} <i>over</i> {shortName(u.b.n)}</b>
+                      <small>{u.a.gs.toFixed(1)} vs {u.b.gs.toFixed(1)} GmSc · {r0(u.a.pre)} vs {r0(u.b.pre)} Elo</small></span>
+                    <b className={styles.bVal}>{Math.max(1, Math.round(u.chance * 100))}%</b>
+                  </button>
+                )) : <p className={styles.bNone}>No qualifying upsets yet.</p>}
+              </section>
+            </div>
+          )}
+          {unmatched.length > 0 && <p className={styles.unmatched} title="ESPN names with no match in the ratings. They're scored as new players at 1,500 until the pipeline links them.">
+            Rated as new players (no ratings match): {unmatched.join(', ')}</p>}
+        </>}
+
+      {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
+      {boxView && <BoxScore key={box.id} team={box.team} game={boxView} has={boxGame.live ? FULL_STATS : sd?.has} shots={shots} onCard={setCard} onClose={() => setBox(null)} />}
+      {cardRow && (
+        <PlayerCard name={card} row={cardRow} sd={cardSd}
+          game={{ id: boxView.id, date: boxView.date, home: cardRow.t === box.team ? boxView.home : boxView.home == null ? null : !boxView.home, oppAbbr: tCode(cardRow.t === box.team ? boxView.opp : box.team), players: boxView.players }}
+          team={{ name: tName(cardRow.t), color: tColor(cardRow.t), abbr: tCode(cardRow.t) }}
+          logo={logoUrl(cardRow.t)} headshot={shots?.[norm(card)]?.headshot}
+          career={CAREER.byName[card] || null} peakRank={CAREER.rank[card]} bestRank={CAREER.best[card]}
+          onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }}
+          onClose={() => setCard(null)} />
+      )}
+    </div>
+  )
+}
+
+const safeGame = (f, home, away, day) => { try { return f.game(home, away, day) } catch { return null } }
+
+function GameCard({ c, shots, onOpen }) {
+  const g = c.g, x = c.x
+  const home = g ? (g.home || g.teams[1]) : x.home
+  const away = g ? g.teams.find(t => t !== home) : x.away
+  const pts = g ? { [g.teams[0]]: g.pts[0], [g.teams[1]]: g.pts[1] } : { [x.home]: x.hs, [x.away]: x.as }
+  const started = c.state !== 'pre'
+  const lead = started && pts[home] !== pts[away] ? (pts[home] > pts[away] ? home : away) : null
+  const wp = g ? g.wp : c.fg ? { [home]: c.fg.pHome, [away]: c.fg.pAway } : null
+  const upset = lead && wp && wp[lead] < 0.5
+  const status = c.state === 'in' ? <span className={styles.liveTxt}><i className={styles.liveDot} />{(g?.live || x).detail}</span>
+    : c.state === 'pre' ? tipTime(x.tip) : `Final${(g || x).ot ? `/${(g || x).ot}` : ''}`
+  const top = g && [...g.players].sort((a, b) => b.gs - a.gs)[0]
+  const mover = g && [...g.players].sort((a, b) => Math.abs(b.post - b.pre) - Math.abs(a.post - a.pre))[0]
+  const best = side => side && [...side.rows].filter(r => !r.out).sort((a, b) => b.elo - a.elo)[0]
+  const tm = c.fg && [best(c.fg.away), best(c.fg.home)]
+  return (
+    <button type="button" className={`${styles.gCard} ${c.state === 'in' ? styles.gLive : ''}`} onClick={onOpen || undefined} disabled={!onOpen}>
+      <div className={styles.gHead}>
+        <span>{status}</span>
+        <span>{(g || x).post && <em className={styles.postTag}>Playoffs</em>}{upset && <em className={styles.upsetTag}>{c.state === 'in' ? 'Upset watch' : 'Upset'}</em>}</span>
+      </div>
+      {[away, home].map(t => (
+        <div key={t} className={`${styles.gTeam} ${lead && lead !== t ? styles.gTrail : ''}`}>
+          <TeamMark t={t} size={30} />
+          <span className={styles.gName}>{tShort(t)}{g && <small>{r0(g.elo[t].pre)} lineup Elo</small>}{!g && c.fg && <small>{r0((t === home ? c.fg.home : c.fg.away).rating)} forecast rating</small>}</span>
+          <b className={styles.gPts}>{started ? pts[t] ?? '–' : wp ? `${Math.round(wp[t] * 100)}%` : ''}</b>
+        </div>
+      ))}
+      {wp && <div className={styles.gWp}>
+        <div className={styles.gWpTrack}>
+          <span style={{ width: `${wp[away] * 100}%`, background: tColor(away) }} />
+          <span style={{ width: `${wp[home] * 100}%`, background: tColor(home) }} />
+        </div>
+        <small>{started ? `Pre-game Elo ${Math.round(wp[away] * 100)}–${Math.round(wp[home] * 100)}` : 'Elo forecast'}</small>
+      </div>}
+      <div className={styles.gFoot}>
+        {top ? <>
+          <span><Headshot name={top.n} shots={shots} color={tColor(top.t)} /><span><b>{shortName(top.n)}</b><small>{top.gs.toFixed(1)} GmSc · {top.pts ?? 0} PTS</small></span></span>
+          {mover && <span className={styles.gMove}><small>Biggest swing</small><b className={mover.post >= mover.pre ? styles.up : styles.down}>{shortName(mover.n)} {sgn(mover.post - mover.pre)}</b></span>}
+        </> : tm?.[0] && tm?.[1] ? <span className={styles.gMatch}><small>Top player matchup</small>
+          <b>{shortName(tm[0].name)} {r0(tm[0].elo)} <i>vs</i> {shortName(tm[1].name)} {r0(tm[1].elo)}</b></span>
+          : <span className={styles.muted}>{started ? 'Box score loading…' : 'Preview available once the forecast loads'}</span>}
+      </div>
+    </button>
+  )
+}
+
+function Board({ title, sub, rows, shots, onOpen, val, valCls, line, delta }) {
+  return (
+    <section className={styles.board}>
+      <header><h3>{title}</h3><span>{sub}</span></header>
+      {rows.map(({ p, g }, i) => (
+        <button key={g.id + p.n} className={styles.bRow} onClick={() => onOpen(g, p.t)}>
+          <em className={styles.bRank}>{i + 1}</em>
+          <Headshot name={p.n} shots={shots} color={tColor(p.t)} />
+          <span className={styles.bWho}><b>{shortName(p.n)} <small className={styles.bTeam}>{tCode(p.t)}{g.live?.state === 'in' ? ' · live' : ''}</small></b><small>{line({ p, g })}</small></span>
+          <span className={styles.bRight}><b className={`${styles.bVal} ${valCls || ''}`}>{val({ p, g })}</b>
+            {delta && <small className={p.post >= p.pre ? styles.up : styles.down}>{sgn(p.post - p.pre)} Elo</small>}</span>
+        </button>
+      ))}
+    </section>
   )
 }
