@@ -155,10 +155,6 @@ export function CardFront({ name, row, game, team, headshot }) {
           </div>
         </div>
         <div className={styles.nameOver}>
-          {moments.stamps.length > 0 && <div className={styles.stamps}>
-            {moments.stamps.slice(0, 2).map(m => <span key={m.text} className={m.up ? styles.stampUp : styles.stampDown}>{m.up ? '◆' : '▼'} {m.text}</span>)}
-            {moments.stamps.length > 2 && <span className={styles.stampMore} title={moments.stamps.slice(2).map(m => m.text).join(' · ')}>+{moments.stamps.length - 2}</span>}
-          </div>}
           <div className={styles.first}>{first}</div>
           <div ref={lastRef} className={styles.last}>{last}</div>
           <div className={styles.metaRow}>
@@ -177,6 +173,10 @@ export function CardFront({ name, row, game, team, headshot }) {
           <div><b>{row.ast ?? '—'}</b><small>AST</small></div>
           <div><b>{f1(row.gs)}</b><small>GmSc</small></div>
         </div>
+        {/* Milestones get their own line in the strip, so nothing covers the headshot */}
+        {moments.stamps.length > 0 && <div className={styles.msLine}>
+          {moments.stamps.map(m => <span key={m.text} className={m.up ? styles.msUp : styles.msDown}>{m.up ? '◆' : '▼'} {m.text}</span>)}
+        </div>}
         <div className={styles.stripElo}><small>Elo</small><b>{r0(row.post)}</b><em className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</em></div>
       </div>
     </div>

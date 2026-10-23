@@ -277,3 +277,14 @@
 .nameOver { bottom: 20px; }
 .scoreRow { margin-top: 6px; }
 .careerStamp { top: 47%; right: 10px; }
+
+/* Milestone line in the stat strip (M2) */
+.msLine { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 0; margin-top: 7px; font-size: 9px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; line-height: 1.35; text-align: center; }
+.msLine > span { white-space: nowrap; }
+.msLine i { font-style: normal; opacity: .4; padding: 0 8px; }
+.msUp { color: #e6edf6; }
+.msDown { color: #8d99a8; }
+/* Names stay left-aligned even when the card sits inside a button (binder pockets, sidebar) */
+.frame { text-align: left; }
+.msLine { gap: 3px 12px; font-size: 8.5px; letter-spacing: .7px; }
+.strip > .msLine { flex-direction: row; align-items: baseline; }
