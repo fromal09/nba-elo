@@ -432,7 +432,7 @@ def build_elo(df):
             df = df.loc[~covered].copy()
 
     # Deduplicate
-    df = df.sort_values("Date")
+    df = df.sort_values("Date", kind="mergesort")  # stable: identical output on every machine
     df = df.drop_duplicates(subset=["Player", "game_id"], keep="last")
     df = df.reset_index(drop=True)
     season_explorer.bind(df)
@@ -465,7 +465,7 @@ def build_elo(df):
             games_played[player] = 0
             peak_elo[player]     = 1500
 
-    game_order  = df.drop_duplicates("game_id").sort_values("Date")["game_id"].tolist()
+    game_order  = df.drop_duplicates("game_id").sort_values(["Date", "game_id"], kind="mergesort")["game_id"].tolist()
     game_groups = {gid: grp for gid, grp in df.groupby("game_id")}
 
     for game_id in game_order:
