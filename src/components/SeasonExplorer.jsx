@@ -875,7 +875,8 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
           {STAT_VIEWS.map(v => (
             <button key={v.id} type="button" role="tab" aria-selected={stat === v.id} className={stat === v.id ? styles.statOn : ''} onClick={() => setStat(v.id)}>{v.label}</button>
           ))}
-        </span></div>
+        </span>
+        <EloHelpButton /></div>
       {stat === 'elo' && <div className={styles.eloNote}>
         <span className={styles.boxLegend}><i className={styles.legExp} />Duels Elo expected<i className={styles.legWon} />Duels won</span>
         <span>Every player duels the other {n} on Game Score. <b>Best win</b> and <b>costliest loss</b> are the single duels that moved his Elo most.</span>
@@ -913,6 +914,107 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+// ── "How Elo works" pop-up: Short / Full explanation and a glossary ─────────
+function EloHelpButton() {
+  const [open, setOpen] = useState(false)
+  return <>
+    <button type="button" className={styles.helpBtn} onClick={() => setOpen(true)} aria-label="How FPR Elo works" title="How FPR Elo works">?</button>
+    {open && <EloHelp onClose={() => setOpen(false)} />}
+  </>
+}
+
+const GLOSSARY = [
+  ['Ratings', [
+    ['Current Elo', 'A player’s rating after this game.'],
+    ['Pregame Elo', 'His rating going into it.'],
+    ['Elo Δ', 'The change from this game: the sum of all his duels.'],
+    ['Peak Elo', 'His highest rating ever. Season peak is his highest this season.'],
+    ['Avg Elo', 'His average rating across every game of his career.'],
+    ['Player Rank', 'League rank by Elo after this game, among qualified players. (▲3) means he moved up three spots.'],
+    ['Qualified', 'A player whose most recent game falls within his team’s last 20 games. Retired and long-inactive players drop out of the rankings.'],
+    ['Top 100', 'The 100 highest-rated qualified players right now.'],
+    ['Card tiers', 'Set by rank going into the game: GOAT 1–5, Icon 6–20, Legend 21–50, Rare 51–125, Common everyone else.'],
+  ]],
+  ['Duels', [
+    ['Duel', 'One head-to-head between two players in a game, won by the higher Game Score.'],
+    ['Duel win chance', 'The pre-game odds of winning a duel, set by the two players’ Elo.'],
+    ['Duels: expected → won', 'The hollow circle is how many duels his rating predicted he’d win; the solid dot is how many he won.'],
+    ['Teammate / Opponent duels', 'His duel record against his own team and against the other team.'],
+    ['Best win / Costliest loss', 'The single duels that added and cost him the most Elo.'],
+    ['Duel %', 'Share of duels won over the season.'],
+    ['Giant Killer', 'The game’s least likely duel win by a player with real minutes.'],
+    ['Upset', 'A win by the side with less than a 50% pre-game chance, whether a team or a player in a duel.'],
+  ]],
+  ['Teams and forecasts', [
+    ['Lineup Elo', 'The average Elo of the players who played, weighted by minutes.'],
+    ['Roster Elo', 'The average current Elo of the team’s eight players with the most minutes.'],
+    ['Pre-game win chance', 'The odds from the two lineups’ Elo plus home court, worth about 44 Elo points since 2020.'],
+    ['Forecast rating', 'For games not yet played: a blend of rotation-weighted Elo (recent minutes, injured players removed) and the top-8 roster average. The rotation gets more weight as the season goes on.'],
+    ['Proj W-L', 'Current record plus the win chances of every remaining game.'],
+    ['Provisional Elo', 'Live or just-finished games scored from ESPN’s box score. Official once the nightly update processes the game.'],
+  ]],
+  ['Box score stats', [
+    ['Game Score', 'John Hollinger’s one-number summary of a box score, and the stat every duel is decided on. The formula is on the Methodology page.'],
+    ['eFG%', 'Field goal percentage with threes worth 1.5 makes: (FG + 0.5 × 3PM) ÷ FGA.'],
+    ['TS%', 'Scoring efficiency including free throws: PTS ÷ (2 × (FGA + 0.44 × FTA)).'],
+  ]],
+]
+
+function EloHelp({ onClose }) {
+  const [tab, setTab] = useState('short')
+  useEffect(() => {
+    // Capture Escape first so it closes this pop-up, not the box score underneath
+    const k = e => { if (e.key === 'Escape') { e.stopImmediatePropagation(); onClose() } }
+    addEventListener('keydown', k, true)
+    return () => removeEventListener('keydown', k, true)
+  }, [onClose])
+  return (
+    <div className={styles.helpOverlay} onClick={e => { e.stopPropagation(); onClose() }}>
+      <div className={styles.helpBox} role="dialog" aria-modal="true" aria-label="How FPR Elo works" onClick={e => e.stopPropagation()}>
+        <div className={styles.helpHead}>
+          <h3>How FPR Elo works</h3>
+          <button type="button" className={styles.helpClose} onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div className={styles.helpTabs} role="tablist">
+          {[['short', 'Short'], ['full', 'Full'], ['glossary', 'Glossary']].map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? styles.helpOn : ''} onClick={() => setTab(id)}>{label}</button>
+          ))}
+        </div>
+        <div className={styles.helpBody}>
+          {tab === 'short' && <p>
+            <b>FPR Elo turns every game into a round robin.</b> Each player is matched against everyone else who played, on both teams,
+            and wins a duel by posting the higher Game Score. Before tipoff, the ratings set how likely he was to win each duel. Beat those
+            odds and he gains Elo; fall short and he loses it. Upsets pay the most, wins he was expected to get pay little, and a wider
+            winning margin adds a bit more.
+          </p>}
+          {tab === 'full' && <>
+            <p><b>Every game is a round robin.</b> Each player who sees the floor is matched against every other player in the game, teammates
+              and opponents alike. Each pairing is a duel, and the higher Game Score wins it. In a 20-player game, everyone has 19 duels.</p>
+            <p><b>Each duel has an expected winner.</b> The two players’ ratings set the odds before tipoff. Equal ratings make it 50/50;
+              a 200-point edge makes it about 68/32; a 500-point edge about 86/14.</p>
+            <p><b>Surprises move ratings; expected results barely do.</b> An 86% favorite who wins gains only a little, because he did what
+              his rating said he would. If he loses, he gives back a lot. An underdog who wins that same duel gains about six times what the
+              favorite would have. That’s why a role player can gain Elo on a quiet 10-point night while a star with 25 points loses some:
+              the star was expected to beat almost everyone, and didn’t.</p>
+            <p><b>Margin adds a little.</b> Winning a duel by 15 Game Score points counts more than winning by 1, with diminishing returns.
+              A lopsided duel is worth about twice a coin-flip one, and no more.</p>
+            <p><b>Newer players move faster.</b> A player’s first 100 games carry more weight per duel, so new players find their level
+              quickly and veterans’ ratings stay steady.</p>
+            <p><b>Reading the box score:</b> Elo Δ is the sum of every duel in the game. On the duel graphic, the hollow circle is how many
+              duels his rating expected him to win, and the solid dot is how many he won.</p>
+          </>}
+          {tab === 'glossary' && GLOSSARY.map(([group, items]) => (
+            <section key={group} className={styles.glossGroup}>
+              <h4>{group}</h4>
+              <dl>{items.map(([term, def]) => <Fragment key={term}><dt>{term}</dt><dd>{def}</dd></Fragment>)}</dl>
+            </section>
+          ))}
+        </div>
       </div>
     </div>
   )

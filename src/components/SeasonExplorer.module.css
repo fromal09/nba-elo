@@ -508,3 +508,25 @@
 /* Name and rank columns hug their content; the stat columns share the rest of the width */
 .box th.sticky, .box td.sticky { width: 1%; white-space: nowrap; padding-right: 18px; }
 .box th.rankHead, .box td.rankCell { width: 1%; white-space: nowrap; text-align: center; padding-left: 16px; padding-right: 16px; }
+
+/* "How FPR Elo works" pop-up */
+.helpBtn { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.7); background: transparent; color: #fff; font: inherit; font-size: 13px; font-weight: 800; line-height: 1; cursor: pointer; flex-shrink: 0; margin-left: 2px; }
+.helpBtn:hover { background: #fff; color: #1d2633; }
+.helpOverlay { font-weight: 400; font-size: 14px; text-align: left; letter-spacing: 0; text-transform: none; position: fixed; inset: 0; z-index: 1300; background: rgba(8,20,36,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.helpBox { background: #fff; border-radius: 12px; width: min(640px, 100%); max-height: min(80vh, 720px); display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(0,0,0,.35); overflow: hidden; color: #1d2633; }
+.helpHead { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 10px; }
+.helpHead h3 { font-size: 18px; font-weight: 800; letter-spacing: -.2px; }
+.helpClose { border: 0; background: #eef1f4; width: 30px; height: 30px; border-radius: 50%; font-size: 18px; line-height: 1; color: #4a5560; cursor: pointer; }
+.helpClose:hover { background: #dfe4ea; }
+.helpTabs { display: flex; gap: 4px; padding: 0 20px 12px; border-bottom: 1px solid #eceff3; }
+.helpTabs button { border: 1px solid #d8dde3; background: #fff; padding: 6px 14px; border-radius: 16px; font: inherit; font-size: 13px; font-weight: 700; color: #4a5560; cursor: pointer; }
+.helpTabs button.helpOn { background: #173657; border-color: #173657; color: #fff; }
+.helpBody { padding: 16px 20px 22px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #2a2f36; }
+.helpBody p + p { margin-top: 12px; }
+.helpBody b { color: #173657; }
+.glossGroup + .glossGroup { margin-top: 18px; }
+.glossGroup h4 { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.3px; color: #6896bd; margin-bottom: 8px; }
+.glossGroup dl { display: grid; grid-template-columns: 168px 1fr; gap: 7px 16px; }
+.glossGroup dt { font-weight: 800; color: #173657; font-size: 13.5px; }
+.glossGroup dd { margin: 0; font-size: 13.5px; color: #3a434e; }
+@media (max-width: 560px) { .glossGroup dl { grid-template-columns: 1fr; gap: 2px; } .glossGroup dd { margin-bottom: 8px; } }
