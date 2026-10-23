@@ -1,0 +1,30 @@
+# GitHub turns off scheduled workflows in a repo with no commits for 60 days. In the offseason the
+# nightly job has nothing to commit, so this makes a small commit once a month when the repo is quiet.
+name: Keepalive
+
+on:
+  schedule:
+    - cron: '17 12 1 * *'   # the 1st of each month
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Commit if the repo has been quiet for 30 days
+        run: |
+          last=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          days=$(( (now - last) / 86400 ))
+          echo "Last commit was $days days ago"
+          if [ "$days" -lt 30 ]; then exit 0; fi
+          date -u +%Y-%m-%dT%H:%M:%SZ > .github/keepalive
+          git config user.name "fpr-nightly"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/keepalive
+          git commit -m "chore: keepalive"
+          git push
