@@ -71,20 +71,102 @@ function EloChart({ path, peakAt, at, color, H = 92, ends }) {
   )
 }
 
+const fmtDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()
+
+/**
+ * The card front, specific to one game: date and opponent, result, the game line and Elo.
+ * Used by the full card and, scaled down, by the season binder.
+ * game: { date, home, oppAbbr, oppLogo, oppColor, won, score, ot, playoff (label or null) }
+ */
+export function CardFront({ name, row, game, team, headshot }) {
+  const [imgBad, setImgBad] = useState(false)
+  const lastRef = useRef(null)
+  const rank = row.lrp ?? row.lr ?? null
+  const move = row.lrp != null && row.lr != null ? row.lr - row.lrp : null
+  const [first, ...rest] = baseName(name).split(' ')
+  const last = rest.join(' ') || first
+  const d = row.post - row.pre
+  const where = game.home === false ? '@' : game.home === true ? 'vs' : 'vs'
+  useLayoutEffect(() => {
+    const el = lastRef.current; if (!el) return
+    // Measure the text itself (scrollWidth rounds, which let italic overhang trigger the ellipsis);
+    // divide out any scale transform so binder minis fit the same way
+    const textW = () => {
+      const r = document.createRange(); r.selectNodeContents(el)
+      const k = el.getBoundingClientRect().width / (el.offsetWidth || 1) || 1
+      return r.getBoundingClientRect().width / k
+    }
+    const fit = () => { let s = 70; el.style.fontSize = s + 'px'; while (textW() > el.clientWidth - 4 && s > 22) el.style.fontSize = --s + 'px' }
+    fit(); document.fonts?.ready.then(fit)
+  }, [name])
+  return (
+    <div className={styles.frame}>
+      <div className={styles.photo}>
+        <div className={styles.photoBg} />
+        {/* foil sits behind the player so the headshot stays crisp */}
+        <div className={styles.holo} /><div className={styles.glitter} /><div className={styles.shine} />
+        <span className={styles.bigNum}>{r0(row.post)}</span>
+        {headshot && !imgBad
+          ? <img className={styles.shot} src={headshot} alt={baseName(name)} onError={() => setImgBad(true)} />
+          : <span className={styles.mono}>{first[0]}{last[0]}</span>}
+        <div className={styles.fade} />
+        {game.playoff && <div className={styles.poBand}><span>Playoffs</span><i>·</i><span>{game.playoff}</span></div>}
+        {rank != null && <div className={styles.medal}>
+          <span>Elo rank</span><b>#{rank}</b>
+          {!!move && <i className={move > 0 ? styles.medalUp : styles.medalDown}>
+            {move > 0 ? `▲ ${move}` : `▼ ${-move}`}</i>}
+        </div>}
+        <div className={styles.gameTag}>
+          <div className={styles.gameWhen}><b>{fmtDay(game.date)}</b><span>{where} {game.oppAbbr}</span></div>
+          <OppMark game={game} />
+        </div>
+        <div className={styles.nameOver}>
+          <div className={styles.first}>{first}</div>
+          <div ref={lastRef} className={styles.last}>{last}</div>
+          <div className={styles.metaRow}>
+            <span className={styles.meta}>{[row.pos, team?.name].filter(Boolean).join(' · ')}</span>
+            {game.score && <span className={game.won ? styles.resW : styles.resL}>{game.won ? 'W' : 'L'} {game.score}{game.ot ? ` ${game.ot}` : ''}</span>}
+          </div>
+        </div>
+      </div>
+      <div className={styles.strip}>
+        <div className={styles.stripStats}>
+          <div><b>{row.pts ?? '—'}</b><small>PTS</small></div>
+          <div><b>{row.trb ?? '—'}</b><small>REB</small></div>
+          <div><b>{row.ast ?? '—'}</b><small>AST</small></div>
+          <div><b>{f1(row.gs)}</b><small>GmSc</small></div>
+        </div>
+        <div className={styles.stripElo}><small>Elo</small><b>{r0(row.post)}</b><em className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</em></div>
+      </div>
+    </div>
+  )
+}
+
+// A static card front at full size (340 × 476), for the season binder to scale into a pocket
+export function MiniCard({ name, row, game, team, headshot }) {
+  return (
+    <div className={`${styles.card} ${styles.miniCard}`} data-tier={tierFor(row.lr).id} data-po={game.playoff ? '' : undefined} style={{ '--tc': team?.color || '#173657' }}>
+      <div className={`${styles.face} ${styles.front}`}><CardFront name={name} row={row} game={game} team={team} headshot={headshot} /></div>
+    </div>
+  )
+}
+
+function OppMark({ game }) {
+  const [bad, setBad] = useState(false)
+  return game.oppLogo && !bad
+    ? <img className={styles.oppLogo} src={game.oppLogo} alt={game.oppAbbr} onError={() => setBad(true)} />
+    : <span className={styles.oppMark} style={{ '--oc': game.oppColor || '#173657' }}>{game.oppAbbr}</span>
+}
+
 /**
  * props: name, row (this game's box-score row), game, sd (season data), team (info: name, color, code),
  *        logo (url|null), headshot (url|null), career (elo.json player|null), peakRank, onProfile, onClose
  */
-export default function PlayerCard({ name, row, game, sd, team, logo, headshot, career, peakRank, bestRank, onProfile, onClose }) {
+export default function PlayerCard({ name, row, game, sd, team, logo, headshot, career, peakRank, bestRank, onProfile, onClose, onBinder }) {
   const [flipped, setFlipped] = useState(false)
-  const [imgBad, setImgBad] = useState(false)
   const ref = useRef(null)
-  const lastRef = useRef(null)
   const backNameRef = useRef(null)
   const tier = tierFor(row.lr)
-  // Elo rank after this game (falls back to the pre-game rank on older data) and how far it moved
-  const rank = row.lrp ?? row.lr ?? null
-  const move = row.lrp != null && row.lr != null ? row.lr - row.lrp : null
   const season = useMemo(() => seasonLine(sd, name, game.id), [sd, name, game.id])
   const avgElo = useMemo(() => {
     const h = career?.elo_history; return h?.length ? h.reduce((s, e) => s + e[1], 0) / h.length : null
@@ -98,16 +180,13 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
     const yr = d => d.slice(0, 4)
     return { path, peakAt: path.indexOf(peak), at: gi >= 0 ? gi + 1 : 0, ends: [yr(h[0][0]), yr(h[h.length - 1][0])] }
   }, [career, game.date])
-  const [first, ...rest] = baseName(name).split(' ')
-  const last = rest.join(' ') || first
   const color = team?.color || '#173657'
   const d = row.post - row.pre
 
-  // Shrink long last names to fit the plate
+  // Shrink long names to fit the back header
   useLayoutEffect(() => {
-    const el = lastRef.current; if (!el) return
-    const fitEl = (e, max, min) => { if (!e) return; let s = max; e.style.fontSize = s + 'px'; while (e.scrollWidth > e.clientWidth && s > min) e.style.fontSize = --s + 'px' }
-    const fit = () => { fitEl(el, 70, 22); fitEl(backNameRef.current, 24, 14) }
+    const el = backNameRef.current; if (!el) return
+    const fit = () => { let s = 24; el.style.fontSize = s + 'px'; while (el.scrollWidth > el.clientWidth && s > 14) el.style.fontSize = --s + 'px' }
     fit(); document.fonts?.ready.then(fit)
   }, [name])
 
@@ -137,42 +216,12 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.stage} onClick={e => e.stopPropagation()}>
-        <div ref={ref} className={`${styles.card} ${flipped ? styles.flipped : ''}`} data-tier={tier.id}
+        <div ref={ref} className={`${styles.card} ${flipped ? styles.flipped : ''}`} data-tier={tier.id} data-po={game.playoff ? '' : undefined}
           style={{ '--tc': color }} onPointerMove={tilt} onPointerLeave={untilt}>
           <div className={styles.tilt}><div className={styles.flip} onClick={e => { if (!e.target.closest('button')) setFlipped(f => !f) }}>
             {/* ── Front ── */}
             <div className={`${styles.face} ${styles.front}`}>
-              <div className={styles.frame}>
-                <div className={styles.photo}>
-                  <div className={styles.photoBg} />
-                  {/* foil sits behind the player so the headshot stays crisp */}
-                  <div className={styles.holo} /><div className={styles.glitter} /><div className={styles.shine} />
-                  <span className={styles.bigNum}>{r0(row.post)}</span>
-                  {headshot && !imgBad
-                    ? <img className={styles.shot} src={headshot} alt={baseName(name)} onError={() => setImgBad(true)} />
-                    : <span className={styles.mono}>{first[0]}{last[0]}</span>}
-                  <div className={styles.fade} />
-                  {rank != null && <div className={styles.medal}>
-                    <span>Elo rank</span><b>#{rank}</b>
-                    {!!move && <i className={move > 0 ? styles.medalUp : styles.medalDown}>
-                      {move > 0 ? `▲ ${move}` : `▼ ${-move}`}</i>}
-                  </div>}
-                  <span className={styles.season}>{sd.season}</span>
-                  {logo
-                    ? <img className={styles.logo} src={logo} alt="" />
-                    : <span className={styles.logoMark}>{team?.abbr}</span>}
-                  <div className={styles.nameOver}>
-                    <div className={styles.first}>{first}</div>
-                    <div ref={lastRef} className={styles.last}>{last}</div>
-                    <div className={styles.meta}>{[row.pos, team?.name].filter(Boolean).join(' · ')}</div>
-                  </div>
-                </div>
-                <div className={styles.strip}>
-                  <div><small>Elo</small><b>{r0(row.post)}</b><em className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</em></div>
-                  <div><small>Season peak</small><b>{r0(season?.peak)}</b></div>
-                  <div><small>All-time peak</small><b>{r0(career?.peak_elo)}</b>{peakRank && <em>#{peakRank.toLocaleString()}</em>}</div>
-                </div>
-              </div>
+              <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />
               <FlipBtn />
             </div>
 
@@ -226,7 +275,8 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
             </div>
           </div></div>
         </div>
-        <div className={styles.hint}>Click the card or ↻ to flip · Esc to close</div>
+        <div className={styles.hint}>Click the card or ↻ to flip · Esc to close
+          {onBinder && <button type="button" className={styles.binderBtn} onClick={onBinder}>Open {sd.season} binder</button>}</div>
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
-import PlayerCard, { tierFor } from './PlayerCard'
+import PlayerCard, { MiniCard, tierFor } from './PlayerCard'
 import { buildForecaster, blendWeight } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
 
@@ -409,8 +409,9 @@ function TeamPanel({ team, sd, shots, selectPlayer, fc, goDay }) {
   const [box, setBox] = useState(null)
   const [preview, setPreview] = useState(null)
   const [card, setCard] = useState(null) // player name, from a box-score click
+  const [binder, setBinder] = useState(null) // player name
   const games = useMemo(() => teamGames(sd, team), [sd, team])
-  const cardRow = card && box?.players.find(p => p.n === card)
+  const rawBox = box && sd.games.find(g => g.id === box.id)
 
   return (
     <div className={styles.panel} style={{ '--tc': tColor(team) }}>
@@ -423,15 +424,11 @@ function TeamPanel({ team, sd, shots, selectPlayer, fc, goDay }) {
         : <Progression team={team} games={games} selectPlayer={selectPlayer} />}
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
       {box && <BoxScore team={team} game={box} has={sd.has} shots={shots} onCard={setCard} onClose={() => setBox(null)} />}
-      {cardRow && (
-        <PlayerCard name={card} row={cardRow} sd={sd}
-          game={{ id: box.id, date: box.date, home: cardRow.t === team ? box.home : box.home == null ? null : !box.home, oppAbbr: tCode(cardRow.t === team ? box.opp : team), players: box.players }}
-          team={{ name: tName(cardRow.t), color: tColor(cardRow.t), abbr: tCode(cardRow.t) }}
-          logo={logoUrl(cardRow.t)} headshot={shots?.[norm(card)]?.headshot}
-          career={CAREER.byName[card] || null} peakRank={CAREER.rank[card]} bestRank={CAREER.best[card]}
-          onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }}
-          onClose={() => setCard(null)} />
-      )}
+      {card && rawBox && <SeasonCard name={card} g={rawBox} sd={sd} shots={shots}
+        onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }} onClose={() => setCard(null)}
+        onBinder={() => { setBinder(card); setCard(null) }} />}
+      {binder && <Binder name={binder} sd={sd} shots={shots} onClose={() => setBinder(null)}
+        onProfile={n => { setBinder(null); setBox(null); selectPlayer(n) }} />}
     </div>
   )
 }
@@ -1298,6 +1295,7 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
   const [feedErr, setFeedErr] = useState(null)
   const [box, setBox] = useState(null)        // { id, team }
   const [card, setCard] = useState(null)      // { id: game id, name }
+  const [binder, setBinder] = useState(null)  // { name, sd }
   const [preview, setPreview] = useState(null)
   const sdOk = sd && (sd.season === seasonFor(day) || (sd.season === index.seasons[0]?.season && seasonFor(day) > sd.season))
   const sy = +seasonFor(day).slice(0, 4)
@@ -1436,15 +1434,11 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
       {boxView && <BoxScore key={box.id} team={box.team} game={boxView} has={boxGame.live ? FULL_STATS : sd?.has} shots={shots}
         onCard={n => setCard({ id: box.id, name: n })} onClose={() => setBox(null)} />}
-      {cardView && (
-        <PlayerCard name={card.name} row={cardRow} sd={cardSd}
-          game={{ id: cardView.id, date: cardView.date, home: cardView.home, oppAbbr: tCode(cardView.opp), players: cardView.players }}
-          team={{ name: tName(cardRow.t), color: tColor(cardRow.t), abbr: tCode(cardRow.t) }}
-          logo={logoUrl(cardRow.t)} headshot={shots?.[norm(card.name)]?.headshot}
-          career={CAREER.byName[card.name] || null} peakRank={CAREER.rank[card.name]} bestRank={CAREER.best[card.name]}
-          onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }}
-          onClose={() => setCard(null)} />
-      )}
+      {cardView && <SeasonCard name={card.name} g={cardGame} sd={cardSd} shots={shots}
+        onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }} onClose={() => setCard(null)}
+        onBinder={() => { setBinder({ name: card.name, sd: cardSd }); setCard(null) }} />}
+      {binder && <Binder name={binder.name} sd={binder.sd} shots={shots} onClose={() => setBinder(null)}
+        onProfile={n => { setBinder(null); setBox(null); selectPlayer(n) }} />}
     </div>
   )
 }
@@ -1554,5 +1548,174 @@ function PerfTable({ rows, shots, onOpen }) {
         </table>
       </div>
     </section>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Game cards: what a card front needs to know about its game, the card modal, and the season binder
+
+// Postseason label from a team's point of view: "R2 · G5", "Finals · G3", or "Play-In"
+function postLabel(sd, g, t) {
+  const o = g.teams.find(x => x !== t)
+  const post = sd.games.filter(x => x.post && x.teams.includes(t)).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+  const start = sd.games.find(x => x.post)?.date || g.date
+  const opps = []
+  post.forEach(x => { const oo = x.teams.find(y => y !== t); if (!opps.includes(oo)) opps.push(oo) })
+  const series = oo => post.filter(x => x.teams.includes(oo))
+  const days = (a, b) => (new Date(b) - new Date(a)) / 864e5
+  // Play-in: a one-game series in the first days of the postseason
+  const playIn = oo => { const ss = series(oo); return ss.length === 1 && days(start, ss[0].date) <= 6 }
+  if (playIn(o)) return 'Play-In'
+  const rounds = opps.filter(oo => !playIn(oo))
+  const r = rounds.indexOf(o) + 1
+  const k = series(o).findIndex(x => x.id === g.id) + 1
+  // The Finals: the series that holds the season's last game
+  const lastPost = sd.games.reduce((m, x) => (x.post && x.date > m ? x.date : m), '')
+  const finals = series(o).some(x => x.date === lastPost)
+  return `${finals ? 'Finals' : `R${r}`} · G${k}`
+}
+
+function cardGameInfo(g, t, sd) {
+  const i = g.teams.indexOf(t), o = g.teams[1 - i]
+  return {
+    id: g.id, date: g.date, home: g.home == null ? null : g.home === t, oppAbbr: tCode(o), oppLogo: logoUrl(o), oppColor: tColor(o),
+    won: g.pts[i] > g.pts[1 - i], score: `${g.pts[i]}–${g.pts[1 - i]}`, ot: g.ot || '',
+    playoff: g.post ? postLabel(sd, g, t) : null, players: g.players,
+  }
+}
+
+function SeasonCard({ name, g, sd, shots, onProfile, onClose, onBinder }) {
+  const row = g.players.find(p => p.n === name)
+  if (!row) return null
+  return (
+    <PlayerCard name={name} row={row} sd={sd} game={cardGameInfo(g, row.t, sd)}
+      team={{ name: tName(row.t), color: tColor(row.t), abbr: tCode(row.t) }}
+      logo={logoUrl(row.t)} headshot={shots?.[norm(name)]?.headshot}
+      career={CAREER.byName[name] || null} peakRank={CAREER.rank[name]} bestRank={CAREER.best[name]}
+      onProfile={onProfile} onClose={onClose} onBinder={onBinder} />
+  )
+}
+
+// A player's season as a binder sheet of nine pockets. Pull a card to see it full size.
+function Binder({ name, sd, shots, onClose, onProfile }) {
+  const [order, setOrder] = useState('chrono') // 'chrono' | 'best' (Elo gain)
+  const [sheet, setSheet] = useState(0)
+  const [dir, setDir] = useState(1)
+  const [pulled, setPulled] = useState(null) // game id
+  const entries = useMemo(() => {
+    const list = []
+    let reg = 0
+    const games = [...sd.games].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+    for (const g of games) {
+      const p = g.players.find(x => x.n === name)
+      if (!p) continue
+      if (!g.post) reg++
+      const info = cardGameInfo(g, p.t, sd)
+      list.push({ g, p, info, label: g.post ? info.playoff : `G${reg}` })
+    }
+    return list
+  }, [name, sd])
+  const sorted = useMemo(() => order === 'chrono' ? entries
+    : [...entries].sort((a, b) => (b.p.post - b.p.pre) - (a.p.post - a.p.pre)), [entries, order])
+  const sheets = Math.max(1, Math.ceil(sorted.length / 9))
+  const cur = Math.min(sheet, sheets - 1)
+  const page = sorted.slice(cur * 9, cur * 9 + 9)
+  const regN = entries.filter(e => !e.g.post).length, poN = entries.length - regN
+  const go = k => { const n = Math.max(0, Math.min(sheets - 1, cur + k)); if (n !== cur) { setDir(k); setSheet(n) } }
+
+  useEffect(() => {
+    const k = e => {
+      if (pulled) return // the open card handles its own keys
+      if (e.key === 'Escape') { e.stopImmediatePropagation(); onClose() }
+      else if (e.key === 'ArrowRight') go(1)
+      else if (e.key === 'ArrowLeft') go(-1)
+    }
+    addEventListener('keydown', k, true)
+    return () => removeEventListener('keydown', k, true)
+  })
+  useEffect(() => { document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = '' } }, [])
+  // Swipe between sheets on touch screens
+  const touch = useRef(null)
+  // Cards are drawn at full size and scaled to the pocket width
+  const gridRef = useRef(null)
+  const [scale, setScale] = useState(0.5)
+  useEffect(() => {
+    const el = gridRef.current; if (!el) return
+    const fit = () => { const cell = el.querySelector('button, div'); if (cell) setScale((cell.clientWidth * 0.92) / 340) }
+    fit()
+    const ro = new ResizeObserver(fit); ro.observe(el)
+    return () => ro.disconnect()
+  }, [cur, order])
+  const pulledEntry = pulled && entries.find(e => e.g.id === pulled)
+  const tc = tColor(entries[entries.length - 1]?.p.t || '')
+
+  return (
+    <div className={styles.binderOverlay} onClick={onClose}>
+      <div className={styles.binder} onClick={e => e.stopPropagation()} style={{ '--tc': tc }}>
+        <div className={styles.binderHead}>
+          <div>
+            <div className={styles.kicker}>Season binder</div>
+            <h2>{name.replace(/\s*\(.*\)$/, '')} <span>{sd.season}</span></h2>
+            <p>{entries.length} game card{entries.length === 1 ? '' : 's'}{poN ? ` · ${regN} regular season · ${poN} playoffs` : ''}</p>
+          </div>
+          <div className={styles.binderCtl}>
+            <div className={styles.binderSort} role="tablist" aria-label="Card order">
+              <button type="button" role="tab" aria-selected={order === 'chrono'} className={order === 'chrono' ? styles.sortOn : ''} onClick={() => { setOrder('chrono'); setSheet(0) }}>Chronological</button>
+              <button type="button" role="tab" aria-selected={order === 'best'} className={order === 'best' ? styles.sortOn : ''} onClick={() => { setOrder('best'); setSheet(0) }}>Best → worst</button>
+            </div>
+            <div className={styles.binderPager}>
+              <button type="button" aria-label="Previous sheet" disabled={cur === 0} onClick={() => go(-1)}>‹</button>
+              <div><b>Sheet {cur + 1} of {sheets}</b><span>{order === 'chrono' ? `Games ${cur * 9 + 1}–${cur * 9 + page.length}` : `Cards ${cur * 9 + 1}–${cur * 9 + page.length} by Elo gain`}</span></div>
+              <button type="button" aria-label="Next sheet" disabled={cur === sheets - 1} onClick={() => go(1)}>›</button>
+            </div>
+            <button type="button" className={styles.binderClose} onClick={onClose} aria-label="Close binder">×</button>
+          </div>
+        </div>
+
+        <div className={styles.binderBody}
+          onTouchStart={e => { touch.current = e.touches[0].clientX }}
+          onTouchEnd={e => { if (touch.current == null) return; const dx = e.changedTouches[0].clientX - touch.current; if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1); touch.current = null }}>
+          <div key={`${order}-${cur}`} className={`${styles.sheet} ${dir > 0 ? styles.turnNext : styles.turnPrev}`}>
+            <span className={styles.ring} style={{ top: '14%' }} /><span className={styles.ring} style={{ top: '49%' }} /><span className={styles.ring} style={{ top: '84%' }} />
+            <div ref={gridRef} className={styles.pockets} style={{ '--s': scale }}>
+              {page.map(e => {
+                const isOut = pulled === e.g.id
+                return (
+                  <div key={e.g.id} className={styles.pocketCell}>
+                    <button type="button" className={`${styles.pocket} ${e.g.post ? styles.pocketPo : ''}`} disabled={isOut}
+                      aria-label={`${e.label}, ${e.info.oppAbbr}: open card`} onClick={() => setPulled(e.g.id)}>
+                      {isOut ? <span className={styles.pulledOut}><b>Pulled out</b><small>Close the card to put it back</small></span>
+                        : <span className={styles.mini}>
+                          <MiniCard name={name} row={e.p} game={e.info} team={{ name: tName(e.p.t), color: tColor(e.p.t), abbr: tCode(e.p.t) }} headshot={shots?.[norm(name)]?.headshot} />
+                        </span>}
+                      <span className={styles.glare} />
+                    </button>
+                    <div className={`${styles.pocketLab} ${e.g.post ? styles.pocketLabPo : ''}`}>
+                      <span>{e.label} · {fmtDate(e.g.date, { month: 'short', day: 'numeric' })}</span>
+                      <span>{e.info.won ? 'W' : 'L'} {e.info.score}</span>
+                    </div>
+                  </div>
+                )
+              })}
+              {Array.from({ length: 9 - page.length }, (_, i) => <div key={`empty${i}`} className={styles.pocketCell}><div className={`${styles.pocket} ${styles.pocketEmpty}`} /></div>)}
+            </div>
+          </div>
+          <div className={styles.binderFoot}>
+            <span><i className={styles.keyReg} />Regular season</span>
+            {poN > 0 && <span><i className={styles.keyPo} />Playoffs</span>}
+            <span className={styles.binderDots} aria-hidden="true">
+              {Array.from({ length: sheets }, (_, i) => {
+                const hasPo = sorted.slice(i * 9, i * 9 + 9).some(e => e.g.post)
+                return <i key={i} className={`${i === cur ? styles.dotOn : ''} ${hasPo ? styles.dotPo : ''}`} onClick={() => { setDir(i > cur ? 1 : -1); setSheet(i) }} />
+              })}
+            </span>
+            <span className={styles.muted}>← → to turn sheets · click a card to pull it out</span>
+          </div>
+        </div>
+      </div>
+      {pulledEntry && <div onClick={e => e.stopPropagation()}>
+        <SeasonCard name={name} g={pulledEntry.g} sd={sd} shots={shots} onProfile={onProfile} onClose={() => setPulled(null)} />
+      </div>}
+    </div>
   )
 }

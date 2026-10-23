@@ -190,3 +190,38 @@
 .front .plate { display: none; }
 .front .strip { border-top: 2px solid var(--tier); padding-top: 9px; }
 .frame .mono { inset: 0 0 34% 0; }
+
+/* ── Game card front: date and opponent, result, game line ── */
+.gameTag { position: absolute; z-index: 5; top: 12px; right: 12px; display: flex; align-items: center; gap: 8px; color: #fff; }
+.gameWhen { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
+.gameWhen b { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 22px; letter-spacing: .3px; text-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.gameWhen span { font-size: 11px; font-weight: 700; letter-spacing: 1px; margin-top: 3px; opacity: .92; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.oppLogo { width: 38px; height: 38px; object-fit: contain; background: #fff; border-radius: 50%; padding: 4px; box-shadow: 0 3px 10px rgba(0,0,0,.35); box-sizing: border-box; }
+.oppMark { width: 38px; height: 38px; border-radius: 50%; background: #fff; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(0,0,0,.35); font-size: 10px; font-weight: 900; color: var(--oc); }
+.metaRow { display: flex; align-items: center; gap: 8px; margin-top: 5px; min-width: 0; }
+.nameOver .metaRow .meta { margin-top: 0; min-width: 0; }
+.resW, .resL { flex-shrink: 0; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 3px; color: #fff; white-space: nowrap; }
+.resW { background: #1a7a4a; } .resL { background: #a83232; }
+.front .strip { display: block; padding: 8px 8px 9px; }
+.stripStats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.stripStats > div { display: flex; flex-direction: column; align-items: center; line-height: 1.05; }
+.stripStats b { font-size: 21px; }
+.stripStats small { margin: 3px 0 0; }
+.stripElo { display: flex !important; flex-direction: row !important; align-items: baseline; gap: 6px; margin-top: 7px; padding: 6px 4px 0 6px; border-top: 1px solid rgba(255,255,255,.1); min-height: 24px; }
+.stripElo small { margin: 0; }
+.stripElo b { font-size: 15px; }
+.stripElo em { margin: 0; font-size: 12px; opacity: 1; }
+
+/* Playoff games: black-and-gold band and strip */
+.poBand { position: absolute; z-index: 6; left: 0; right: 0; top: 0; height: 26px; background: linear-gradient(90deg, #0b0b0b, #2a2310 50%, #0b0b0b); border-bottom: 1.5px solid #e7c160;
+  display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 10px; font-weight: 800; letter-spacing: 2.4px; color: #e7c160; text-transform: uppercase; }
+.poBand i { font-style: normal; opacity: .5; }
+[data-po] .medal, [data-po] .gameTag { top: 34px; }
+[data-po] .front .strip { background: linear-gradient(180deg, #14110a, #0b0b0b); }
+
+.binderBtn { margin-left: 12px; border: 1px solid rgba(255,255,255,.4); background: rgba(255,255,255,.1); color: #fff; font: inherit; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 14px; cursor: pointer; }
+.binderBtn:hover { background: #fff; color: #173657; }
+.hint { display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.strip > .stripStats { display: grid; }
+.miniCard { width: 340px; height: 476px; aspect-ratio: auto; perspective: none; display: block; }
+.miniCard .face { box-shadow: 0 6px 16px rgba(0,0,0,.35); }
