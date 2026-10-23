@@ -49,17 +49,23 @@ export function parseCatalog(d) {
 // pulled toward average: full weight from 15 teams up
 export const shrink = n => Math.min(1, (n - 1) / 14)
 export const MODES = { r: 'Results', b: 'Blend', e: 'Player Elo' }
-export function zFor(r, mode) {
-  const z = mode === 'r' ? r.movz : mode === 'e' ? r.eloz : (r.movz + r.eloz) / 2
-  return z * shrink(r.n)
+// Era deflation: standing out was easier in a smaller, shallower talent pool. Before the shot clock
+// (1954-55) a z-score counts 60%, through the 1967 expansion 75%, through the 1976 ABA merger 88%.
+export const eraFactor = s => {
+  const y = +String(s || '').slice(0, 4)
+  return !y ? 1 : y < 1954 ? 0.6 : y < 1967 ? 0.75 : y < 1976 ? 0.88 : 1
 }
-export const ratingFor = (r, mode) => Math.round(2000 + RATING_SD * zFor(r, mode))
+export function zFor(r, mode, era = true) {
+  const z = mode === 'r' ? r.movz : mode === 'e' ? r.eloz : (r.movz + r.eloz) / 2
+  return z * shrink(r.n) * (era ? eraFactor(r.s) : 1)
+}
+export const ratingFor = (r, mode, era = true) => Math.round(2000 + RATING_SD * zFor(r, mode, era))
 export const winP = (ra, rb, homeAdv) => 1 / (1 + 10 ** (-(ra - rb + homeAdv) / SCALE))
 
 // ── League settings and share links ─────────────────────────────────────────
 export const SIZES = [8, 16, 24, 30]
 export const LENGTHS = [41, 60, 82]
-export const DEFAULT = { size: 16, confs: 2, games: 82, po: 4, mode: 'b', home: true, uniq: false, seed: 1, teams: [] }
+export const DEFAULT = { size: 16, confs: 2, games: 82, po: 4, mode: 'b', home: true, uniq: false, seed: 1, era: true, teams: [] }
 
 export function playoffChoices(lg) {
   const group = lg.confs === 2 ? lg.size / 2 : lg.size
@@ -69,13 +75,13 @@ export function playoffChoices(lg) {
 // teams: [{ id, conf: 0|1 }] — conference 0 is East, 1 is West (ignored with one table)
 export function encodeLeague(lg) {
   const t = lg.teams.map(x => (lg.confs === 2 ? 'EW'[x.conf] : 'A') + x.id).join('.')
-  return ['v1', lg.size, lg.confs, lg.games, lg.po, lg.mode, lg.home ? 1 : 0, lg.uniq ? 1 : 0, lg.seed, t].join('~')
+  return ['v1', lg.size, lg.confs, lg.games, lg.po, lg.mode, lg.home ? 1 : 0, lg.uniq ? 1 : 0, lg.seed, t, lg.era === false ? 0 : 1].join('~')
 }
 export function decodeLeague(s) {
   try {
     const p = s.split('~')
     if (p[0] !== 'v1') return null
-    const lg = { size: +p[1], confs: +p[2], games: +p[3], po: +p[4], mode: p[5], home: p[6] === '1', uniq: p[7] === '1', seed: +p[8] }
+    const lg = { size: +p[1], confs: +p[2], games: +p[3], po: +p[4], mode: p[5], home: p[6] === '1', uniq: p[7] === '1', seed: +p[8], era: p[10] !== '0' }
     lg.teams = (p[9] || '').split('.').filter(Boolean).map(x => ({ id: x.slice(1), conf: x[0] === 'W' ? 1 : 0 }))
     if (!SIZES.includes(lg.size) || !LENGTHS.includes(lg.games) || !MODES[lg.mode]) return null
     return lg
@@ -464,32 +470,101 @@ export function parseDraftPool(d) {
   const rows = d.rows.map(row => {
     const r = Object.fromEntries(C.map((k, i) => [k, row[i]]))
     r.id = playerId(r)
-    r.value = (r.ez + r.gz) / 2
+    r.ez0 = r.ez; r.gz0 = r.gz
+    r.pos = r.pos || 'SF'
     return r
   })
-  return { rows, coef: d.coef, byId: Object.fromEntries(rows.map(r => [r.id, r])) }
+  const pool = { rows, coef: d.coef, byId: Object.fromEntries(rows.map(r => [r.id, r])) }
+  applyEra(pool, true)
+  return pool
+}
+// Value = what he adds to a team rating, from the same fit that rates rosters (in Elo z units)
+export function applyEra(pool, on) {
+  if (pool.era === on) return pool
+  const c = pool.coef, b1 = (c.movz[1] + c.eloz[1]) / 2, b2 = (c.movz[2] + c.eloz[2]) / 2
+  for (const r of pool.rows) {
+    const f = on ? eraFactor(r.s) : 1
+    r.ez = r.ez0 * f; r.gz = r.gz0 * f
+    r.value = r.ez + (b2 / b1) * r.gz
+  }
+  pool.era = on
+  return pool
 }
 
-// Minutes: a rotation by value rank (starters ~34, then a shrinking bench), always 240 in total
-const ROTATION = [36, 35, 34, 33, 32, 24, 18, 12, 8, 5, 2, 1]
-export function allocate(players) {
-  const list = [...players].sort((a, b) => b.value - a.value)
-  const raw = list.map((_, i) => ROTATION[i] ?? 1)
-  const tot = raw.reduce((s, x) => s + x, 0) || 1
-  return list.map((p, i) => ({ p, mp: (raw[i] * 240) / tot }))
+// ── Depth charts ────────────────────────────────────────────────────────────
+// A position's 48 minutes go to its starter and backups. Playing someone away from his position
+// costs value: next door (SG at PG) a little, across the floor (a guard at center) a lot.
+export const POS = ['PG', 'SG', 'SF', 'PF', 'C']
+const PENALTY = [0, 0.1, 0.35, 0.7, 1.0]
+export function slotsFor(R) {
+  const s = []
+  if (R <= 8) {
+    POS.forEach(p => s.push({ label: p, pos: [p], mp: 36, starter: true }))
+    ;[['G', ['PG', 'SG']], ['F', ['SF', 'PF']], ['C', ['C', 'PF']]].slice(0, R - 5).forEach(([l, ps]) => s.push({ label: `${l} · bench`, pos: ps, mp: 20 }))
+  } else {
+    const st = R >= 12 ? 33 : 34, bn = R >= 12 ? 12 : 14
+    POS.forEach(p => s.push({ label: p, pos: [p], mp: st, starter: true }))
+    POS.forEach(p => s.push({ label: `${p} · 2nd`, pos: [p], mp: bn }))
+    for (let i = 10; i < R; i++) s.push({ label: 'Reserve', pos: POS, mp: (240 - 5 * st - 5 * bn) / (R - 10) })
+  }
+  return s
+}
+export const penaltyFor = (p, slot) => PENALTY[Math.min(...slot.pos.map(q => Math.abs(POS.indexOf(p.pos) - POS.indexOf(q))))]
+const slotValue = (p, slot) => p.value - penaltyFor(p, slot)
+// Best depth chart: fill the biggest-minute slots first, then swap any two players while it helps
+export function autoDepth(players, R) {
+  const slots = slotsFor(R), out = new Array(slots.length).fill(null), left = new Set(players)
+  const order = slots.map((s, i) => i).sort((a, b) => slots[b].mp - slots[a].mp)
+  for (const i of order) {
+    let best = null
+    for (const p of left) if (!best || slotValue(p, slots[i]) > slotValue(best, slots[i])) best = p
+    if (best) { out[i] = best; left.delete(best) }
+  }
+  const score = (p, i) => (p ? slots[i].mp * slotValue(p, slots[i]) : 0)
+  for (let pass = 0; pass < 4; pass++) {
+    let better = false
+    for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) {
+      if (!out[i] && !out[j]) continue
+      if (score(out[j], i) + score(out[i], j) > score(out[i], i) + score(out[j], j) + 1e-9) { [out[i], out[j]] = [out[j], out[i]]; better = true }
+    }
+    if (!better) break
+  }
+  return out
 }
 
-export function draftTeam(players, coef, i, name) {
-  const alloc = allocate(players)
+// order: player ids in slot order (a manual depth chart), or null for the best one
+export function draftTeam(players, coef, i, name, size, order) {
+  const R = size || players.length
+  const slots = slotsFor(R)
+  let depth
+  if (order && order.length === slots.length && order.every(Boolean)) {
+    const by = Object.fromEntries(players.map(p => [p.id, p]))
+    depth = order.map(id => by[id] || null)
+    if (depth.some(x => !x)) depth = autoDepth(players, R)
+  } else depth = autoDepth(players, R)
+  const alloc = depth.map((p, k) => (p ? { p, mp: slots[k].mp, slot: slots[k], pen: penaltyFor(p, slots[k]) } : null)).filter(Boolean)
   const W = alloc.reduce((s, x) => s + x.mp, 0) || 1
-  const xe = alloc.reduce((s, x) => s + x.mp * x.p.ez, 0) / W
-  const xg = alloc.reduce((s, x) => s + x.mp * x.p.gz, 0) / W
+  const xe = alloc.reduce((s, x) => s + x.mp * (x.p.ez - x.pen), 0) / W
+  const xg = alloc.reduce((s, x) => s + x.mp * (x.p.gz - x.pen), 0) / W
   const f = c => c[0] + c[1] * xe + c[2] * xg
   return {
     id: `D${i}`, s: '', t: `D${i}`, name: name || DRAFT_NAMES[i % DRAFT_NAMES.length], color: DRAFT_COLORS[i % DRAFT_COLORS.length],
     movz: players.length ? f(coef.movz) : -3, eloz: players.length ? f(coef.eloz) : -3, n: 30, ppg: PACE, lg: 'NBA',
-    w: 0, l: 0, champ: 0, mov: 0, live: 0, draft: players, alloc,
+    w: 0, l: 0, champ: 0, mov: 0, live: 0, draft: players, alloc, depth, slots,
   }
+}
+// The computer drafts for need: the pick that raises its team rating most, among the best available
+export function cpuPick(available, team, coef, R, size, rnd) {
+  const base = draftTeam(team, coef, 0, '', size)
+  const cur = (base.movz + base.eloz) / 2
+  const scored = available.slice(0, 40).map(p => {
+    const t = draftTeam([...team, p], coef, 0, '', size)
+    return { p, gain: (t.movz + t.eloz) / 2 - cur }
+  }).sort((a, b) => b.gain - a.gain)
+  const top = scored.slice(0, 3), w = [0.6, 0.27, 0.13]
+  let u = rnd() * w.slice(0, top.length).reduce((a, b) => a + b, 0)
+  for (let k = 0; k < top.length; k++) { u -= w[k]; if (u <= 0) return top[k].p }
+  return top[0]?.p
 }
 
 // A drafted team's games: each player's line is one of his own games that season (pace-adjusted to
@@ -529,30 +604,24 @@ export function draftSide(ts, logs, leaguePpg) {
   return { ts: { ...ts, ppg: PACE }, games, rookies: new Set() }
 }
 
-// CPU pick: the best available by value, with a little randomness among the top few
-export function cpuPick(available, R) {
-  const top = available.slice(0, 4)
-  const w = top.map((_, i) => [0.55, 0.25, 0.13, 0.07][i])
-  let u = R() * w.reduce((a, b) => a + b, 0)
-  for (let i = 0; i < top.length; i++) { u -= w[i]; if (u <= 0) return top[i] }
-  return top[0]
-}
-
 // Snake order: team index for overall pick k
 export const snakeTeam = (k, N) => { const r = Math.floor(k / N), i = k % N; return r % 2 ? N - 1 - i : i }
 
 // Share links: settings plus every team's picks
 export function encodeDraft(dl) {
-  const teams = dl.picks.map(ps => ps.join(',')).join('.')
-  return ['d1', dl.size, dl.roster, dl.confs, dl.games, dl.po, dl.mode, dl.home ? 1 : 0, dl.seed, dl.you, teams].join('~')
+  // A team with a set depth chart stores its picks in slot order, marked by a leading '!'
+  const teams = dl.picks.map((ps, i) => (dl.depth?.[i] ? '!' + dl.depth[i].join(',') : ps.join(','))).join('.')
+  return ['d1', dl.size, dl.roster, dl.confs, dl.games, dl.po, dl.mode, dl.home ? 1 : 0, dl.seed, dl.you, teams, dl.era === false ? 0 : 1].join('~')
 }
 export function decodeDraft(s) {
   try {
     const p = s.split('~')
     if (p[0] !== 'd1') return null
-    const dl = { size: +p[1], roster: +p[2], confs: +p[3], games: +p[4], po: +p[5], mode: p[6], home: p[7] === '1', seed: +p[8], you: +p[9] }
-    dl.picks = (p[10] || '').split('.').map(x => (x ? x.split(',') : []))
-    while (dl.picks.length < dl.size) dl.picks.push([])
+    const dl = { size: +p[1], roster: +p[2], confs: +p[3], games: +p[4], po: +p[5], mode: p[6], home: p[7] === '1', seed: +p[8], you: +p[9], era: p[11] !== '0' }
+    const parts = (p[10] || '').split('.')
+    dl.picks = parts.map(x => (x ? x.replace(/^!/, '').split(',') : []))
+    dl.depth = parts.map(x => (x.startsWith('!') ? x.slice(1).split(',') : null))
+    while (dl.picks.length < dl.size) { dl.picks.push([]); dl.depth.push(null) }
     return dl
   } catch { return null }
 }

@@ -65,7 +65,7 @@ function Builder({ lg, setLg, cat, byId, onSimulate }) {
   const [sort, setSort] = useState('best')
   const [decade, setDecade] = useState('all')
   const [target, setTarget] = useState(null)
-  const rated = r => TM.ratingFor(r, lg.mode)
+  const rated = r => TM.ratingFor(r, lg.mode, lg.era !== false)
   const full = lg.teams.length >= lg.size
   const inLeague = new Set(lg.teams.map(t => t.id))
   const franchises = new Set(lg.teams.map(t => byId[t.id]?.t.replace(/@.*/, '')))
@@ -178,6 +178,8 @@ function Builder({ lg, setLg, cat, byId, onSimulate }) {
         <div><div className={styles.lab}>Team rating</div>
           <Seg value={lg.mode} options={Object.entries(TM.MODES)} onChange={mode => setLg({ ...lg, mode })} />
           <p className={styles.hint}>{lg.mode === 'r' ? 'Margin of victory' : lg.mode === 'e' ? 'Season-average lineup Elo' : 'Half margin of victory, half lineup Elo'}, as a z-score against its own league that season. Leagues under 15 teams count less.</p></div>
+        <label className={styles.toggle}><span>Era adjustment</span><input type="checkbox" checked={lg.era !== false} onChange={e => setLg({ ...lg, era: e.target.checked })} /><i /></label>
+        <p className={styles.hint} style={{ marginTop: -10 }}>Early seasons count less: before 1954-55 a team's edge counts 60%, through 1966-67 75%, through 1975-76 88%.</p>
         <label className={styles.toggle}><span>Home court</span><input type="checkbox" checked={lg.home} onChange={e => setLg({ ...lg, home: e.target.checked })} /><i /></label>
         <label className={styles.toggle}><span>One season per franchise</span><input type="checkbox" checked={lg.uniq} onChange={e => setLg({ ...lg, uniq: e.target.checked })} /><i /></label>
       </aside>
@@ -314,7 +316,7 @@ function Season({ lg, setLg, byId, onEdit, shareUrl, origin }) {
   const [focus, setFocus] = useState(0)
   const [copied, setCopied] = useState(false)
   const T = lg.teams.map(t => byId[t.id])
-  const ratings = useMemo(() => T.map(r => TM.ratingFor(r, lg.mode)), [lg.teams, lg.mode])
+  const ratings = useMemo(() => T.map(r => TM.ratingFor(r, lg.mode, lg.era !== false)), [lg.teams, lg.mode, lg.era, byId])
   const sched = useMemo(() => TM.makeSchedule(lg, TM.hash(TM.encodeLeague({ ...lg, seed: 0 }))), [lg.teams, lg.games, lg.confs])
   const proj = useMemo(() => TM.expectedWins(sched, ratings, lg.home), [sched, ratings, lg.home])
   const S = useMemo(() => TM.runSeason(lg, sched, ratings), [lg, sched, ratings])
@@ -590,8 +592,9 @@ export default function TimeMachine() {
   // A finished draft becomes a league of pseudo team-seasons the season view can play
   const draft = useMemo(() => {
     if (kind !== 'draft' || !pool) return null
-    const rows = dl.picks.slice(0, dl.size).map((ids, i) => TM.draftTeam(ids.map(id => pool.byId[id]).filter(Boolean), pool.coef, i))
-    const league = { size: dl.size, confs: dl.confs, games: dl.games, po: dl.po, mode: dl.mode, home: dl.home, uniq: false, seed: dl.seed,
+    TM.applyEra(pool, dl.era !== false)
+    const rows = dl.picks.slice(0, dl.size).map((ids, i) => TM.draftTeam(ids.map(id => pool.byId[id]).filter(Boolean), pool.coef, i, null, dl.roster, dl.depth?.[i]))
+    const league = { size: dl.size, confs: dl.confs, games: dl.games, po: dl.po, mode: dl.mode, home: dl.home, uniq: false, seed: dl.seed, era: false,
       teams: rows.map((r, i) => ({ id: r.id, conf: dl.confs === 2 ? i % 2 : 0 })) }
     const where = new Map(rows.flatMap((r, i) => r.draft.map(p => [i + '|' + p.n, p])))
     return { rows, league, byId: Object.fromEntries(rows.map(r => [r.id, r])), origin: x => { const p = where.get(x.team + '|' + x.n); return p ? `${TM.yearLabel(p.s)} ${p.t.replace(/@.*/, '')}` : '' } }
