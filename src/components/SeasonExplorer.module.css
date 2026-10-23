@@ -504,3 +504,7 @@
 .box_elo td.recCell { text-align: center; }
 .box_elo th.duelHead, .box_elo td.duelCell { padding-left: 16px; }
 .box_elo th.recHead { text-align: center; }
+
+/* Name and rank columns hug their content; the stat columns share the rest of the width */
+.box th.sticky, .box td.sticky { width: 1%; white-space: nowrap; padding-right: 18px; }
+.box th.rankHead, .box td.rankCell { width: 1%; white-space: nowrap; text-align: left; padding-left: 4px; padding-right: 22px; }
