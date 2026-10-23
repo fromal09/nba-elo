@@ -590,3 +590,47 @@
   .pockets { gap: 8px; }
   .pocketLab { font-size: 9.5px; flex-direction: column; gap: 0; }
 }
+
+/* Box score: honors rows and career / milestone marks */
+.box tr.rowPotg td { background: #f0f8ff; }
+.box tr.rowPotg td.sticky { background: #f0f8ff; box-shadow: inset 4px 0 0 #2f9fe0, 1px 0 0 #eef0f3; }
+.box tr.rowPotd td { background: #fdf6e3; }
+.box tr.rowPotd td.sticky { background: #fdf6e3; box-shadow: inset 4px 0 0 #d4960a, 1px 0 0 #eef0f3; }
+.box tr.rowPotg small, .box tr.rowPotd small { font-weight: 700; }
+.box tr.rowPotg small { color: #1f7fbf; } .box tr.rowPotd small { color: #9a6d12; }
+.pNameRow { display: inline-flex; align-items: center; gap: 5px; }
+.markStar { color: #c0392b; font-size: 12px; cursor: help; line-height: 1; }
+.markDia { color: #5d6e86; font-size: 11px; cursor: help; line-height: 1; }
+.markDiaDown { color: #a7b0ba; font-size: 11px; cursor: help; line-height: 1; }
+
+/* Games by day: main column and sidebar */
+.dayPage { max-width: 1440px; }
+.dayLayout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+.dayMain { min-width: 0; }
+.dayMain .boards4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dayMain .perfTable { min-width: 860px; }
+.daySide { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 12px; }
+.sideCard { display: flex; flex-direction: column; gap: 7px; }
+.sideLab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; color: #173657; }
+.sideLab span { text-transform: none; letter-spacing: 0; font-weight: 600; color: #6b7783; font-size: 12px; white-space: nowrap; }
+.sideMini { position: relative; width: 300px; height: 420px; border: 0; padding: 0; background: none; cursor: pointer; }
+.sideScale { position: absolute; left: 0; top: 0; width: 340px; height: 476px; transform: scale(.882); transform-origin: top left; transition: translate .2s ease-out; }
+.sideMini:hover .sideScale { translate: 0 -4px; }
+.sideList { background: #fff; border: 1px solid #e3e3e3; border-radius: 10px; padding: 10px 12px; }
+.sideList h4 { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; color: #173657; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.sideList button { width: 100%; display: grid; grid-template-columns: auto auto 1fr; align-items: baseline; gap: 6px; text-align: left; border: 0; background: none; padding: 6px 0; border-top: 1px solid #f0f2f5; font: inherit; color: inherit; cursor: pointer; }
+.sideList button:hover b { color: #1a5fa8; text-decoration: underline; }
+.sideList b { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.sideList small { font-size: 10.5px; color: #8a95a0; font-weight: 700; }
+.sideList em { font-style: normal; font-size: 12px; color: #4a5560; text-align: right; }
+.sideList p { font-size: 12.5px; color: #8a95a0; padding: 4px 0; }
+@media (max-width: 1100px) {
+  .dayLayout { grid-template-columns: 1fr; }
+  .daySide { position: static; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+}
+@media (max-width: 700px) { .dayMain .boards4 { grid-template-columns: 1fr; } }
+
+.seasonSwitch { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; vertical-align: middle; }
+.seasonSwitch > span { color: #6896bd; font-weight: 700; min-width: 86px; text-align: center; }
+.seasonSwitch button { width: 30px; height: 30px; border-radius: 6px; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.1); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
+.seasonSwitch button:disabled { opacity: .3; cursor: default; }

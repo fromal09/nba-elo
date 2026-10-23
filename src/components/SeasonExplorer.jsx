@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
-import PlayerCard, { MiniCard, tierFor } from './PlayerCard'
+import PlayerCard, { MiniCard, tierFor, momentsFor } from './PlayerCard'
 import { buildForecaster, blendWeight } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
 
@@ -87,6 +87,22 @@ function duel(a, b, N) {
   const act = a.gs > b.gs ? 1 : a.gs === b.gs ? 0.5 : 0
   const mf = Math.max(0.5, Math.min(2, Math.log1p(Math.abs(a.gs - b.gs)) / Math.log1p(20)))
   return { exp, act, delta: (kFactor(a.gp) / Math.sqrt(N)) * mf * (act - exp) }
+}
+
+// Night score picks Player of the Game and Player of the Day: production plus a share of the Elo gained
+const nightScore = p => p.gs + (p.post - p.pre) / 6
+function markHonors(games) {
+  const byDay = {}
+  for (const g of games) {
+    let top = null
+    for (const p of g.players) { p.potg = false; p.potd = false; if (!top || nightScore(p) > nightScore(top)) top = p }
+    if (top) top.potg = true
+    ;(byDay[g.date] = byDay[g.date] || []).push(...g.players)
+  }
+  for (const ps of Object.values(byDay)) {
+    const top = ps.reduce((b, p) => (!b || nightScore(p) > nightScore(b) ? p : b), null)
+    if (top) top.potd = true
+  }
 }
 
 // ── Data loading (module-level caches) ───────────────────────────────────────
@@ -179,6 +195,7 @@ function loadSeason(label, newest) {
       for (const t of g.teams) latest[t] = g.elo[t].post
       for (const t of g.teams) g.elo[t].postRank = rankOf(t, g.elo[t].post)
     })
+    markHonors(d.games)
     d.has = new Set(d.stats || [])
     d.sy = sy
     d._ready = true
@@ -212,6 +229,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
   const [sched, setSched] = useState(null)       // ESPN schedule + injuries (current season only)
   const [rotation, setRotation] = useState(null) // recent minutes per player
   const [best, setBest] = useState({})           // best rank among active players, per player
+  const [careers, setCareers] = useState({})     // career bests through the latest data, for live career moments
   // 'standings' | 'today'; App owns it so the games view can live at /scoreboard
   const view = mode === 'today' ? 'today' : 'standings'
   const setView = v => onMode?.(v)
@@ -233,6 +251,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
       .catch(() => setErr('Season data not found. Run the build pipeline to generate it.'))
     getHeadshots().then(setShots)
     getJSON('/data/explorer/ranks.json').then(setBest).catch(() => {})
+    getJSON('/data/explorer/careers.json').then(setCareers).catch(() => {})
   }, [])
 
   const newest = !!index && season === index.seasons[0]?.season
@@ -346,7 +365,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
       </div>
 
       {view === 'today' ? (
-        <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} selectPlayer={selectPlayer} />
+        <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} />
       ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : (
         <div className={styles.confs}>
           {groups.map(g => (
@@ -840,12 +859,13 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
     const d = p.post - p.pre, e = ext[p.n]
     const rec = r => (r ? `${fmtW(r[0])}–${fmtW(r[1])}` : '—')
     return (
-      <tr key={p.n} className={focus === p.n ? styles.focus : ''} onMouseEnter={() => setFocus(p.n)} onMouseLeave={() => setFocus(null)}>
+      <tr key={p.n} className={`${focus === p.n ? styles.focus : ''} ${p.potd ? styles.rowPotd : p.potg ? styles.rowPotg : ''}`} onMouseEnter={() => setFocus(p.n)} onMouseLeave={() => setFocus(null)}>
         <td className={styles.sticky}>
           <span className={styles.pl}>
             <Headshot name={p.n} shots={shots} color={tColor(t)} />
-            <span><button className={styles.pName} onClick={() => onCard(p.n)} title="Open player card">{shortName(p.n)}</button>
-              {p.pos && <small>{p.pos}</small>}</span>
+            <span><span className={styles.pNameRow}><button className={styles.pName} onClick={() => onCard(p.n)} title="Open player card">{shortName(p.n)}</button>
+              <MomentMarks p={p} /></span>
+              <small>{[p.pos, p.potd ? 'Player of the Day' : p.potg ? 'Player of the Game' : null].filter(Boolean).join(' · ')}</small></span>
           </span>
         </td>
         <td className={styles.rankCell}><RankCell p={p} /></td>
@@ -935,7 +955,10 @@ const GLOSSARY = [
     ['Player Rank', 'League rank by Elo after this game, among qualified players. (▲3) means he moved up three spots.'],
     ['Qualified', 'A player whose most recent game falls within his team’s last 20 games. Retired and long-inactive players drop out of the rankings.'],
     ['Top 100', 'The 100 highest-rated qualified players right now.'],
-    ['Card tiers', 'Set by rank going into the game: GOAT 1–5, Icon 6–20, Legend 21–50, Rare 51–125, Common everyone else.'],
+    ['Card tiers', 'Set by rank after the game: GOAT 1–5, Icon 6–20, Legend 21–50, Rare 51–125, Common everyone else.'],
+    ['Player of the Game / Day', 'The best night score in a game, and across the whole day: Game Score plus one-sixth of the Elo gained.'],
+    ['Career game', 'A career-best Game Score, once a player has 20 career games.'],
+    ['Milestones', 'Tier promotions and relegations, entering or leaving the Top 100, a new #1, and career-high rank or Elo (20+ games).'],
   ]],
   ['Duels', [
     ['Duel', 'One head-to-head between two players in a game, won by the higher Game Score.'],
@@ -1015,6 +1038,15 @@ function EloHelp({ onClose }) {
       </div>
     </div>
   )
+}
+
+// ★ career game, ◆ milestones; hover for the details
+function MomentMarks({ p }) {
+  const m = momentsFor(p)
+  return <>
+    {m.career && <span className={styles.markStar} title={`Career game: career-best ${p.gs.toFixed(1)} Game Score`}>★</span>}
+    {m.stamps.length > 0 && <span className={m.stamps.some(x => x.up) ? styles.markDia : styles.markDiaDown} title={m.stamps.map(x => x.text).join(' · ')}>◆</span>}
+  </>
 }
 
 // League Elo rank after the game (pre-game rank on data without it), with the move; -- when unranked
@@ -1288,7 +1320,7 @@ function Progression({ team, games, selectPlayer }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Games by day: scoreboard, leaderboards, box scores. Days already in the data use the
 // pipeline's Elo; later days (and games the data doesn't have yet) are scored live from ESPN.
-function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
+function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
   const asof = index.seasons[0]?.last || '0000-00-00'
   const wantsLive = day >= asof
   const [feed, setFeed] = useState(null)
@@ -1339,9 +1371,15 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
       return { rank: 1 + others.filter(([, x]) => x > v).length, of: others.length + 1 }
     }
     live.forEach(g => g.teams.forEach(t => Object.assign(g.elo[t], { preRank: rankOf(t, g.elo[t].pre), postRank: rankOf(t, g.elo[t].post) })))
+    // Career moments for live games, against career bests through the last data update (20+ games)
+    live.forEach(g => g.players.forEach(p => {
+      const b = careers[p.n]
+      p.fx = b && !p.unrated && p.gp >= 20 ? (p.gs > b[0] ? 1 : 0) | (p.lrp < b[1] ? 2 : 0) | (p.post > b[2] ? 4 : 0) : 0
+    }))
+    markHonors([...data, ...live]) // Player of the Day covers every game of the day, live or official
     const unmatched = live.flatMap(g => g.players.filter(p => p.unrated).map(p => `${p.espnName} (${tCode(p.t)})`))
     return { scored: [...data, ...live], sched, unmatched }
-  }, [sd, sdOk, day, feed, ratings, teamLatest, sy])
+  }, [sd, sdOk, day, feed, ratings, teamLatest, sy, careers])
 
   const boards = useMemo(() => dayBoards(scored), [scored])
   const cards = useMemo(() => {
@@ -1360,7 +1398,23 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
   const cardGame = card && scored.find(g => g.id === card.id)
   const cardRow = cardGame?.players.find(p => p.n === card.name)
   const cardView = cardRow && viewFor(cardGame, cardRow.t, sy)
-  const cardSd = cardGame && (sdOk && sd.games.includes(cardGame) ? sd : { season: seasonFor(day), games: [...(sdOk ? sd.games.filter(g => g.date < day) : []), cardGame] })
+  const daySd = useMemo(() => {
+    const live = scored.filter(g => g.live)
+    if (sdOk && !live.length) return sd
+    return { ...(sdOk ? sd : {}), season: sdOk ? sd.season : seasonFor(day), games: [...(sdOk ? sd.games.filter(g => g.date < day || (g.date === day && !g.live)) : []), ...live] }
+  }, [sd, sdOk, scored, day])
+  const cardSd = cardGame && daySd
+  // Sidebar: the day's Player of the Day, biggest riser and biggest faller, then career games and milestones
+  const side = useMemo(() => {
+    const all = scored.flatMap(g => g.players.map(p => ({ g, p })))
+    const potd = all.find(x => x.p.potd)
+    const moments = all.map(x => ({ ...x, m: momentsFor(x.p) }))
+    return {
+      picks: [['Player of the Day', potd], ['Biggest Elo riser', boards.risers[0]], ['Biggest Elo faller', boards.fallers[0]]].filter(([, x]) => x),
+      careerGames: moments.filter(x => x.m.career).sort((a, b) => b.p.gs - a.p.gs),
+      milestones: moments.filter(x => x.m.stamps.length).sort((a, b) => (a.p.lrp ?? 999) - (b.p.lrp ?? 999)),
+    }
+  }, [scored, boards])
   const liveN = cards.filter(c => c.state === 'in').length
   const provisional = scored.some(g => g.live)
   const loading = (wantsLive && !feed && !feedErr) || (!sdOk && day <= asof)
@@ -1377,7 +1431,7 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
       {loading ? <div className={styles.empty}>Loading games…</div>
         : feedErr && !cards.length ? <div className={styles.empty}>Couldn't load the scoreboard: {feedErr}</div>
         : !cards.length ? <div className={styles.empty}>No games on {fmtDate(day, { weekday: 'long', month: 'long', day: 'numeric' })}.</div>
-        : <>
+        : <div className={styles.dayLayout}><div className={styles.dayMain}>
           <div className={styles.gGrid}>
             {cards.map(c => <GameCard key={c.key} c={c} shots={shots}
               onOpen={c.g ? () => openBox(c.g) : c.fg ? () => setPreview({ day, fg: c.fg }) : null} />)}
@@ -1429,7 +1483,36 @@ function Today({ day, sd, index, fc, shots, ratings, selectPlayer }) {
           </>}
           {unmatched.length > 0 && <p className={styles.unmatched} title="ESPN names with no match in the ratings. They're scored as new players at 1,500 until the pipeline links them.">
             Rated as new players (no ratings match): {unmatched.join(', ')}</p>}
-        </>}
+        </div>
+        {scored.length > 0 && <aside className={styles.daySide}>
+          {side.picks.map(([label, { g, p }]) => (
+            <div key={label} className={styles.sideCard}>
+              <div className={styles.sideLab}>{label}<span>{shortName(p.n)} · {sgn(p.post - p.pre)} Elo</span></div>
+              <button type="button" className={styles.sideMini} onClick={() => openCard(g, p)} aria-label={`${label}: ${p.n}, open card`}>
+                <span className={styles.sideScale}>
+                  <MiniCard name={p.n} row={p} game={cardGameInfo(g, p.t, daySd, p)} team={{ name: tName(p.t), color: tColor(p.t), abbr: tCode(p.t) }} headshot={shots?.[norm(p.n)]?.headshot} />
+                </span>
+              </button>
+            </div>
+          ))}
+          <section className={styles.sideList}>
+            <h4><span className={styles.markStar}>★</span> Career games</h4>
+            {side.careerGames.length ? side.careerGames.map(({ g, p }) => (
+              <button key={g.id + p.n} type="button" onClick={() => openCard(g, p)}>
+                <b>{shortName(p.n)}</b><small>{tCode(p.t)}</small><em>{p.gs.toFixed(1)} GmSc</em>
+              </button>
+            )) : <p>No career-best games yet.</p>}
+          </section>
+          <section className={styles.sideList}>
+            <h4><span className={styles.markDia}>◆</span> Milestones</h4>
+            {side.milestones.length ? side.milestones.map(({ g, p, m }) => (
+              <button key={g.id + p.n} type="button" onClick={() => openCard(g, p)}>
+                <b>{shortName(p.n)}</b><small>{tCode(p.t)}</small><em className={m.stamps[0].up ? '' : styles.muted}>{m.stamps.map(x => x.text).join(' · ')}</em>
+              </button>
+            )) : <p>No milestones yet.</p>}
+          </section>
+        </aside>}
+        </div>}
 
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
       {boxView && <BoxScore key={box.id} team={box.team} game={boxView} has={boxGame.live ? FULL_STATS : sd?.has} shots={shots}
@@ -1554,42 +1637,52 @@ function PerfTable({ rows, shots, onOpen }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Game cards: what a card front needs to know about its game, the card modal, and the season binder
 
-// Postseason label from a team's point of view: "R2 · G5", "Finals · G3", or "Play-In"
-function postLabel(sd, g, t) {
+// Postseason band from a team's point of view: { level: r1|r2|cf|finals|champ, label: "R2 · G5", champ }
+function postBand(sd, g, t) {
   const o = g.teams.find(x => x !== t)
-  const post = sd.games.filter(x => x.post && x.teams.includes(t)).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
-  const start = sd.games.find(x => x.post)?.date || g.date
-  const opps = []
-  post.forEach(x => { const oo = x.teams.find(y => y !== t); if (!opps.includes(oo)) opps.push(oo) })
-  const series = oo => post.filter(x => x.teams.includes(oo))
+  const byDate = (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)
+  const post = sd.games.filter(x => x.post).sort(byDate)
+  const start = post[0]?.date || g.date
   const days = (a, b) => (new Date(b) - new Date(a)) / 864e5
+  const series = (a, b) => post.filter(x => x.teams.includes(a) && x.teams.includes(b))
   // Play-in: a one-game series in the first days of the postseason
-  const playIn = oo => { const ss = series(oo); return ss.length === 1 && days(start, ss[0].date) <= 6 }
-  if (playIn(o)) return 'Play-In'
-  const rounds = opps.filter(oo => !playIn(oo))
-  const r = rounds.indexOf(o) + 1
-  const k = series(o).findIndex(x => x.id === g.id) + 1
-  // The Finals: the series that holds the season's last game
-  const lastPost = sd.games.reduce((m, x) => (x.post && x.date > m ? x.date : m), '')
-  const finals = series(o).some(x => x.date === lastPost)
-  return `${finals ? 'Finals' : `R${r}`} · G${k}`
+  const isPlayIn = (a, b) => { const ss = series(a, b); return ss.length === 1 && days(start, ss[0].date) <= 6 }
+  const path = team => {
+    const opps = []
+    post.forEach(x => { if (!x.teams.includes(team)) return; const oo = x.teams.find(y => y !== team); if (!opps.includes(oo) && !isPlayIn(team, oo)) opps.push(oo) })
+    return opps
+  }
+  if (isPlayIn(t, o)) return { level: 'r1', label: 'Play-In', champ: false }
+  const r = path(t).indexOf(o) + 1
+  const ss = series(t, o), k = ss.findIndex(x => x.id === g.id) + 1
+  const last = post[post.length - 1]
+  const finals = !!last && ss.includes(last)
+  const rounds = last ? path(last.teams[0]).length : r // the finalists' path sets how many rounds the season had
+  const cf = !finals && rounds >= 3 && r === rounds - 1
+  // Champions: the title-clinching game, won by this team
+  const i = g.teams.indexOf(t)
+  const champ = finals && g.id === last.id && g.pts[i] > g.pts[1 - i]
+  return {
+    level: champ ? 'champ' : finals ? 'finals' : cf ? 'cf' : r >= 2 ? 'r2' : 'r1',
+    label: `${finals ? 'Finals' : cf ? 'Conf. Finals' : `R${r}`} · G${k}`, champ,
+  }
 }
 
-function cardGameInfo(g, t, sd) {
+function cardGameInfo(g, t, sd, p) {
   const i = g.teams.indexOf(t), o = g.teams[1 - i]
   return {
     id: g.id, date: g.date, home: g.home == null ? null : g.home === t, oppAbbr: tCode(o), oppLogo: logoUrl(o), oppColor: tColor(o),
     won: g.pts[i] > g.pts[1 - i], score: `${g.pts[i]}–${g.pts[1 - i]}`, ot: g.ot || '',
-    playoff: g.post ? postLabel(sd, g, t) : null, players: g.players,
+    band: g.post ? postBand(sd, g, t) : null, honor: p?.potd ? 'potd' : p?.potg ? 'potg' : null, players: g.players,
   }
 }
 
-function SeasonCard({ name, g, sd, shots, onProfile, onClose, onBinder }) {
+function SeasonCard({ name, g, sd, shots, onProfile, onClose, onBinder, info, team }) {
   const row = g.players.find(p => p.n === name)
   if (!row) return null
   return (
-    <PlayerCard name={name} row={row} sd={sd} game={cardGameInfo(g, row.t, sd)}
-      team={{ name: tName(row.t), color: tColor(row.t), abbr: tCode(row.t) }}
+    <PlayerCard name={name} row={row} sd={sd} game={info || cardGameInfo(g, row.t, sd, row)}
+      team={team || { name: tName(row.t), color: tColor(row.t), abbr: tCode(row.t) }}
       logo={logoUrl(row.t)} headshot={shots?.[norm(name)]?.headshot}
       career={CAREER.byName[name] || null} peakRank={CAREER.rank[name]} bestRank={CAREER.best[name]}
       onProfile={onProfile} onClose={onClose} onBinder={onBinder} />
@@ -1597,12 +1690,31 @@ function SeasonCard({ name, g, sd, shots, onProfile, onClose, onBinder }) {
 }
 
 // A player's season as a binder sheet of nine pockets. Pull a card to see it full size.
-function Binder({ name, sd, shots, onClose, onProfile }) {
+function Binder({ name, sd: startSd, shots, onClose, onProfile }) {
+  const [sd, setSd] = useState(startSd)
+  const [loadingSeason, setLoadingSeason] = useState(false)
+  // Every season the player has cards in, from his career Elo history
+  const seasons = useMemo(() => {
+    const h = CAREER.byName[name]?.elo_history || []
+    const set = new Set(h.map(e => seasonFor(e[0])))
+    set.add(startSd.season)
+    return [...set].sort()
+  }, [name, startSd])
+  const si = seasons.indexOf(sd.season)
+  const goSeason = k => {
+    const lab = seasons[si + k]; if (!lab || loadingSeason) return
+    setLoadingSeason(true)
+    loadSeason(lab, false).then(d => { setSd(d); setSheet(0); setPulled(null) }).catch(() => {}).finally(() => setLoadingSeason(false))
+  }
   const [order, setOrder] = useState('chrono') // 'chrono' | 'best' (Elo gain)
   const [sheet, setSheet] = useState(0)
   const [dir, setDir] = useState(1)
   const [pulled, setPulled] = useState(null) // game id
   const entries = useMemo(() => {
+    // Team names, colors and logos as they were that season
+    const prev = TEAMINFO
+    if (sd !== startSd) TEAMINFO = { ...sd.teams }
+    try {
     const list = []
     let reg = 0
     const games = [...sd.games].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
@@ -1610,11 +1722,12 @@ function Binder({ name, sd, shots, onClose, onProfile }) {
       const p = g.players.find(x => x.n === name)
       if (!p) continue
       if (!g.post) reg++
-      const info = cardGameInfo(g, p.t, sd)
-      list.push({ g, p, info, label: g.post ? info.playoff : `G${reg}` })
+      const info = cardGameInfo(g, p.t, sd, p)
+      list.push({ g, p, info, team: { name: tName(p.t), color: tColor(p.t), abbr: tCode(p.t) }, label: g.post ? info.band.label : `G${reg}` })
     }
     return list
-  }, [name, sd])
+    } finally { TEAMINFO = prev }
+  }, [name, sd, startSd])
   const sorted = useMemo(() => order === 'chrono' ? entries
     : [...entries].sort((a, b) => (b.p.post - b.p.pre) - (a.p.post - a.p.pre)), [entries, order])
   const sheets = Math.max(1, Math.ceil(sorted.length / 9))
@@ -1647,7 +1760,7 @@ function Binder({ name, sd, shots, onClose, onProfile }) {
     return () => ro.disconnect()
   }, [cur, order])
   const pulledEntry = pulled && entries.find(e => e.g.id === pulled)
-  const tc = tColor(entries[entries.length - 1]?.p.t || '')
+  const tc = entries[entries.length - 1]?.team.color || '#173657'
 
   return (
     <div className={styles.binderOverlay} onClick={onClose}>
@@ -1655,7 +1768,12 @@ function Binder({ name, sd, shots, onClose, onProfile }) {
         <div className={styles.binderHead}>
           <div>
             <div className={styles.kicker}>Season binder</div>
-            <h2>{name.replace(/\s*\(.*\)$/, '')} <span>{sd.season}</span></h2>
+            <h2>{name.replace(/\s*\(.*\)$/, '')}
+              <span className={styles.seasonSwitch}>
+                <button type="button" aria-label="Previous season" disabled={si <= 0 || loadingSeason} onClick={() => goSeason(-1)}>‹</button>
+                <span>{loadingSeason ? 'Loading…' : sd.season}</span>
+                <button type="button" aria-label="Next season" disabled={si >= seasons.length - 1 || loadingSeason} onClick={() => goSeason(1)}>›</button>
+              </span></h2>
             <p>{entries.length} game card{entries.length === 1 ? '' : 's'}{poN ? ` · ${regN} regular season · ${poN} playoffs` : ''}</p>
           </div>
           <div className={styles.binderCtl}>
@@ -1675,7 +1793,7 @@ function Binder({ name, sd, shots, onClose, onProfile }) {
         <div className={styles.binderBody}
           onTouchStart={e => { touch.current = e.touches[0].clientX }}
           onTouchEnd={e => { if (touch.current == null) return; const dx = e.changedTouches[0].clientX - touch.current; if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1); touch.current = null }}>
-          <div key={`${order}-${cur}`} className={`${styles.sheet} ${dir > 0 ? styles.turnNext : styles.turnPrev}`}>
+          <div key={`${sd.season}-${order}-${cur}`} className={`${styles.sheet} ${dir > 0 ? styles.turnNext : styles.turnPrev}`}>
             <span className={styles.ring} style={{ top: '14%' }} /><span className={styles.ring} style={{ top: '49%' }} /><span className={styles.ring} style={{ top: '84%' }} />
             <div ref={gridRef} className={styles.pockets} style={{ '--s': scale }}>
               {page.map(e => {
@@ -1686,7 +1804,7 @@ function Binder({ name, sd, shots, onClose, onProfile }) {
                       aria-label={`${e.label}, ${e.info.oppAbbr}: open card`} onClick={() => setPulled(e.g.id)}>
                       {isOut ? <span className={styles.pulledOut}><b>Pulled out</b><small>Close the card to put it back</small></span>
                         : <span className={styles.mini}>
-                          <MiniCard name={name} row={e.p} game={e.info} team={{ name: tName(e.p.t), color: tColor(e.p.t), abbr: tCode(e.p.t) }} headshot={shots?.[norm(name)]?.headshot} />
+                          <MiniCard name={name} row={e.p} game={e.info} team={e.team} headshot={shots?.[norm(name)]?.headshot} />
                         </span>}
                       <span className={styles.glare} />
                     </button>
@@ -1714,7 +1832,7 @@ function Binder({ name, sd, shots, onClose, onProfile }) {
         </div>
       </div>
       {pulledEntry && <div onClick={e => e.stopPropagation()}>
-        <SeasonCard name={name} g={pulledEntry.g} sd={sd} shots={shots} onProfile={onProfile} onClose={() => setPulled(null)} />
+        <SeasonCard name={name} g={pulledEntry.g} sd={sd} shots={shots} info={pulledEntry.info} team={pulledEntry.team} onProfile={onProfile} onClose={() => setPulled(null)} />
       </div>}
     </div>
   )

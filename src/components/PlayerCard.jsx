@@ -11,6 +11,33 @@ export const TIERS = [
   { id: 'common', label: 'Common', max: Infinity },
 ]
 export const tierFor = rank => TIERS.find(t => rank != null && rank <= t.max) || TIERS[TIERS.length - 1]
+// The card's tier follows the player's rank after the game, so the frame matches the medallion
+export const cardTier = row => tierFor(row.lrp ?? row.lr)
+const tierName = t => t.label.replace('★ ', '')
+
+/**
+ * A game's career moments and milestone stamps, highest first.
+ * row.fx (from the pipeline, or computed live): 1 career-best Game Score, 2 career-best rank, 4 career-high Elo.
+ */
+export function momentsFor(row) {
+  const fx = row.fx || 0, stamps = []
+  const { lr, lrp } = row
+  if (lr != null && lrp != null) {
+    if (lrp === 1 && lr !== 1) stamps.push({ up: true, text: 'New #1' })
+    const a = tierFor(lr), b = tierFor(lrp)
+    if (a.id !== b.id) {
+      const up = TIERS.indexOf(b) < TIERS.indexOf(a)
+      stamps.push({ up, text: `${up ? 'Promoted' : 'Relegated'} to ${tierName(b)}` })
+    }
+    if (fx & 2 && lrp !== 1) stamps.push({ up: true, text: `Career-high rank #${lrp}` })
+  }
+  if (fx & 4) stamps.push({ up: true, text: 'Career-high Elo' })
+  if (lr != null && lrp != null) {
+    if (lr > 100 && lrp <= 100) stamps.push({ up: true, text: 'Enters Top 100' })
+    else if (lr <= 100 && lrp > 100) stamps.push({ up: false, text: 'Drops out of Top 100' })
+  }
+  return { career: !!(fx & 1), stamps }
+}
 
 const r0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
 const f1 = v => (v == null || Number.isNaN(v) ? '—' : v.toFixed(1))
@@ -86,7 +113,8 @@ export function CardFront({ name, row, game, team, headshot }) {
   const [first, ...rest] = baseName(name).split(' ')
   const last = rest.join(' ') || first
   const d = row.post - row.pre
-  const where = game.home === false ? '@' : game.home === true ? 'vs' : 'vs'
+  const where = game.home === false ? '@' : 'vs'
+  const moments = useMemo(() => momentsFor(row), [row])
   useLayoutEffect(() => {
     const el = lastRef.current; if (!el) return
     // Measure the text itself (scrollWidth rounds, which let italic overhang trigger the ellipsis);
@@ -110,7 +138,8 @@ export function CardFront({ name, row, game, team, headshot }) {
           ? <img className={styles.shot} src={headshot} alt={baseName(name)} onError={() => setImgBad(true)} />
           : <span className={styles.mono}>{first[0]}{last[0]}</span>}
         <div className={styles.fade} />
-        {game.playoff && <div className={styles.poBand}><span>Playoffs</span><i>·</i><span>{game.playoff}</span></div>}
+        {game.band && <div className={styles.poBand}><span>{game.band.champ ? 'Champions' : 'Playoffs'}</span><i>·</i><span>{game.band.label}</span></div>}
+        {moments.career && <div className={styles.careerStamp}><span>★ Career game</span><b>{f1(row.gs)} <small>GmSc</small></b></div>}
         {rank != null && <div className={styles.medal}>
           <span>Elo rank</span><b>#{rank}</b>
           {!!move && <i className={move > 0 ? styles.medalUp : styles.medalDown}>
@@ -121,6 +150,10 @@ export function CardFront({ name, row, game, team, headshot }) {
           <OppMark game={game} />
         </div>
         <div className={styles.nameOver}>
+          {moments.stamps.length > 0 && <div className={styles.stamps}>
+            {moments.stamps.slice(0, 2).map(m => <span key={m.text} className={m.up ? styles.stampUp : styles.stampDown}>{m.up ? '◆' : '▼'} {m.text}</span>)}
+            {moments.stamps.length > 2 && <span className={styles.stampMore} title={moments.stamps.slice(2).map(m => m.text).join(' · ')}>+{moments.stamps.length - 2}</span>}
+          </div>}
           <div className={styles.first}>{first}</div>
           <div ref={lastRef} className={styles.last}>{last}</div>
           <div className={styles.metaRow}>
@@ -129,6 +162,7 @@ export function CardFront({ name, row, game, team, headshot }) {
           </div>
         </div>
       </div>
+      {game.honor && <div className={styles.honorSeam}><span className={game.honor === 'potd' ? styles.pillDay : styles.pillGame}>{game.honor === 'potd' ? 'Player of the Day' : 'Player of the Game'}</span></div>}
       <div className={styles.strip}>
         <div className={styles.stripStats}>
           <div><b>{row.pts ?? '—'}</b><small>PTS</small></div>
@@ -142,10 +176,22 @@ export function CardFront({ name, row, game, team, headshot }) {
   )
 }
 
+// Data attributes that drive the card's finish: tier, playoff round, honor, career game, milestones
+function cardAttrs(row, game) {
+  const m = momentsFor(row)
+  return {
+    'data-tier': cardTier(row).id,
+    'data-po': game.band ? game.band.level : undefined,
+    'data-honor': game.honor || undefined,
+    'data-cg': m.career ? '' : undefined,
+    'data-ms': m.stamps.some(x => x.up) ? '' : undefined,
+  }
+}
+
 // A static card front at full size (340 × 476), for the season binder to scale into a pocket
 export function MiniCard({ name, row, game, team, headshot }) {
   return (
-    <div className={`${styles.card} ${styles.miniCard}`} data-tier={tierFor(row.lr).id} data-po={game.playoff ? '' : undefined} style={{ '--tc': team?.color || '#173657' }}>
+    <div className={`${styles.card} ${styles.miniCard}`} {...cardAttrs(row, game)} style={{ '--tc': team?.color || '#173657' }}>
       <div className={`${styles.face} ${styles.front}`}><CardFront name={name} row={row} game={game} team={team} headshot={headshot} /></div>
     </div>
   )
@@ -166,7 +212,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
   const [flipped, setFlipped] = useState(false)
   const ref = useRef(null)
   const backNameRef = useRef(null)
-  const tier = tierFor(row.lr)
+  const tier = cardTier(row)
   const season = useMemo(() => seasonLine(sd, name, game.id), [sd, name, game.id])
   const avgElo = useMemo(() => {
     const h = career?.elo_history; return h?.length ? h.reduce((s, e) => s + e[1], 0) / h.length : null
@@ -216,7 +262,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.stage} onClick={e => e.stopPropagation()}>
-        <div ref={ref} className={`${styles.card} ${flipped ? styles.flipped : ''}`} data-tier={tier.id} data-po={game.playoff ? '' : undefined}
+        <div ref={ref} className={`${styles.card} ${flipped ? styles.flipped : ''}`} {...cardAttrs(row, game)}
           style={{ '--tc': color }} onPointerMove={tilt} onPointerLeave={untilt}>
           <div className={styles.tilt}><div className={styles.flip} onClick={e => { if (!e.target.closest('button')) setFlipped(f => !f) }}>
             {/* ── Front ── */}

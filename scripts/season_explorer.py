@@ -24,8 +24,11 @@ from pathlib import Path
 
 OUT_DIR = Path("public/data/explorer")
 COLS = ["n", "t", "st", "pos", "mp", "pts", "fg", "fga", "tp", "tpa", "ft", "fta", "orb", "drb", "trb",
-        "ast", "stl", "blk", "tov", "pf", "pm", "gs", "pre", "post", "gp", "xw", "w", "lr", "lrp"]
-# lr / lrp: Elo rank before / after the game among that season's players (same league) on that date
+        "ast", "stl", "blk", "tov", "pf", "pm", "gs", "pre", "post", "gp", "xw", "w", "lr", "lrp", "fx"]
+# lr / lrp: Elo rank before / after the game among FPR-qualified players (same league) on that date
+# fx: career-moment flags for this game, counted only once a player has 20+ career games:
+#     1 career-best Game Score, 2 career-best league rank, 4 career-high Elo
+FX_GAME, FX_RANK, FX_ELO, FX_MIN_GP = 1, 2, 4, 20
 STAT_SRC = {"pts": "PTS", "fg": "FG", "fga": "FGA", "tp": "3P", "tpa": "3PA", "ft": "FT", "fta": "FTA",
             "orb": "ORB", "drb": "DRB", "trb": "TRB", "ast": "AST", "stl": "STL", "blk": "BLK",
             "tov": "TOV", "pf": "PF"}
@@ -129,6 +132,7 @@ _final = {}          # team id -> lineup Elo after its last game of the previous
 _best = {}           # player -> [best league rank, season label]
 _pool = defaultdict(dict)        # league -> {player: (team, last date, Elo)}
 _team_dates = defaultdict(list)  # team -> its recent game dates
+_career = {}                     # player -> [best Game Score, best post-game rank, peak Elo] so far
 _recent = defaultdict(lambda: deque(maxlen=10))  # player -> last 10 appearances (date, team, minutes)
 
 
@@ -185,7 +189,7 @@ def bind(df):
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
     OUT_DIR.mkdir(parents=True)
-    _games.clear(); _index.clear(); _final.clear(); _best.clear(); _recent.clear(); _pool.clear(); _team_dates.clear(); _cur[0] = None
+    _games.clear(); _index.clear(); _final.clear(); _best.clear(); _recent.clear(); _pool.clear(); _team_dates.clear(); _career.clear(); _cur[0] = None
 
 
 def _v(x):
@@ -275,6 +279,10 @@ def write():
         _write_season(_cur[0], _games, latest=True)
         _games.clear()
     (OUT_DIR / "ranks.json").write_text(json.dumps(_best, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    # Career bests through the latest game (best Game Score, best post-game rank, peak Elo), so the live
+    # scoreboard can flag career games and career highs before the pipeline processes them
+    (OUT_DIR / "careers.json").write_text(json.dumps({n: [round(b[0], 1), b[1], round(b[2], 1)] for n, b in _career.items()},
+                                                    ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     # Recent minutes for the prediction model: players seen in the last ~400 days
     last_day = max((q[-1][0] for q in _recent.values() if q), default="0000-00-00")
     y, m, d = map(int, last_day.split("-"))
@@ -387,7 +395,15 @@ def _write_season(sy, raw_games, latest=False):
         snap = snapshot(day)
         for g in by_date[day]:
             for r in g["rows"]:
-                r.append(rank_in(snap, lg_of(r[1]), r[23]))
+                rp = rank_in(snap, lg_of(r[1]), r[23])
+                r.append(rp)
+                gs, post, gp = r[21], r[23], r[24]
+                best = _career.get(r[0])
+                fx = 0
+                if best and gp >= FX_MIN_GP:
+                    fx |= (FX_GAME if gs > best[0] else 0) | (FX_RANK if rp < best[1] else 0) | (FX_ELO if post > best[2] else 0)
+                r.append(fx)
+                _career[r[0]] = [max(gs, best[0]), min(rp, best[1]), max(post, best[2])] if best else [gs, rp, post]
 
     # Lineup Elo (minutes-weighted post-game Elo) after each team's final game: seeds next season's ranks
     seed = dict(_final)

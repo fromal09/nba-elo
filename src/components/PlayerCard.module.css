@@ -202,14 +202,14 @@
 .nameOver .metaRow .meta { margin-top: 0; min-width: 0; }
 .resW, .resL { flex-shrink: 0; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 3px; color: #fff; white-space: nowrap; }
 .resW { background: #1a7a4a; } .resL { background: #a83232; }
-.front .strip { display: block; padding: 8px 8px 9px; }
+.front .strip { display: block; padding: 15px 8px 8px; }
 .stripStats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
 .stripStats > div { display: flex; flex-direction: column; align-items: center; line-height: 1.05; }
-.stripStats b { font-size: 21px; }
-.stripStats small { margin: 3px 0 0; }
-.stripElo { display: flex !important; flex-direction: row !important; align-items: baseline; gap: 6px; margin-top: 7px; padding: 6px 4px 0 6px; border-top: 1px solid rgba(255,255,255,.1); min-height: 24px; }
+.stripStats b { font-size: 18px; }
+.stripStats small { margin: 2px 0 0; font-size: 8px; }
+.stripElo { display: flex !important; flex-direction: row !important; align-items: baseline; gap: 6px; margin-top: 5px; padding: 5px 4px 0 6px; border-top: 1px solid rgba(255,255,255,.1); min-height: 24px; }
 .stripElo small { margin: 0; }
-.stripElo b { font-size: 15px; }
+.stripElo b { font-size: 14px; }
 .stripElo em { margin: 0; font-size: 12px; opacity: 1; }
 
 /* Playoff games: black-and-gold band and strip */
@@ -217,6 +217,7 @@
   display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 10px; font-weight: 800; letter-spacing: 2.4px; color: #e7c160; text-transform: uppercase; }
 .poBand i { font-style: normal; opacity: .5; }
 [data-po] .medal, [data-po] .gameTag { top: 34px; }
+[data-po=champ] .medal, [data-po=champ] .gameTag { top: 42px; }
 [data-po] .front .strip { background: linear-gradient(180deg, #14110a, #0b0b0b); }
 
 .binderBtn { margin-left: 12px; border: 1px solid rgba(255,255,255,.4); background: rgba(255,255,255,.1); color: #fff; font: inherit; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 14px; cursor: pointer; }
@@ -225,3 +226,41 @@
 .strip > .stripStats { display: grid; }
 .miniCard { width: 340px; height: 476px; aspect-ratio: auto; perspective: none; display: block; }
 .miniCard .face { box-shadow: 0 6px 16px rgba(0,0,0,.35); }
+
+/* Playoff bands escalate by round */
+[data-po=r2] .poBand { background: linear-gradient(90deg, #0b0b0b, #3a2f10 50%, #0b0b0b); border-bottom: 3px double #e7c160; color: #f2d27e; text-shadow: 0 0 6px rgba(231,193,96,.45); }
+[data-po=cf] .poBand { height: 28px; font-size: 10.5px; background: linear-gradient(90deg, #8a6418, #f4d27a 30%, #fff0bf 50%, #f4d27a 70%, #8a6418); border-bottom-color: #5a3f08; color: #2a1c00; text-shadow: 0 1px 0 rgba(255,255,255,.5); }
+[data-po=finals] .poBand { height: 30px; font-size: 11px; background: linear-gradient(90deg, #6e4c0c, #e7c160 18%, #fff6d6 34%, #d9a93c 50%, #fff6d6 66%, #e7c160 82%, #6e4c0c); background-size: 200% 100%; animation: holo 5s linear infinite alternate; border-bottom: 2px solid #fff3c8; color: #1f1400; text-shadow: 0 1px 0 rgba(255,255,255,.6); }
+[data-po=champ] .poBand { height: 34px; font-size: 12px; background: linear-gradient(90deg, #0b0b0b, #1c1606 12%, #e7c160 30%, #fffbe8 50%, #e7c160 70%, #1c1606 88%, #0b0b0b); background-size: 200% 100%; animation: holo 4s linear infinite alternate; border-bottom: 2px solid #fff3c8; color: #1a1000; text-shadow: 0 0 10px rgba(255,240,190,.9); }
+[data-po=finals] .face.front, [data-po=champ] .face.front { box-shadow: 0 0 0 1px rgba(255,243,200,.9), 0 0 34px rgba(231,193,96,.6), 0 24px 60px rgba(0,0,0,.5); }
+
+/* Honors: a pill on the seam between photo and stat strip, plus an inner edge */
+.honorSeam { position: relative; z-index: 6; height: 0; }
+.pillGame, .pillDay { position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%); padding: 4px 12px; border-radius: 12px; font-size: 9.5px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; white-space: nowrap; }
+.pillGame { background: linear-gradient(90deg, #0b1a3a, #16336e); color: #bfe6ff; border: 1.5px solid #5ec8ff; box-shadow: 0 0 12px rgba(94,200,255,.55); }
+.pillDay { background: linear-gradient(90deg, #6e4c0c, #f4d27a 50%, #6e4c0c); color: #1f1400; border: 1.5px solid #fff3c8; box-shadow: 0 0 14px rgba(231,193,96,.8); }
+[data-honor=potg] .frame { box-shadow: inset 0 0 0 2px #5ec8ff; }
+[data-honor=potg] .face.front { box-shadow: 0 0 0 1px rgba(94,200,255,.7), 0 0 26px rgba(94,200,255,.45), 0 24px 60px rgba(0,0,0,.5); }
+[data-honor=potd] .frame { box-shadow: inset 0 0 0 2px #f4d27a; }
+[data-honor=potd] .face.front { box-shadow: 0 0 0 1px rgba(255,243,200,.9), 0 0 34px rgba(231,193,96,.65), 0 24px 60px rgba(0,0,0,.5); }
+.miniCard[data-honor] .face { box-shadow: 0 6px 16px rgba(0,0,0,.35); }
+
+/* Career game: crimson finish and a tilted stamp, placed below the face */
+[data-cg] .photoBg { background: radial-gradient(90% 70% at 50% 45%, #7a1420 0%, #3a0d14 60%, #1a0408 100%); }
+[data-cg] .photoBg::before { content: ""; position: absolute; inset: 0; background: linear-gradient(160deg, rgba(220,40,50,.45), rgba(40,4,8,.15) 55%, rgba(255,120,90,.22)); }
+[data-cg] .front .strip { background: linear-gradient(180deg, #2a070c, #120306); border-top-color: #ff6b5e; }
+.careerStamp { position: absolute; z-index: 6; right: 12px; top: 54%; transform: rotate(-7deg); border: 2px solid #ffd0c4; border-radius: 6px; padding: 5px 9px 4px; background: rgba(90,8,14,.6);
+  box-shadow: 0 0 0 3px rgba(255,208,196,.18), 0 6px 18px rgba(0,0,0,.45); display: flex; flex-direction: column; align-items: center; line-height: 1; color: #ffe3dc; }
+.careerStamp span { font-size: 9px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
+.careerStamp b { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 24px; margin-top: 3px; }
+.careerStamp small { font-family: 'Inter', sans-serif; font-style: normal; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+
+/* Milestones: stamps above the name and a silver sheen on the photo */
+.stamps { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
+.stampUp, .stampDown, .stampMore { font-size: 9.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; padding: 3px 8px; border-radius: 3px; white-space: nowrap; }
+.stampUp { color: #fff; border: 1.5px solid #fff; background: linear-gradient(90deg, rgba(255,255,255,.28), rgba(200,220,255,.18)); }
+.stampDown { color: #c9d1da; border: 1.5px solid rgba(201,209,218,.55); background: rgba(30,38,50,.7); }
+.stampMore { color: #fff; border: 1.5px solid rgba(255,255,255,.5); }
+[data-ms] .photoBg::before { content: ""; position: absolute; inset: 0; background: linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,.22) 46%, rgba(220,232,255,.32) 50%, rgba(255,255,255,0) 64%); background-size: 250% 100%; animation: band 5s ease-in-out infinite; }
+[data-cg][data-ms] .photoBg::before { background: linear-gradient(160deg, rgba(220,40,50,.45), rgba(40,4,8,.15) 55%, rgba(255,120,90,.22)); animation: none; }
+@media (prefers-reduced-motion: reduce) { [data-ms] .photoBg::before, [data-po] .poBand { animation: none !important; } }
