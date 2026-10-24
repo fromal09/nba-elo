@@ -964,7 +964,7 @@ function ProjBox({ x, shots }) {
 function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair }) {
   const [focus, setFocus] = useState(null)
   const [side, setSide] = useState(team) // which team's table shows; starts on the team you came from
-  const [stat, setStat] = useState('standard') // box score view, kept when switching teams
+  const [stat, setStat] = useState('box') // box score view, kept when switching teams
   const P = game.players, N = P.length
   const opp = game.opp
   const home = game.home === false ? opp : team
@@ -1092,8 +1092,7 @@ const split = (m, a, showA = true) => (m == null ? '—' : showA ? `${m}-${a ?? 
 const fmtW = w => (Number.isInteger(w) ? w : w.toFixed(1))
 
 const STAT_VIEWS = [
-  { id: 'standard', label: 'Standard' },
-  { id: 'shooting', label: 'Shooting' },
+  { id: 'box', label: 'Box score' },
   { id: 'elo', label: 'Elo' },
 ]
 const STAT_COLS = {
@@ -1121,6 +1120,69 @@ const STAT_COLS = {
     { h: 'eFG%', need: 'tp', any: 'fga', v: p => dec3(efg(p)), tot: rows => dec3(efg({ fg: sum(rows, 'fg'), tp: sum(rows, 'tp'), fga: sum(rows, 'fga') })) },
     { h: 'TS%', any: 'fga', v: p => dec3(ts(p)), tot: rows => dec3(ts({ pts: sum(rows, 'pts'), fga: sum(rows, 'fga'), fta: sum(rows, 'fta') })) },
   ],
+}
+
+// Folded box score: every standard column in one phone-width row. Shooting stacks FG / 3P / FT with the
+// percentage worked out; offensive rebounds sit under rebounds and turnovers under assists.
+const pctOf = (m, a) => (a ? Math.round((m / a) * 100) : null)
+const pctCls = p => (p == null ? 'fZero' : p >= 50 ? 'fGood' : p >= 34 ? 'fMid' : 'fBad')
+function ShotLines({ lines, bold }) {
+  return (
+    <span className={styles.fShots}>
+      {lines.map(([l, m, a, win]) => {
+        const p = pctOf(m, a)
+        return (
+          <span key={l} className={`${styles.fShot} ${a ? '' : styles.fZero}`}>
+            <i>{l}</i><b>{m}-{a}</b><em className={bold ? (win ? styles.fWin : '') : styles[pctCls(p)]}>{p == null ? '—' : `${p}%`}</em>
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+function FoldCells({ p, F, FCOLS, hi }) {
+  const z = v => (v ? '' : styles.fZero)
+  const top = (k, v) => (v > 0 && v === hi[k] ? styles.fHi : '')
+  const lines = [F.fga && ['FG', p.fg || 0, p.fga || 0], F.tpa && ['3P', p.tp || 0, p.tpa || 0], F.fta && ['FT', p.ft || 0, p.fta || 0]].filter(Boolean)
+  const sub = {
+    reb: F.orb && p.orb ? <small>{p.orb} off</small> : null,
+    ast: F.tov ? <small className={`${p.tov ? styles.down : styles.fZero} ${p.tov && p.tov === hi.tov ? styles.fBold : ''}`}>{p.tov || 0} TO</small> : null,
+    pf: p.pf >= 6 ? <small className={styles.down}>out</small> : null,
+  }
+  const val = { reb: p.trb, ast: p.ast, stl: p.stl, blk: p.blk, pf: p.pf }
+  const key = { reb: 'trb', ast: 'ast', stl: 'stl', blk: 'blk', pf: null }
+  return <>
+    <td className={`${styles.gStart} ${styles.fPts}`}><b className={`${z(p.pts)} ${top('pts', p.pts)}`}>{p.pts ?? 0}</b><small>{p.gs.toFixed(1)}</small></td>
+    <td className={styles.fShootCell}><ShotLines lines={lines} /></td>
+    {FCOLS.map(([k]) => (
+      <td key={k} className={styles.fCell}>
+        <b className={`${z(val[k])} ${key[k] ? top(key[k], val[k]) : ''} ${k === 'pf' && val[k] >= 6 ? styles.down : ''}`}>{val[k] ?? '—'}</b>{sub[k]}
+      </td>
+    ))}
+  </>
+}
+function FoldTotals({ label, rows, other, F, FCOLS, cls }) {
+  const s = k => sum(rows, k), o = k => sum(other, k)
+  const better = (m, a, om, oa) => a && oa && m / a > om / oa
+  const lines = [F.fga && ['FG', s('fg'), s('fga'), better(s('fg'), s('fga'), o('fg'), o('fga'))],
+    F.tpa && ['3P', s('tp'), s('tpa'), better(s('tp'), s('tpa'), o('tp'), o('tpa'))],
+    F.fta && ['FT', s('ft'), s('fta'), better(s('ft'), s('fta'), o('ft'), o('fta'))]].filter(Boolean)
+  const key = { reb: 'trb', ast: 'ast', stl: 'stl', blk: 'blk', pf: 'pf' }
+  const win = k => (k === 'pf' ? s(key[k]) < o(key[k]) : s(key[k]) > o(key[k]))
+  return (
+    <tr className={cls}>
+      <td className={styles.sticky}>{label}</td><td />
+      <td className={`${styles.gStart} ${styles.fPts}`}><b className={s('pts') > o('pts') ? styles.fWin : styles.fLose}>{s('pts')}</b></td>
+      <td className={styles.fShootCell}><ShotLines lines={lines} bold /></td>
+      {FCOLS.map(([k]) => (
+        <td key={k} className={styles.fCell}>
+          <b className={win(k) ? styles.fWin : styles.fLose}>{s(key[k])}</b>
+          {k === 'reb' && F.orb && <small>{s('orb')} off</small>}
+          {k === 'ast' && F.tov && <small className={`${styles.down} ${s('tov') < o('tov') ? styles.fBold : ''}`}>{s('tov')} TO</small>}
+        </td>
+      ))}
+    </tr>
+  )
 }
 
 // Elo view: pre-game Elo, duels expected vs. won on a 0..N-1 track, post-game Elo, change
@@ -1166,13 +1228,26 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
     }))
   }, [stat, rows, P, N])
 
-  const cols = stat === 'elo' ? [] : STAT_COLS[stat].filter(c => (!c.need || has?.has(c.need)) && (!c.any || avail.has(c.any)))
+  const cols = stat !== 'box' && stat !== 'elo' ? STAT_COLS[stat].filter(c => (!c.need || has?.has(c.need)) && (!c.any || avail.has(c.any))) : []
+  // Folded box score: the stats this game kept, both teams' game highs, and the opponent for the totals rows
+  const ok = k => has?.has(k) !== false && avail.has(k)
+  const F = {
+    reb: avail.has('trb'), orb: ok('orb'), ast: avail.has('ast'), tov: ok('tov'), stl: ok('stl'), blk: ok('blk'), pf: ok('pf'),
+    fga: avail.has('fga'), tpa: ok('tpa'), fta: avail.has('fta'), mp: ok('mp'),
+  }
+  const FCOLS = [['reb', 'REB', F.orb && 'off'], ['ast', 'AST', F.tov && 'TO'], ['stl', 'STL'], ['blk', 'BLK'], ['pf', 'PF']].filter(([k]) => F[k])
+  const hi = useMemo(() => {
+    const m = {}
+    for (const k of ['pts', 'trb', 'ast', 'stl', 'blk', 'tov']) m[k] = Math.max(0, ...P.map(p => p[k] || 0))
+    return m
+  }, [P])
+  const opp = P.filter(p => p.t !== t)
   const cell = c => p => c.pair ? split(p[c.pair[0]], p[c.pair[1]], avail.has(c.pair[1]))
     : c.pct ? fmtPct(p[c.pct[0]] || 0, p[c.pct[1]] || 0) : c.v(p)
   const total = c => c.pair ? split(sum(rows, c.pair[0]), sum(rows, c.pair[1]), avail.has(c.pair[1]))
     : c.pct ? fmtPct(sum(rows, c.pct[0]), sum(rows, c.pct[1])) : c.sum ? sum(rows, c.sum) : c.tot ? c.tot(rows) : ''
   const ELO_HEAD = ['Current Elo', 'Pregame Elo', 'Elo Δ', 'track', 'Teammate duels', 'Opponent duels', 'Best win', 'Costliest loss']
-  const width = 2 + (stat === 'elo' ? ELO_HEAD.length : cols.length)
+  const width = 2 + (stat === 'elo' ? ELO_HEAD.length : stat === 'box' ? 2 + FCOLS.length : cols.length)
 
   const duelLink = (x, up) => x
     ? <span className={styles.duelPick} title={`${Math.round((up ? x.c.exp : 1 - x.c.exp) * 100)}% pre-game duel chance for ${up ? 'the winner' : 'the loser'}`}>
@@ -1189,11 +1264,11 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
             <Headshot name={p.n} shots={shots} color={tColor(t)} />
             <span><span className={styles.pNameRow}><button className={styles.pName} onClick={() => onCard(p.n)} title="Open player card">{shortName(p.n)}</button>
               <MomentMarks p={p} /></span>
-              <small>{[p.pos, p.potd ? 'Player of the Day' : p.potg ? 'Player of the Game' : null].filter(Boolean).join(' · ')}</small></span>
+              <small>{[stat === 'box' && F.mp && p.mp != null ? `${p.mp} min` : null, p.pos, p.potd ? 'Player of the Day' : p.potg ? 'Player of the Game' : null].filter(Boolean).join(' · ')}</small></span>
           </span>
         </td>
         <td className={styles.rankCell}><RankCell p={p} /></td>
-        {stat === 'elo' ? <>
+        {stat === 'box' ? <FoldCells p={p} F={F} FCOLS={FCOLS} hi={hi} /> : stat === 'elo' ? <>
           <td className={`${styles.gStart} ${styles.eloPost}`}>{r0(p.post)}</td>
           <td className={styles.eloPre}>{r0(p.pre)}</td>
           <td className={`${styles.eloDelta} ${d >= 0 ? styles.up : styles.down}`}>{sgn(d)}</td>
@@ -1223,12 +1298,17 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
         <span>Every player duels the other {n} on Game Score. <b>Best win</b> and <b>costliest loss</b> are the single duels that moved his Elo most.</span>
       </div>}
       <div className={styles.tableWrap}>
+        {stat === 'box' && <div className={styles.fNote}>Under REB: offensive rebounds{F.tov ? ' · under AST: turnovers' : ''} · <i className={styles.fHiKey} /> game high · bold total: won that column</div>}
         <table className={`${styles.box} ${styles['box_' + stat]}`}>
           <thead>
             <tr>
               <th className={styles.sticky}>Player</th>
               <th className={styles.rankHead} title="League Elo rank after this game, among FPR-qualified players, and the change from before it">Player Rank</th>
-              {stat === 'elo' ? ELO_HEAD.map((h, j) => h === 'track'
+              {stat === 'box' ? <>
+                <th className={`${styles.gStart} ${styles.fPtsHead}`}>PTS<small>GmSc</small></th>
+                <th className={styles.fShootHead}>Shooting</th>
+                {FCOLS.map(([k, h, sub]) => <th key={k} className={styles.fHead}>{h}{sub && <small className={sub === 'TO' ? styles.down : ''}>{sub}</small>}</th>)}
+              </> : stat === 'elo' ? ELO_HEAD.map((h, j) => h === 'track'
                 ? <th key={h} className={styles.trackHead} title={`Every player duels the other ${n} on Game Score`}>
                     <span>Duels: expected → won</span>
                     <span className={styles.trackScale}><i style={{ left: '0%' }}>0</i><i style={{ left: '50%' }}>{Math.round(n / 2)}</i><i style={{ left: '100%' }}>{n}</i></span>
@@ -1243,7 +1323,10 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
               {ps.map(row)}
             </tbody>
           ))}
-          <tbody>
+          {stat === 'box' ? <tbody>
+            <FoldTotals label={tName(t)} rows={rows} other={opp} F={F} FCOLS={FCOLS} cls={styles.totals} />
+            <FoldTotals label={`vs ${tName(opp[0]?.t || '')}`} rows={opp} other={rows} F={F} FCOLS={FCOLS} cls={`${styles.totals} ${styles.fOpp}`} />
+          </tbody> : <tbody>
             <tr className={styles.totals}>
               <td className={styles.sticky}>Team</td><td />
               {stat === 'elo' ? <>
@@ -1253,7 +1336,7 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
                 <td key={c.h} className={`${j === 0 ? styles.gStart : ''} ${c.cls ? styles[c.cls] : ''}`}>{total(c)}</td>
               ))}
             </tr>
-          </tbody>
+          </tbody>}
         </table>
       </div>
     </div>

@@ -744,3 +744,38 @@
 .wpProj { margin-top: 7px; text-align: center; }
 .wpProj em { display: block; font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: 1.2px; color: #7fa3c7; font-weight: 700; }
 .final .wpProj b { font-size: 13px; color: #fff; text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+
+/* Folded box score */
+.box_box { min-width: 0; }
+.box_box td, .box_box th { padding-left: 5px; padding-right: 5px; }
+.box_box th.fHead, .box_box th.fPtsHead { text-align: center; line-height: 1.15; vertical-align: bottom; }
+.box_box th small { display: block; font-size: 9px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.box_box th.fShootHead { text-align: left; padding-left: 10px; }
+.box_box td.fPts, .box_box td.fCell { text-align: center; line-height: 1.1; }
+.box_box td.fPts b { display: block; font-size: 16px; font-weight: 700; }
+.box_box td.fCell b { display: block; font-size: 14px; font-weight: 600; }
+.box_box td.fPts small, .box_box td.fCell small { display: block; font-size: 10px; color: #7a8694; font-weight: 600; margin-top: 1px; }
+.box_box td.fCell small.down, .box_box td.fPts small.down { color: #b42318; }
+.box_box .fZero { color: #b8c0ca !important; font-weight: 500; }
+.box_box .fBold { font-weight: 800 !important; }
+.box_box .fHi { font-weight: 800 !important; text-decoration: underline; text-decoration-color: var(--tc); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.box_box td.fShootCell { text-align: left; padding-left: 10px; }
+.fShots { display: flex; flex-direction: column; gap: 1px; }
+.fShot { display: grid; grid-template-columns: 18px 42px 34px; align-items: baseline; column-gap: 4px; font-size: 12px; line-height: 1.2; }
+.fShot i { font-style: normal; font-size: 9.5px; font-weight: 700; color: #8c959f; }
+.fShot b { text-align: right; font-weight: 600; }
+.fShot em { font-style: normal; font-size: 11.5px; font-weight: 700; color: #57606a; }
+.fShot em.fGood { color: #1a7f37; } .fShot em.fMid { color: #57606a; } .fShot em.fBad { color: #b42318; } .fShot em.fZero { color: #b8c0ca; }
+.fShot.fZero b, .fShot.fZero i { color: #b8c0ca; }
+.totals .fShot em { font-weight: 500; color: inherit; }
+.totals .fShot em.fWin, .totals b.fWin { font-weight: 800; }
+.totals b.fLose { font-weight: 500; }
+.totals td.fPts b, .totals td.fCell b { font-size: 14px; }
+.fOpp td { background: #fbfbfc !important; color: #7a8694; border-top: 1px solid #eef0f3 !important; font-weight: 500; }
+.fOpp td.sticky { background: #fbfbfc !important; }
+.fNote { padding: 6px 14px 2px; font-size: 11px; color: #7a8694; }
+.fHiKey { display: inline-block; width: 14px; height: 2px; background: var(--tc); vertical-align: middle; margin: 0 3px; }
+@media (max-width: 760px) {
+  .box_box td.fCell b { font-size: 13px; }
+  .fShot { grid-template-columns: 16px 38px 30px; font-size: 11.5px; }
+}
