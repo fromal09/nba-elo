@@ -236,13 +236,13 @@ function fromIndex(env, c, extra = {}) {
 }
 
 // Pulling a card: the full card, flippable, with its season. Index cards load their season first.
-function usePull(env, sd) {
+function usePull(env, sd, owner) {
   const [pulled, setPulled] = useState(null) // { key, name, g, sd }
   const pull = e => {
-    if (e.g && sd) { setPulled({ key: e.key, name: e.name, g: e.g, sd }); return }
+    if (e.g && sd) { setPulled({ key: e.key, name: e.name || owner, g: e.g, sd }); return }
     env.loadSeason(e.season).then(s => {
       const g = s.games.find(x => x.id === e.id)
-      if (g) setPulled({ key: e.key, name: e.name, g, sd: s })
+      if (g) setPulled({ key: e.key, name: e.name || owner, g, sd: s })
     }).catch(() => {})
   }
   const view = pulled && <div onClick={ev => ev.stopPropagation()}>{env.renderCard({ name: pulled.name, g: pulled.g, sd: pulled.sd, onClose: () => setPulled(null) })}</div>
@@ -258,7 +258,7 @@ export function SeasonBinder({ name, sd: startSd, env, onClose, onCareer }) {
   const [order, setOrder] = useState('chrono')
   const seasons = env.careerSeasons(name, startSd.season)
   const si = seasons.indexOf(sd.season)
-  const P = usePull(env, sd)
+  const P = usePull(env, sd, name)
   const goSeason = k => {
     const lab = seasons[si + k]; if (!lab) return
     setLoading(true)
@@ -360,7 +360,7 @@ export function CareerBinder({ name, env, onClose, onSeason }) {
   const [view, setView] = useState('shelf')
   const [sel, setSel] = useState(null)
   const [albumPage, setAlbumPage] = useState(0)
-  const P = usePull(env, null)
+  const P = usePull(env, null, name)
   useEffect(() => {
     env.getJSON(`/data/explorer/binders/p/${env.slug(name)}.json`).then(d => { setData(d); setSel(d.seasons.reduce((b, s) => (!b || s.peak > b.peak ? s : b), null)?.s) }).catch(() => setErr(true))
   }, [name])

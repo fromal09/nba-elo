@@ -2245,6 +2245,7 @@ function BinderHost({ start, shots, onClose, onProfile }) {
     cardGameInfo, headshot: n => shots?.[norm(n)]?.headshot,
     renderCard: ({ name, g, sd, onClose: close }) => {
       const row = g.players.find(p => p.n === name)
+      if (!row) return null
       const { info, team } = withTeams(sd, () => ({ info: cardGameInfo(g, row.t, sd, row), team: teamInfo(row.t) }))
       return <SeasonCard name={name} g={g} sd={sd} shots={shots} info={info} team={team} onProfile={onProfile} onClose={close}
         onCareer={top.kind !== 'career' ? () => { close(); push({ kind: 'career', name }) } : undefined} />

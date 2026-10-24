@@ -98,7 +98,9 @@ function EloChart({ path, peakAt, at, color, H = 92, ends }) {
   )
 }
 
-const fmtDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()
+// AP style with the year, since a card can come from any season: DEC. 15, 2023 · MARCH 3, 2024
+const AP_MONTHS = ['Jan.', 'Feb.', 'March', 'April', 'May', 'June', 'July', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.']
+const fmtDay = d => `${AP_MONTHS[+d.slice(5, 7) - 1]} ${+d.slice(8, 10)}, ${d.slice(0, 4)}`.toUpperCase()
 
 /**
  * The card front, specific to one game: date and opponent, result, the game line and Elo.
