@@ -754,11 +754,11 @@
 .box_box td.fPts, .box_box td.fCell { text-align: center; line-height: 1.1; }
 .box_box td.fPts b { display: block; font-size: 16px; font-weight: 700; }
 .box_box td.fCell b { display: block; font-size: 14px; font-weight: 600; }
-.box_box td.fPts small, .box_box td.fCell small { display: block; font-size: 10px; color: #7a8694; font-weight: 600; margin-top: 1px; }
+.box_box td.fPts small, .box_box td.fCell small { display: block; font-size: 10px; color: #7a8694; font-weight: 600; margin-top: 5px; }
 .box_box td.fCell small.down, .box_box td.fPts small.down { color: #b42318; }
 .box_box .fZero { color: #b8c0ca !important; font-weight: 500; }
 .box_box .fBold { font-weight: 800 !important; }
-.box_box .fHi { font-weight: 800 !important; text-decoration: underline; text-decoration-color: var(--tc); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.box_box .fHi { font-weight: 800 !important; text-decoration: underline; text-decoration-color: var(--tc); text-decoration-thickness: 2px; text-underline-offset: 2px; }
 .box_box td.fShootCell { text-align: left; padding-left: 10px; }
 .fShots { display: flex; flex-direction: column; gap: 1px; }
 .fShot { display: grid; grid-template-columns: 18px 42px 34px; align-items: baseline; column-gap: 4px; font-size: 12px; line-height: 1.2; }
@@ -773,6 +773,16 @@
 .totals td.fPts b, .totals td.fCell b { font-size: 14px; }
 .fOpp td { background: #fbfbfc !important; color: #7a8694; border-top: 1px solid #eef0f3 !important; font-weight: 500; }
 .fOpp td.sticky { background: #fbfbfc !important; }
+.box_box td.fCell small.fGood { color: #1a7f37; } .box_box td.fCell small.fMid { color: #57606a; } .box_box td.fCell small.fBad { color: #b42318; } .box_box td.fCell small.fZero { color: #b8c0ca; }
+.totals td.fCell small.fWin { font-weight: 800; color: inherit; }
+.box_box .fShotCol { min-width: 58px; }
+.box_box .fShotFirst { border-left: 1px solid #eef0f3; }
+.box_box .fShotCol + .fHead:not(.fShotCol), .box_box .fShotCol + .fCell:not(.fShotCol) { border-left: 1px solid #eef0f3; }
+@media (min-width: 900px) {
+  .box_box th.fHead, .box_box th.fPtsHead { width: 8%; }
+  .box_box td.fPts b { font-size: 17px; }
+  .box_box td.fCell b { font-size: 15px; }
+}
 .fNote { padding: 6px 14px 2px; font-size: 11px; color: #7a8694; }
 .fHiKey { display: inline-block; width: 14px; height: 2px; background: var(--tc); vertical-align: middle; margin: 0 3px; }
 @media (max-width: 760px) {

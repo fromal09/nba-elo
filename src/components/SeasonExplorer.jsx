@@ -1124,6 +1124,28 @@ const STAT_COLS = {
 
 // Folded box score: every standard column in one phone-width row. Shooting stacks FG / 3P / FT with the
 // percentage worked out; offensive rebounds sit under rebounds and turnovers under assists.
+// Wide screens unfold the shooting stack into FG / 3P / FT columns so rows stay two lines tall
+const WIDE_Q = '(min-width: 900px)'
+function useWide() {
+  const [w, setW] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(WIDE_Q).matches)
+  useEffect(() => {
+    const mq = matchMedia(WIDE_Q), on = () => setW(mq.matches)
+    on(); mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return w
+}
+function ShotCols({ lines, bold }) {
+  return lines.map(([l, m, a, win]) => {
+    const p = pctOf(m, a)
+    return (
+      <td key={l} className={`${styles.fCell} ${styles.fShotCol} ${l === 'FG' ? styles.fShotFirst : ''}`}>
+        <b className={a ? '' : styles.fZero}>{m}-{a}</b>
+        <small className={bold ? (win ? styles.fWin : '') : styles[pctCls(p)]}>{p == null ? '—' : `${p}%`}</small>
+      </td>
+    )
+  })
+}
 const pctOf = (m, a) => (a ? Math.round((m / a) * 100) : null)
 const pctCls = p => (p == null ? 'fZero' : p >= 50 ? 'fGood' : p >= 34 ? 'fMid' : 'fBad')
 function ShotLines({ lines, bold }) {
@@ -1140,7 +1162,7 @@ function ShotLines({ lines, bold }) {
     </span>
   )
 }
-function FoldCells({ p, F, FCOLS, hi }) {
+function FoldCells({ p, F, FCOLS, hi, wide }) {
   const z = v => (v ? '' : styles.fZero)
   const top = (k, v) => (v > 0 && v === hi[k] ? styles.fHi : '')
   const lines = [F.fga && ['FG', p.fg || 0, p.fga || 0], F.tpa && ['3P', p.tp || 0, p.tpa || 0], F.fta && ['FT', p.ft || 0, p.fta || 0]].filter(Boolean)
@@ -1153,7 +1175,7 @@ function FoldCells({ p, F, FCOLS, hi }) {
   const key = { reb: 'trb', ast: 'ast', stl: 'stl', blk: 'blk', pf: null }
   return <>
     <td className={`${styles.gStart} ${styles.fPts}`}><b className={`${z(p.pts)} ${top('pts', p.pts)}`}>{p.pts ?? 0}</b><small>{p.gs.toFixed(1)}</small></td>
-    <td className={styles.fShootCell}><ShotLines lines={lines} /></td>
+    {wide ? <ShotCols lines={lines} /> : <td className={styles.fShootCell}><ShotLines lines={lines} /></td>}
     {FCOLS.map(([k]) => (
       <td key={k} className={styles.fCell}>
         <b className={`${z(val[k])} ${key[k] ? top(key[k], val[k]) : ''} ${k === 'pf' && val[k] >= 6 ? styles.down : ''}`}>{val[k] ?? '—'}</b>{sub[k]}
@@ -1161,7 +1183,7 @@ function FoldCells({ p, F, FCOLS, hi }) {
     ))}
   </>
 }
-function FoldTotals({ label, rows, other, F, FCOLS, cls }) {
+function FoldTotals({ label, rows, other, F, FCOLS, cls, wide }) {
   const s = k => sum(rows, k), o = k => sum(other, k)
   const better = (m, a, om, oa) => a && oa && m / a > om / oa
   const lines = [F.fga && ['FG', s('fg'), s('fga'), better(s('fg'), s('fga'), o('fg'), o('fga'))],
@@ -1173,7 +1195,7 @@ function FoldTotals({ label, rows, other, F, FCOLS, cls }) {
     <tr className={cls}>
       <td className={styles.sticky}>{label}</td><td />
       <td className={`${styles.gStart} ${styles.fPts}`}><b className={s('pts') > o('pts') ? styles.fWin : styles.fLose}>{s('pts')}</b></td>
-      <td className={styles.fShootCell}><ShotLines lines={lines} bold /></td>
+      {wide ? <ShotCols lines={lines} bold /> : <td className={styles.fShootCell}><ShotLines lines={lines} bold /></td>}
       {FCOLS.map(([k]) => (
         <td key={k} className={styles.fCell}>
           <b className={win(k) ? styles.fWin : styles.fLose}>{s(key[k])}</b>
@@ -1242,12 +1264,14 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
     return m
   }, [P])
   const opp = P.filter(p => p.t !== t)
+  const wide = useWide()
+  const SHOTS = [F.fga && 'FG', F.tpa && '3P', F.fta && 'FT'].filter(Boolean)
   const cell = c => p => c.pair ? split(p[c.pair[0]], p[c.pair[1]], avail.has(c.pair[1]))
     : c.pct ? fmtPct(p[c.pct[0]] || 0, p[c.pct[1]] || 0) : c.v(p)
   const total = c => c.pair ? split(sum(rows, c.pair[0]), sum(rows, c.pair[1]), avail.has(c.pair[1]))
     : c.pct ? fmtPct(sum(rows, c.pct[0]), sum(rows, c.pct[1])) : c.sum ? sum(rows, c.sum) : c.tot ? c.tot(rows) : ''
   const ELO_HEAD = ['Current Elo', 'Pregame Elo', 'Elo Δ', 'track', 'Teammate duels', 'Opponent duels', 'Best win', 'Costliest loss']
-  const width = 2 + (stat === 'elo' ? ELO_HEAD.length : stat === 'box' ? 2 + FCOLS.length : cols.length)
+  const width = 2 + (stat === 'elo' ? ELO_HEAD.length : stat === 'box' ? 1 + (wide ? SHOTS.length : 1) + FCOLS.length : cols.length)
 
   const duelLink = (x, up) => x
     ? <span className={styles.duelPick} title={`${Math.round((up ? x.c.exp : 1 - x.c.exp) * 100)}% pre-game duel chance for ${up ? 'the winner' : 'the loser'}`}>
@@ -1268,7 +1292,7 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
           </span>
         </td>
         <td className={styles.rankCell}><RankCell p={p} /></td>
-        {stat === 'box' ? <FoldCells p={p} F={F} FCOLS={FCOLS} hi={hi} /> : stat === 'elo' ? <>
+        {stat === 'box' ? <FoldCells p={p} F={F} FCOLS={FCOLS} hi={hi} wide={wide} /> : stat === 'elo' ? <>
           <td className={`${styles.gStart} ${styles.eloPost}`}>{r0(p.post)}</td>
           <td className={styles.eloPre}>{r0(p.pre)}</td>
           <td className={`${styles.eloDelta} ${d >= 0 ? styles.up : styles.down}`}>{sgn(d)}</td>
@@ -1306,7 +1330,8 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
               <th className={styles.rankHead} title="League Elo rank after this game, among FPR-qualified players, and the change from before it">Player Rank</th>
               {stat === 'box' ? <>
                 <th className={`${styles.gStart} ${styles.fPtsHead}`}>PTS<small>GmSc</small></th>
-                <th className={styles.fShootHead}>Shooting</th>
+                {wide ? SHOTS.map(h => <th key={h} className={`${styles.fHead} ${styles.fShotCol} ${h === 'FG' ? styles.fShotFirst : ''}`}>{h}<small>%</small></th>)
+                  : <th className={styles.fShootHead}>Shooting</th>}
                 {FCOLS.map(([k, h, sub]) => <th key={k} className={styles.fHead}>{h}{sub && <small className={sub === 'TO' ? styles.down : ''}>{sub}</small>}</th>)}
               </> : stat === 'elo' ? ELO_HEAD.map((h, j) => h === 'track'
                 ? <th key={h} className={styles.trackHead} title={`Every player duels the other ${n} on Game Score`}>
@@ -1324,8 +1349,8 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
             </tbody>
           ))}
           {stat === 'box' ? <tbody>
-            <FoldTotals label={tName(t)} rows={rows} other={opp} F={F} FCOLS={FCOLS} cls={styles.totals} />
-            <FoldTotals label={`vs ${tName(opp[0]?.t || '')}`} rows={opp} other={rows} F={F} FCOLS={FCOLS} cls={`${styles.totals} ${styles.fOpp}`} />
+            <FoldTotals label={tName(t)} rows={rows} other={opp} F={F} FCOLS={FCOLS} cls={styles.totals} wide={wide} />
+            <FoldTotals label={`vs ${tName(opp[0]?.t || '')}`} rows={opp} other={rows} F={F} FCOLS={FCOLS} cls={`${styles.totals} ${styles.fOpp}`} wide={wide} />
           </tbody> : <tbody>
             <tr className={styles.totals}>
               <td className={styles.sticky}>Team</td><td />
