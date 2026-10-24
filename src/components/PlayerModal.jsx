@@ -193,17 +193,17 @@ function SpagChart({ playerIndex, playerName, eloHist }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10 }}>
         <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa' }}>
           {careerMode ? `Career view · all players in gray` : `All players in gray · ${playerName} highlighted`}
         </div>
-        <div style={{ display: 'flex', border: '0.5px solid #e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexShrink: 0, border: '0.5px solid #e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
           {[['All-Time', false],['Career', true]].map(([label, mode]) => (
             <button
               key={label}
               onClick={() => setCareerMode(mode)}
               style={{
-                padding: '4px 10px', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 500,
+                padding: '6px 10px', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap',
                 background: careerMode === mode ? '#173657' : 'transparent',
                 color: careerMode === mode ? '#fff' : '#888',
                 borderRight: mode === false ? '0.5px solid #e0e0e0' : 'none',
@@ -303,12 +303,13 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         zIndex: 1000, padding: 24,
       }}
+      data-m="pm-back"
     >
       <div style={{
         background: '#fff', borderRadius: 14, border: '0.5px solid #e0e0e0',
         width: '100%', maxWidth: 640, maxHeight: '90vh', overflow: 'auto',
         boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
-      }}>
+      }} data-m="pm-box">
         {/* Dark header */}
         <div style={{ background: '#173657', padding: '24px 24px 0', position: 'relative' }}>
           <button
@@ -316,7 +317,7 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
             style={{
               position: 'absolute', top: 16, right: 16,
               background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 6,
-              color: '#6896bd', width: 28, height: 28, cursor: 'pointer',
+              color: '#6896bd', width: 32, height: 32, cursor: 'pointer',
               fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
             aria-label="Close"

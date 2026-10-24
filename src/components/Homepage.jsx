@@ -196,11 +196,11 @@ export default function Homepage({ data, setView }) {
       </div>
 
       {/* Feature cards */}
-      <div style={{ padding: 48 }}>
+      <div style={{ padding: 48 }} data-m="home-explore">
         <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: '#888', marginBottom: 20 }}>
           Explore the platform
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }} data-m="home-grid">
           {cards.map(card => (
             <div
               key={card.view}

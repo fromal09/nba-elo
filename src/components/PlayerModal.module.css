@@ -274,3 +274,9 @@
   border-color: rgba(80,60,120,0.2);
   color: #6b4fa0;
 }
+
+@media (max-width: 760px) {
+  .header { padding: 1rem; }
+  .playerName { font-size: 28px; }
+  .stripItem { padding: 0.55rem 0.8rem; }
+}

@@ -137,19 +137,19 @@ export default function Daily({ players, onSelectPlayer }) {
   }
 
   return (
-    <div style={s.wrap}>
-      <div style={s.header}>
+    <div style={s.wrap} data-s="Daily-wrap">
+      <div style={s.header} data-s="Daily-header">
         <div>
-          <h1 style={s.pageTitle}>Daily Changes</h1>
-          <p style={s.pageDesc}>
+          <h1 style={s.pageTitle} data-s="Daily-pageTitle">Daily Changes</h1>
+          <p style={s.pageDesc} data-s="Daily-pageDesc">
             {dailyData.length} players · {effectiveDate} · sorted by current Elo within each team
           </p>
         </div>
-        <div style={s.datePicker}>
+        <div style={s.datePicker} data-s="Daily-datePicker">
           <span style={{ fontSize: 12, color: '#aaa' }}>Date</span>
           <input
             type="date"
-            style={s.dateInput}
+            style={s.dateInput} data-s="Daily-dateInput"
             value={selectedDate || effectiveDate}
             onChange={e => setSelectedDate(e.target.value)}
           />
@@ -161,22 +161,22 @@ export default function Daily({ players, onSelectPlayer }) {
         </div>
       </div>
 
-      <div style={s.scroll}>
+      <div style={s.scroll} data-s="Daily-scroll">
         {byTeam.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#aaa', padding: 60, fontSize: 14 }}>No games found for this date</div>
         ) : byTeam.map(([team, teamPlayers]) => (
-          <div key={team} style={s.teamSection}>
-            <div style={s.teamHeader}>
-              <span style={s.teamLabel}>{team}</span>
-              <span style={s.teamCount}>{teamPlayers.length} players</span>
+          <div key={team} style={s.teamSection} data-s="Daily-teamSection">
+            <div style={s.teamHeader} data-s="Daily-teamHeader">
+              <span style={s.teamLabel} data-s="Daily-teamLabel">{team}</span>
+              <span style={s.teamCount} data-s="Daily-teamCount">{teamPlayers.length} players</span>
             </div>
-            <table style={s.table}>
-              <thead style={s.thead}>
+            <table style={s.table} data-s="Daily-table">
+              <thead style={s.thead} data-s="Daily-thead">
                 <tr>
-                  <th style={s.th}>Player</th>
-                  <th style={{ ...s.th, ...s.thR }}>Current Elo</th>
-                  <th style={{ ...s.th, ...s.thR }}>Δ Elo</th>
-                  <th style={{ ...s.th, ...s.thR }}>FPR Rank</th>
+                  <th style={s.th} data-s="Daily-th">Player</th>
+                  <th data-s="Daily-th" style={{ ...s.th, ...s.thR }}>Current Elo</th>
+                  <th data-s="Daily-th" style={{ ...s.th, ...s.thR }}>Δ Elo</th>
+                  <th data-s="Daily-th" style={{ ...s.th, ...s.thR }}>FPR Rank</th>
                 </tr>
               </thead>
               <tbody>
@@ -187,7 +187,7 @@ export default function Daily({ players, onSelectPlayer }) {
                   return (
                     <tr
                       key={p.name}
-                      style={s.row}
+                      style={s.row} data-s="Daily-row"
                       onClick={() => onSelectPlayer(p)}
                       tabIndex={0}
                       onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)}
@@ -195,14 +195,14 @@ export default function Daily({ players, onSelectPlayer }) {
                       onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a' }}>{p.name}</td>
-                      <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 500, color: '#1a1a1a', fontVariantNumeric: 'tabular-nums' }}>
+                      <td data-s="Daily-td" style={{ ...s.td, fontWeight: 500, color: '#1a1a1a' }}>{p.name}</td>
+                      <td data-s="Daily-td" style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 500, color: '#1a1a1a', fontVariantNumeric: 'tabular-nums' }}>
                         {Math.round(p.day_elo).toLocaleString()}
                       </td>
-                      <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: dc, fontVariantNumeric: 'tabular-nums' }}>
+                      <td data-s="Daily-td" style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: dc, fontVariantNumeric: 'tabular-nums' }}>
                         {deltaStr(p.elo_delta)}
                       </td>
-                      <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      <td data-s="Daily-td" style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                         <span style={{ fontSize: 13, color: '#555' }}>#{p.rank_on_date}</span>
                         {rd && (
                           <span style={{ fontSize: 11, color: rc, marginLeft: 6 }}>({rd})</span>

@@ -262,15 +262,15 @@ export default function GameExplorer() {
     pgBtn:  { background: '#fff', border: '0.5px solid #e0e0e0', borderRadius: 6, padding: '5px 12px', fontSize: 12, cursor: 'pointer', color: '#666' },
   }
 
-  if (loading) return <div style={{ ...s.wrap, alignItems: 'center', justifyContent: 'center' }}><div style={{ color: '#aaa' }}>Loading game data…</div></div>
-  if (!games)  return <div style={{ ...s.wrap, alignItems: 'center', justifyContent: 'center' }}><div style={{ color: '#aaa' }}>games.json not found — run the pipeline first.</div></div>
+  if (loading) return <div data-s="GameExplorer-wrap" style={{ ...s.wrap, alignItems: 'center', justifyContent: 'center' }}><div style={{ color: '#aaa' }}>Loading game data…</div></div>
+  if (!games)  return <div data-s="GameExplorer-wrap" style={{ ...s.wrap, alignItems: 'center', justifyContent: 'center' }}><div style={{ color: '#aaa' }}>games.json not found — run the pipeline first.</div></div>
 
   return (
-    <div style={s.wrap}>
-      <div style={s.header}>
+    <div style={s.wrap} data-s="GameExplorer-wrap">
+      <div style={s.header} data-s="GameExplorer-header">
         <div>
-          <h1 style={s.title}>Game Explorer</h1>
-          <p style={s.desc}>
+          <h1 style={s.title} data-s="GameExplorer-title">Game Explorer</h1>
+          <p style={s.desc} data-s="GameExplorer-desc">
             {date
               ? `${filtered.filter(g=>g.date===date).length} games on ${date.slice(5,7)}/${date.slice(8,10)}/${date.slice(0,4)}${franchise ? ` · ${FRANCHISE_NAMES[franchise]}` : ''}`
               : `${filtered.length.toLocaleString()} games sorted by Elo Strength Rating${franchise ? ` · ${FRANCHISE_NAMES[franchise]}` : ''}`}
@@ -308,7 +308,7 @@ export default function GameExplorer() {
         </div>
       </div>
 
-      <div style={s.body}>
+      <div style={s.body} data-s="GameExplorer-body">
         {date && dateGames ? (
           // Date view — show matching games prominently
           <div>
@@ -337,7 +337,7 @@ export default function GameExplorer() {
                 ))}
               </div>
             </div>
-            <div style={s.grid}>
+            <div style={s.grid} data-s="GameExplorer-grid">
               {slice.map((g, i) => (
                 <GameBox key={i} game={g} onClick={setSelected} size="small" />
               ))}
@@ -347,12 +347,12 @@ export default function GameExplorer() {
       </div>
 
       {!date && (
-        <div style={s.paging}>
-          <button style={s.pgBtn} onClick={() => setPage(0)} disabled={page === 0}>««</button>
-          <button style={s.pgBtn} onClick={() => setPage(p => p - 1)} disabled={page === 0}>‹</button>
+        <div style={s.paging} data-s="GameExplorer-paging">
+          <button style={s.pgBtn} data-s="GameExplorer-pgBtn" onClick={() => setPage(0)} disabled={page === 0}>««</button>
+          <button style={s.pgBtn} data-s="GameExplorer-pgBtn" onClick={() => setPage(p => p - 1)} disabled={page === 0}>‹</button>
           <span style={{ fontSize: 12, color: '#aaa', padding: '0 8px' }}>Page {page + 1} of {totalPages} · {filtered.length.toLocaleString()} games</span>
-          <button style={s.pgBtn} onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>›</button>
-          <button style={s.pgBtn} onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1}>»»</button>
+          <button style={s.pgBtn} data-s="GameExplorer-pgBtn" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>›</button>
+          <button style={s.pgBtn} data-s="GameExplorer-pgBtn" onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1}>»»</button>
         </div>
       )}
 

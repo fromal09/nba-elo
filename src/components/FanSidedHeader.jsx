@@ -10,7 +10,7 @@ export default function FanSidedHeader() {
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 24px', height: 52,
-      }}>
+      }} data-m="fs-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <a href="https://fansided.com" target="_blank" rel="noopener">
             <img src="/fansided-logo.webp" alt="FanSided" style={{ height: 26, display: 'block' }} />
@@ -20,7 +20,7 @@ export default function FanSidedHeader() {
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
               Floor Performance Rankings
             </div>
-            <div style={{ color: '#6896bd', fontSize: 11, fontWeight: 500 }}>
+            <div style={{ color: '#6896bd', fontSize: 11, fontWeight: 500 }} data-m="fs-sub">
               NBA Elo Analytics Dashboard
             </div>
           </div>
@@ -29,7 +29,7 @@ export default function FanSidedHeader() {
           background: 'rgba(104,150,189,0.2)', border: '1px solid #6896bd',
           color: '#6896bd', fontSize: 10, fontWeight: 700, letterSpacing: 1,
           padding: '3px 10px', borderRadius: 4, textTransform: 'uppercase',
-        }}>Analytics Suite</span>
+        }} data-m="fs-badge">Analytics Suite</span>
       </div>
     </header>
   )

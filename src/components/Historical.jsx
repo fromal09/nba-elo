@@ -191,21 +191,21 @@ export default function Historical({ players, onSelectPlayer }) {
   }
 
   return (
-    <div style={s.wrap}>
-      <div style={s.pageHeader}>
-        <h1 style={s.pageTitle}>Historical Elo</h1>
-        <p style={s.pageDesc}>
+    <div style={s.wrap} data-s="Historical-wrap">
+      <div style={s.pageHeader} data-s="Historical-pageHeader">
+        <h1 style={s.pageTitle} data-s="Historical-pageTitle">Historical Elo</h1>
+        <p style={s.pageDesc} data-s="Historical-pageDesc">
           {mode === 'snapshot' && effectiveDate
             ? `Rankings on ${effectiveDate} · ${filtered.length.toLocaleString()} players with data`
             : `All-time rankings · stats scoped to ${era.label} · ${filtered.length.toLocaleString()} players`}
         </p>
       </div>
 
-      <div style={s.controls}>
-        <div style={s.searchWrap}>
+      <div style={s.controls} data-s="Historical-controls">
+        <div style={s.searchWrap} data-s="Historical-searchWrap">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input
-            style={s.search}
+            style={s.search} data-s="Historical-search"
             type="text"
             placeholder="Search players…"
             value={search}
@@ -254,35 +254,35 @@ export default function Historical({ players, onSelectPlayer }) {
         )}
       </div>
 
-      <div style={s.tableWrap}>
-        <table style={s.table}>
-          <thead style={s.thead}>
+      <div style={s.tableWrap} data-s="Historical-tableWrap">
+        <table style={s.table} data-s="Historical-table">
+          <thead style={s.thead} data-s="Historical-thead">
             {mode === 'snapshot' ? (
               <tr>
-                <th style={{ ...s.th(false), ...s.thR, width: 52 }}>#</th>
+                <th data-s="Historical-th" style={{ ...s.th(false), ...s.thR, width: 52 }}>#</th>
                 <th style={s.th(false)}>Player</th>
                 <th style={s.th(false)}>Team</th>
-                <th style={{ ...s.th(false), ...s.thR }}>Elo on Date</th>
-                <th style={{ ...s.th(false), ...s.thR }}>Peak Elo</th>
-                <th style={{ ...s.th(false) }}>Last Game</th>
+                <th data-s="Historical-th" style={{ ...s.th(false), ...s.thR }}>Elo on Date</th>
+                <th data-s="Historical-th" style={{ ...s.th(false), ...s.thR }}>Peak Elo</th>
+                <th data-s="Historical-th" style={{ ...s.th(false) }}>Last Game</th>
               </tr>
             ) : (
               <tr>
-                <th style={{ ...s.th(false), ...s.thR, width: 52 }}>#</th>
+                <th data-s="Historical-th" style={{ ...s.th(false), ...s.thR, width: 52 }}>#</th>
                 <th style={s.th(false)}>Player</th>
                 <th style={s.th(false)}>Team</th>
                 <th style={s.th(false)}>{eraVal === 'all' ? 'Career' : 'In Era'}</th>
-                <th style={{ ...s.th(true), ...s.thR }} onClick={() => setSort('peak_elo', sortKey === 'peak_elo' ? !sortAsc : false)}>
+                <th data-s="Historical-th" style={{ ...s.th(true), ...s.thR }} onClick={() => setSort('peak_elo', sortKey === 'peak_elo' ? !sortAsc : false)}>
                   Peak Elo {sortKey === 'peak_elo' ? (sortAsc ? '↑' : '↓') : ''}
                 </th>
                 <th style={s.th(false)}>Peak Date</th>
-                <th style={{ ...s.th(true), ...s.thR }} onClick={() => setSort('avg_elo', sortKey === 'avg_elo' ? !sortAsc : false)}>
+                <th data-s="Historical-th" style={{ ...s.th(true), ...s.thR }} onClick={() => setSort('avg_elo', sortKey === 'avg_elo' ? !sortAsc : false)}>
                   Avg Elo {sortKey === 'avg_elo' ? (sortAsc ? '↑' : '↓') : ''}
                 </th>
-                <th style={{ ...s.th(true), ...s.thR }} onClick={() => setSort('era_gmsc', sortKey === 'era_gmsc' ? !sortAsc : false)}>
+                <th data-s="Historical-th" style={{ ...s.th(true), ...s.thR }} onClick={() => setSort('era_gmsc', sortKey === 'era_gmsc' ? !sortAsc : false)}>
                   Avg GmSc {sortKey === 'era_gmsc' ? (sortAsc ? '↑' : '↓') : ''}
                 </th>
-                <th style={{ ...s.th(true), ...s.thR }} onClick={() => setSort('era_gp', sortKey === 'era_gp' ? !sortAsc : false)}>
+                <th data-s="Historical-th" style={{ ...s.th(true), ...s.thR }} onClick={() => setSort('era_gp', sortKey === 'era_gp' ? !sortAsc : false)}>
                   GP {sortKey === 'era_gp' ? (sortAsc ? '↑' : '↓') : ''}
                 </th>
               </tr>
@@ -290,53 +290,53 @@ export default function Historical({ players, onSelectPlayer }) {
           </thead>
           <tbody>
             {mode === 'snapshot' && !snapshotDate ? (
-              <tr><td colSpan={6} style={{ ...s.td, textAlign: 'center', color: '#aaa', padding: '40px' }}>Select a date to see rankings</td></tr>
+              <tr><td colSpan={6} data-s="Historical-td" style={{ ...s.td, textAlign: 'center', color: '#aaa', padding: '40px' }}>Select a date to see rankings</td></tr>
             ) : slice.map((p, i) => {
               const rank = page * PER_PAGE + i + 1
 
               if (mode === 'snapshot') {
                 return (
-                  <tr key={p.name} style={s.row}
+                  <tr key={p.name} style={s.row} data-s="Historical-row"
                     onClick={() => onSelectPlayer(p)}
                     tabIndex={0} onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)} role="button"
                     onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{rank}</td>
-                    <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a', whiteSpace: 'nowrap' }}>{p.name}</td>
-                    <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team_on_date || p.team}</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#173657', fontVariantNumeric: 'tabular-nums' }}>
+                    <td data-s="Historical-td" style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{rank}</td>
+                    <td data-s="Historical-td" style={{ ...s.td, fontWeight: 500, color: '#1a1a1a', whiteSpace: 'nowrap' }}>{p.name}</td>
+                    <td data-s="Historical-td" style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team_on_date || p.team}</td>
+                    <td data-s="Historical-td" style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 600, color: '#173657', fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.snapshot_elo).toLocaleString()}
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#6896bd', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                    <td data-s="Historical-td" style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#6896bd', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.peak_elo).toLocaleString()}
                     </td>
-                    <td style={{ ...s.td, fontSize: 12, color: '#aaa' }}>{p.snapshot_date}</td>
+                    <td data-s="Historical-td" style={{ ...s.td, fontSize: 12, color: '#aaa' }}>{p.snapshot_date}</td>
                   </tr>
                 )
               }
 
               const color = peakColor(p.peak_elo)
               return (
-                <tr key={p.name + eraVal} style={s.row}
+                <tr key={p.name + eraVal} style={s.row} data-s="Historical-row"
                   onClick={() => onSelectPlayer(p)}
                   tabIndex={0} onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)} role="button"
                   onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{rank}</td>
-                  <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a', whiteSpace: 'nowrap' }}>{p.name}</td>
-                  <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team}</td>
-                  <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.range}</td>
-                  <td style={{ ...s.td, textAlign: 'right' }}>
+                  <td data-s="Historical-td" style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{rank}</td>
+                  <td data-s="Historical-td" style={{ ...s.td, fontWeight: 500, color: '#1a1a1a', whiteSpace: 'nowrap' }}>{p.name}</td>
+                  <td data-s="Historical-td" style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team}</td>
+                  <td data-s="Historical-td" style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.range}</td>
+                  <td data-s="Historical-td" style={{ ...s.td, textAlign: 'right' }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color, fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.peak_elo).toLocaleString()}
                     </span>
                   </td>
-                  <td style={{ ...s.td, fontSize: 12, color: '#aaa' }}>{p.peak_date || '—'}</td>
-                  <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.avg_elo.toLocaleString()}</td>
-                  <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.era_gmsc.toFixed(1)}</td>
-                  <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.era_gp.toLocaleString()}</td>
+                  <td data-s="Historical-td" style={{ ...s.td, fontSize: 12, color: '#aaa' }}>{p.peak_date || '—'}</td>
+                  <td data-s="Historical-td" style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.avg_elo.toLocaleString()}</td>
+                  <td data-s="Historical-td" style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.era_gmsc.toFixed(1)}</td>
+                  <td data-s="Historical-td" style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.era_gp.toLocaleString()}</td>
                 </tr>
               )
             })}
@@ -344,18 +344,18 @@ export default function Historical({ players, onSelectPlayer }) {
         </table>
       </div>
 
-      <div style={s.paging}>
-        <span style={s.pagingInfo}>
+      <div style={s.paging} data-s="Historical-paging">
+        <span style={s.pagingInfo} data-s="Historical-pagingInfo">
           {filtered.length === 0
             ? (mode === 'snapshot' && snapshotDate ? 'No data' : 'Select a date')
             : `Showing ${page * PER_PAGE + 1}–${Math.min((page + 1) * PER_PAGE, filtered.length)} of ${filtered.length.toLocaleString()}`}
         </span>
-        <div style={s.pagingBtns}>
-          <button style={s.pageBtn} onClick={() => setPage(0)} disabled={page === 0}>««</button>
-          <button style={s.pageBtn} onClick={() => setPage(p => p - 1)} disabled={page === 0}>‹ Prev</button>
-          <span style={s.pageNum}>{page + 1} / {Math.max(1, totalPages)}</span>
-          <button style={s.pageBtn} onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>Next ›</button>
-          <button style={s.pageBtn} onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1}>»»</button>
+        <div style={s.pagingBtns} data-s="Historical-pagingBtns">
+          <button style={s.pageBtn} data-s="Historical-pageBtn" onClick={() => setPage(0)} disabled={page === 0}>««</button>
+          <button style={s.pageBtn} data-s="Historical-pageBtn" onClick={() => setPage(p => p - 1)} disabled={page === 0}>‹ Prev</button>
+          <span style={s.pageNum} data-s="Historical-pageNum">{page + 1} / {Math.max(1, totalPages)}</span>
+          <button style={s.pageBtn} data-s="Historical-pageBtn" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>Next ›</button>
+          <button style={s.pageBtn} data-s="Historical-pageBtn" onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1}>»»</button>
         </div>
       </div>
     </div>

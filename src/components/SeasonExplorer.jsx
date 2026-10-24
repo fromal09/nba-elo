@@ -1,3 +1,4 @@
+import { historyReady } from '../history.js'
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
@@ -2197,13 +2198,16 @@ function SeasonCard({ name, g, sd, shots, onProfile, onClose, onBinder, info, te
 function Binder({ name, sd: startSd, shots, onClose, onProfile }) {
   const [sd, setSd] = useState(startSd)
   const [loadingSeason, setLoadingSeason] = useState(false)
+  // Career histories may still be loading when the binder opens; recount seasons once they land
+  const [histTick, setHistTick] = useState(0)
+  useEffect(() => { historyReady()?.then(() => setHistTick(1)).catch(() => {}) }, [])
   // Every season the player has cards in, from his career Elo history
   const seasons = useMemo(() => {
     const h = CAREER.byName[name]?.elo_history || []
     const set = new Set(h.map(e => seasonFor(e[0])))
     set.add(startSd.season)
     return [...set].sort()
-  }, [name, startSd])
+  }, [name, startSd, histTick])
   const si = seasons.indexOf(sd.season)
   const goSeason = k => {
     const lab = seasons[si + k]; if (!lab || loadingSeason) return
@@ -2262,7 +2266,7 @@ function Binder({ name, sd: startSd, shots, onClose, onProfile }) {
     fit()
     const ro = new ResizeObserver(fit); ro.observe(el)
     return () => ro.disconnect()
-  }, [cur, order])
+  }, [cur, order, sd])   // the sheet remounts on a season change; measure the new one
   const pulledEntry = pulled && entries.find(e => e.g.id === pulled)
   const tc = entries[entries.length - 1]?.team.color || '#173657'
 

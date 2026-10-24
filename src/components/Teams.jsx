@@ -98,9 +98,9 @@ export default function Teams({ players, onSelectPlayer }) {
   }
 
   return (
-    <div style={s.wrap}>
-      <div style={s.sidebar}>
-        <div style={s.sideHead}>Teams</div>
+    <div style={s.wrap} data-s="Teams-wrap">
+      <div style={s.sidebar} data-s="Teams-sidebar">
+        <div style={s.sideHead} data-s="Teams-sideHead">Teams</div>
         {NBA_TEAMS.map(({ abbr, name }) => (
           <button
             key={abbr}
@@ -115,48 +115,48 @@ export default function Teams({ players, onSelectPlayer }) {
         ))}
       </div>
 
-      <div style={s.main}>
+      <div style={s.main} data-s="Teams-main">
         {!selectedTeam ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: '#aaa', fontSize: 14 }}>
             Select a team to see their current roster
           </div>
         ) : (
           <>
-            <div style={s.pageHeader}>
-              <h1 style={s.pageTitle}>{NBA_TEAMS.find(t => t.abbr === selectedTeam)?.name}</h1>
-              <p style={s.pageDesc}>{teamPlayers.length} FPR-eligible players · {seasonLabel(CURRENT_SEASON_YEAR, '–')} season</p>
+            <div style={s.pageHeader} data-s="Teams-pageHeader">
+              <h1 style={s.pageTitle} data-s="Teams-pageTitle">{NBA_TEAMS.find(t => t.abbr === selectedTeam)?.name}</h1>
+              <p style={s.pageDesc} data-s="Teams-pageDesc">{teamPlayers.length} FPR-eligible players · {seasonLabel(CURRENT_SEASON_YEAR, '–')} season</p>
             </div>
 
-            <div style={s.tableWrap}>
-              <table style={s.table}>
-                <thead style={s.thead}>
+            <div style={s.tableWrap} data-s="Teams-tableWrap">
+              <table style={s.table} data-s="Teams-table">
+                <thead style={s.thead} data-s="Teams-thead">
                   <tr>
-                    <th style={{ ...s.th(false), width: 80, textAlign: 'right' }}>Active Rank</th>
+                    <th data-s="Teams-th" style={{ ...s.th(false), width: 80, textAlign: 'right' }}>Active Rank</th>
                     <th style={s.th(false)}>Player</th>
-                    <th style={{ ...s.th(sortKey === 'current_elo'), ...s.thR }} onClick={() => setSort('current_elo')}>
+                    <th data-s="Teams-th" style={{ ...s.th(sortKey === 'current_elo'), ...s.thR }} onClick={() => setSort('current_elo')}>
                       Current Elo{sortArrow('current_elo')}
                     </th>
-                    <th style={{ ...s.th(sortKey === 'peak_elo'), ...s.thR }} onClick={() => setSort('peak_elo')}>
+                    <th data-s="Teams-th" style={{ ...s.th(sortKey === 'peak_elo'), ...s.thR }} onClick={() => setSort('peak_elo')}>
                       Peak Elo{sortArrow('peak_elo')}
                     </th>
-                    <th style={{ ...s.th(sortKey === 'recent_gmsc_avg'), ...s.thR }} onClick={() => setSort('recent_gmsc_avg')}>
+                    <th data-s="Teams-th" style={{ ...s.th(sortKey === 'recent_gmsc_avg'), ...s.thR }} onClick={() => setSort('recent_gmsc_avg')}>
                       Recent GmSc{sortArrow('recent_gmsc_avg')}
                     </th>
-                    <th style={{ ...s.th(sortKey === 'games_played'), ...s.thR }} onClick={() => setSort('games_played')}>
+                    <th data-s="Teams-th" style={{ ...s.th(sortKey === 'games_played'), ...s.thR }} onClick={() => setSort('games_played')}>
                       GP{sortArrow('games_played')}
                     </th>
-                    <th style={{ ...s.th(false), ...s.thR }}>Last Game</th>
+                    <th data-s="Teams-th" style={{ ...s.th(false), ...s.thR }}>Last Game</th>
                   </tr>
                 </thead>
                 <tbody>
                   {teamPlayers.length === 0 ? (
-                    <tr><td colSpan={7} style={{ ...s.td, textAlign: 'center', color: '#aaa', padding: 40 }}>No active players found for this team</td></tr>
+                    <tr><td colSpan={7} data-s="Teams-td" style={{ ...s.td, textAlign: 'center', color: '#aaa', padding: 40 }}>No active players found for this team</td></tr>
                   ) : teamPlayers.map(p => {
                     const gc = gmscColor(p.recent_gmsc_avg)
                     return (
                       <tr
                         key={p.name}
-                        style={s.row}
+                        style={s.row} data-s="Teams-row"
                         onClick={() => onSelectPlayer(p)}
                         tabIndex={0}
                         onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)}
@@ -164,25 +164,25 @@ export default function Teams({ players, onSelectPlayer }) {
                         onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       >
-                        <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>
+                        <td data-s="Teams-td" style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>
                           #{activeRankMap[p.name] || '—'}
                         </td>
-                        <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a' }}>{p.name}</td>
-                        <td style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 500, color: '#1a1a1a', fontVariantNumeric: 'tabular-nums' }}>
+                        <td data-s="Teams-td" style={{ ...s.td, fontWeight: 500, color: '#1a1a1a' }}>{p.name}</td>
+                        <td data-s="Teams-td" style={{ ...s.td, textAlign: 'right', fontSize: 14, fontWeight: 500, color: '#1a1a1a', fontVariantNumeric: 'tabular-nums' }}>
                           {Math.round(p.current_elo).toLocaleString()}
                         </td>
-                        <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#6896bd', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                        <td data-s="Teams-td" style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#6896bd', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                           {Math.round(p.peak_elo).toLocaleString()}
                         </td>
-                        <td style={{ ...s.td, textAlign: 'right' }}>
+                        <td data-s="Teams-td" style={{ ...s.td, textAlign: 'right' }}>
                           <span style={{ background: gc + '18', color: gc, padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 500 }}>
                             {p.recent_gmsc_avg.toFixed(1)}
                           </span>
                         </td>
-                        <td style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#555', fontVariantNumeric: 'tabular-nums' }}>
+                        <td data-s="Teams-td" style={{ ...s.td, textAlign: 'right', fontSize: 13, color: '#555', fontVariantNumeric: 'tabular-nums' }}>
                           {p.games_played.toLocaleString()}
                         </td>
-                        <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#aaa' }}>
+                        <td data-s="Teams-td" style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#aaa' }}>
                           {p.last_played ? p.last_played.slice(5) : '—'}
                         </td>
                       </tr>

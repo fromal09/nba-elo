@@ -275,15 +275,15 @@ function SharedGames({ playerA, playerB }) {
         <table style={{ width:"100%", borderCollapse:"collapse" }}>
           <thead style={{ background:"#f8f8f8" }}>
             <tr>
-              <th style={s.th}>Date</th>
-              <th style={s.th}>{playerA.name.split(" ").pop()} Team</th>
-              <th style={{ ...s.th, ...s.thR }}>{playerA.name.split(" ").pop()} Elo</th>
-              <th style={{ ...s.th, ...s.thR }}>Elo Δ</th>
-              <th style={{ ...s.th, ...s.thR }}>{playerB.name.split(" ").pop()} Elo</th>
-              <th style={{ ...s.th, ...s.thR }}>Elo Δ</th>
-              <th style={s.th}>{playerB.name.split(" ").pop()} Team</th>
-              <th style={{ ...s.th, ...s.thR }}>Elo W</th>
-              <th style={{ ...s.th, ...s.thR }}>Team W</th>
+              <th style={s.th} data-s="H2H-th">Date</th>
+              <th style={s.th} data-s="H2H-th">{playerA.name.split(" ").pop()} Team</th>
+              <th data-s="H2H-th" style={{ ...s.th, ...s.thR }}>{playerA.name.split(" ").pop()} Elo</th>
+              <th data-s="H2H-th" style={{ ...s.th, ...s.thR }}>Elo Δ</th>
+              <th data-s="H2H-th" style={{ ...s.th, ...s.thR }}>{playerB.name.split(" ").pop()} Elo</th>
+              <th data-s="H2H-th" style={{ ...s.th, ...s.thR }}>Elo Δ</th>
+              <th style={s.th} data-s="H2H-th">{playerB.name.split(" ").pop()} Team</th>
+              <th data-s="H2H-th" style={{ ...s.th, ...s.thR }}>Elo W</th>
+              <th data-s="H2H-th" style={{ ...s.th, ...s.thR }}>Team W</th>
             </tr>
           </thead>
           <tbody>
@@ -293,15 +293,15 @@ function SharedGames({ playerA, playerB }) {
               const colorB = TEAM_COLORS[g.teamB] || "#c94040"
               return (
                 <tr key={i} style={{ background: i%2===0 ? "#fff" : "#f8f8f8" }}>
-                  <td style={{ ...s.td, fontFamily:"'Consolas', 'Monaco', monospace", fontSize:11, color:"#aaa" }}>{fmt(g.date)}</td>
-                  <td style={{ ...s.td, fontSize:11, fontWeight:600, color:colorA }}>{g.teamA}</td>
-                  <td style={{ ...s.td, textAlign:"right", fontVariantNumeric:"tabular-nums" }}>{g.eloA.toLocaleString()}</td>
-                  <td style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainA >= 0 ? "#173657" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainA >= 0 ? "+" : ""}{g.eloGainA}</td>
-                  <td style={{ ...s.td, textAlign:"right", fontVariantNumeric:"tabular-nums" }}>{g.eloB.toLocaleString()}</td>
-                  <td style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainB >= 0 ? "#173657" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainB >= 0 ? "+" : ""}{g.eloGainB}</td>
-                  <td style={{ ...s.td, fontSize:11, fontWeight:600, color:colorB }}>{g.teamB}</td>
-                  <td style={{ ...s.td, textAlign:"right", fontSize:12 }}>{g.eloWinA ? playerA.name.split(" ").pop() : playerB.name.split(" ").pop()}</td>
-                  <td style={{ ...s.td, textAlign:"right", fontSize:12 }}>{g.teamWinA ? playerA.name.split(" ").pop() : playerB.name.split(" ").pop()}</td>
+                  <td data-s="H2H-td" style={{ ...s.td, fontFamily:"'Consolas', 'Monaco', monospace", fontSize:11, color:"#aaa" }}>{fmt(g.date)}</td>
+                  <td data-s="H2H-td" style={{ ...s.td, fontSize:11, fontWeight:600, color:colorA }}>{g.teamA}</td>
+                  <td data-s="H2H-td" style={{ ...s.td, textAlign:"right", fontVariantNumeric:"tabular-nums" }}>{g.eloA.toLocaleString()}</td>
+                  <td data-s="H2H-td" style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainA >= 0 ? "#173657" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainA >= 0 ? "+" : ""}{g.eloGainA}</td>
+                  <td data-s="H2H-td" style={{ ...s.td, textAlign:"right", fontVariantNumeric:"tabular-nums" }}>{g.eloB.toLocaleString()}</td>
+                  <td data-s="H2H-td" style={{ ...s.td, textAlign:"right", fontSize:11, color: g.eloGainB >= 0 ? "#173657" : "#c94040", fontVariantNumeric:"tabular-nums" }}>{g.eloGainB >= 0 ? "+" : ""}{g.eloGainB}</td>
+                  <td data-s="H2H-td" style={{ ...s.td, fontSize:11, fontWeight:600, color:colorB }}>{g.teamB}</td>
+                  <td data-s="H2H-td" style={{ ...s.td, textAlign:"right", fontSize:12 }}>{g.eloWinA ? playerA.name.split(" ").pop() : playerB.name.split(" ").pop()}</td>
+                  <td data-s="H2H-td" style={{ ...s.td, textAlign:"right", fontSize:12 }}>{g.teamWinA ? playerA.name.split(" ").pop() : playerB.name.split(" ").pop()}</td>
                 </tr>
               )
             })}

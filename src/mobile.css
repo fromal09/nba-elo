@@ -1,0 +1,81 @@
+/* Phone layouts. Most views style themselves inline, so their layout elements carry
+   data-s="<View>-<style key>" (or data-m) and these rules override the inline styles. */
+@media (max-width: 760px) {
+  /* FanSided bar */
+  [data-m=fs-bar] { padding: 0 12px !important; height: 46px !important; }
+  [data-m=fs-sub], [data-m=fs-badge] { display: none !important; }
+
+  /* Homepage */
+  [data-m=home-explore] { padding: 28px 16px 36px !important; }
+  [data-m=home-grid] { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  [data-m=home-grid] > * { padding: 16px 14px !important; min-width: 0; }
+
+  /* Desktop panes (sidebar | main, each scrolling on its own) become one scrolling page */
+  [data-s$="-wrap"] { flex-direction: column !important; overflow: visible !important; }
+  [data-s$="-sidebar"] { width: auto !important; border-right: 0 !important; border-bottom: 0.5px solid #e0e0e0 !important; overflow: visible !important; }
+  [data-s$="-main"] { overflow: visible !important; min-width: 0; }
+  [data-s$="-tableWrap"] { overflow-x: auto !important; overflow-y: visible !important; flex: none !important; -webkit-overflow-scrolling: touch; }
+  [data-s$="-pageHeader"], [data-s$="-header"], [data-s$="-top"], [data-s$="-controls"], [data-s$="-paging"] { padding-left: 16px !important; padding-right: 16px !important; }
+  [data-s$="-controls"] { flex-wrap: wrap !important; gap: 8px !important; }
+  [data-s$="-pageTitle"], [data-s$="-title"] { font-size: 23px !important; line-height: 1.2 !important; }
+  [data-s$="-th"], [data-s$="-td"] { padding-left: 8px !important; padding-right: 8px !important; }
+  [data-s$="-searchWrap"] { min-width: 0 !important; max-width: none !important; flex: 1 1 100% !important; }
+
+  /* Team and season pickers: one sideways-scrolling strip instead of a long column */
+  [data-s=Teams-sidebar], [data-s=Seasons-sidebar] { flex-direction: row !important; overflow-x: auto !important; overflow-y: hidden !important; scrollbar-width: none; }
+  [data-s=Teams-sidebar]::-webkit-scrollbar, [data-s=Seasons-sidebar]::-webkit-scrollbar { display: none; }
+  [data-s=Teams-sideHead], [data-s=Seasons-sideHead] { display: none !important; }
+  [data-s=Teams-sidebar] > button, [data-s=Seasons-sidebar] > button { width: auto !important; flex: none !important; border-bottom: 0 !important;
+    border-right: 0.5px solid #ececec !important; padding: 13px 14px !important; white-space: nowrap; }
+  [data-s=Teams-sidebar] > button > span:first-child { display: none; }
+  [data-s=Teams-sidebar] > button > span:last-child { font-size: 13px !important; }
+
+  /* Franchise pickers: six across */
+  [data-s$="-teamGrid"] { grid-template-columns: repeat(6, 1fr) !important; }
+  [data-s$="-section"] { padding-left: 16px !important; padding-right: 16px !important; }
+
+  /* Franchise Tenures: plot above the rankings */
+  [data-s=FranchiseTenures-pageHeader] { flex-direction: column !important; gap: 10px !important; }
+  [data-s=FranchiseTenures-body] { flex-direction: column !important; overflow: visible !important; }
+  [data-s=FranchiseTenures-plotArea] { padding: 12px !important; overflow: visible !important; }
+  [data-s=FranchiseTenures-rankPanel] { width: auto !important; border-left: 0 !important; border-top: 0.5px solid #e0e0e0 !important; overflow: visible !important; }
+
+  /* Game Explorer */
+  [data-s=GameExplorer-header] { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
+  [data-s=GameExplorer-body] { padding: 12px !important; overflow: visible !important; }
+  [data-s=GameExplorer-grid] { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 6px !important; }
+
+  /* Daily Changes */
+  [data-s=Daily-header] { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
+  [data-s=Daily-scroll] { padding: 14px 10px !important; overflow: visible !important; }
+
+  /* Season by Season */
+  [data-s=Seasons-podium] { padding: 0 16px 20px !important; overflow-x: auto !important; scroll-snap-type: x mandatory; }
+  [data-s=Seasons-podium] > * { flex: 0 0 78% !important; scroll-snap-align: start; min-width: 0; }
+  [data-s=Seasons-tableSection] { padding: 0 0 24px !important; overflow-x: auto; }
+  [data-s=Seasons-dropdown] { width: auto !important; right: 0 !important; }
+
+  /* Best Through X: leader cards scroll sideways */
+  [data-s=BestThroughX-cards] { overflow-x: auto !important; scroll-snap-type: x mandatory; margin-right: -16px; padding-right: 16px; }
+  [data-s=BestThroughX-cards] > * { flex: 0 0 72% !important; scroll-snap-align: start; min-width: 0 !important; }
+  [data-s=BestThroughX-controls] { justify-content: flex-start !important; }
+
+  /* Bigger tap targets for small inline buttons */
+  [data-s$="-pageBtn"], [data-s$="-pgBtn"] { min-width: 40px; min-height: 36px; }
+}
+@media (max-width: 760px) {
+  [data-s=GameExplorer-header] > div:last-child { flex-wrap: wrap !important; gap: 8px !important; }
+  [data-s=GameExplorer-header] > div:last-child > div { flex: 1 1 100%; }
+  [data-s=GameExplorer-header] select, [data-s=GameExplorer-header] input { flex: 1; min-width: 0; }
+}
+
+/* iOS zooms the page when a text field under 16px gets focus */
+@media (max-width: 760px) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea { font-size: 16px !important; }
+}
+
+/* Player profile opens as a bottom sheet on phones */
+@media (max-width: 760px) {
+  [data-m=pm-back] { padding: 0 !important; align-items: flex-end !important; }
+  [data-m=pm-box] { border-radius: 16px 16px 0 0 !important; max-height: 92vh !important; max-height: 92dvh !important; padding-bottom: env(safe-area-inset-bottom); }
+}

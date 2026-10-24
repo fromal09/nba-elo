@@ -226,16 +226,16 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
   }
 
   return (
-    <div style={s.wrap}>
-      <div style={s.sidebar}>
-        <div style={s.sideHead}>
-          <div style={s.sideTitle}>Franchise Threshold</div>
-          <div style={s.sideDesc}>Find every player who hit a given Elo level for a franchise — and when.</div>
+    <div style={s.wrap} data-s="FranchiseThreshold-wrap">
+      <div style={s.sidebar} data-s="FranchiseThreshold-sidebar">
+        <div style={s.sideHead} data-s="FranchiseThreshold-sideHead">
+          <div style={s.sideTitle} data-s="FranchiseThreshold-sideTitle">Franchise Threshold</div>
+          <div style={s.sideDesc} data-s="FranchiseThreshold-sideDesc">Find every player who hit a given Elo level for a franchise — and when.</div>
         </div>
 
-        <div style={s.section}>
-          <div style={s.sectionLbl}>Franchise</div>
-          <div style={s.teamGrid}>
+        <div style={s.section} data-s="FranchiseThreshold-section">
+          <div style={s.sectionLbl} data-s="FranchiseThreshold-sectionLbl">Franchise</div>
+          <div style={s.teamGrid} data-s="FranchiseThreshold-teamGrid">
             {Object.keys(FRANCHISE_NAMES).map(abbr => (
               <button key={abbr} style={s.teamBtn(franchise === abbr)}
                 onClick={() => setFranchise(abbr)}
@@ -245,9 +245,9 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
           </div>
         </div>
 
-        <div style={s.section}>
-          <div style={s.sectionLbl}>Elo Threshold</div>
-          <div style={s.eloGrid}>
+        <div style={s.section} data-s="FranchiseThreshold-section">
+          <div style={s.sectionLbl} data-s="FranchiseThreshold-sectionLbl">Elo Threshold</div>
+          <div style={s.eloGrid} data-s="FranchiseThreshold-eloGrid">
             {ELO_PRESETS.map(v => (
               <button key={v} style={s.eloBtn(!customElo && threshold === v)}
                 onClick={() => { setThreshold(v); setCustomElo('') }}
@@ -259,7 +259,7 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
             placeholder="Custom Elo..."
             value={customElo}
             onChange={e => setCustomElo(e.target.value)}
-            style={s.customInput}
+            style={s.customInput} data-s="FranchiseThreshold-customInput"
           />
         </div>
 
@@ -269,56 +269,56 @@ export default function FranchiseThreshold({ players, onSelectPlayer }) {
         </div>
       </div>
 
-      <div style={s.main}>
-        <div style={s.pageHeader}>
-          <h1 style={s.pageTitle}>
+      <div style={s.main} data-s="FranchiseThreshold-main">
+        <div style={s.pageHeader} data-s="FranchiseThreshold-pageHeader">
+          <h1 style={s.pageTitle} data-s="FranchiseThreshold-pageTitle">
             {franchiseName} · {effectiveThreshold}+ Elo
           </h1>
-          <p style={s.pageDesc}>
+          <p style={s.pageDesc} data-s="FranchiseThreshold-pageDesc">
             {results.length === 0
               ? 'No players found at this threshold'
               : `${results.length} player${results.length !== 1 ? 's' : ''} reached ${effectiveThreshold}+ Elo while with this franchise`}
           </p>
         </div>
 
-        <div style={s.tableWrap}>
+        <div style={s.tableWrap} data-s="FranchiseThreshold-tableWrap">
           {results.length === 0 ? (
-            <div style={s.empty}>
+            <div style={s.empty} data-s="FranchiseThreshold-empty">
               No players reached {effectiveThreshold} Elo while with {franchiseName}.<br />
               Try lowering the threshold.
             </div>
           ) : (
-            <table style={s.table}>
-              <thead style={s.thead}>
+            <table style={s.table} data-s="FranchiseThreshold-table">
+              <thead style={s.thead} data-s="FranchiseThreshold-thead">
                 <tr>
-                  <th style={{ ...s.th, width: 28 }}>#</th>
-                  <th style={s.th}>Player</th>
-                  <th style={{ ...s.th, ...s.thR }}>Franchise Peak</th>
-                  <th style={{ ...s.th, ...s.thR }}>GP</th>
-                  <th style={s.th}>Above {effectiveThreshold} — Periods</th>
+                  <th data-s="FranchiseThreshold-th" style={{ ...s.th, width: 28 }}>#</th>
+                  <th style={s.th} data-s="FranchiseThreshold-th">Player</th>
+                  <th data-s="FranchiseThreshold-th" style={{ ...s.th, ...s.thR }}>Franchise Peak</th>
+                  <th data-s="FranchiseThreshold-th" style={{ ...s.th, ...s.thR }}>GP</th>
+                  <th style={s.th} data-s="FranchiseThreshold-th">Above {effectiveThreshold} — Periods</th>
                 </tr>
               </thead>
               <tbody>
                 {results.map((p, i) => (
                   <tr
                     key={p.name}
-                    style={s.row}
+                    style={s.row} data-s="FranchiseThreshold-row"
                     onClick={() => onSelectPlayer(p)}
                     onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <td style={{ ...s.td, fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{i + 1}</td>
-                    <td style={{ ...s.td, fontWeight: 500, whiteSpace: 'nowrap' }}>{p.name}</td>
-                    <td style={{ ...s.td, textAlign: 'right', color: '#6896bd', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                    <td data-s="FranchiseThreshold-td" style={{ ...s.td, fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{i + 1}</td>
+                    <td data-s="FranchiseThreshold-td" style={{ ...s.td, fontWeight: 500, whiteSpace: 'nowrap' }}>{p.name}</td>
+                    <td data-s="FranchiseThreshold-td" style={{ ...s.td, textAlign: 'right', color: '#6896bd', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                       {Math.round(p.peak).toLocaleString()}
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', color: '#888', fontVariantNumeric: 'tabular-nums' }}>
+                    <td data-s="FranchiseThreshold-td" style={{ ...s.td, textAlign: 'right', color: '#888', fontVariantNumeric: 'tabular-nums' }}>
                       {p.gp}
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#173657' }}>
+                    <td data-s="FranchiseThreshold-td" style={{ ...s.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: '#173657' }}>
                       {p.gamesAbove}
                     </td>
-                    <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#aaa', fontFamily: "'Consolas', 'Monaco', monospace" }}>
+                    <td data-s="FranchiseThreshold-td" style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#aaa', fontFamily: "'Consolas', 'Monaco', monospace" }}>
                       {p.peakDate ? `${p.peakDate.slice(5,7)}/${p.peakDate.slice(8,10)}/${p.peakDate.slice(0,4)}` : '—'}
                     </td>
                   </tr>

@@ -729,8 +729,8 @@
 /* ── Projected scores ── */
 .projScore { margin-left: 8px; font-size: 12px; font-weight: 800; color: #173657; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .previewProj { margin: 6px 0 4px; text-align: center; }
-.previewProj em { display: block; font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: 1px; color: #8a95a2; font-weight: 700; }
-.previewProj b { font-size: 15px; color: #173657; font-variant-numeric: tabular-nums; }
+.previewProj em { display: block; font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: 1.2px; color: #7fa3c7; font-weight: 700; }
+.previewProj b { font-size: 15px; color: #fff; text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .gProj { font-weight: 800; color: #173657; }
 
 .gPre { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }

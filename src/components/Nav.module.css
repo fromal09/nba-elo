@@ -77,3 +77,15 @@
   color: rgba(255,255,255,0.3);
   white-space: nowrap;
 }
+
+/* Phones: brand row on top, tabs on their own full-width scrolling row */
+@media (max-width: 760px) {
+  .header { flex-wrap: wrap; height: auto; padding: 8px 12px 0; gap: 6px 10px; }
+  .left { gap: 10px; }
+  .right { display: none; }
+  .nav { order: 3; flex: 0 0 calc(100% + 24px); margin: 0 -12px; padding: 2px 8px 6px; scroll-padding: 0 12px;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 20px), transparent);
+            mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 20px), transparent); }
+  .navBtn { font-size: 13px; padding: 8px 12px; }
+  .homeBtn { padding: 6px 10px; }
+}

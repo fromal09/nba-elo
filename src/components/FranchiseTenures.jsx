@@ -526,14 +526,14 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
   }
 
   return (
-    <div style={s.wrap}>
-      <div style={s.sidebar}>
-        <div style={s.sideHead}>
-          <div style={s.sideTitle}>Franchise Tenures</div>
-          <div style={s.sideDesc}>Avg Elo vs games played for each franchise. Top-right = Legends.</div>
+    <div style={s.wrap} data-s="FranchiseTenures-wrap">
+      <div style={s.sidebar} data-s="FranchiseTenures-sidebar">
+        <div style={s.sideHead} data-s="FranchiseTenures-sideHead">
+          <div style={s.sideTitle} data-s="FranchiseTenures-sideTitle">Franchise Tenures</div>
+          <div style={s.sideDesc} data-s="FranchiseTenures-sideDesc">Avg Elo vs games played for each franchise. Top-right = Legends.</div>
         </div>
-        <div style={s.section}>
-          <div style={s.sectionLbl}>League</div>
+        <div style={s.section} data-s="FranchiseTenures-section">
+          <div style={s.sectionLbl} data-s="FranchiseTenures-sectionLbl">League</div>
           <div style={{ display: 'flex', gap: 4 }}>
             {['NBA', 'ABA', 'ALL'].map(l => (
               <button key={l}
@@ -550,9 +550,9 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
             ))}
           </div>
         </div>
-        <div style={s.section}>
-          <div style={s.sectionLbl}>Franchise</div>
-          <div style={s.teamGrid}>
+        <div style={s.section} data-s="FranchiseTenures-section">
+          <div style={s.sectionLbl} data-s="FranchiseTenures-sectionLbl">Franchise</div>
+          <div style={s.teamGrid} data-s="FranchiseTenures-teamGrid">
             {Object.keys(FRANCHISE_NAMES).map(abbr => (
               <button key={abbr} style={s.teamBtn(franchise === abbr)}
                 onClick={() => { setFranchise(abbr); setLeague(null); setHovered(null) }}
@@ -566,16 +566,16 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
         </div>
       </div>
 
-      <div style={s.main}>
-        <div style={s.pageHeader}>
+      <div style={s.main} data-s="FranchiseTenures-main">
+        <div style={s.pageHeader} data-s="FranchiseTenures-pageHeader">
           <div>
-            <h1 style={s.pageTitle}>
+            <h1 style={s.pageTitle} data-s="FranchiseTenures-pageTitle">
               {franchise ? FRANCHISE_NAMES[franchise]
                 : league === 'ABA' ? 'ABA All-Time'
                 : league === 'NBA' ? 'NBA All-Time'
                 : 'NBA + ABA All-Time'}
             </h1>
-            <p style={s.pageDesc}>{points.length} players · min {MIN_GP} GP · sorted by Legend Score</p>
+            <p style={s.pageDesc} data-s="FranchiseTenures-pageDesc">{points.length} players · min {MIN_GP} GP · sorted by Legend Score</p>
           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
             {['scatter','3d'].map(v => (
               <button key={v}
@@ -604,8 +604,8 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
           )}
         </div>
 
-        <div style={s.body}>
-          <div style={s.plotArea}>
+        <div style={s.body} data-s="FranchiseTenures-body">
+          <div style={s.plotArea} data-s="FranchiseTenures-plotArea">
             {view3d
               ? <Plot3D points={points} />
               : <ScatterPlot
@@ -618,8 +618,8 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
             }
           </div>
 
-          <div style={s.rankPanel}>
-            <div style={s.rankHead}>Franchise Elo Legends</div>
+          <div style={s.rankPanel} data-s="FranchiseTenures-rankPanel">
+            <div style={s.rankHead} data-s="FranchiseTenures-rankHead">Franchise Elo Legends</div>
             <div style={{ padding: '8px 16px', borderBottom: '0.5px solid #f0f0f0', fontSize: 11, color: '#aaa' }}>
               Color intensity = franchise peak Elo
             </div>
@@ -631,8 +631,8 @@ export default function FranchiseTenures({ players, onSelectPlayer }) {
                 onMouseLeave={() => setHovered(null)}
                 onClick={() => onSelectPlayer(p.player)}
               >
-                <span style={s.rankNum}>{p.rank}</span>
-                <span style={s.rankName}>{p.name}</span>
+                <span style={s.rankNum} data-s="FranchiseTenures-rankNum">{p.rank}</span>
+                <span style={s.rankName} data-s="FranchiseTenures-rankName">{p.name}</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: teamColor, fontVariantNumeric: 'tabular-nums' }}>
                   {Math.round(p.legendScore).toLocaleString()}
                 </span>

@@ -218,3 +218,12 @@ td { padding: 9px 14px; }
 .pageBtn:hover:not(:disabled) { background: #f4f4f4; color: #1a1a1a; border-color: #173657; }
 .pageBtn:disabled { opacity: 0.3; cursor: default; }
 .pageNum { font-size: 12px; color: #aaa; padding: 0 8px; min-width: 60px; text-align: center; }
+
+@media (max-width: 760px) {
+  .pageHeader { padding: 20px 16px 0; }
+  .pageTitle { font-size: 23px; }
+  .controls { padding: 0 16px 12px; }
+  .tableWrap td, .tableWrap th { padding-left: 8px; padding-right: 8px; }
+  .tdElo { min-width: 96px; }
+  .thRank { width: 34px; }
+}

@@ -124,11 +124,11 @@ export default function BestThroughX({ players, onSelectPlayer }) {
   }
 
   return (
-    <div style={s.wrap}>
-      <div style={s.top}>
-        <h1 style={s.title}>Best Through X</h1>
-        <p style={s.desc}>The Elo leader at each career game milestone — who had the highest Elo through exactly N games. {rows.length.toLocaleString()} milestones tracked.</p>
-        <div style={s.cards}>
+    <div style={s.wrap} data-s="BestThroughX-wrap">
+      <div style={s.top} data-s="BestThroughX-top">
+        <h1 style={s.title} data-s="BestThroughX-title">Best Through X</h1>
+        <p style={s.desc} data-s="BestThroughX-desc">The Elo leader at each career game milestone — who had the highest Elo through exactly N games. {rows.length.toLocaleString()} milestones tracked.</p>
+        <div style={s.cards} data-s="BestThroughX-cards">
           {topThree.map((row, i) => (
             <PlayerSummary
               key={row.name}
@@ -141,7 +141,7 @@ export default function BestThroughX({ players, onSelectPlayer }) {
         </div>
       </div>
 
-      <div style={s.controls}>
+      <div style={s.controls} data-s="BestThroughX-controls">
         <div style={{ fontSize:13, color:'#aaa' }}>{rows.length.toLocaleString()} career game milestones</div>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <span style={{ fontSize:12, color:'#aaa' }}>Jump to game</span>
@@ -159,20 +159,20 @@ export default function BestThroughX({ players, onSelectPlayer }) {
         </div>
       </div>
 
-      <div style={s.tableWrap} ref={tableRef}>
+      <div style={s.tableWrap} data-s="BestThroughX-tableWrap" ref={tableRef}>
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-          <thead style={s.thead}>
+          <thead style={s.thead} data-s="BestThroughX-thead">
             <tr>
-              <th style={{ ...s.th, ...s.thR, width:80 }}>Game</th>
-              <th style={s.th}>#1 Leader</th>
-              <th style={{ ...s.th, ...s.thR }}>#1 Elo</th>
-              <th style={s.th}>#1 Team</th>
-              <th style={{ ...s.th, ...s.thR }}>#1 Date</th>
-              <th style={{ ...s.th, ...s.thR }}>Games at #1</th>
-              <th style={s.th}>#2</th>
-              <th style={{ ...s.th, ...s.thR }}>#2 Elo</th>
-              <th style={s.th}>#3</th>
-              <th style={{ ...s.th, ...s.thR }}>#3 Elo</th>
+              <th data-s="BestThroughX-th" style={{ ...s.th, ...s.thR, width:80 }}>Game</th>
+              <th style={s.th} data-s="BestThroughX-th">#1 Leader</th>
+              <th data-s="BestThroughX-th" style={{ ...s.th, ...s.thR }}>#1 Elo</th>
+              <th style={s.th} data-s="BestThroughX-th">#1 Team</th>
+              <th data-s="BestThroughX-th" style={{ ...s.th, ...s.thR }}>#1 Date</th>
+              <th data-s="BestThroughX-th" style={{ ...s.th, ...s.thR }}>Games at #1</th>
+              <th style={s.th} data-s="BestThroughX-th">#2</th>
+              <th data-s="BestThroughX-th" style={{ ...s.th, ...s.thR }}>#2 Elo</th>
+              <th style={s.th} data-s="BestThroughX-th">#3</th>
+              <th data-s="BestThroughX-th" style={{ ...s.th, ...s.thR }}>#3 Elo</th>
             </tr>
           </thead>
           <tbody>

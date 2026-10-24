@@ -263,7 +263,9 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
 
   const FlipBtn = () => (
     <button type="button" className={styles.flipBtn} title="Flip card (F)" aria-label="Flip card"
-      onClick={e => { e.stopPropagation(); setFlipped(f => !f) }}>↻</button>
+      onClick={e => { e.stopPropagation(); setFlipped(f => !f) }}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66" /><path d="M20 4v5h-5" /></svg>
+    </button>
   )
 
   return (
@@ -328,7 +330,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
             </div>
           </div></div>
         </div>
-        <div className={styles.hint}>Click the card or ↻ to flip · Esc to close
+        <div className={styles.hint}>Tap the card to flip<span className={styles.keyHint}> · Esc to close</span>
           {onBinder && <button type="button" className={styles.binderBtn} onClick={onBinder}>Open {sd.season} binder</button>}</div>
       </div>
     </div>

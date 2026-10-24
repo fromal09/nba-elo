@@ -134,10 +134,10 @@ export default function Seasons({ players, onSelectPlayer }) {
   }
 
   return (
-    <div style={s.wrap}>
+    <div style={s.wrap} data-s="Seasons-wrap">
       {/* Season sidebar */}
-      <div style={s.sidebar}>
-        <div style={s.sideHead}>Season</div>
+      <div style={s.sidebar} data-s="Seasons-sidebar">
+        <div style={s.sideHead} data-s="Seasons-sideHead">Season</div>
         {SEASONS.map(season => (
           <button
             key={season.label}
@@ -150,17 +150,17 @@ export default function Seasons({ players, onSelectPlayer }) {
       </div>
 
       {/* Main */}
-      <div style={s.main}>
-        <div style={s.header}>
-          <h1 style={s.title}>{selectedSeason.label} Season</h1>
-          <p style={s.subtitle}>Top 5 players by peak Elo · {top5.length ? `${seasonRankings.length} players with data` : 'No data for this season'}</p>
+      <div style={s.main} data-s="Seasons-main">
+        <div style={s.header} data-s="Seasons-header">
+          <h1 style={s.title} data-s="Seasons-title">{selectedSeason.label} Season</h1>
+          <p style={s.subtitle} data-s="Seasons-subtitle">Top 5 players by peak Elo · {top5.length ? `${seasonRankings.length} players with data` : 'No data for this season'}</p>
 
           {/* Player search */}
-          <div style={{ ...s.searchWrap, marginTop: 16 }}>
-            <div style={s.searchBox}>
+          <div data-s="Seasons-searchWrap" style={{ ...s.searchWrap, marginTop: 16 }}>
+            <div style={s.searchBox} data-s="Seasons-searchBox">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               <input
-                style={s.searchInput}
+                style={s.searchInput} data-s="Seasons-searchInput"
                 placeholder="Find a player across all seasons…"
                 value={search}
                 onChange={e => handleSearch(e.target.value)}
@@ -169,7 +169,7 @@ export default function Seasons({ players, onSelectPlayer }) {
               {search && <button style={{ background: 'none', border: 'none', color: '#bbb', cursor: 'pointer' }} onClick={() => { setSearch(''); setSearchResults([]); }}>✕</button>}
             </div>
             {searchOpen && searchResults.length > 0 && (
-              <div style={s.dropdown}>
+              <div style={s.dropdown} data-s="Seasons-dropdown">
                 {searchResults.map(p => (
                   <div
                     key={p.name}
@@ -188,28 +188,28 @@ export default function Seasons({ players, onSelectPlayer }) {
 
         {/* Player search results */}
         {playerSeasonHighlights && (
-          <div style={s.tableSection}>
-            <div style={s.tableTitle}>{playerSeasonHighlights.player.name} — Season by Season</div>
-            <table style={s.table}>
+          <div style={s.tableSection} data-s="Seasons-tableSection">
+            <div style={s.tableTitle} data-s="Seasons-tableTitle">{playerSeasonHighlights.player.name} — Season by Season</div>
+            <table style={s.table} data-s="Seasons-table">
               <thead>
                 <tr>
-                  <th style={s.th}>Season</th>
-                  <th style={{ ...s.th, ...s.thR }}>Peak Elo</th>
-                  <th style={{ ...s.th, ...s.thR }}>GP in Season</th>
+                  <th style={s.th} data-s="Seasons-th">Season</th>
+                  <th data-s="Seasons-th" style={{ ...s.th, ...s.thR }}>Peak Elo</th>
+                  <th data-s="Seasons-th" style={{ ...s.th, ...s.thR }}>GP in Season</th>
                 </tr>
               </thead>
               <tbody>
                 {playerSeasonHighlights.seasons.slice(0, 20).map(({ season, peak, gp }) => (
                   <tr
                     key={season.label}
-                    style={{ ...s.row, background: selectedSeason.label === season.label ? '#f0f5f0' : 'transparent' }}
+                    data-s="Seasons-row" style={{ ...s.row, background: selectedSeason.label === season.label ? '#f0f5f0' : 'transparent' }}
                     onClick={() => setSelectedSeason(season)}
                     onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                     onMouseLeave={e => e.currentTarget.style.background = selectedSeason.label === season.label ? '#f0f5f0' : 'transparent'}
                   >
-                    <td style={s.td}>{season.label}</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#6896bd', fontVariantNumeric: 'tabular-nums' }}>{Math.round(peak).toLocaleString()}</td>
-                    <td style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{gp}</td>
+                    <td style={s.td} data-s="Seasons-td">{season.label}</td>
+                    <td data-s="Seasons-td" style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#6896bd', fontVariantNumeric: 'tabular-nums' }}>{Math.round(peak).toLocaleString()}</td>
+                    <td data-s="Seasons-td" style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{gp}</td>
                   </tr>
                 ))}
               </tbody>
@@ -220,7 +220,7 @@ export default function Seasons({ players, onSelectPlayer }) {
         {/* Top 5 podium */}
         {!playerSeasonHighlights && top5.length > 0 && (
           <>
-            <div style={s.podium}>
+            <div style={s.podium} data-s="Seasons-podium">
               {top5.map((p, i) => {
                 const isFirst = i === 0
                 return (
@@ -263,36 +263,36 @@ export default function Seasons({ players, onSelectPlayer }) {
             </div>
 
             {/* Full season table */}
-            <div style={s.tableSection}>
-              <div style={s.tableTitle}>Full {selectedSeason.label} Rankings</div>
-              <table style={s.table}>
+            <div style={s.tableSection} data-s="Seasons-tableSection">
+              <div style={s.tableTitle} data-s="Seasons-tableTitle">Full {selectedSeason.label} Rankings</div>
+              <table style={s.table} data-s="Seasons-table">
                 <thead>
                   <tr>
-                    <th style={{ ...s.th, width: 40, textAlign: 'right' }}>#</th>
-                    <th style={s.th}>Player</th>
-                    <th style={s.th}>Team</th>
-                    <th style={{ ...s.th, ...s.thR }}>Season Peak Elo</th>
-                    <th style={{ ...s.th, ...s.thR }}>Season Avg Elo</th>
-                    <th style={{ ...s.th, ...s.thR }}>GP</th>
+                    <th data-s="Seasons-th" style={{ ...s.th, width: 40, textAlign: 'right' }}>#</th>
+                    <th style={s.th} data-s="Seasons-th">Player</th>
+                    <th style={s.th} data-s="Seasons-th">Team</th>
+                    <th data-s="Seasons-th" style={{ ...s.th, ...s.thR }}>Season Peak Elo</th>
+                    <th data-s="Seasons-th" style={{ ...s.th, ...s.thR }}>Season Avg Elo</th>
+                    <th data-s="Seasons-th" style={{ ...s.th, ...s.thR }}>GP</th>
                   </tr>
                 </thead>
                 <tbody>
                   {seasonRankings.slice(0, 50).map(p => (
                     <tr
                       key={p.name}
-                      style={s.row}
+                      style={s.row} data-s="Seasons-row"
                       onClick={() => onSelectPlayer(p)}
                       onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       role="button" tabIndex={0}
                       onKeyDown={e => e.key === 'Enter' && onSelectPlayer(p)}
                     >
-                      <td style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{p.season_rank}</td>
-                      <td style={{ ...s.td, fontWeight: 500, color: '#1a1a1a' }}>{p.name}</td>
-                      <td style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team_in_season}</td>
-                      <td style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#6896bd', fontVariantNumeric: 'tabular-nums' }}>{Math.round(p.season_peak).toLocaleString()}</td>
-                      <td style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.season_avg.toLocaleString()}</td>
-                      <td style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.season_gp}</td>
+                      <td data-s="Seasons-td" style={{ ...s.td, textAlign: 'right', fontSize: 12, color: '#bbb', fontVariantNumeric: 'tabular-nums' }}>{p.season_rank}</td>
+                      <td data-s="Seasons-td" style={{ ...s.td, fontWeight: 500, color: '#1a1a1a' }}>{p.name}</td>
+                      <td data-s="Seasons-td" style={{ ...s.td, fontSize: 11, color: '#aaa' }}>{p.team_in_season}</td>
+                      <td data-s="Seasons-td" style={{ ...s.td, textAlign: 'right', fontWeight: 600, color: '#6896bd', fontVariantNumeric: 'tabular-nums' }}>{Math.round(p.season_peak).toLocaleString()}</td>
+                      <td data-s="Seasons-td" style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.season_avg.toLocaleString()}</td>
+                      <td data-s="Seasons-td" style={{ ...s.td, textAlign: 'right', color: '#555', fontVariantNumeric: 'tabular-nums' }}>{p.season_gp}</td>
                     </tr>
                   ))}
                 </tbody>

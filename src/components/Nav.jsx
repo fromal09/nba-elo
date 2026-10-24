@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import styles from './Nav.module.css'
 
 const NAV_ITEMS = [
@@ -19,6 +20,14 @@ const NAV_ITEMS = [
 ]
 
 export default function Nav({ meta, view, setView }) {
+  // On narrow screens the tabs scroll sideways; keep the current one in view
+  const navRef = useRef(null)
+  useEffect(() => {
+    const el = navRef.current?.querySelector(`.${styles.active}`)
+    if (el && navRef.current.scrollWidth > navRef.current.clientWidth) {
+      navRef.current.scrollLeft = el.offsetLeft - (navRef.current.clientWidth - el.offsetWidth) / 2
+    }
+  }, [view])
   return (
     <header className={styles.header}>
       <div className={styles.left}>
@@ -28,7 +37,7 @@ export default function Nav({ meta, view, setView }) {
         <div className={styles.divider} />
         <span className={styles.logo}>NBA · FPR</span>
       </div>
-      <nav className={styles.nav}>
+      <nav className={styles.nav} ref={navRef}>
         {NAV_ITEMS.map(item => (
           <button
             key={item.view}
