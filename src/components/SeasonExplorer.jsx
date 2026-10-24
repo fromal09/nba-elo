@@ -1286,7 +1286,7 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
         <td className={styles.sticky}>
           <span className={styles.pl}>
             <Headshot name={p.n} shots={shots} color={tColor(t)} />
-            <span><span className={styles.pNameRow}><button className={styles.pName} onClick={() => onCard(p.n)} title="Open player card">{shortName(p.n)}</button>
+            <span><span className={styles.pNameRow}><button className={styles.pName} onClick={() => onCard(p.n)} title="Open player card">{wide ? p.n : shortName(p.n)}</button>
               <MomentMarks p={p} /></span>
               <small>{[stat === 'box' && F.mp && p.mp != null ? `${p.mp} min` : null, p.pos, p.potd ? 'Player of the Day' : p.potg ? 'Player of the Game' : null].filter(Boolean).join(' · ')}</small></span>
           </span>

@@ -758,7 +758,7 @@
 .box_box td.fCell small.down, .box_box td.fPts small.down { color: #b42318; }
 .box_box .fZero { color: #b8c0ca !important; font-weight: 500; }
 .box_box .fBold { font-weight: 800 !important; }
-.box_box .fHi { font-weight: 800 !important; text-decoration: underline; text-decoration-color: var(--tc); text-decoration-thickness: 2px; text-underline-offset: 2px; }
+.box_box td b.fHi, .box_box td.fCell b.fHi, .box_box td.fPts b.fHi { display: inline-block; font-weight: 800 !important; color: #5c4300; background: #fff4cc; box-shadow: inset 0 0 0 1.5px #d9a514; border-radius: 5px; padding: 1px 6px; margin: -2px 0; }
 .box_box td.fShootCell { text-align: left; padding-left: 10px; }
 .fShots { display: flex; flex-direction: column; gap: 1px; }
 .fShot { display: grid; grid-template-columns: 18px 42px 34px; align-items: baseline; column-gap: 4px; font-size: 12px; line-height: 1.2; }
@@ -784,7 +784,8 @@
   .box_box td.fCell b { font-size: 15px; }
 }
 .fNote { padding: 6px 14px 2px; font-size: 11px; color: #7a8694; }
-.fHiKey { display: inline-block; width: 14px; height: 2px; background: var(--tc); vertical-align: middle; margin: 0 3px; }
+.fHiKey { display: inline-block; width: 13px; height: 11px; background: #fff4cc; box-shadow: inset 0 0 0 1.5px #d9a514; border-radius: 3px; vertical-align: -1px; margin: 0 3px; }
+@media (min-width: 900px) { .box .pName { white-space: nowrap; } }
 @media (max-width: 760px) {
   .box_box td.fCell b { font-size: 13px; }
   .fShot { grid-template-columns: 16px 38px 30px; font-size: 11.5px; }
