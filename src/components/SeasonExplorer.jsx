@@ -2262,7 +2262,7 @@ function Binder({ name, sd: startSd, shots, onClose, onProfile }) {
   const [scale, setScale] = useState(0.5)
   useEffect(() => {
     const el = gridRef.current; if (!el) return
-    const fit = () => { const cell = el.querySelector('button, div'); if (cell) setScale((cell.clientWidth * 0.92) / 340) }
+    const fit = () => { const cell = el.querySelector('button, div'); if (cell?.clientWidth) setScale((cell.clientWidth * 0.92) / 340) } // a sheet that's been swapped out measures 0
     fit()
     const ro = new ResizeObserver(fit); ro.observe(el)
     return () => ro.disconnect()
