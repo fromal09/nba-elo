@@ -520,7 +520,10 @@ export function TeamBinder({ team, sd: startSd, env, onClose, onFranchise }) {
       gp[p.n] = (gp[p.n] || 0) + 1; if (!last[p.n] || g.date >= last[p.n].date) last[p.n] = { date: g.date, rank: p.lrp ?? p.lr, elo: p.post }
     }))
     // Traded away: his rank when he left, marked with where he went
-    return Object.entries(last).map(([n, x]) => ({ n, ...x, gp: gp[n], left: other[n] && other[n].date > x.date ? env.teamInfo(other[n].t).abbr : null })).filter(x => x.gp >= 5 || Object.keys(last).length < 10)
+    // Regulars: 5+ games, or for a season just started, about a third of the team's games so far
+    const teamGames = sd.games.filter(g => g.teams.includes(t)).length
+    const minGp = Math.max(1, Math.min(5, Math.ceil(teamGames / 3)))
+    return Object.entries(last).map(([n, x]) => ({ n, ...x, gp: gp[n], left: other[n] && other[n].date > x.date ? env.teamInfo(other[n].t).abbr : null })).filter(x => x.gp >= minGp)
       .sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9)).slice(0, 12)
   }, [sd, t])
   const reg = entries.filter(e => !e.post).length, po = entries.length - reg
@@ -548,7 +551,7 @@ export function TeamBinder({ team, sd: startSd, env, onClose, onFranchise }) {
         <div key={r.n} className={styles.rosterRow}>
           <span className={styles.rankPill} data-tier={tierFor(r.rank).id}>{r.rank ? `#${r.rank}` : '—'}</span>
           <span className={styles.rosterName}>{r.n.replace(/\s*\(.*\)$/, '')}</span>
-          <span className={styles.light}>{r.left ? `to ${r.left} · ` : ''}{r.gp} games</span>
+          <span className={styles.light}>{r.left ? `to ${r.left} · ` : ''}{r.gp} game{r.gp === 1 ? '' : 's'}</span>
           <b>{r0(r.elo)}</b>
         </div>
       ))}
@@ -572,12 +575,15 @@ export function FranchiseBinder({ code, env, onClose, onSeason }) {
   const [d, setD] = useState(null)
   const [err, setErr] = useState(false)
   const [sel, setSel] = useState(null)
+  const [view, setView] = useState('shelf')
+  const [albumPage, setAlbumPage] = useState(-1) // -1: open on the newest sheet
   const P = usePull(env, null)
   useEffect(() => { env.getJSON(`/data/explorer/binders/f/${code.replace('@', '_')}.json`).then(x => { setD(x); setSel(x.seasons[x.seasons.length - 1]?.s) }).catch(() => setErr(true)) }, [code])
   const tc = d?.color || '#173657'
   const head = <>
     <div className={styles.kicker}>Franchise binder{d ? ` · since ${d.seasons[0].s}` : ''}</div>
     <h2 className={styles.title} style={{ color: tc }}>{d?.name || code}</h2>
+    <div className={styles.headRow}><Seg value={view} onChange={setView} options={[['shelf', 'Shelf'], ['album', 'Album']]} /></div>
   </>
   if (err || !d) {
     return <Book tc="#173657" phone={phone} onClose={onClose} head={head} left={<p className={styles.line}>{err ? 'This franchise binder isn’t built yet. It appears after the next data update.' : 'Loading…'}</p>} right={<div className={styles.right} />} />
@@ -585,12 +591,14 @@ export function FranchiseBinder({ code, env, onClose, onSeason }) {
   const s = d.seasons.find(x => x.s === sel)
   const sig = d.signature.map(c => fromIndex(env, c, { label: `${baseName(c.row.n).split(' ').slice(-1)[0]} · ${c.s}` }))
   const R = d.records
+  const kindOf = x => (x.champ ? 'champ' : x.live ? 'live' : x.pw + x.pl ? 'po' : 'miss')
+  if (view === 'album') return <FranchiseAlbum d={d} env={env} phone={phone} head={head} tc={tc} onClose={onClose} page={albumPage} setPage={setAlbumPage} />
   const left = <>
     <div className={styles.banners}>
       {d.titles.length ? d.titles.map(y => <div key={y} className={styles.banner}><small>Champions</small><b>{y.slice(0, 2)}{y.slice(5)}</b></div>)
         : <p className={styles.light}>No titles yet.</p>}
     </div>
-    <p className={styles.line}>{d.seasons.length} seasons · {d.titles.length} title{d.titles.length === 1 ? '' : 's'} · {d.seasons.filter(x => x.pw + x.pl > 0).length} playoff trips</p>
+    <p className={styles.line}>{d.seasons.length} seasons · {d.titles.length} title{d.titles.length === 1 ? '' : 's'} · {d.seasons.filter(x => x.pw + x.pl > 0 && !x.live).length} playoff trips</p>
     <div className={styles.boxLab}>Signature cards · best game in this uniform</div>
     <div className={styles.sigRow}>
       {sig.map(e => (
@@ -617,14 +625,14 @@ export function FranchiseBinder({ code, env, onClose, onSeason }) {
     <div className={`${styles.right} ${styles.shelfPage}`}>
       <div className={styles.sheetHead}>
         <div className={styles.sheetTitle}><b>Every season</b><span>height = win %</span></div>
-        <div className={styles.legend}><span data-k="champ">Title</span><span data-k="po">Playoffs</span><span data-k="miss">Missed</span></div>
+        <div className={styles.legend}><span data-k="champ">Title</span><span data-k="po">Playoffs</span><span data-k="miss">Missed</span>{d.seasons.some(x => x.live) && <span data-k="live">In progress</span>}</div>
       </div>
       <div className={styles.wallWrap}>
         <div className={styles.wall}>
           {d.seasons.map(x => {
             const pct = x.w + x.l ? x.w / (x.w + x.l) : 0.5
             return <button key={x.s} type="button" title={`${x.s} · ${x.name} · ${x.w}–${x.l}`} aria-label={`${x.s}, ${x.w}–${x.l}`} aria-pressed={x.s === sel}
-              className={`${styles.bar} ${x.s === sel ? styles.barOn : ''}`} data-k={x.champ ? 'champ' : x.pw + x.pl ? 'po' : 'miss'}
+              className={`${styles.bar} ${x.s === sel ? styles.barOn : ''}`} data-k={kindOf(x)}
               style={{ height: `${Math.round(18 + pct * 82)}%` }} onClick={() => setSel(x.s)} />
           })}
         </div>
@@ -635,7 +643,7 @@ export function FranchiseBinder({ code, env, onClose, onSeason }) {
         {best && <span className={styles.selCard}><button type="button" className={styles.pocketBtn} onClick={() => P.pull(best)} aria-label="Open best card"><Fit><MiniCard name={best.name} row={best.row} game={best.game} team={best.team} headshot={env.headshot(best.name)} /></Fit></button></span>}
         <div className={styles.selText}>
           <small>{s.s} · {s.name}</small>
-          <b>{s.w}–{s.l}{s.champ ? ' · Champions' : s.pw + s.pl ? ` · ${s.pw}–${s.pl} in the playoffs` : ''}</b>
+          <b>{s.w}–{s.l}{s.champ ? ' · Champions' : s.live ? (s.pw + s.pl ? ` · ${s.pw}–${s.pl} in the playoffs, in progress` : ' · in progress') : s.pw + s.pl ? ` · ${s.pw}–${s.pl} in the playoffs` : ''}</b>
           {s.potg && <span>Most Player of the Game cards: {baseName(s.potg[0])}, {s.potg[1]}</span>}
           {best && <span>Best game: {baseName(best.name)}, {s.best.row.pts} pts, {s.best.row.gs} Game Score</span>}
         </div>
@@ -652,6 +660,47 @@ export function FranchiseBinder({ code, env, onClose, onSeason }) {
   return <>
     <Book tc={tc} phone={phone} stack onClose={onClose} head={head} left={left} right={right}
       summary={<span><b>{d.titles.length} title{d.titles.length === 1 ? '' : 's'}</b> · {d.seasons.length} seasons</span>} onKey={() => P.open} />
+    {P.view}
+  </>
+}
+
+// G · album: the franchise's milestones, then the best game of every season, newest sheet first
+function FranchiseAlbum({ d, env, phone, head, tc, onClose, page, setPage }) {
+  const P = usePull(env, null)
+  const M = d.milestones || {}, R = d.records
+  const abbr = c => env.teamInfo(c.o, c.on, c.oc).abbr
+  const mk = (c, cap, color, sub) => c && fromIndex(env, c, { cap, capColor: color, sub: sub || `${baseName(c.row.n)} · ${fullDay(c.date)}` })
+  const miles = [
+    M.first && mk(M.first, 'First game', '#173657'),
+    ...(M.clinch || []).map(c => mk(c, `Title · ${c.s}`, '#b07d1a', `${baseName(c.row.n)} · ${c.score} vs ${abbr(c)}`)),
+    mk(R.best_gs, `Best Game Score · ${R.best_gs.row.gs}`, '#1a7a4a'),
+    mk(R.most_pts, `Most points · ${R.most_pts.row.pts}`, '#a83232'),
+    M.peak_elo && mk(M.peak_elo, `Peak Elo · ${r0(M.peak_elo.row.post)}`, '#6b3fa0'),
+    M.swing && mk(M.swing, `Biggest swing · ${sgn(M.swing.row.post - M.swing.row.pre)}`, '#2b4c72'),
+  ].filter(Boolean)
+  const bests = d.seasons.filter(x => x.best).map(x => fromIndex(env, x.best, { label: `${x.s} · ${baseName(x.best.row.n).split(' ').slice(-1)[0]}`, sub: x.champ ? 'Champions' : x.live ? 'In progress' : `${x.w}–${x.l}`, subColor: x.champ ? '#b07d1a' : '#6a7684' }))
+  const per = phone ? 6 : 9, pages = Math.max(1, Math.ceil(bests.length / per))
+  const pg = page < 0 ? pages - 1 : Math.min(page, pages - 1)
+  const page0 = bests.slice(pg * per, pg * per + per)
+  const S = { cur: pg, sheets: pages, dir: 1, page: page0, go: k => setPage(Math.max(0, Math.min(pages - 1, pg + k))), jump: setPage }
+  const left = <>
+    <div className={styles.boxLab}>Milestones</div>
+    <div className={styles.miles}>
+      {miles.map(e => (
+        <div key={e.key + e.cap} className={styles.mile}>
+          <div className={styles.mileCap} style={{ background: e.capColor }}>{e.cap}</div>
+          <div className={styles.mileCard}><button type="button" className={styles.pocketBtn} onClick={() => P.pull(e)} aria-label={`${e.cap}: open card`}><Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit></button></div>
+          <small>{e.sub}</small>
+        </div>
+      ))}
+    </div>
+  </>
+  const right = <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone}
+    title="Best of every season" sub={page0.length ? `${page0[0].season} – ${page0[page0.length - 1].season}` : ''} />
+  return <>
+    <Book tc={tc} phone={phone} stack onClose={onClose} head={head} left={left} right={right}
+      summary={<span><b>{d.titles.length} title{d.titles.length === 1 ? '' : 's'}</b> · {d.seasons.length} seasons</span>}
+      onKey={e => { if (P.open) return true; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}
   </>
 }

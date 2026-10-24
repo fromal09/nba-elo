@@ -8,7 +8,9 @@ Reads the Season Explorer files and timemachine.json (run build_timemachine.py f
        "milestones": {"debut", "high_pts", "best_gs", "peak_elo", "best_rank", "swing", "title"}}
   explorer/binders/f/<CODE>.json   one per franchise:
       {"code", "name", "color", "titles", "seasons": [{"s", "name", "color", "w", "l", "pw", "pl", "champ", "potg", "best"}],
-       "legends": [{"n", "peak", "s", "games"}], "signature": [card, ...], "records": {...}}
+       "legends": [{"n", "peak", "s", "games"}], "signature": [card, ...], "records": {...},
+       "milestones": {"first": card, "clinch": [card per title], "peak_elo": card, "swing": card}}
+      The newest season carries "live": true until its title is decided.
 
 A card is everything a card front needs: {"s", "id", "date", "t", "tn", "tc", "o", "on", "oc", "home", "won", "score",
 "ot", "band", "honor", "row": {"n", "pos", "pts", "trb", "ast", "gs", "pre", "post", "lr", "lrp", "fx"}}.
@@ -61,7 +63,14 @@ def honors(games):
 
 
 def bands(games):
-    """Playoff round label per (game id, team), as the site's postBand."""
+    """Playoff round label per (game id, team), as the site's postBand. NBA and ABA playoffs are separate."""
+    out = {}
+    for aba in (False, True):
+        out.update(_bands([g for g in games if ("@" in g["teams"][0]) == aba]))
+    return out
+
+
+def _bands(games):
     post = sorted((g for g in games if g.get("post")), key=lambda g: (g["date"], g["id"]))
     if not post:
         return {}
@@ -118,7 +127,8 @@ def main():
     champs = {(r[TC.index("s")], r[TC.index("t")]) for r in tm["teams"] if r[TC.index("champ")]}
 
     players = {}                     # name -> state
-    fr = defaultdict(lambda: {"seasons": [], "peak": {}, "games": defaultdict(int), "best_gs": None, "most_pts": None, "sig": {}})
+    fr = defaultdict(lambda: {"seasons": [], "peak": {}, "games": defaultdict(int), "best_gs": None, "most_pts": None, "sig": {},
+                              "first": None, "clinch": [], "peak_elo": None, "swing": None})
     files = sorted(EXP.glob("[12][0-9][0-9][0-9]-[0-9][0-9].json"))
     for f in files:
         d = json.loads(f.read_text(encoding="utf-8"))
@@ -130,6 +140,19 @@ def main():
         potg = defaultdict(lambda: defaultdict(int))
         best_team = {}
         for g in games:
+            gtop = {}   # each team's Player of the Game, for franchise milestones
+            for p in g["players"]:
+                if p["t"] not in gtop or night(p) > night(gtop[p["t"]]):
+                    gtop[p["t"]] = p
+            for t, p in gtop.items():
+                F = fr[MERGE.get(t, t)]
+                b = bnd.get((g["id"], t))
+                if F["first"] is None or (b and b["champ"]):
+                    c = card(season, teams, g, p, b, hon.get((g["id"], p["n"])))
+                    if F["first"] is None:
+                        F["first"] = c
+                    if b and b["champ"]:
+                        F["clinch"].append(c)
             for p in g["players"]:
                 key = (g["id"], p["n"])
                 c = None
@@ -170,7 +193,11 @@ def main():
                 if F["best_gs"] is None or gs > F["best_gs"][0]:
                     F["best_gs"] = (gs, c or mk())
                 if F["most_pts"] is None or (p["pts"] or 0) > F["most_pts"][0]:
-                    F["most_pts"] = (p["pts"] or 0, c or mk())
+                    F["most_pts"] = (p["pts"] or 0, c or mk()); c = F["most_pts"][1]
+                if F["peak_elo"] is None or p["post"] > F["peak_elo"][0]:
+                    F["peak_elo"] = (p["post"], c or mk()); c = F["peak_elo"][1]
+                if F["swing"] is None or p["post"] - p["pre"] > F["swing"][0]:
+                    F["swing"] = (p["post"] - p["pre"], c or mk()); c = F["swing"][1]
                 if hon.get(key) in ("potg", "potd"):
                     potg[p["t"]][p["n"]] += 1
                 if p["t"] not in best_team or gs > best_team[p["t"]][0]:
@@ -188,6 +215,12 @@ def main():
                 s["champ"] = True
         print(f"  {season}", end="\r")
 
+    # The newest season is in progress until its title is decided
+    newest = d["season"]
+    if not any(s_ == newest for s_, _ in champs):
+        for F in fr.values():
+            if F["seasons"] and F["seasons"][-1]["s"] == newest:
+                F["seasons"][-1]["live"] = True
     (OUT / "p").mkdir(parents=True, exist_ok=True); (OUT / "f").mkdir(parents=True, exist_ok=True)
     for name, st in players.items():
         seasons = []
@@ -212,7 +245,8 @@ def main():
                "seasons": F["seasons"], "legends": leg, "signature": sig,
                "records": {"best_record": {"s": best_rec["s"], "w": best_rec["w"], "l": best_rec["l"]},
                            "most_cards": {"n": most[0], "games": most[1]},
-                           "best_gs": F["best_gs"][1], "most_pts": F["most_pts"][1]}}
+                           "best_gs": F["best_gs"][1], "most_pts": F["most_pts"][1]},
+               "milestones": {"first": F["first"], "clinch": F["clinch"], "peak_elo": F["peak_elo"][1], "swing": F["swing"][1]}}
         (OUT / "f" / f"{code.replace('@', '_')}.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"  Binders: {len(players):,} players, {len(fr)} franchises            ")
 

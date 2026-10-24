@@ -171,6 +171,7 @@
 .legend span { display: flex; align-items: center; gap: 5px; }
 .legend span::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--k); }
 [data-k=champ] { --k: #d9a93a; } [data-k=po] { --k: var(--tc); } [data-k=miss] { --k: #a9b4c0; }
+[data-k=live] { --k: repeating-linear-gradient(135deg, var(--tc) 0 4px, color-mix(in srgb, var(--tc) 30%, #fff) 4px 8px); }
 .wallWrap { flex: 1; min-height: 140px; display: flex; flex-direction: column; justify-content: flex-end; }
 .wall { flex: 1; display: flex; align-items: flex-end; gap: 2px; min-height: 0; }
 .bar { flex: 1; min-width: 3px; border: 0; padding: 0; border-radius: 2px 2px 0 0; background: var(--k); cursor: pointer; }

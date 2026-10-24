@@ -2152,7 +2152,9 @@ function PerfTable({ rows, shots, onOpen }) {
 function postBand(sd, g, t) {
   const o = g.teams.find(x => x !== t)
   const byDate = (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)
-  const post = sd.games.filter(x => x.post).sort(byDate)
+  // NBA and ABA playoffs ran side by side (1967-76); each league has its own Finals
+  const aba = t.includes('@')
+  const post = sd.games.filter(x => x.post && x.teams[0].includes('@') === aba).sort(byDate)
   const start = post[0]?.date || g.date
   const days = (a, b) => (new Date(b) - new Date(a)) / 864e5
   const series = (a, b) => post.filter(x => x.teams.includes(a) && x.teams.includes(b))
@@ -2217,9 +2219,11 @@ const teamInfo = (code, name, color) => {
 }
 // Champions: won the season's last game, and with it a series that needed four wins
 function champion(sd, t) {
-  const post = sd.games.filter(g => g.post).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+  if (!t) return false
+  const aba = t.includes('@')
+  const post = sd.games.filter(g => g.post && g.teams[0].includes('@') === aba).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
   const last = post[post.length - 1]
-  if (!t || !last || !last.teams.includes(t)) return false
+  if (!last || !last.teams.includes(t)) return false
   const o = last.teams.find(x => x !== t)
   const wins = post.filter(g => g.teams.includes(t) && g.teams.includes(o)).filter(g => { const i = g.teams.indexOf(t); return g.pts[i] > g.pts[1 - i] }).length
   const i = last.teams.indexOf(t)
