@@ -215,7 +215,7 @@ function TeamLogo({ src, abbr, color }) {
  * props: name, row (this game's box-score row), game, sd (season data), team (info: name, color, code),
  *        logo (url|null), headshot (url|null), career (elo.json player|null), peakRank, onProfile, onClose
  */
-export default function PlayerCard({ name, row, game, sd, team, logo, headshot, career, peakRank, bestRank, onProfile, onClose, onBinder }) {
+export default function PlayerCard({ name, row, game, sd, team, logo, headshot, career, peakRank, bestRank, onProfile, onClose, onBinder, onCareer }) {
   const [flipped, setFlipped] = useState(false)
   const ref = useRef(null)
   const backNameRef = useRef(null)
@@ -331,7 +331,8 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
           </div></div>
         </div>
         <div className={styles.hint}>Tap the card to flip<span className={styles.keyHint}> · Esc to close</span>
-          {onBinder && <button type="button" className={styles.binderBtn} onClick={onBinder}>Open {sd.season} binder</button>}</div>
+          {onBinder && <button type="button" className={styles.binderBtn} onClick={onBinder}>Open {sd.season} binder</button>}
+          {onCareer && <button type="button" className={styles.binderBtn} onClick={onCareer}>Career binder</button>}</div>
       </div>
     </div>
   )

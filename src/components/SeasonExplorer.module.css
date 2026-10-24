@@ -43,6 +43,8 @@
 .tabs { display: flex; gap: 4px; padding: 14px 0; }
 .tabs button { border: 1px solid #d8dde3; background: #fff; padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; color: #4a5560; }
 .tabs button.on { background: #173657; color: #fff; border-color: #173657; }
+.tabs button.binderOpen { margin-left: auto; border-color: var(--tc, #173657); color: var(--tc, #173657); }
+.tabs button.binderOpen:hover { background: var(--tc, #173657); color: #fff; }
 .tableWrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 .schedLabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #6896bd; margin: 6px 0 8px; }
