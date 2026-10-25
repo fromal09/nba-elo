@@ -29,7 +29,8 @@ const gauss = R => { let u = 0; while (!u) u = R(); return Math.sqrt(-2 * Math.l
 
 // input:
 //   teams:  { code: { conf: 'E'|'W', w, l } }
-//   games:  [{ home, away, m, day }]  m = projected home margin in points (unplayed games)
+//   games:  [{ home, away, m, day, p? }]  m = projected home margin in points (unplayed games);
+//           p = the home team's live win chance for a game in progress
 //   known:  [{ home, away, homeWon }]  finals not yet in the season data
 //   strength: { code: points } for the playoffs (margin between two teams = strength gap ± home)
 //   sigma, home: spread of margins around the projection, and home court in points
@@ -41,7 +42,7 @@ export function simulateOdds({ teams, games, known, strength, sigma, home, left,
   const conf = codes.map(c => teams[c].conf)
   const base = codes.map(c => teams[c].w)
   for (const k of known) base[ix[k.homeWon ? k.home : k.away]]++
-  const G = games.filter(g => g.home in ix && g.away in ix).map(g => ({ h: ix[g.home], a: ix[g.away], m: g.m, day: g.day }))
+  const G = games.filter(g => g.home in ix && g.away in ix).map(g => ({ h: ix[g.home], a: ix[g.away], m: g.m, p: g.p, day: g.day }))
   const rat = codes.map(c => strength[c] ?? 0)
   // Season length per team: games already played, finals not yet in the data, and games left
   const total = codes.map(c => teams[c].w + teams[c].l)
@@ -67,7 +68,8 @@ export function simulateOdds({ teams, games, known, strength, sigma, home, left,
     const nextWon = new Array(N).fill(null)
     for (let j = 0; j < G.length; j++) {
       const g = G[j]
-      const hw = R() < P(g.m + shift[g.h] - shift[g.a])
+      // A game in progress carries its live win chance; strength shifts don't move it
+      const hw = R() < (g.p != null ? g.p : P(g.m + shift[g.h] - shift[g.a]))
       w[hw ? g.h : g.a]++
       if (next[g.h] === j) nextWon[g.h] = hw
       if (next[g.a] === j) nextWon[g.a] = !hw

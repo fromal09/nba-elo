@@ -19,7 +19,7 @@ const NAV_ITEMS = [
   { view: 'methodology', label: 'Methodology' },
 ]
 
-export default function Nav({ meta, view, setView }) {
+export default function Nav({ meta, live, view, setView }) {
   // On narrow screens the tabs scroll sideways; keep the current one in view
   const navRef = useRef(null)
   useEffect(() => {
@@ -49,7 +49,9 @@ export default function Nav({ meta, view, setView }) {
         ))}
       </nav>
       <div className={styles.right}>
-        <span className={styles.updated}>Updated {meta?.generated}</span>
+        <span className={styles.updated}>{live?.inprog.length
+          ? <><i className={styles.liveDot} />Live · {live.inprog.length} game{live.inprog.length === 1 ? '' : 's'} on</>
+          : live?.finals.length ? <>Live · today's finals in</> : <>Updated {meta?.generated}</>}</span>
       </div>
     </header>
   )

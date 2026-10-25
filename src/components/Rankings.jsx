@@ -19,7 +19,9 @@ function gmscColor(v) {
   return '#c94040'
 }
 
-export default function Rankings({ players, onSelectPlayer }) {
+const sgn1 = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1)
+
+export default function Rankings({ players, live, onSelectPlayer }) {
   const [search,     setSearch]     = useState('')
   const [sortKey, setSortKey] = useState('fpr_rank')
   const [sortAsc,    setSortAsc]    = useState(true)
@@ -64,6 +66,10 @@ export default function Rankings({ players, onSelectPlayer }) {
         <div>
           <h1 className={styles.pageTitle}>Current Rankings</h1>
           <p className={styles.pageDesc}>Active players ranked by Floor Performance Rating · head-to-head dominance</p>
+          {live?.any && <p className={styles.liveNote}>
+            {live.inprog.length > 0 && <span className={styles.liveOn}><i className={styles.liveDot} />{live.inprog.length} game{live.inprog.length === 1 ? '' : 's'} in progress</span>}
+            <span>Elo and ranks include {live.finals.length ? `${live.finals.length} final${live.finals.length === 1 ? '' : 's'} since the nightly update` : 'live games'}{live.inprog.length ? ' and move with games in progress' : ''}.</span>
+          </p>}
         </div>
       </div>
 
@@ -180,8 +186,12 @@ export default function Rankings({ players, onSelectPlayer }) {
                   role="button"
                   aria-label={`Open ${p.name} profile`}
                 >
-                  <td className={styles.tdRank}>{displayRank}</td>
-                  <td className={styles.tdName}>{p.name}</td>
+                  <td className={styles.tdRank}>{displayRank}
+                    {sortKey === 'fpr_rank' && p.base_fpr_rank && p.fpr_rank && p.base_fpr_rank !== p.fpr_rank &&
+                      <i className={p.fpr_rank < p.base_fpr_rank ? styles.mvUp : styles.mvDown}>{p.fpr_rank < p.base_fpr_rank ? '▲' : '▼'}{Math.abs(p.base_fpr_rank - p.fpr_rank)}</i>}</td>
+                  <td className={styles.tdName}>{p.name}
+                    {p.live ? <span className={styles.liveChip} title={`In progress · ${p.live.detail}`}><i className={styles.liveDot} />{sgn1(p.live_change)}</span>
+                      : p.live_change ? <span className={p.live_change > 0 ? styles.todayUp : styles.todayDown} title="Since the nightly update">{sgn1(p.live_change)} today</span> : null}</td>
                   <td className={styles.tdTeam}>{p.team}</td>
                   <td className={styles.tdElo}>
                     <div className={styles.eloWrap}>

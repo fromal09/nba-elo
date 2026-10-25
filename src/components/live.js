@@ -94,6 +94,27 @@ export function scoreGame(g, R, date, winChance, sy) {
   }
 }
 
+// Ratings after a day of finals the pipeline hasn't processed: each player who played carries his
+// post-game Elo and one more game into the next day, so back-to-back unprocessed days chain correctly.
+export function advanceRatings(R, games) {
+  const upd = new Map()
+  for (const g of games) for (const p of g.players) if (!p.unrated) upd.set(p.n, p)
+  if (!upd.size) return R
+  const swap = new Map()
+  const next = o => {
+    const p = upd.get(o.name)
+    if (!p) return o
+    if (!swap.has(o)) swap.set(o, { ...o, current_elo: p.post, games_played: (o.games_played || 0) + 1 })
+    return swap.get(o)
+  }
+  const byNorm = {}, byLast = {}
+  for (const [k, o] of Object.entries(R.byNorm)) byNorm[k] = next(o)
+  for (const [k, list] of Object.entries(R.byLast)) byLast[k] = list.map(next)
+  const pool = new Map(R.pool)
+  for (const [n, p] of upd) if (pool.has(n)) pool.set(n, p.post)
+  return { ...R, byNorm, byLast, pool }
+}
+
 // League ranks before and after, among FPR-eligible players. Everyone who played today counts
 // after the game (the Top 100 rule makes a player eligible once he plays for his team).
 export function assignRanks(games, R) {

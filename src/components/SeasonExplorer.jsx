@@ -6,6 +6,7 @@ import PlayerCard, { MiniCard, tierFor, momentsFor } from './PlayerCard'
 import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder } from './Binders'
 import { buildForecaster, blendWeight, norm } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
+import { watchDay, useLiveFeeds, computeLive, gameKey, liveDaysAfter } from './liveFeed.js'
 import { simulateOdds } from './odds.js'
 import { raceAwards } from './awardsRace.js'
 
@@ -37,16 +38,29 @@ const projText = (fg, homeFirst = false) => {
   return s ? (homeFirst ? `${s[0]}–${s[1]}` : `${s[1]}–${s[0]}`) : null
 }
 // Projected final for a game in progress: the score so far plus the pre-game projection for the time left
-function liveFinal(fg, live, ptsHome, ptsAway) {
-  const s = Array.isArray(fg) ? fg : PROJECT?.(fg)
-  if (!s || !live?.period) return null
+// Share of a 48-minute game still to play, from ESPN's period and clock
+function shareLeft(live) {
   // ESPN's clock is "M:SS", or plain seconds ("20.2") in a period's last minute
   const ck = String(live.clock ?? '0:00')
   const [m, sec] = ck.includes(':') ? ck.split(':').map(Number) : [0, Number(ck)]
   const inPeriod = Math.min(live.period <= 4 ? 12 : 5, (isNaN(m) ? 0 : m) + (isNaN(sec) ? 0 : sec) / 60)
   const left = (live.period <= 4 ? (4 - live.period) * 12 : 0) + inPeriod
-  const r = Math.max(0, left) / 48
+  return Math.max(0, left) / 48
+}
+function liveFinal(fg, live, ptsHome, ptsAway) {
+  const s = Array.isArray(fg) ? fg : PROJECT?.(fg)
+  if (!s || !live?.period) return null
+  const r = shareLeft(live)
   return [Math.round(ptsHome + s[0] * r), Math.round(ptsAway + s[1] * r)]
+}
+// Home team's win chance during a game: the current lead plus the pre-game projected margin for the
+// time left, with the spread of outcomes shrinking as the clock runs (sigma × √share left)
+function liveWinHome(preMargin, live, sigma) {
+  const lead = (live.hs || 0) - (live.as || 0)
+  if (!live.period) return null
+  const r = shareLeft(live)
+  if (r <= 0.0005) return lead > 0 ? 1 : lead < 0 ? 0 : 0.5
+  return normCdf((lead + (preMargin || 0) * r) / (sigma * Math.sqrt(r)))
 }
 let NEWEST = null // the newest season's label, for loading it with this season's teams
 let CAREER = { byName: {}, rank: {}, best: {} } // elo.json players, all-time peak Elo rank, best active rank
@@ -187,6 +201,30 @@ function winChance(sy, eloA, eloB, homeA) {
 const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 >> 3 ^ 1 && n % 10) || 0] || 'th')
 
 // ── Season loading ───────────────────────────────────────────────────────────
+// Records and roster Elo with live finals included, computed the way scripts/season_explorer.py does:
+// roster Elo = average latest Elo of the team's eight highest-minute players this season
+function withLiveTeams(base, games, finals) {
+  const touched = new Set(finals.flatMap(g => g.teams))
+  const out = { ...base }
+  for (const t of touched) {
+    const cur = base[t] || { code: t, name: CURRENT[t]?.[0] || t, color: CURRENT[t]?.[1] || '#173657',
+      group: CURRENT[t]?.[2] === 'E' ? 'Eastern Conference' : 'Western Conference' }
+    let w = 0, l = 0, pw = 0, pl = 0
+    const mins = {}, latest = {}
+    for (const g of games) {
+      const i = g.teams.indexOf(t)
+      if (i < 0) continue
+      const won = g.pts[i] > g.pts[1 - i]
+      if (g.post) { if (won) pw++; else pl++ } else if (won) w++; else l++
+      for (const p of g.players) if (p.t === t) { mins[p.n] = (mins[p.n] || 0) + (p.mp || 0); latest[p.n] = p.post }
+    }
+    const top8 = Object.keys(mins).sort((a, b) => mins[b] - mins[a]).slice(0, 8)
+    out[t] = { ...cur, w, l, pw, pl, gp: w + l + pw + pl,
+      elo: top8.length ? Math.round((top8.reduce((s, n) => s + latest[n], 0) / top8.length) * 10) / 10 : cur.elo ?? null }
+  }
+  return out
+}
+
 function loadSeason(label, newest) {
   return getJSON(`/data/explorer/${label}.json`).then(d => {
     if (d._ready) return d
@@ -308,17 +346,62 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
   CAREER = { byName, rank: peakRank, best }
   NEWEST = index?.seasons[0]?.season || NEWEST
 
+  // ── Live layer for the newest season ─────────────────────────────────────
+  // Days after the last pipeline update (normally just today) come from the live ESPN feed: finals are
+  // scored exactly like the nightly build and join the season (standings, team pages, award races);
+  // games in progress feed the forecasts with their live win chance. Polls while games are on.
+  const lastData = sd?.games.length ? sd.games[sd.games.length - 1].date : null
+  const liveDays = useMemo(() => (newest && sd ? liveDaysAfter(lastData) : []), [newest, sd, lastData])
+  const feeds = useLiveFeeds(liveDays)
+  const live = useMemo(() => {
+    if (!sd || !liveDays.length) return null
+    const have = new Set(sd.games.map(g => gameKey(g.date, g.teams[0], g.teams[1])))
+    const L = computeLive({ ratings, feeds, days: liveDays, have, winChance, sy: sd.sy })
+    const { finals } = L
+    if (finals.length) {
+      // Team lineup-Elo ranks entering and leaving each game, as loadSeason computes them
+      const latest = { ...(sd.seed || {}) }
+      sd.games.forEach(g => g.teams.forEach(t => { latest[t] = g.elo[t].post }))
+      Object.keys(CURRENT).forEach(c => { if (latest[c] == null) latest[c] = 1500 })
+      const rankOf = (t, v) => {
+        const others = Object.entries(latest).filter(([k]) => k !== t && !k.includes('@'))
+        return { rank: 1 + others.filter(([, x]) => x > v).length, of: others.length + 1 }
+      }
+      finals.forEach(g => {
+        g.teams.forEach(t => { g.elo[t].preRank = rankOf(t, g.elo[t].pre) })
+        g.teams.forEach(t => { latest[t] = g.elo[t].post })
+        g.teams.forEach(t => { g.elo[t].postRank = rankOf(t, g.elo[t].post) })
+      })
+      markHonors(finals)
+    }
+    return { ...L, key: gameKey }
+  }, [sd, liveDays, feeds, ratings])
+  // The season with live finals folded in: games, records and roster Elo, as the nightly build would write them
+  const sdL = useMemo(() => {
+    if (!sd || !live?.finals.length) return sd
+    const games = [...sd.games, ...live.finals]
+    return { ...sd, games, teams: withLiveTeams(sd.teams, games, live.finals), liveFinals: live.finals.length }
+  }, [sd, live])
+  const liveNow = useMemo(() => {
+    const m = {}
+    for (const x of live?.inprog || []) {
+      m[x.home] = { opp: x.away, me: x.hs ?? 0, op: x.as ?? 0, detail: x.detail, home: true }
+      m[x.away] = { opp: x.home, me: x.as ?? 0, op: x.hs ?? 0, detail: x.detail, home: false }
+    }
+    return m
+  }, [live])
+
   const teams = useMemo(() => {
-    if (!sd) return {}
-    const t = { ...sd.teams }
+    if (!sdL) return {}
+    const t = { ...sdL.teams }
     // Newest season: list every current team, even before its first game
-    if (index && sd.season === index.seasons[0].season && Object.values(t).some(x => x.group.endsWith('Conference'))) {
+    if (index && sdL.season === index.seasons[0].season && Object.values(t).some(x => x.group.endsWith('Conference'))) {
       Object.entries(CURRENT).forEach(([c, [name, color, conf]]) => {
         if (!t[c]) t[c] = { code: c, name, color, group: conf === 'E' ? 'Eastern Conference' : 'Western Conference', w: 0, l: 0, pw: 0, pl: 0, gp: 0, elo: null }
       })
     }
     return t
-  }, [sd, index])
+  }, [sdL, index])
   TEAMINFO = teams
 
   // Forecasts for the newest season: remaining games per team and projected records
@@ -333,35 +416,47 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
       const g = base.game(h, a, day), m = model.margin(g), p = model.win(m)
       return { ...g, margin: m, pHome: p, pAway: 1 - p }
     } }
+    // Pipeline data ends at `through`; live finals after it are already in `teams` (skipped here),
+    // and games in progress carry their live win chance
     const through = sd.games.length ? sd.games[sd.games.length - 1].date : '0000-00-00'
     const upcoming = {}, proj = {}, remaining = [], known = []
-    const HCA = WP(sd.sy).home
+    const HCA = WP(sd.sy).home, sigma = model?.sigma || 13.7
+    const liveFinal_ = new Set((live?.finals || []).map(g => live.key(g.date, g.teams[0], g.teams[1])))
+    const inProg = new Map((live?.inprog || []).map(x => [live.key(x.day, x.home, x.away), x]))
     Object.keys(teams).forEach(t => { upcoming[t] = []; proj[t] = [teams[t].w, teams[t].l] })
     for (const g of sched.games) {
       if (g.day <= through || !teams[g.home] || !teams[g.away]) continue
+      const k = live ? live.key(g.day, g.home, g.away) : null
+      if (k && liveFinal_.has(k)) continue
+      const lv = !g.done && k ? inProg.get(k) : null
       const fg = g.done ? null : f.game(g.home, g.away, g.day)
       // projected home margin in points (Elo-only conversion until scoring.json loads)
-      if (fg) remaining.push({ home: g.home, away: g.away, day: g.day, m: fg.margin ?? (fg.home.rating - fg.away.rating + HCA) * 0.0376 })
+      const m = fg ? fg.margin ?? (fg.home.rating - fg.away.rating + HCA) * 0.0376 : null
+      const pre = fg && model?.score ? model.score(fg) : null
+      const pLive = lv && fg ? liveWinHome(pre ? pre[0] - pre[1] : m, lv, sigma) : null
+      if (fg) remaining.push({ home: g.home, away: g.away, day: g.day, m, p: pLive })
       else known.push({ home: g.home, away: g.away, homeWon: g.hs > g.as })
       for (const t of [g.home, g.away]) {
-        const home = t === g.home, p = fg ? (home ? fg.pHome : fg.pAway) : null
+        const home = t === g.home
+        const p = fg ? (pLive != null ? (home ? pLive : 1 - pLive) : (home ? fg.pHome : fg.pAway)) : null
         const won = g.done ? (home ? g.hs > g.as : g.as > g.hs) : null
-        upcoming[t].push({ ...g, opp: home ? g.away : g.home, isHome: home, p, won, fg })
+        const lvx = lv ? { me: home ? lv.hs : lv.as, op: home ? lv.as : lv.hs, detail: lv.detail } : null
+        upcoming[t].push({ ...g, opp: home ? g.away : g.home, isHome: home, p, won, fg, live: lvx })
         proj[t][0] += g.done ? +won : p
         proj[t][1] += g.done ? +!won : 1 - p
       }
     }
     const last = sched.games.length ? sched.games[sched.games.length - 1].day : through
     return { f, upcoming, proj, through, fetched: sched.fetched, remaining, known, last, total: sched.games.length, model, project: model?.score || null }
-  }, [newest, sd, sched, rotation, players, shots, teams, scoring])
+  }, [newest, sd, sched, rotation, players, shots, teams, scoring, live])
   PROJECT = fc?.project || null
 
   // Playoff and title odds: the rest of the schedule played out many times
   const [standView, setStandView] = useState('standings')
   const [odds, setOdds] = useState(null)
   useEffect(() => {
-    setOdds(null)
-    if (!fc || !sd || (standView !== 'odds' && standView !== 'awards')) return
+    if (!fc || !sd) { setOdds(null); return }   // a live update re-simulates; the last result stays up meanwhile
+    if (standView !== 'odds' && standView !== 'awards') return
     const conf = t => (teams[t]?.group === 'Eastern Conference' ? 'E' : teams[t]?.group === 'Western Conference' ? 'W' : null)
     const T = Object.fromEntries(Object.keys(teams).filter(conf).map(t => [t, { conf: conf(t), w: teams[t].w, l: teams[t].l }]))
     const day = addDays(fc.last, 1)
@@ -380,11 +475,11 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     if (prev) loadSeason(prev, false).then(setPrevSd).catch(() => setPrevSd({ games: [] }))
   }, [standView, sd, prevSd, index])
   useEffect(() => {
-    setRace(null)
-    if (standView !== 'awards' || !fc || !sd || !prevSd || !odds) return
-    const t = setTimeout(() => setRace(buildRace({ sd, prevSd, fc, odds, byName })), 30)
+    if (!fc || !sdL) { setRace(null); return }
+    if (standView !== 'awards' || !prevSd || !odds) return
+    const t = setTimeout(() => setRace(buildRace({ sd: sdL, prevSd, fc, odds, byName })), 30)
     return () => clearTimeout(t)
-  }, [standView, fc, sd, prevSd, odds])
+  }, [standView, fc, sdL, prevSd, odds])
 
   if (err) return <div className={styles.page}><div className={styles.empty}>{err}</div></div>
   if (!index) return <div className={styles.page}><div className={styles.empty}>Loading seasons…</div></div>
@@ -405,7 +500,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           {view === 'standings' ? <>
             <h1 className={styles.title}>{s.season} <span>{league} season</span></h1>
             <p className={styles.sub}>
-              {s.games.toLocaleString()} games, {fmtDate(s.first, { month: 'short', day: 'numeric', year: 'numeric' })} to {fmtDate(s.last, { month: 'short', day: 'numeric', year: 'numeric' })}.
+              {(s.games + (newest ? sdL?.liveFinals || 0 : 0)).toLocaleString()} games, {fmtDate(s.first, { month: 'short', day: 'numeric', year: 'numeric' })} to {fmtDate(newest && sdL?.liveFinals ? sdL.games[sdL.games.length - 1].date : s.last, { month: 'short', day: 'numeric', year: 'numeric' })}.
               Pick a team for its schedule, box scores with pre- and post-game Elo, and every player's Elo path.
             </p>
           </> : <>
@@ -441,16 +536,24 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           {standView === 'awards' && <span>{RACE_N.toLocaleString()} simulated seasons · this season so far plus a projection for the rest</span>}
         </div>
       )}
+      {view === 'standings' && newest && live && (live.finals.length > 0 || live.inprog.length > 0) && (
+        <div className={styles.liveBar}>
+          {live.inprog.length > 0 && <span className={styles.liveTxt}><i className={styles.liveDot} />{live.inprog.length} game{live.inprog.length === 1 ? '' : 's'} in progress</span>}
+          {live.finals.length > 0 && <span>{live.finals.length} final{live.finals.length === 1 ? '' : 's'} since the nightly update counted in records, Elo and races</span>}
+          {live.inprog.length > 0 && <span>Projections and odds use live win chances</span>}
+          {live.fetched && <span className={styles.muted}>Updated {new Date(live.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
+        </div>
+      )}
       {view === 'today' ? (
         <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} />
       ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (
-        <OddsView odds={odds} teams={teams} sd={sd} fc={fc} />
+        <OddsView odds={odds} teams={teams} sd={sdL} fc={fc} />
       ) : standView === 'awards' && fc ? (
         <AwardRaces race={race} shots={shots} selectPlayer={selectPlayer} />
       ) : (
         <div className={styles.confs}>
           {groups.map(g => (
-            <Standings key={g} label={GROUP_LABEL[g] || g} group={g} sd={sd} teams={teams} open={open} fc={fc}
+            <Standings key={g} label={GROUP_LABEL[g] || g} group={g} sd={sdL} teams={teams} open={open} fc={fc} liveNow={liveNow}
               setOpen={t => setOpen(o => (o === t ? null : t))}
               shots={shots} selectPlayer={selectPlayer} goDay={goDay} />
           ))}
@@ -697,7 +800,7 @@ function AwardRaces({ race, shots, selectPlayer }) {
 }
 
 // ── Standings table with expandable team rows ───────────────────────────────
-function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer, fc, goDay }) {
+function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer, fc, goDay, liveNow = {} }) {
   const rows = Object.entries(teams).filter(([, x]) => x.group === group).map(([t, x]) =>
     ({ t, ...x, pct: x.w + x.l ? x.w / (x.w + x.l) : 0 })
   ).sort((a, b) => b.pct - a.pct || b.w - a.w || (b.elo || 0) - (a.elo || 0))
@@ -723,6 +826,8 @@ function Standings({ label, group, sd, teams, open, setOpen, shots, selectPlayer
               <span className={styles.teamCell}>
                 <em>{i + 1}</em><TeamMark t={r.t} />
                 <b className={styles.full}>{tName(r.t)}</b><b className={styles.abbr}>{tShort(r.t)}</b>
+                {liveNow[r.t] && <span className={styles.stLive} title={`${liveNow[r.t].home ? 'vs' : '@'} ${tName(liveNow[r.t].opp)} · ${liveNow[r.t].detail || 'live'}`}>
+                  <i className={styles.liveDot} />{liveNow[r.t].me}-{liveNow[r.t].op}</span>}
               </span>
               <span>{r.w}</span><span>{r.l}</span>
               <span>{r.w + r.l ? r.pct.toFixed(3).replace(/^0/, '') : '—'}</span>
@@ -837,7 +942,7 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched, goDay
                   const best = x => x && [...x.rows].filter(r => !r.out).sort((a, b) => b.elo - a.elo)[0]
                   const tm = best(mine), to = best(theirs)
                   return (
-                    <tr key={g.id} onClick={() => (g.done ? goDay?.(g.day) : g.fg && onPreview(g))} className={g.done ? `${styles.pending} ${g.won ? styles.rowW : styles.rowL}` : ''}>
+                    <tr key={g.id} onClick={() => (g.done || g.live ? goDay?.(g.day) : g.fg && onPreview(g))} className={g.done ? `${styles.pending} ${g.won ? styles.rowW : styles.rowL}` : g.live ? styles.liveRow : ''}>
                       <td className={styles.date}>{fmtDate(g.day)}</td>
                       <td><span className={styles.opp}>
                         <i>{g.isHome ? 'vs' : '@'}</i><TeamMark t={g.opp} size={22} />
@@ -851,8 +956,9 @@ function Schedule({ team, games, onBox, upcoming = [], onPreview, fetched, goDay
                           <span className={styles.wpBar}><span style={{ width: `${g.p * 100}%` }} /></span>
                           {Math.round(g.p * 100)}%
                         </span></td>
-                        <td>{g.p >= 0.5 ? <span className={styles.favTag}>Favored</span> : <span className={styles.dogTag}>Underdog</span>}
-                          {PROJECT && (() => { const sc = PROJECT(g.fg); if (!sc) return null; const me = g.isHome ? sc[0] : sc[1], op = g.isHome ? sc[1] : sc[0]; return <span className={styles.projScore}>{me > op ? 'W' : 'L'} {me}–{op}</span> })()}</td>
+                        <td>{g.live ? <span className={styles.liveTxt}><i className={styles.liveDot} />{g.live.me}-{g.live.op} · {g.live.detail}</span>
+                          : g.p >= 0.5 ? <span className={styles.favTag}>Favored</span> : <span className={styles.dogTag}>Underdog</span>}
+                          {PROJECT && !g.live && (() => { const sc = PROJECT(g.fg); if (!sc) return null; const me = g.isHome ? sc[0] : sc[1], op = g.isHome ? sc[1] : sc[0]; return <span className={styles.projScore}>{me > op ? 'W' : 'L'} {me}–{op}</span> })()}</td>
                         <td>{tm && to ? <span className={styles.topMatch}>
                           <span className={tm.elo >= to.elo ? styles.topWin : ''}>{shortName(tm.name)} <b>{r0(tm.elo)}</b></span>
                           <i>vs</i>
@@ -1874,17 +1980,8 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
   useEffect(() => {
     setFeed(null); setFeedErr(null); setBox(null); setCard(null)
     if (!wantsLive) return
-    let stop = false, timer
-    const load = () => fetch(`/api/live?date=${day}`).then(r => r.json()).then(d => {
-      if (stop) return
-      setFeed(d)
-      setFeedErr(!d.games?.length && d.errors?.length ? d.errors[0] : null)
-      // Poll while games are live; check back every 2 minutes on a game day before tip-off
-      const wait = d.live ? 30000 : d.games?.some(g => g.state === 'pre') && day === etToday() ? 120000 : 0
-      if (wait) timer = setTimeout(load, wait)
-    }).catch(e => { if (!stop) { setFeedErr(e.message); timer = setTimeout(load, 60000) } })
-    load()
-    return () => { stop = true; clearTimeout(timer) }
+    // Shared with the standings' live layer: one fetch and one poll per day however many views watch it
+    return watchDay(day, ({ data, err }) => { if (data) setFeed(data); setFeedErr(err) }, day === etToday())
   }, [day, wantsLive])
 
   // Each team's lineup Elo going into the day, for league ranks on live games

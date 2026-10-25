@@ -337,7 +337,7 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
           {/* Stat strip */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '0.5px solid rgba(255,255,255,0.1)', borderLeft: '0.5px solid rgba(255,255,255,0.1)' }}>
             {[
-              { label: 'Current Elo', val: Math.round(player.current_elo).toLocaleString(), color: '#fff' },
+              { label: player.live ? 'Current Elo · live' : player.live_change ? 'Current Elo · today' : 'Current Elo', val: Math.round(player.current_elo).toLocaleString(), color: '#fff' },
               { label: 'Peak Elo',    val: Math.round(player.peak_elo).toLocaleString(),    color: '#ffd700' },
               { label: 'FPR Rank',    val: player.is_fpr_eligible ? `#${player.fpr_rank}` : `#${player.current_tpr_rank}`,                   color: player.is_fpr_eligible ? '#fff' : '#6896bd' },
               { label: 'Avg Elo',     val: avgElo.toLocaleString(),                          color: '#a8c5a8' },

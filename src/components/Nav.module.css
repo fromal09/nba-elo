@@ -89,3 +89,7 @@
   .navBtn { font-size: 13px; padding: 8px 12px; }
   .homeBtn { padding: 6px 10px; }
 }
+
+.liveDot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #ff5a4e; margin-right: 6px; vertical-align: 1px; animation: navPulse 1.6s ease-in-out infinite; }
+@keyframes navPulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .liveDot { animation: none; } }
