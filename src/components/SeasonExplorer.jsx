@@ -1992,6 +1992,42 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
       milestones: moments.filter(x => x.m.stamps.length).sort((a, b) => (a.p.lrp ?? 999) - (b.p.lrp ?? 999)),
     }
   }, [scored, boards])
+  // Players in action: everyone in the day's box scores at his post-game (or live) Elo, plus the
+  // projected rotations of games without a box yet at their current Elo. Rookies debuted this season.
+  const inAction = useMemo(() => {
+    const cut = `${sy}-08-01`
+    const rookie = (n, unrated) => {
+      if (unrated) return true
+      const f = ratings.byNorm[norm(n)]?.team_history?.[0]?.[0]
+      return !!f && f >= cut
+    }
+    const seen = new Set(), all = []
+    for (const g of scored) {
+      const state = g.live?.state || 'post'
+      for (const p of g.players) {
+        if (seen.has(p.n) || (state === 'post' && p.mp === 0)) continue
+        seen.add(p.n)
+        const opp = g.teams.find(t => t !== p.t), home = (g.home || g.teams[1]) === p.t
+        all.push({ key: g.id + p.n, n: p.n, t: p.t, elo: p.post, d: p.post - p.pre, g, p, state, opp, home, rookie: rookie(p.n, p.unrated) })
+      }
+    }
+    if (fc) for (const x of sched) {
+      if (x.state === 'post') continue
+      for (const t of [x.home, x.away]) {
+        let tm
+        try { tm = fc.f.team(t, day) } catch { continue }
+        for (const r of tm?.rows || []) {
+          if (r.out || !(r.mp > 0) || seen.has(r.name)) continue
+          seen.add(r.name)
+          all.push({ key: x.id + r.name, n: r.name, t, elo: r.elo, d: null, x, state: x.state, opp: t === x.home ? x.away : x.home, home: t === x.home, rookie: rookie(r.name, !r.rated) })
+        }
+      }
+    }
+    all.sort((a, b) => b.elo - a.elo)
+    return { top: all.slice(0, 20), rookies: all.filter(r => r.rookie).slice(0, 20), any: all.length }
+  }, [scored, sched, fc, day, ratings, sy])
+  const openAction = r => (r.g ? openCard(r.g, r.p) : selectPlayer?.(r.n))
+
   const liveN = cards.filter(c => c.state === 'in').length
   const provisional = scored.some(g => g.live)
   const loading = (wantsLive && !feed && !feedErr) || (!sdOk && day <= asof)
@@ -2013,6 +2049,12 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
             {cards.map(c => <GameCard key={c.key} c={c} shots={shots}
               onOpen={c.g ? () => openBox(c.g) : c.fg ? () => setPreview({ day, fg: c.fg }) : null} />)}
           </div>
+
+          {inAction.any > 0 && <div className={styles.boards2}>
+            <InActionBoard title="Top 20 in action" rows={inAction.top} shots={shots} onOpen={openAction} />
+            <InActionBoard title="Top 20 rookies in action" rows={inAction.rookies} shots={shots} onOpen={openAction}
+              empty="No rookies on today's rosters." />
+          </div>}
 
           {scored.length > 0 && <>
             <PerfTable rows={boards.performers} shots={shots} onOpen={openCard} />
@@ -2191,6 +2233,32 @@ function GameCard({ c, shots, onOpen }) {
           : <span className={styles.muted}>{started ? 'Box score loading…' : 'Preview available once the forecast loads'}</span>}
       </div>
     </button>
+  )
+}
+
+// The day's best players by Elo: live and finished games move with the box score; games yet to
+// start list each team's projected rotation at current Elo
+function InActionBoard({ title, rows, shots, onOpen, empty }) {
+  return (
+    <section className={styles.board}>
+      <header><h3>{title}</h3><span>Current Elo</span></header>
+      {!rows.length && <p className={styles.bNone}>{empty || 'Nobody yet.'}</p>}
+      {rows.map((r, i) => {
+        const vs = `${r.home ? 'vs' : '@'} ${tCode(r.opp)}`
+        const status = r.state === 'in'
+          ? <><span className={styles.liveTxt}><i className={styles.liveDot} />{r.g?.live?.detail || r.x?.detail || 'Live'}</span> · {vs}</>
+          : r.state === 'pre' ? `${tipTime(r.x?.tip)} ${vs}` : `Final ${vs}`
+        return (
+          <button key={r.key} className={styles.bRow} onClick={() => onOpen(r)}>
+            <em className={styles.bRank}>{i + 1}</em>
+            <Headshot name={r.n} shots={shots} color={tColor(r.t)} />
+            <span className={styles.bWho}><b>{shortName(r.n)} <small className={styles.bTeam}>{tCode(r.t)}</small></b><small>{status}</small></span>
+            <span className={styles.bRight}><b className={styles.bVal}>{r0(r.elo)}</b>
+              {r.d != null && <small className={r.d >= 0 ? styles.up : styles.down}>{sgn(r.d)} {r.state === 'in' ? 'live' : 'today'}</small>}</span>
+          </button>
+        )
+      })}
+    </section>
   )
 }
 
