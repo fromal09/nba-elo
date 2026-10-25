@@ -1122,17 +1122,19 @@ const STAT_COLS = {
 
 // Folded box score: every standard column in one phone-width row. Shooting stacks FG / 3P / FT with the
 // percentage worked out; offensive rebounds sit under rebounds and turnovers under assists.
-// Wide screens unfold the shooting stack into FG / 3P / FT columns so rows stay two lines tall
+// Media-query hook: wide screens unfold the box score's shooting stack; phones get one scoreboard table at a time
 const WIDE_Q = '(min-width: 900px)'
-function useWide() {
-  const [w, setW] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(WIDE_Q).matches)
+const PHONE_Q = '(max-width: 700px)'
+function useMedia(q) {
+  const [m, setM] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(q).matches)
   useEffect(() => {
-    const mq = matchMedia(WIDE_Q), on = () => setW(mq.matches)
+    const mq = matchMedia(q), on = () => setM(mq.matches)
     on(); mq.addEventListener('change', on)
     return () => mq.removeEventListener('change', on)
-  }, [])
-  return w
+  }, [q])
+  return m
 }
+const useWide = () => useMedia(WIDE_Q)
 function ShotCols({ lines, bold }) {
   return lines.map(([l, m, a, win]) => {
     const p = pctOf(m, a)
@@ -2034,110 +2036,8 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
   }, [scored, sched, fc, day, ratings, sy, shots, index])
   const openAction = r => (r.g ? openCard(r.g, r.p) : selectPlayer?.(r.n))
 
-  const liveN = cards.filter(c => c.state === 'in').length
-  const provisional = scored.some(g => g.live)
-  const loading = (wantsLive && !feed && !feedErr) || (!sdOk && day <= asof)
-
-  return (
-    <div className={styles.dayPage}>
-      <div className={styles.dayBar}>
-        <span><b>{cards.length || 'No'}</b> game{cards.length === 1 ? '' : 's'}{liveN ? <> · <span className={styles.liveTxt}><i className={styles.liveDot} />{liveN} live</span></> : ''}</span>
-        {provisional && <span className={styles.muted}>Live and unprocessed games use ratings through {fmtDate(ratings.asof || asof, { month: 'short', day: 'numeric' })}. Elo is provisional until the next data update.</span>}
-        {!provisional && day <= asof && cards.length > 0 && <span className={styles.muted}>Official Elo from the ratings pipeline.</span>}
-        {feed?.fetched && wantsLive && <span className={styles.muted}>Updated {new Date(feed.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
-      </div>
-
-      {loading ? <div className={styles.empty}>Loading games…</div>
-        : feedErr && !cards.length ? <div className={styles.empty}>Couldn't load the scoreboard: {feedErr}</div>
-        : !cards.length ? <div className={styles.empty}>No games on {fmtDate(day, { weekday: 'long', month: 'long', day: 'numeric' })}.</div>
-        : <div className={styles.dayLayout}><div className={styles.dayMain}>
-          <div className={styles.gGrid}>
-            {cards.map(c => <GameCard key={c.key} c={c} shots={shots}
-              onOpen={c.g ? () => openBox(c.g) : c.fg ? () => setPreview({ day, fg: c.fg }) : null} />)}
-          </div>
-
-          {scored.length > 0 && <>
-            <PerfTable rows={boards.performers} shots={shots} onOpen={openCard} />
-          </>}
-
-          {inAction.any > 0 && <div className={styles.boards2}>
-            <InActionBoard title="Top 20 in action" rows={inAction.top} shots={shots} onOpen={openAction} />
-            <InActionBoard title="Top 20 rookies in action" rows={inAction.rookies} shots={shots} onOpen={openAction}
-              empty="No rookies on today's rosters." />
-          </div>}
-
-          {scored.length > 0 && <>
-
-            <div className={styles.boards4}>
-              <Board title="Elo risers" sub="Elo change" rows={boards.risers} shots={shots} onOpen={openCard}
-                val={({ p }) => sgn(p.post - p.pre)} valCls={styles.up} line={({ p }) => `${r0(p.pre)} → ${r0(p.post)} · ${p.gs.toFixed(1)} GmSc`} />
-              <Board title="Elo fallers" sub="Elo change" rows={boards.fallers} shots={shots} onOpen={openCard}
-                val={({ p }) => sgn(p.post - p.pre)} valCls={styles.down} line={({ p }) => `${r0(p.pre)} → ${r0(p.post)} · ${p.gs.toFixed(1)} GmSc`} />
-              <Board title="Top 100 risers" sub="League rank" rows={boards.top100Risers} shots={shots} onOpen={openCard} empty="Nobody climbed inside the top 100."
-                val={({ p }) => `▲${p.lr - p.lrp}`} valCls={styles.up}
-                line={({ p }) => `#${p.lr} → #${p.lrp}${p.lr > 100 ? ' · enters top 100' : ''}`} />
-              <Board title="Top 100 fallers" sub="League rank" rows={boards.top100Fallers} shots={shots} onOpen={openCard} empty="Nobody in the top 100 slipped."
-                val={({ p }) => `▼${p.lrp - p.lr}`} valCls={styles.down}
-                line={({ p }) => `#${p.lr} → #${p.lrp}${p.lrp > 100 ? ' · drops out' : ''}`} />
-            </div>
-
-            <div className={styles.boards2}>
-              <section className={styles.board}>
-                <header><h3>Biggest upsets · Games</h3><span>Winner's pre-game chance</span></header>
-                {boards.gameUpsets.length ? boards.gameUpsets.map(u => {
-                  const ongoing = u.g.live?.state === 'in', i = u.g.teams.indexOf(u.team)
-                  return (
-                    <button key={u.g.id} className={styles.bRow} onClick={() => openBox(u.g, u.team)}>
-                      <span className={styles.bLogo}><TeamMark t={u.team} size={30} /></span>
-                      <span className={styles.bWho}><b>{tShort(u.team)} {ongoing ? 'lead' : 'over'} {tShort(u.opp)}</b>
-                        <small>{u.g.pts[i]}-{u.g.pts[1 - i]}{ongoing ? ` · ${u.g.live.detail}` : ''}</small></span>
-                      <b className={styles.bVal}>{Math.round(u.chance * 100)}%</b>
-                    </button>
-                  )
-                }) : <p className={styles.bNone}>Every favorite {scored.some(g => g.live?.state === 'in') ? 'leads or won' : 'won'}.</p>}
-              </section>
-              <section className={styles.board}>
-                <header><h3>Biggest upsets · Players</h3><span>Pre-game duel chance</span></header>
-                {boards.duelUpsets.length ? boards.duelUpsets.map(u => (
-                  <button key={u.g.id + u.a.n + u.b.n} className={styles.bRow} onClick={() => openCard(u.g, u.a)}>
-                    <Headshot name={u.a.n} shots={shots} color={tColor(u.a.t)} />
-                    <span className={styles.bWho}><b>{shortName(u.a.n)} <i>over</i> {shortName(u.b.n)}</b>
-                      <small>{u.a.gs.toFixed(1)} vs {u.b.gs.toFixed(1)} GmSc · {r0(u.a.pre)} vs {r0(u.b.pre)} Elo</small></span>
-                    <b className={styles.bVal}>{Math.max(1, Math.round(u.chance * 100))}%</b>
-                  </button>
-                )) : <p className={styles.bNone}>No qualifying upsets yet.</p>}
-              </section>
-            </div>
-
-            <div className={styles.boards2}>
-              <section className={styles.board}>
-                <header><h3>Rivalries · Longest history</h3><span>Opponent duels going in</span></header>
-                {rivals.longest.length ? rivals.longest.map(x => (
-                  <button key={x.g.id + x.a + x.b} className={styles.bRow} onClick={() => openRival(x)}>
-                    <Headshot name={x.a} shots={shots} color={tColor(x.g.players.find(q => q.n === x.a)?.t)} />
-                    <span className={styles.bWho}><b>{shortName(x.a)} <i>vs</i> {shortName(x.b)}</b>
-                      <small>{x.lead}{x.t ? ` · ${x.t} tie${x.t === 1 ? '' : 's'}` : ''}</small></span>
-                    <b className={styles.bVal}>{x.n}</b>
-                  </button>
-                )) : <p className={styles.bNone}>{anyLive && !activeRiv ? 'Loading rivalries…' : 'No pairs with 5+ duels tonight.'}</p>}
-              </section>
-              <section className={styles.board}>
-                <header><h3>Rivalries · Most lopsided</h3><span>Wins over expected · 20+ duels</span></header>
-                {rivals.lopsided.length ? rivals.lopsided.map(x => (
-                  <button key={x.g.id + x.a + x.b} className={styles.bRow} onClick={() => openRival(x)}>
-                    <Headshot name={x.a} shots={shots} color={tColor(x.g.players.find(q => q.n === x.a)?.t)} />
-                    <span className={styles.bWho}><b>{shortName(x.a)} <i>vs</i> {shortName(x.b)}</b>
-                      <small>{x.aw}–{x.bw}{x.t ? `–${x.t}` : ''} · expected {x.axw.toFixed(1)} wins of {x.n}</small></span>
-                    <b className={`${styles.bVal} ${styles.up}`}>{sgn(x.over)}</b>
-                  </button>
-                )) : <p className={styles.bNone}>No pairs with 20+ duels tonight.</p>}
-              </section>
-            </div>
-          </>}
-          {unmatched.length > 0 && <p className={styles.unmatched} title="ESPN names with no match in the ratings. They're scored as new players at 1,500 until the pipeline links them.">
-            Rated as new players (no ratings match): {unmatched.join(', ')}</p>}
-        </div>
-        {scored.length > 0 && <aside className={styles.daySide}>
+  // Every table on the day page. Desktop lays them out in grids; phones show one at a time with a picker
+  const sideNode = <>
           {side.picks.map(([label, { g, p }]) => (
             <div key={label} className={styles.sideCard}>
               <div className={styles.sideLab}>{label}<span>{shortName(p.n)} · {sgn(p.post - p.pre)} Elo</span></div>
@@ -2164,7 +2064,118 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
               </button>
             )) : <p>No milestones yet.</p>}
           </section>
-        </aside>}
+  </>
+  const tables = []
+  if (scored.length) tables.push({ id: 'perf', g: 'Players', title: 'Top performers', lead: boards.performers[0] && `${shortName(boards.performers[0].p.n)} · ${boards.performers[0].p.gs.toFixed(1)} GmSc`,
+    node: <PerfTable rows={boards.performers} shots={shots} onOpen={openCard} /> })
+  if (inAction.any) tables.push(
+    { id: 'action', g: 'Players', title: 'Top 20 in action', lead: inAction.top[0] && `${shortName(inAction.top[0].n)} · ${r0(inAction.top[0].elo)}`,
+      node: <InActionBoard title="Top 20 in action" rows={inAction.top} shots={shots} onOpen={openAction} /> },
+    { id: 'rookies', g: 'Players', title: 'Top 20 rookies in action', lead: inAction.rookies[0] ? `${shortName(inAction.rookies[0].n)} · ${r0(inAction.rookies[0].elo)}` : 'No rookies today',
+      node: <InActionBoard title="Top 20 rookies in action" rows={inAction.rookies} shots={shots} onOpen={openAction} empty="No rookies on today's rosters." /> })
+  const lead = (x, f) => (x ? `${shortName(x.p.n)} · ${f(x.p)}` : 'Nobody yet')
+  if (scored.length) tables.push(
+    { id: 'risers', g: 'Elo', title: 'Elo risers', lead: lead(boards.risers[0], p => sgn(p.post - p.pre)), node: <Board title="Elo risers" sub="Elo change" rows={boards.risers} shots={shots} onOpen={openCard}
+                val={({ p }) => sgn(p.post - p.pre)} valCls={styles.up} line={({ p }) => `${r0(p.pre)} → ${r0(p.post)} · ${p.gs.toFixed(1)} GmSc`} /> },
+    { id: 'fallers', g: 'Elo', title: 'Elo fallers', lead: lead(boards.fallers[0], p => sgn(p.post - p.pre)), node: <Board title="Elo fallers" sub="Elo change" rows={boards.fallers} shots={shots} onOpen={openCard}
+                val={({ p }) => sgn(p.post - p.pre)} valCls={styles.down} line={({ p }) => `${r0(p.pre)} → ${r0(p.post)} · ${p.gs.toFixed(1)} GmSc`} /> },
+    { id: 't100up', g: 'Elo', title: 'Top 100 risers', lead: lead(boards.top100Risers[0], p => `▲${p.lr - p.lrp}`), node: <Board title="Top 100 risers" sub="League rank" rows={boards.top100Risers} shots={shots} onOpen={openCard} empty="Nobody climbed inside the top 100."
+                val={({ p }) => `▲${p.lr - p.lrp}`} valCls={styles.up}
+                line={({ p }) => `#${p.lr} → #${p.lrp}${p.lr > 100 ? ' · enters top 100' : ''}`} /> },
+    { id: 't100down', g: 'Elo', title: 'Top 100 fallers', lead: lead(boards.top100Fallers[0], p => `▼${p.lrp - p.lr}`), node: <Board title="Top 100 fallers" sub="League rank" rows={boards.top100Fallers} shots={shots} onOpen={openCard} empty="Nobody in the top 100 slipped."
+                val={({ p }) => `▼${p.lrp - p.lr}`} valCls={styles.down}
+                line={({ p }) => `#${p.lr} → #${p.lrp}${p.lrp > 100 ? ' · drops out' : ''}`} /> },
+    { id: 'upg', g: 'Upsets', title: 'Biggest upsets · Games', lead: boards.gameUpsets[0] ? `${tShort(boards.gameUpsets[0].team)} · ${Math.round(boards.gameUpsets[0].chance * 100)}%` : 'No upsets yet',
+      node: <section className={styles.board}>
+                <header><h3>Biggest upsets · Games</h3><span>Winner's pre-game chance</span></header>
+                {boards.gameUpsets.length ? boards.gameUpsets.map(u => {
+                  const ongoing = u.g.live?.state === 'in', i = u.g.teams.indexOf(u.team)
+                  return (
+                    <button key={u.g.id} className={styles.bRow} onClick={() => openBox(u.g, u.team)}>
+                      <span className={styles.bLogo}><TeamMark t={u.team} size={30} /></span>
+                      <span className={styles.bWho}><b>{tShort(u.team)} {ongoing ? 'lead' : 'over'} {tShort(u.opp)}</b>
+                        <small>{u.g.pts[i]}-{u.g.pts[1 - i]}{ongoing ? ` · ${u.g.live.detail}` : ''}</small></span>
+                      <b className={styles.bVal}>{Math.round(u.chance * 100)}%</b>
+                    </button>
+                  )
+                }) : <p className={styles.bNone}>Every favorite {scored.some(g => g.live?.state === 'in') ? 'leads or won' : 'won'}.</p>}
+              </section> },
+    { id: 'upp', g: 'Upsets', title: 'Biggest upsets · Players', lead: boards.duelUpsets[0] ? `${shortName(boards.duelUpsets[0].a.n)} · ${Math.max(1, Math.round(boards.duelUpsets[0].chance * 100))}%` : 'No upsets yet',
+      node: <section className={styles.board}>
+                <header><h3>Biggest upsets · Players</h3><span>Pre-game duel chance</span></header>
+                {boards.duelUpsets.length ? boards.duelUpsets.map(u => (
+                  <button key={u.g.id + u.a.n + u.b.n} className={styles.bRow} onClick={() => openCard(u.g, u.a)}>
+                    <Headshot name={u.a.n} shots={shots} color={tColor(u.a.t)} />
+                    <span className={styles.bWho}><b>{shortName(u.a.n)} <i>over</i> {shortName(u.b.n)}</b>
+                      <small>{u.a.gs.toFixed(1)} vs {u.b.gs.toFixed(1)} GmSc · {r0(u.a.pre)} vs {r0(u.b.pre)} Elo</small></span>
+                    <b className={styles.bVal}>{Math.max(1, Math.round(u.chance * 100))}%</b>
+                  </button>
+                )) : <p className={styles.bNone}>No qualifying upsets yet.</p>}
+              </section> },
+    { id: 'rlong', g: 'Rivalries', title: 'Rivalries · Longest history', lead: rivals.longest[0] ? `${shortName(rivals.longest[0].a)} vs ${shortName(rivals.longest[0].b)} · ${rivals.longest[0].n}` : '—',
+      node: <section className={styles.board}>
+                <header><h3>Rivalries · Longest history</h3><span>Opponent duels going in</span></header>
+                {rivals.longest.length ? rivals.longest.map(x => (
+                  <button key={x.g.id + x.a + x.b} className={styles.bRow} onClick={() => openRival(x)}>
+                    <Headshot name={x.a} shots={shots} color={tColor(x.g.players.find(q => q.n === x.a)?.t)} />
+                    <span className={styles.bWho}><b>{shortName(x.a)} <i>vs</i> {shortName(x.b)}</b>
+                      <small>{x.lead}{x.t ? ` · ${x.t} tie${x.t === 1 ? '' : 's'}` : ''}</small></span>
+                    <b className={styles.bVal}>{x.n}</b>
+                  </button>
+                )) : <p className={styles.bNone}>{anyLive && !activeRiv ? 'Loading rivalries…' : 'No pairs with 5+ duels tonight.'}</p>}
+              </section> },
+    { id: 'rlop', g: 'Rivalries', title: 'Rivalries · Most lopsided', lead: rivals.lopsided[0] ? `${shortName(rivals.lopsided[0].a)} · ${sgn(rivals.lopsided[0].over)}` : '—',
+      node: <section className={styles.board}>
+                <header><h3>Rivalries · Most lopsided</h3><span>Wins over expected · 20+ duels</span></header>
+                {rivals.lopsided.length ? rivals.lopsided.map(x => (
+                  <button key={x.g.id + x.a + x.b} className={styles.bRow} onClick={() => openRival(x)}>
+                    <Headshot name={x.a} shots={shots} color={tColor(x.g.players.find(q => q.n === x.a)?.t)} />
+                    <span className={styles.bWho}><b>{shortName(x.a)} <i>vs</i> {shortName(x.b)}</b>
+                      <small>{x.aw}–{x.bw}{x.t ? `–${x.t}` : ''} · expected {x.axw.toFixed(1)} wins of {x.n}</small></span>
+                    <b className={`${styles.bVal} ${styles.up}`}>{sgn(x.over)}</b>
+                  </button>
+                )) : <p className={styles.bNone}>No pairs with 20+ duels tonight.</p>}
+              </section> },
+    { id: 'honors', g: 'Honors', title: "Tonight's honors", lead: side.picks[0] ? `${shortName(side.picks[0][1].p.n)} · Player of the Day` : '—',
+      node: <div className={styles.phoneSide}>{sideNode}</div> })
+  const byId = Object.fromEntries(tables.map(t => [t.id, t.node]))
+
+  const liveN = cards.filter(c => c.state === 'in').length
+  const phone = useMedia(PHONE_Q)
+  const provisional = scored.some(g => g.live)
+  const loading = (wantsLive && !feed && !feedErr) || (!sdOk && day <= asof)
+
+  return (
+    <div className={styles.dayPage}>
+      <div className={styles.dayBar}>
+        <span><b>{cards.length || 'No'}</b> game{cards.length === 1 ? '' : 's'}{liveN ? <> · <span className={styles.liveTxt}><i className={styles.liveDot} />{liveN} live</span></> : ''}</span>
+        {provisional && <span className={styles.muted}>Live and unprocessed games use ratings through {fmtDate(ratings.asof || asof, { month: 'short', day: 'numeric' })}. Elo is provisional until the next data update.</span>}
+        {!provisional && day <= asof && cards.length > 0 && <span className={styles.muted}>Official Elo from the ratings pipeline.</span>}
+        {feed?.fetched && wantsLive && <span className={styles.muted}>Updated {new Date(feed.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
+      </div>
+
+      {loading ? <div className={styles.empty}>Loading games…</div>
+        : feedErr && !cards.length ? <div className={styles.empty}>Couldn't load the scoreboard: {feedErr}</div>
+        : !cards.length ? <div className={styles.empty}>No games on {fmtDate(day, { weekday: 'long', month: 'long', day: 'numeric' })}.</div>
+        : <div className={styles.dayLayout}><div className={styles.dayMain}>
+          <div className={styles.gGrid}>
+            {cards.map(c => <GameCard key={c.key} c={c} shots={shots}
+              onOpen={c.g ? () => openBox(c.g) : c.fg ? () => setPreview({ day, fg: c.fg }) : null} />)}
+          </div>
+
+          {phone ? <PhoneTables tables={tables} /> : <>
+            {byId.perf}
+            {inAction.any > 0 && <div className={styles.boards2}>{byId.action}{byId.rookies}</div>}
+            {scored.length > 0 && <>
+              <div className={styles.boards4}>{byId.risers}{byId.fallers}{byId.t100up}{byId.t100down}</div>
+              <div className={styles.boards2}>{byId.upg}{byId.upp}</div>
+              <div className={styles.boards2}>{byId.rlong}{byId.rlop}</div>
+            </>}
+          </>}
+          {unmatched.length > 0 && <p className={styles.unmatched} title="ESPN names with no match in the ratings. They're scored as new players at 1,500 until the pipeline links them.">
+            Rated as new players (no ratings match): {unmatched.join(', ')}</p>}
+        </div>
+        {scored.length > 0 && !phone && <aside className={styles.daySide}>{sideNode}</aside>}
         </div>}
 
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
@@ -2242,6 +2253,66 @@ function GameCard({ c, shots, onOpen }) {
           : <span className={styles.muted}>{started ? 'Box score loading…' : 'Preview available once the forecast loads'}</span>}
       </div>
     </button>
+  )
+}
+
+// Phones: one scoreboard table at a time. A button names the current table; tapping it opens a sheet
+// of every table, grouped, each with tonight's leader so you can see where the action is before you tap
+const PT_KEY = 'fpr.dayTable'
+function PhoneTables({ tables }) {
+  const [id, setId] = useState(() => { try { return localStorage.getItem(PT_KEY) || 'perf' } catch { return 'perf' } })
+  const [open, setOpen] = useState(false)
+  const pickRef = useRef(null)
+  const k = Math.max(0, tables.findIndex(t => t.id === id)), cur = tables[k]
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const esc = e => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', esc)
+    return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', esc) }
+  }, [open])
+  if (!cur) return null
+  const pick = t => {
+    setId(t.id); setOpen(false)
+    try { localStorage.setItem(PT_KEY, t.id) } catch { /* private mode */ }
+    // A long table may have scrolled the picker away: bring the new table's top back into view
+    requestAnimationFrame(() => { const b = pickRef.current; if (b && b.getBoundingClientRect().top < 0) b.scrollIntoView({ block: 'start' }) })
+  }
+  const groups = [...new Set(tables.map(t => t.g))]
+  return (
+    <div className={styles.ptWrap}>
+      <button type="button" ref={pickRef} className={styles.ptPick} onClick={() => setOpen(true)} aria-haspopup="dialog">
+        <span className={styles.ptMeta}><small>{cur.g} · Table {k + 1} of {tables.length}</small><b>{cur.title}</b></span>
+        <span className={styles.ptAll}>All tables</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      <div className={styles.ptBody}>{cur.node}</div>
+      {open && <div className={styles.ptLayer}>
+        <button type="button" className={styles.ptBackdrop} onClick={() => setOpen(false)} aria-label="Close table picker" />
+        <div className={styles.ptSheet} role="dialog" aria-modal="true" aria-label="Jump to a table">
+          <span className={styles.ptGrip} />
+          <div className={styles.ptHead}><b>Jump to a table</b>
+            <button type="button" onClick={() => setOpen(false)} aria-label="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button></div>
+          <div className={styles.ptList}>
+            {groups.map(g => (
+              <div key={g} className={styles.ptGroup}>
+                <span className={styles.ptGroupLab}>{g}</span>
+                <div className={styles.ptTiles}>
+                  {tables.filter(t => t.g === g).map(t => (
+                    <button key={t.id} type="button" aria-pressed={t.id === cur.id} className={t.id === cur.id ? styles.ptOn : ''} onClick={() => pick(t)}>
+                      <b>{t.title}</b><small>{t.lead || '—'}</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>}
+    </div>
   )
 }
 
