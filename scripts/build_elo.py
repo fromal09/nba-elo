@@ -37,6 +37,8 @@ def season_label(y=None):
     y = season_start_year() if y is None else y
     return f"{y}-{str(y + 1)[-2:]}"
 
+import re
+import unicodedata as _ud_mod
 sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from team_canonical import canon_team
 import season_explorer
@@ -141,6 +143,39 @@ def parse_csv(paths):
 
     df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
     df["Player"] = df["Player"].apply(normalize_name)
+    return unify_spellings(df)
+
+
+def _spelling_key(name):
+    """Accents, case and punctuation folded: 'Moussa Cissé' and 'Moussa Cisse' share a key.
+    Suffixes stay (Tim Hardaway and Tim Hardaway Jr. are different players)."""
+    s = _ud_mod.normalize("NFD", name)
+    s = "".join(c for c in s if _ud_mod.category(c) != "Mn").lower()
+    return re.sub(r"[^a-z0-9]+", " ", s).strip()
+
+
+def unify_spellings(df):
+    """One player, one name. Sources disagree on diacritics and capitalization between seasons
+    (2025-26 'Moussa Cisse', 2026-27 'Moussa Cissé'), which would split a career into a veteran and a
+    'rookie'. Every spelling of a key becomes the one on that key's most recent non-ESPN row."""
+    names = df["Player"].where(df["Player"].apply(lambda x: isinstance(x, str)))
+    keys = names.map(lambda x: _spelling_key(x) if isinstance(x, str) else None)
+    pairs = pd.DataFrame({"k": keys, "n": names}).dropna().drop_duplicates()
+    counts = pairs.groupby("k").size()
+    multi = keys.isin(set(counts[counts > 1].index))
+    if not multi.any():
+        return df
+    sub = df.loc[multi, ["Player", "Date"]].copy()
+    sub["_key"] = keys[multi]
+    sub["_d"] = pd.to_datetime(sub["Date"], errors="coerce")
+    sub["_espn"] = df.loc[multi, "_src"].eq("espn") if "_src" in df.columns else False
+    canon = {}
+    for key, grp in sub.groupby("_key"):
+        pick = grp[~grp["_espn"]] if (~grp["_espn"]).any() else grp
+        pick = pick.sort_values("_d", kind="mergesort")
+        canon[key] = pick["Player"].iloc[-1]
+        print(f"  ~ one name for {sorted(grp['Player'].unique())} -> {canon[key]}")
+    df.loc[multi, "Player"] = sub["_key"].map(canon)
     return df
 
 

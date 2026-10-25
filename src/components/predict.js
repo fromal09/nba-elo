@@ -9,7 +9,10 @@
 //   rating = w * Rotation + (1 - w) * Roster, with w = n / (n + 4)
 // Win chance uses the same team-level fit as the box scores (since 2020: scale 450, home court 44).
 
-export const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[.'’]/g, '')
+// Accents, punctuation, hyphens and suffixes (Jr., III) dropped; matches api/headshots.js keys
+export const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase().replace(/[.'’]/g, '').replace(/\b(jr|sr|ii|iii|iv)\b/g, '')
+  .replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim()
   .replace(/\b(jr|sr|ii|iii|iv)\b/g, '').replace(/\s*\(\d{4}\)$/, '').replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim()
 
 const OUT_STATUS = /^(out|doubtful|suspen)/i

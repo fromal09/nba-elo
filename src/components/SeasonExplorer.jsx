@@ -4,7 +4,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import styles from './SeasonExplorer.module.css'
 import PlayerCard, { MiniCard, tierFor, momentsFor } from './PlayerCard'
 import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder } from './Binders'
-import { buildForecaster, blendWeight } from './predict'
+import { buildForecaster, blendWeight, norm } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
 import { simulateOdds } from './odds.js'
 import { raceAwards } from './awardsRace.js'
@@ -79,8 +79,6 @@ const LINE_COLORS = ['#1a5fa8', '#d4960a', '#c0392b', '#1a7a4a', '#7b3fa0', '#e6
   '#5d6d7e', '#8e6b2f', '#2e86de', '#6ab04c', '#8c564b', '#686de0', '#30336b', '#22a6b3']
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[.'’]/g, '')
-  .replace(/\b(jr|sr|ii|iii|iv)\b/g, '').replace(/\s*\(\d{4}\)$/, '').replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim()
 const initials = n => n.replace(/\s*\(.*\)$/, '').split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()
 const fmtDate = (d, opts = { weekday: 'short', month: 'short', day: 'numeric' }) =>
   new Date(d + 'T12:00:00').toLocaleDateString('en-US', opts)
@@ -1996,11 +1994,19 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
   // projected rotations of games without a box yet at their current Elo. Rookies debuted this season.
   const inAction = useMemo(() => {
     const cut = `${sy}-08-01`
-    const rookie = (n, unrated) => {
-      if (unrated) return true
+    const current = sy >= +(index.seasons[0]?.season || '0').slice(0, 4)
+    const rookie = (n, espnName) => {
+      // This season: ESPN's years of experience decides. Past seasons: first game in the data
+      const e = current ? (shots?.[norm(n)] || (espnName && shots?.[norm(espnName)])) : null
+      if (e && e.exp != null) return e.exp === 0
       const f = ratings.byNorm[norm(n)]?.team_history?.[0]?.[0]
       return !!f && f >= cut
     }
+    // League rank after today's results so far (FPR-qualified pool), for players yet to play
+    const after = new Map(ratings.pool)
+    scored.forEach(g => g.players.forEach(p => { if (after.has(p.n)) after.set(p.n, p.post) }))
+    const vals = [...after.values()].sort((a, b) => b - a)
+    const rankOf = (n, v) => (after.has(n) ? 1 + vals.filter(x => x > v).length : null)
     const seen = new Set(), all = []
     for (const g of scored) {
       const state = g.live?.state || 'post'
@@ -2008,7 +2014,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
         if (seen.has(p.n) || (state === 'post' && p.mp === 0)) continue
         seen.add(p.n)
         const opp = g.teams.find(t => t !== p.t), home = (g.home || g.teams[1]) === p.t
-        all.push({ key: g.id + p.n, n: p.n, t: p.t, elo: p.post, d: p.post - p.pre, g, p, state, opp, home, rookie: rookie(p.n, p.unrated) })
+        all.push({ key: g.id + p.n, n: p.n, t: p.t, elo: p.post, d: p.post - p.pre, g, p, rk: p, state, opp, home, rookie: rookie(p.n, p.espnName) })
       }
     }
     if (fc) for (const x of sched) {
@@ -2019,13 +2025,13 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
         for (const r of tm?.rows || []) {
           if (r.out || !(r.mp > 0) || seen.has(r.name)) continue
           seen.add(r.name)
-          all.push({ key: x.id + r.name, n: r.name, t, elo: r.elo, d: null, x, state: x.state, opp: t === x.home ? x.away : x.home, home: t === x.home, rookie: rookie(r.name, !r.rated) })
+          all.push({ key: x.id + r.name, n: r.name, t, elo: r.elo, d: null, x, rk: { lrp: rankOf(r.name, r.elo), lr: null }, state: x.state, opp: t === x.home ? x.away : x.home, home: t === x.home, rookie: rookie(r.name) })
         }
       }
     }
     all.sort((a, b) => b.elo - a.elo)
     return { top: all.slice(0, 20), rookies: all.filter(r => r.rookie).slice(0, 20), any: all.length }
-  }, [scored, sched, fc, day, ratings, sy])
+  }, [scored, sched, fc, day, ratings, sy, shots, index])
   const openAction = r => (r.g ? openCard(r.g, r.p) : selectPlayer?.(r.n))
 
   const liveN = cards.filter(c => c.state === 'in').length
@@ -2050,6 +2056,10 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
               onOpen={c.g ? () => openBox(c.g) : c.fg ? () => setPreview({ day, fg: c.fg }) : null} />)}
           </div>
 
+          {scored.length > 0 && <>
+            <PerfTable rows={boards.performers} shots={shots} onOpen={openCard} />
+          </>}
+
           {inAction.any > 0 && <div className={styles.boards2}>
             <InActionBoard title="Top 20 in action" rows={inAction.top} shots={shots} onOpen={openAction} />
             <InActionBoard title="Top 20 rookies in action" rows={inAction.rookies} shots={shots} onOpen={openAction}
@@ -2057,7 +2067,6 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
           </div>}
 
           {scored.length > 0 && <>
-            <PerfTable rows={boards.performers} shots={shots} onOpen={openCard} />
 
             <div className={styles.boards4}>
               <Board title="Elo risers" sub="Elo change" rows={boards.risers} shots={shots} onOpen={openCard}
@@ -2241,7 +2250,7 @@ function GameCard({ c, shots, onOpen }) {
 function InActionBoard({ title, rows, shots, onOpen, empty }) {
   return (
     <section className={styles.board}>
-      <header><h3>{title}</h3><span>Current Elo</span></header>
+      <header><h3>{title}</h3><span>Player rank · Elo</span></header>
       {!rows.length && <p className={styles.bNone}>{empty || 'Nobody yet.'}</p>}
       {rows.map((r, i) => {
         const vs = `${r.home ? 'vs' : '@'} ${tCode(r.opp)}`
@@ -2253,7 +2262,8 @@ function InActionBoard({ title, rows, shots, onOpen, empty }) {
             <em className={styles.bRank}>{i + 1}</em>
             <Headshot name={r.n} shots={shots} color={tColor(r.t)} />
             <span className={styles.bWho}><b>{shortName(r.n)} <small className={styles.bTeam}>{tCode(r.t)}</small></b><small>{status}</small></span>
-            <span className={styles.bRight}><b className={styles.bVal}>{r0(r.elo)}</b>
+            <span className={styles.iaRank}><RankCell p={r.rk} /></span>
+            <span className={`${styles.bRight} ${styles.iaElo}`}><b className={styles.bVal}>{r0(r.elo)}</b>
               {r.d != null && <small className={r.d >= 0 ? styles.up : styles.down}>{sgn(r.d)} {r.state === 'in' ? 'live' : 'today'}</small>}</span>
           </button>
         )

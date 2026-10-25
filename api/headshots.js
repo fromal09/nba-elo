@@ -41,6 +41,7 @@ export default async function handler(req, res) {
           headshot: nba ? nbaImg(nba) : espn,
           alt: nba ? espn : null,
           team: code,
+          exp: a.experience?.years ?? null, // ESPN years in the league; 0 = rookie
         }
       }
     }
