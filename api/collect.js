@@ -15,10 +15,18 @@
 //   POST profile     { favoriteTeam }
 //   GET  leaders     the top binders by score, and where yours ranks
 //   GET  binder      ?user= anyone's binder, read-only: profile, score, rank, showcase, cards
+//   POST explore     { section } Coins for visiting a part of the site (10 each, 60 a day)
+//   GET  store       the catalog, today's On This Day cards, your Coins, today's earnings, recent sales
+//   POST buy         { kind, team } buy a pack with Coins -> { packs }
+//   POST buycard     { ref } buy one of today's On This Day cards
+//   POST sell        { id, confirm } sell a card for 20% of its points (24 hours after you got it, 500 Coins a day)
+//   POST buyback     { id } buy a sold card back at its sale price, within 24 hours
 import { db, ensureSchema } from './_lib/db.js'
 import { USERNAME, hashPassword, checkPassword, startSession, endSession, currentUser } from './_lib/auth.js'
-import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER } from './_lib/packs.js'
+import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS } from './_lib/packs.js'
 import { cardPoints } from './_lib/points.js'
+import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards } from './_lib/coins.js'
+import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
 
 const STREAK_EVERY = 7
 // Packs reset at midnight Eastern, with the NBA's day; team packs reset Monday
@@ -81,7 +89,49 @@ async function me(u) {
     stats: { cards: tierRows.reduce((a, r) => a + r.n, 0), tiers: Object.fromEntries(tierRows.map(r => [r.tier, r.n])),
       best: best[0] ? { id: Number(best[0].id), card: best[0].card } : null },
     standing: await standing(sql, u.id),
+    coins: { balance: u.coins, ...(await earnings(sql, u.id, today)) },
   }
+}
+
+// Today's Coins by kind, against the caps, and the day's challenge
+async function earnings(sql, userId, day) {
+  const rows = await sql`select kind, sum(amount)::int as n from coin_ledger where user_id = ${userId} and day = ${day} group by kind`
+  const by = Object.fromEntries(rows.map(r => [r.kind, r.n]))
+  const ch = challengeFor(day)
+  return { today: by, earned: rows.filter(r => r.n > 0 && !['sell', 'buyback', 'store'].includes(r.kind)).reduce((a, r) => a + r.n, 0),
+    explore: { got: by.explore || 0, cap: RATES.exploreCap }, sold: { got: by.sell || 0, cap: RATES.sellCap },
+    challenge: { text: ch.text, done: !!by.challenge, coins: RATES.challenge } }
+}
+
+// The first visit of the day: Coins for showing up, more for a streak; and last week's leaderboard payouts
+async function visit(u) {
+  const sql = db(), today = etDay(), awards = []
+  await settleWeek(sql, today)
+  await sql.begin(async t => {
+    const a = await grant(t, u.id, today, 'visit', RATES.visit, { ref: today })
+    if (a) {
+      awards.push(a)
+      const st = streakNow(u, today)
+      const b = st && await grant(t, u.id, today, 'streak', Math.min(RATES.streakMax, st * RATES.streakPer), { ref: today, label: `${st}-day streak bonus` })
+      if (b) awards.push(b)
+      // A weekly payout made today shows with the first visit
+      const [w] = await t`select amount from coin_ledger where user_id = ${u.id} and kind = 'weekly' and day = ${today}`
+      if (w) awards.push({ kind: 'weekly', amount: w.amount, label: 'Last week’s leaderboard finish' })
+    }
+  })
+  return awards
+}
+// Pays last week's top 10 (500 Coins) and top 50 (200) once, the first time anyone visits in the new week
+async function settleWeek(sql, today) {
+  const last = addDays(weekStart(today), -7)
+  const [first] = await sql`insert into settlements (week) values (${last}) on conflict do nothing returning week`
+  if (!first) return
+  const rows = await sql`select user_id, sum(points)::int as score from cards group by user_id order by score desc limit 50`
+  await sql.begin(async t => {
+    for (const [i, r] of rows.entries()) {
+      await grant(t, r.user_id, today, 'weekly', i < 10 ? RATES.weeklyTop10 : RATES.weeklyTop50, { ref: last, label: `Week of ${last}: No. ${i + 1}` })
+    }
+  })
 }
 
 // Every card a new pack must not offer: owned, or on offer in another open pack
@@ -93,13 +143,13 @@ async function takenRefs(sql, u) {
   return { set, openNoPity: offered.length }
 }
 
-async function makePacks(sql, u, origin, kinds, team) {
+async function makePacks(sql, u, origin, kinds, team, era) {
   const { set, openNoPity } = await takenRefs(sql, u)
   const out = []
   let packsAhead = openNoPity // open packs that will finish before this one
   for (const kind of kinds) {
     const pity = u.since_big + packsAhead >= PITY_EVERY - 1
-    const offers = await buildOffers(origin, kind, { taken: set, team, pity })
+    const offers = await buildOffers(origin, kind, { taken: set, team, pity, era })
     offers.slots.forEach(s => s.cards.forEach(c => set.add(refOf(c))))
     out.push({ kind, team: team || null, pity: offers.pity, slots: offers.slots })
     packsAhead = pity ? 0 : packsAhead + 1
@@ -142,8 +192,9 @@ async function claimTeam(u, origin, team) {
   return { packs: [packView(pack)], ...(await me(fresh)) }
 }
 
-async function pick(u, b) {
+async function pick(u, b, origin) {
   const sql = db()
+  const today = etDay()
   const packId = Number(b.pack), slot = Number(b.slot), choice = Number(b.choice)
   const result = await sql.begin(async t => {
     const [p] = await t`select * from packs where id = ${packId} and user_id = ${u.id} for update`
@@ -152,7 +203,8 @@ async function pick(u, b) {
     if (slot !== p.picks.length) throw fail(409, 'Pick the cards in order.')
     const c = p.slots[slot]?.cards[choice]
     if (!c) throw fail(400, 'Pick one of the three cards.')
-    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points) values (${u.id}, ${p.id}, ${c.tier}, ${refOf(c)}, ${t.json(c)}, ${cardPoints(c).points})
+    const pts = cardPoints(c).points
+    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${u.id}, ${p.id}, ${c.tier}, ${refOf(c)}, ${t.json(c)}, ${pts}, ${p.kind})
       on conflict (user_id, ref) do nothing returning id`
     const picks = [...p.picks, choice]
     const done = picks.length === p.slots.length
@@ -161,10 +213,113 @@ async function pick(u, b) {
     else if (done && !big) await t`update users set since_big = since_big + 1 where id = ${u.id}`
     const [np] = await t`update packs set picks = ${picks}, status = ${done ? 'done' : 'open'}, done_at = ${done ? new Date() : null}
       where id = ${p.id} returning *`
-    return { pack: np, cardId: row ? Number(row.id) : null }
+    // Coins for the pick
+    const awards = []
+    const push = a => a && (Array.isArray(a) ? awards.push(...a) : awards.push(a))
+    if (row && BIG.has(c.tier)) push(await grant(t, u.id, today, 'big', RATES.big, { ref: refOf(c), label: `Kept a ${c.tier === 'goat' ? '★ GOAT' : c.tier[0].toUpperCase() + c.tier.slice(1)}` }))
+    if (done) push(await grant(t, u.id, today, 'pack', RATES.pack, { ref: String(p.id) }))
+    push(await tryChallenge(t, u.id, today, 'card', c, pts))
+    if (done) push(await tryChallenge(t, u.id, today, 'pack'))
+    if (row) push(await cardRewards(t, u.id, today, origin, c))
+    return { pack: np, cardId: row ? Number(row.id) : null, awards }
   })
   const [fresh] = await sql`select * from users where id = ${u.id}`
-  return { pack: packView(result.pack), cardId: result.cardId, ...(await me(fresh)) }
+  return { pack: packView(result.pack), cardId: result.cardId, awards: result.awards, ...(await me(fresh)) }
+}
+
+// ── The store ───────────────────────────────────────────────────────────────
+async function storeView(sql, u, origin) {
+  const today = etDay()
+  const f = await featured(origin, today)
+  const owned = new Set((await sql`select ref from cards where user_id = ${u.id} and ref = any(${f.cards.map(x => refOf(x.card))})`).map(r => r.ref))
+  const sold = await sql`select id, card, points, price, sold_at from sold where user_id = ${u.id} and not bought_back
+    and sold_at > now() - ${RATES.buybackHours + ' hours'}::interval order by id desc`
+  const mine = new Set((await sql`select ref from cards where user_id = ${u.id} and ref = any(${sold.map(r => refOf(r.card))})`).map(r => r.ref))
+  return {
+    day: today, next: addDays(today, 1), era: eraOfWeek(today), packs: catalog(today),
+    featured: { random: f.random, partial: f.partial, cards: f.cards.map(x => ({ ...x, owned: owned.has(refOf(x.card)) })) },
+    sold: sold.map(r => ({ id: Number(r.id), card: r.card, points: r.points, price: r.price, soldAt: r.sold_at, owned: mine.has(refOf(r.card)) })),
+    rates: RATES,
+  }
+}
+
+async function buyPack(u, origin, b) {
+  const sql = db(), today = etDay()
+  const item = catalog(today).find(x => x.kind === b.kind)
+  if (!item) throw fail(400, 'That pack isn’t in the store.')
+  let team = null
+  if (item.team) {
+    team = String(b.team || '')
+    if (!(await teamCodes(origin)).includes(team)) throw fail(400, 'Pick a team for the Team Pack.')
+  }
+  if (u.coins < item.price) throw fail(402, `You need ${(item.price - u.coins).toLocaleString()} more Coins for the ${item.name}.`)
+  const era = item.era ? ERAS.find(e => e.id === item.era) : null
+  const [built] = await makePacks(sql, u, origin, [b.kind], team, era)
+  const [pack] = await sql.begin(async t => {
+    const [x] = await t`update users set coins = coins - ${item.price} where id = ${u.id} and coins >= ${item.price} returning coins`
+    if (!x) throw fail(402, 'Not enough Coins.')
+    await t`insert into coin_ledger (user_id, day, kind, ref, amount) values (${u.id}, ${today}, 'store', ${'pack:' + b.kind + ':' + Date.now()}, ${-item.price})`
+    return t`insert into packs (user_id, kind, day, team, slots, pity) values (${u.id}, ${b.kind}, ${today}, ${team}, ${t.json(built.slots)}, ${built.pity}) returning *`
+  })
+  const [fresh] = await sql`select * from users where id = ${u.id}`
+  return { packs: [packView(pack)], ...(await me(fresh)) }
+}
+
+async function buyCard(u, origin, b) {
+  const sql = db(), today = etDay()
+  const f = await featured(origin, today)
+  const item = f.cards.find(x => refOf(x.card) === String(b.ref))
+  if (!item) throw fail(400, 'That card isn’t in today’s store.')
+  const awards = await sql.begin(async t => {
+    const [x] = await t`update users set coins = coins - ${item.price} where id = ${u.id} and coins >= ${item.price} returning coins`
+    if (!x) throw fail(402, `You need ${(item.price - u.coins).toLocaleString()} more Coins for that card.`)
+    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${u.id}, null, ${item.card.tier}, ${refOf(item.card)}, ${t.json(item.card)}, ${item.points}, 'store')
+      on conflict (user_id, ref) do nothing returning id`
+    if (!row) throw fail(409, 'That card is already in your binder.')
+    await t`insert into coin_ledger (user_id, day, kind, ref, amount) values (${u.id}, ${today}, 'store', ${'card:' + refOf(item.card)}, ${-item.price})`
+    return cardRewards(t, u.id, today, origin, item.card)
+  })
+  const [fresh] = await sql`select * from users where id = ${u.id}`
+  return { awards, store: await storeView(sql, fresh, origin), ...(await me(fresh)) }
+}
+
+async function sell(u, origin, b) {
+  const sql = db(), today = etDay(), id = Number(b.id)
+  const [c] = await sql`select * from cards where id = ${id} and user_id = ${u.id}`
+  if (!c) throw fail(404, 'That card isn’t in your binder.')
+  if (u.starred.map(Number).includes(id)) throw fail(409, 'Un-star the card first. Starred and showcase cards can’t be sold.')
+  const hours = (Date.now() - new Date(c.pulled_at).getTime()) / 36e5
+  if (hours < RATES.sellCooldownHours) throw fail(409, `You can sell this card in ${Math.ceil(RATES.sellCooldownHours - hours)} hour${Math.ceil(RATES.sellCooldownHours - hours) === 1 ? '' : 's'}. New cards wait a day.`)
+  if (BIG.has(c.tier) && !b.confirm) throw fail(428, 'Confirm to sell a Legend-or-better card.')
+  const price = Math.max(1, Math.round(c.points * RATES.sellRate))
+  await sql.begin(async t => {
+    const [x] = await t`select coalesce(sum(amount), 0)::int as n from coin_ledger where user_id = ${u.id} and day = ${today} and kind = 'sell'`
+    if (x.n + price > RATES.sellCap) throw fail(409, `Selling this card would pass today’s ${RATES.sellCap}-Coin limit on sales (${x.n} so far).`)
+    await t`delete from cards where id = ${id}`
+    const [s_] = await t`insert into sold (user_id, ref, card, points, price) values (${u.id}, ${c.ref}, ${t.json(c.card)}, ${c.points}, ${price}) returning id`
+    await t`insert into coin_ledger (user_id, day, kind, ref, amount) values (${u.id}, ${today}, 'sell', ${'sold:' + s_.id}, ${price})`
+    await t`update users set coins = coins + ${price} where id = ${u.id}`
+  })
+  const [fresh] = await sql`select * from users where id = ${u.id}`
+  return { sold: { price }, awards: [{ kind: 'sell', amount: price, label: `Sold ${c.card.row.n}` }], ...(await me(fresh)) }
+}
+
+async function buyback(u, origin, b) {
+  const sql = db(), today = etDay()
+  await sql.begin(async t => {
+    const [s_] = await t`select * from sold where id = ${Number(b.id)} and user_id = ${u.id} and not bought_back
+      and sold_at > now() - ${RATES.buybackHours + ' hours'}::interval for update`
+    if (!s_) throw fail(404, 'That sale can’t be undone anymore.')
+    const [x] = await t`update users set coins = coins - ${s_.price} where id = ${u.id} and coins >= ${s_.price} returning coins`
+    if (!x) throw fail(402, 'Not enough Coins to buy it back.')
+    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${u.id}, null, ${s_.card.tier}, ${s_.ref}, ${t.json(s_.card)}, ${s_.points}, 'buyback')
+      on conflict (user_id, ref) do nothing returning id`
+    if (!row) throw fail(409, 'That card is already back in your binder.')
+    await t`update sold set bought_back = true where id = ${s_.id}`
+    await t`insert into coin_ledger (user_id, day, kind, ref, amount) values (${u.id}, ${today}, 'buyback', ${'sold:' + s_.id}, ${-s_.price})`
+  })
+  const [fresh] = await sql`select * from users where id = ${u.id}`
+  return { store: await storeView(sql, fresh, origin), ...(await me(fresh)) }
 }
 
 export default async function handler(req, res) {
@@ -177,7 +332,12 @@ export default async function handler(req, res) {
     const sql = db()
     const origin = process.env.DATA_ORIGIN || `${(req.headers['x-forwarded-proto'] || 'https').split(',')[0]}://${req.headers['x-forwarded-host'] || req.headers.host}`
     const post = req.method === 'POST'
-    if (action === 'me') return send(200, { ...(await me(await currentUser(req))), lastNight: await recentDate(origin).catch(() => null) })
+    if (action === 'me') {
+      const u0 = await currentUser(req)
+      const awards = u0 ? await visit(u0) : []
+      const u1 = u0 && (await sql`select * from users where id = ${u0.id}`)[0]
+      return send(200, { ...(await me(u1)), awards, lastNight: await recentDate(origin).catch(() => null) })
+    }
 
     if (post && (action === 'signup' || action === 'login')) {
       const { username = '', password = '' } = await readBody(req)
@@ -190,12 +350,14 @@ export default async function handler(req, res) {
           on conflict (username_key) do nothing returning *`
         if (!u) throw fail(409, 'That username is taken.')
         await startSession(res, req, u.id)
-        return send(200, await me(u))
+        const awards = await visit(u)
+        return send(200, { ...(await me((await sql`select * from users where id = ${u.id}`)[0])), awards })
       }
       const [u] = await sql`select * from users where username_key = ${key}`
       if (!u || !(await checkPassword(String(password), u.pass_hash))) throw fail(401, 'Wrong username or password.')
       await startSession(res, req, u.id)
-      return send(200, await me(u))
+      const awards = await visit(u)
+      return send(200, { ...(await me((await sql`select * from users where id = ${u.id}`)[0])), awards })
     }
     if (post && action === 'logout') { await endSession(res, req); return send(200, { user: null }) }
 
@@ -223,14 +385,32 @@ export default async function handler(req, res) {
     if (!u) throw fail(401, 'Sign in first.')
     if (post && action === 'claim') return send(200, await claimDaily(u, origin))
     if (post && action === 'team') return send(200, await claimTeam(u, origin, String((await readBody(req)).team || '')))
-    if (post && action === 'pick') return send(200, await pick(u, await readBody(req)))
+    if (post && action === 'pick') return send(200, await pick(u, await readBody(req), origin))
+    if (action === 'store') return send(200, { store: await storeView(sql, u, origin), ...(await me(u)) })
+    if (post && action === 'buy') return send(200, await buyPack(u, origin, await readBody(req)))
+    if (post && action === 'buycard') return send(200, await buyCard(u, origin, await readBody(req)))
+    if (post && action === 'sell') return send(200, await sell(u, origin, await readBody(req)))
+    if (post && action === 'buyback') return send(200, await buyback(u, origin, await readBody(req)))
+    if (post && action === 'explore') {
+      const section = String((await readBody(req)).section || '')
+      if (!SECTIONS[section]) return send(200, { awards: [] })
+      const today = etDay(), awards = []
+      await sql.begin(async t => {
+        const a = await grant(t, u.id, today, 'explore', RATES.explore, { ref: `${today}|${section}`, cap: RATES.exploreCap, label: `Explored ${SECTIONS[section]}` })
+        if (a) awards.push(a)
+        const c = await tryChallenge(t, u.id, today, 'explore', section)
+        if (c) awards.push(c)
+      })
+      const [fresh] = await sql`select * from users where id = ${u.id}`
+      return send(200, { awards, coins: { balance: fresh.coins, ...(await earnings(sql, u.id, today)) } })
+    }
     if (action === 'pack') {
       const [p] = await sql`select * from packs where id = ${Number(q.id)} and user_id = ${u.id}`
       if (!p) throw fail(404, 'That pack isn’t yours.')
       return send(200, { pack: packView(p) })
     }
     if (action === 'collection') {
-      const rows = await sql`select c.id, c.card, c.points, c.pulled_at, p.kind from cards c join packs p on p.id = c.pack_id
+      const rows = await sql`select c.id, c.card, c.points, c.pulled_at, coalesce(p.kind, c.source) as kind from cards c left join packs p on p.id = c.pack_id
         where c.user_id = ${u.id} order by c.id desc`
       return send(200, { cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at, pack: r.kind })) })
     }
@@ -242,8 +422,10 @@ export default async function handler(req, res) {
       const next = b.on ? [...cur, id].slice(-2000) : cur
       // Unstarring a card takes it out of the showcase too
       const show = u.showcase.map(Number).filter(x => next.includes(x))
+      const awards = []
+      if (b.on) await sql.begin(async t => { const a = await tryChallenge(t, u.id, etDay(), 'star'); if (a) awards.push(a) })
       const [fresh] = await sql`update users set starred = ${next.map(String)}::bigint[], showcase = ${show.map(String)}::bigint[] where id = ${u.id} returning *`
-      return send(200, await me(fresh))
+      return send(200, { ...(await me(fresh)), awards })
     }
     if (post && action === 'showcase') {
       const b = await readBody(req), id = Number(b.id)

@@ -20,11 +20,13 @@ Also writes the personal-binder checklists, which count players (own any card of
   explorer/binders/checklist.json  {"franchises": {franchise: {"name": latest name, "players": all-time count,
                                      "seasons": {season: [players, team name that season]}}}, "seasons": {season: players}}
   explorer/binders/roster/<FRANCHISE>.json  {season: [[name, games, pos], ...]} most games first
+  explorer/packs/onthisday/<MM-DD>.json  the store's On This Day pool: the 40 best cards (by Game Score) of each tier
+                                         from games on that calendar date, every year {"teams": {"season|code": [...]}, "tiers": {tier: [row, ...]}}
 band = [level, label, champ] or null; honor = "potd" | "potg" | null
 
 Run after build_binders.py (it calls this at the end):  python3 scripts/build_packs.py
 """
-import json, sys
+import heapq, itertools, json, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -72,6 +74,8 @@ def main():
     roster = {}       # franchise -> season -> name -> [games, pos]
     season_players = {}
     written = set()
+    otd = {}          # (MM-DD, tier) -> heap of (gs, n, row, names)
+    otd_n = itertools.count()
     last_day, recent, recent_teams = "", [], {}
     for f in files:
         d = json.loads(f.read_text(encoding="utf-8"))
@@ -91,6 +95,12 @@ def main():
                 by_tier.setdefault(tr, []).append(r)
                 fc = MERGE.get(p["t"], p["t"])
                 by_team.setdefault((fc, tr), []).append(json.dumps(r, ensure_ascii=False, separators=(",", ":")))
+                h = otd.setdefault((g["date"][5:], tr), [])
+                item = (p.get("gs") or 0, next(otd_n), r, {f"{season}|{c}": teams.get(c, [c, None]) for c in (r[3], r[4])})
+                if len(h) < 40:
+                    heapq.heappush(h, item)
+                elif item[0] > h[0][0]:
+                    heapq.heapreplace(h, item)
                 rs = roster.setdefault(fc, {}).setdefault(season, {"_name": teams.get(p["t"], [p["t"]])[0]})
                 e = rs.setdefault(p["n"], [0, p.get("pos")]); e[0] += 1
                 season_players.setdefault(season, set()).add(p["n"])
@@ -127,6 +137,18 @@ def main():
             (OUT / name).write_text(body, encoding="utf-8")
             written.add(name)
             index["teams"].setdefault(fc, {}).setdefault(tr, []).append([name, len(chunk)])
+    # On This Day: one file per calendar date
+    (OUT / "onthisday").mkdir(parents=True, exist_ok=True)
+    days = {}
+    for (md, tr), h in otd.items():
+        d = days.setdefault(md, {"teams": {}, "tiers": {}})
+        for gs_, _, r, names in sorted(h, key=lambda x: -x[0]):
+            d["tiers"].setdefault(tr, []).append(r)
+            d["teams"].update(names)
+    for md, d in days.items():
+        name = f"onthisday/{md}.json"
+        (OUT / name).write_text(json.dumps(d, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        written.add(name)
     # Shards from an older cut that this build didn't write
     for old in list(OUT.glob("*/*.json")) + list(OUT.glob("team/*/*.json")):
         if old.relative_to(OUT).as_posix() not in written:

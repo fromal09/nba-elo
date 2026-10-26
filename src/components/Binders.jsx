@@ -30,7 +30,7 @@ const shortName = n => { const [f, ...r] = baseName(n).split(' '); return r.leng
 // A duel side in the shape DuelCard needs: row, the team as it was, headshot
 const duelSide = (env, row, team) => ({ name: row.n, row, color: team.color, team: nick(team.name), abbr: team.abbr, headshot: env.headshot(row.n) })
 
-function useIsPhone() {
+export function useIsPhone() {
   const q = '(max-width: 760px)'
   const [m, setM] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(q).matches)
   useEffect(() => {
@@ -41,7 +41,7 @@ function useIsPhone() {
 }
 
 // A card drawn at full size (340 × 476) and scaled to whatever room its pocket has
-function Fit({ children, label }) {
+export function Fit({ children, label }) {
   const ref = useRef(null)
   const [s, setS] = useState(0)
   useLayoutEffect(() => {
@@ -77,10 +77,12 @@ function Pocket({ e, name, env, onPull, pulled, album }) {
       {e.owned && <span className={styles.ownedMark} title="In your binder">✓</span>}
       <div className={styles.pocketLab}>
         <span>{e.label}</span>
-        {e.sub && !e.showMode && <span style={{ color: e.subColor }}>{e.sub}</span>}
-        {e.showMode && e.pinned && <button type="button" className={`${styles.showBtn} ${e.shown ? styles.showOn : ''}`} aria-pressed={!!e.shown}
+        {e.sub && !e.showMode && !e.sellMode && <span style={{ color: e.subColor }}>{e.sub}</span>}
+        {e.sellMode && <button type="button" className={`${styles.sellBtn} ${e.sellConfirm ? styles.sellConfirm : ''}`} disabled={!!e.sellBlock}
+          title={e.sellBlock || `Sell for ${e.sellPrice} Coins`} onClick={() => e.onSell(e)}>{e.sellBlock ? e.sellShort : e.sellConfirm ? `Confirm · ${e.sellPrice}` : `Sell · ${e.sellPrice}`}</button>}
+        {!e.sellMode && e.showMode && e.pinned && <button type="button" className={`${styles.showBtn} ${e.shown ? styles.showOn : ''}`} aria-pressed={!!e.shown}
           title={e.shown ? 'Take out of your showcase' : 'Put in your showcase'} onClick={() => e.onShow(e)}>{e.shown ? 'In showcase' : 'Showcase'}</button>}
-        {e.onPin && <button type="button" className={`${styles.pin} ${e.pinned ? styles.pinOn : ''}`} aria-pressed={!!e.pinned}
+        {e.onPin && !e.sellMode && <button type="button" className={`${styles.pin} ${e.pinned ? styles.pinOn : ''}`} aria-pressed={!!e.pinned}
           title={e.pinned ? 'Take out of your Starred binder' : 'Star: add to your Starred binder'} onClick={() => e.onPin(e)}>{e.pinned ? '★' : '☆'}</button>}
       </div>
     </div>
@@ -131,7 +133,7 @@ function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, pho
 }
 
 // The book: overlay, cover, left page, rings, right page, divider tabs; one page on a phone
-function Book({ tc, onClose, onKey, left, right, tabs, phone, summary, head, stack }) {
+export function Book({ tc, onClose, onKey, left, right, tabs, phone, summary, head, stack }) {
   useEffect(() => {
     const k = e => {
       if (onKey?.(e)) return
@@ -179,7 +181,7 @@ function SeasonSwitch({ label, sub, prev, next, loading }) {
   )
 }
 
-function Seg({ value, onChange, options }) {
+export function Seg({ value, onChange, options }) {
   return (
     <div className={styles.seg} role="tablist">
       {options.map(([v, l]) => <button key={v} type="button" role="tab" aria-selected={value === v} className={value === v ? styles.segOn : ''} onClick={() => onChange(v)}>{l}</button>)}
@@ -255,7 +257,7 @@ export function fromIndex(env, c, extra = {}) {
 }
 
 // Pulling a card: the full card, flippable, with its season. Index cards load their season first.
-function usePull(env, sd, owner) {
+export function usePull(env, sd, owner) {
   const [pulled, setPulled] = useState(null) // { key, name, g, sd, duel }
   const pull = e => {
     const set = (g, s) => setPulled({ key: e.key, name: e.name || owner, g, sd: s, duel: e.duel ? { kind: e.duel.kind, an: e.duel.a.name, bn: e.duel.b.name } : null })
@@ -904,7 +906,7 @@ function PointsHelp() {
   )
 }
 
-export function CollectionBinder({ env, onClose, onLeague, pub }) {
+export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onStore }) {
   const phone = useIsPhone()
   const per = phone ? 6 : 9
   const C = env.collector
@@ -915,6 +917,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub }) {
   const [season, setSeason] = useState(null)  // a season within the shelf
   const [openRow, setOpenRow] = useState(null) // the team-season whose roster is open in the checklist
   const [order, setOrder] = useState('new')
+  const [sellMode, setSellMode] = useState(!!startSell && !pub)
+  const [confirmId, setConfirmId] = useState(null)
   const [league, setLeague] = useState(null)
   const [check, setCheck] = useState(null)
   const [rosters, setRosters] = useState({})
@@ -931,7 +935,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub }) {
     const pts = x.points ?? cardPoints(x.card).points
     return fromIndex(env, x.card, {
       key: `c${x.id}`, cardId: x.id, tier: x.card.tier, gs: x.card.row.gs || 0, pts, date: x.card.date, fc, s: x.card.s, decade: decadeOf(x.card.s),
-      label: shortName(x.card.row.n), sub: `${pts.toLocaleString()} pts`, pinned: starred.has(x.id), shown: showIds.includes(x.id),
+      label: shortName(x.card.row.n), sub: `${pts.toLocaleString()} pts`, pinned: starred.has(x.id), shown: showIds.includes(x.id), pulledAt: x.pulled,
       ...(mine ? { onPin: e => C.star(e.cardId, !e.pinned), onShow: e => C.showcase(e.cardId, !e.shown) } : {}),
     })
   }), [src?.cards, env, [...starred].join(), showIds.join(), mine])
@@ -953,11 +957,20 @@ export function CollectionBinder({ env, onClose, onLeague, pub }) {
   const list = useMemo(() => {
     let l = view === 'starred' ? all.filter(e => e.pinned).map(e => ({ ...e, showMode: mine })) : cur ? all.filter(e => (view === 'team' ? e.fc : e.decade) === cur.id) : all
     if (season && cur) l = l.filter(e => e.s === season)
+    if (sellMode) l = l.map(e => {
+      const hrs = 24 - (Date.now() - Date.parse(e.pulledAt)) / 36e5
+      const block = e.pinned ? 'Starred cards can’t be sold. Un-star it first.' : hrs > 0 ? `Sellable in ${Math.ceil(hrs)} hour${Math.ceil(hrs) === 1 ? '' : 's'}` : null
+      return { ...e, sellMode: true, sellPrice: Math.max(1, Math.round(e.pts * 0.2)), sellBlock: block, sellShort: e.pinned ? 'Starred' : `In ${Math.ceil(hrs)}h`, sellConfirm: confirmId === e.cardId,
+        onSell: async x => {
+          if (['legend', 'icon', 'goat'].includes(x.tier) && confirmId !== x.cardId) { setConfirmId(x.cardId); return }
+          setConfirmId(null); await C.sell(x.cardId, true)
+        } }
+    })
     if (order === 'tier') l = [...l].sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier] || b.gs - a.gs)
     else if (order === 'points') l = [...l].sort((a, b) => b.pts - a.pts)
     else if (order === 'chrono') l = [...l].sort((a, b) => a.date.localeCompare(b.date))
     return l
-  }, [all, view, cur, order, season, mine])
+  }, [all, view, cur, order, season, mine, sellMode, confirmId])
   const S = useSheets(list, per)
   // Open a franchise's roster file when its checklist is shown
   useEffect(() => {
@@ -981,6 +994,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub }) {
       {!me.week.claimed
         ? <button type="button" className={styles.teamCta} onClick={() => C.openTeam()}>Weekly team pack · pick a team</button>
         : <span className={styles.light}>Next team pack {fullDay(me.week.next)}</span>}
+      {onStore && <button type="button" className={styles.storeCta} onClick={onStore}>Store · {(me.coins?.balance ?? 0).toLocaleString()} Coins</button>}
     </div>
   )
   const head = <>
@@ -1099,7 +1113,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub }) {
       </div>
     )
   } else {
-    const filters = <>{sortSel}{shelfChips}</>
+    const filters = <>{sortSel}{mine && <button type="button" className={`${styles.chip} ${sellMode ? styles.chipSell : ''}`} onClick={() => { setSellMode(v => !v); setConfirmId(null) }}
+      title="Sell cards for 20% of their points in Coins">{sellMode ? 'Selling · done' : 'Sell cards'}</button>}{shelfChips}</>
     right = list.length
       ? <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone} tools={tools} filters={filters} bar={shelfBar}
         title={cur ? cur.name : view === 'starred' ? 'Starred' : `Sheet ${S.cur + 1} of ${S.sheets}`}

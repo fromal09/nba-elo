@@ -30,23 +30,26 @@ async function api(action, body, query = '') {
   return d
 }
 
-export function CollectorProvider({ children, onOpenMine }) {
+export function CollectorProvider({ children, onOpenMine, onOpenStore }) {
   const [me, setMe] = useState(undefined)        // undefined: loading · null: signed out
   const [cards, setCards] = useState([])         // [{ id, card, pulled, pack }]
   const [auth, setAuth] = useState(null)         // 'login' | 'signup'
   const [queue, setQueue] = useState(null)       // packs to open, in order
-  const [teamPick, setTeamPick] = useState(false)
+  const [teamPick, setTeamPick] = useState(null) // 'weekly' | 'store': who the team picker is for
   const [down, setDown] = useState(false)        // the API isn't reachable (not deployed yet)
   const [toast, setToast] = useState(null)
+  const [coinToasts, setCoinToasts] = useState([]) // Coins just earned
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 5000); return () => clearTimeout(t) }, [toast])
+  useEffect(() => { if (!coinToasts.length) return; const t = setTimeout(() => setCoinToasts([]), 4200); return () => clearTimeout(t) }, [coinToasts])
+  const celebrate = awards => { const got = (awards || []).filter(a => a.amount > 0); if (got.length) setCoinToasts(c => [...c, ...got].slice(-5)) }
 
   const loadCards = useCallback(() => api('collection').then(d => setCards(d.cards)).catch(() => {}), [])
   const refresh = useCallback(() => api('me').then(d => setMe(m => (d.user ? { ...d, lastNight: d.lastNight ?? m?.lastNight } : null))).catch(() => {}), [])
   useEffect(() => {
-    api('me').then(d => { setMe(d.user ? d : null); if (d.user) loadCards() }).catch(() => { setMe(null); setDown(true) })
+    api('me').then(d => { setMe(d.user ? d : null); if (d.user) { loadCards(); celebrate(d.awards) } }).catch(() => { setMe(null); setDown(true) })
   }, [loadCards])
-  const take = d => setMe(m => ({ ...d, lastNight: m?.lastNight }))
-  const guard = fn => async (...a) => { try { return await fn(...a) } catch (x) { setToast(x.message); refresh() } }
+  const take = d => { setMe(m => ({ ...m, ...d, lastNight: m?.lastNight })); celebrate(d.awards) }
+  const guard = fn => async (...a) => { try { return await fn(...a) } catch (x) { setToast(x.message); refresh(); return null } }
 
   const value = useMemo(() => ({
     me, cards, down,
@@ -54,7 +57,7 @@ export function CollectorProvider({ children, onOpenMine }) {
     openAuth: mode => setAuth(mode || 'login'),
     signIn: async (mode, username, password) => {
       const d = await api(mode, { username, password })
-      setMe(d); setAuth(null); loadCards()
+      setMe(d); setAuth(null); loadCards(); celebrate(d.awards)
       return d
     },
     signOut: async () => { await api('logout', {}).catch(() => {}); setMe(null); setCards([]) },
@@ -65,29 +68,52 @@ export function CollectorProvider({ children, onOpenMine }) {
       const d = await api('claim', {})
       take(d); setQueue(d.packs)
     }),
-    openTeam: () => { if (!me) setAuth('signup'); else setTeamPick(true) },
-    claimTeam: guard(async team => { const d = await api('team', { team }); setTeamPick(false); take(d); setQueue(d.packs) }),
+    openTeam: () => { if (!me) setAuth('signup'); else setTeamPick('weekly') },
+    claimTeam: guard(async team => { const d = await api('team', { team }); setTeamPick(null); take(d); setQueue(d.packs) }),
     resume: guard(async id => { const d = await api('pack', undefined, `&id=${id}`); setQueue([d.pack]) }),
     pick: async (pack, slot, choice) => { const d = await api('pick', { pack, slot, choice }); take(d); return d },
     star: guard(async (id, on) => { take(await api('star', { id, on })) }),
     showcase: guard(async (id, on) => { take(await api('showcase', { id, on })) }),
     saveProfile: guard(async patch => { take(await api('profile', patch)) }),
     openMine: () => onOpenMine?.(),
-  }), [me, cards, down, loadCards, onOpenMine])
+    openStore: () => (me ? onOpenStore?.() : setAuth('signup')),
+    // Coins: exploring the site, the store, selling
+    explore: section => { if (me) api('explore', { section }).then(d => { celebrate(d.awards); if (d.coins) setMe(m => (m ? { ...m, coins: d.coins } : m)) }).catch(() => {}) },
+    loadStore: () => api('store').then(d => { take(d); return d.store }),
+    buyPack: guard(async kind => {
+      if (kind === 'storeteam') { setTeamPick('store'); return null }
+      const d = await api('buy', { kind }); take(d); setQueue(d.packs); return d
+    }),
+    buyTeamPack: guard(async team => { const d = await api('buy', { kind: 'storeteam', team }); setTeamPick(null); take(d); setQueue(d.packs); return d }),
+    buyCard: guard(async ref => { const d = await api('buycard', { ref }); take(d); loadCards(); setToast('Added to your binder.'); return d.store }),
+    sell: guard(async (id, confirm) => { const d = await api('sell', { id, confirm }); take(d); loadCards(); return d }),
+    buyback: guard(async id => { const d = await api('buyback', { id }); take(d); loadCards(); return d.store }),
+  }), [me, cards, down, loadCards, onOpenMine, onOpenStore])
 
   const closeQueue = () => { setQueue(null); loadCards(); refresh() }
   return (
     <Ctx.Provider value={value}>
       {children}
       {auth && <AuthModal mode={auth} setMode={setAuth} onClose={() => setAuth(null)} signIn={value.signIn} />}
-      {teamPick && me && <TeamPicker me={me} onClose={() => setTeamPick(false)} onPick={value.claimTeam} />}
+      {teamPick && me && <TeamPicker me={me} store={teamPick === 'store'} onClose={() => setTeamPick(null)} onPick={teamPick === 'store' ? value.buyTeamPack : value.claimTeam} />}
       {toast && <div className={styles.toast} role="status" onClick={() => setToast(null)}>{toast}</div>}
+      {coinToasts.length > 0 && <div className={styles.coinToasts} role="status" aria-live="polite">
+        {coinToasts.map((a, i) => <div key={i} className={styles.coinToast}><Coin /><b>+{a.amount.toLocaleString()}</b><span>{a.label}</span></div>)}
+      </div>}
       {queue && <PackOpening key={queue[0].id} pack={queue[0]} more={queue.length - 1} me={me} pick={value.pick}
         onNext={() => setQueue(q => (q.length > 1 ? q.slice(1) : null))} onClose={closeQueue}
         onMine={() => { closeQueue(); onOpenMine?.() }} />}
     </Ctx.Provider>
   )
 }
+
+// The Coin mark
+export const Coin = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={styles.coinIcon}>
+    <circle cx="12" cy="12" r="11" fill="#e7c160" /><circle cx="12" cy="12" r="8.2" fill="#f6d77e" stroke="#b8871e" strokeWidth="1.2" />
+    <text x="12" y="16.2" textAnchor="middle" fontSize="11" fontWeight="900" fill="#8a6414" fontFamily="Inter, sans-serif">C</text>
+  </svg>
+)
 
 // ── Sign in / create an account ──────────────────────────────────────────────
 function AuthModal({ mode, setMode, onClose, signIn }) {
@@ -151,12 +177,17 @@ export function CardFace({ card, shots, w = 280 }) {
   )
 }
 
-const packTitle = p => (p.kind === 'streak' ? 'Streak Pack' : p.kind === 'team' ? `${nick(binderTeamInfo(p.team).name)} Pack` : 'Daily Pack')
+const PACK_NAMES = { daily: 'Daily Pack', streak: 'Streak Pack', standard: 'Standard Pack', era: 'Era Pack', playoff: 'Playoff Pack', legend: 'Legend Pack', goat: 'GOAT Pack' }
+const packTitle = p => ((p.kind === 'team' || p.kind === 'storeteam') ? `${nick(binderTeamInfo(p.team).name)} Pack` : PACK_NAMES[p.kind] || 'Pack')
 const slotLabel = (pack, slot, lastNight) => {
   const s = pack.slots[slot]
   if (pack.pity && slot === pack.slots.length - 1) return 'Guaranteed big pull · Legend or better'
   if (s.src === 'recent') return `From last night${lastNight ? ` · ${fmtDay(lastNight)}` : ''}`
   if (s.src === 'team') return `From ${binderTeamInfo(pack.team).name} history`
+  if (s.odds === 'goatOnly') return 'Guaranteed ★ GOAT'
+  if (s.src === 'finals') return 'From the Finals'
+  if (s.src === 'playoff') return s.odds === 'rarePlus' ? 'From the playoffs · Rare or better' : 'From the playoffs'
+  if (s.src === 'era') return s.odds === 'rarePlus' ? 'From this era · Rare or better' : 'From this era'
   return s.odds === 'legendPlus' ? 'From the vault · Legend or better' : s.odds === 'rarePlus' ? 'From the vault · Rare or better' : 'From the vault · any era'
 }
 // Why a card is worth what it is: "Legend ×12 · grade 8 · Player of the Game +25%"
@@ -214,16 +245,16 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
       <div className={`${styles.opening} ${stage === 'pick' ? styles.openingWide : ''}`} role="dialog" aria-modal="true" aria-label="Open your pack">
         <button type="button" className={styles.x} onClick={onClose} aria-label="Close (your picks so far are saved)" title="Close. Your picks are saved; finish the pack later.">×</button>
         {(stage === 'sealed' || stage === 'tearing') && <>
-          <div className={styles.kick}>{kind === 'streak' ? `${me?.today?.streak}-day streak bonus` : kind === 'team' ? `Team pack · week of ${fmtDay(pack.day)}` : `Daily pack · ${fmtDay(pack.day)}`}</div>
-          <button type="button" className={`${styles.pack} ${kind === 'streak' ? styles.packGold : ''} ${stage === 'tearing' ? styles.torn : ''}`}
-            style={kind === 'team' ? { '--pc': binderTeamInfo(pack.team).color || '#173657' } : undefined} data-kind={kind} onClick={tear} aria-label="Tear the pack open">
+          <div className={styles.kick}>{kind === 'streak' ? `${me?.today?.streak}-day streak bonus` : kind === 'team' ? `Team pack · week of ${fmtDay(pack.day)}` : kind === 'daily' ? `Daily pack · ${fmtDay(pack.day)}` : 'From the store'}</div>
+          <button type="button" className={`${styles.pack} ${kind === 'streak' || kind === 'legend' ? styles.packGold : ''} ${stage === 'tearing' ? styles.torn : ''}`}
+            style={kind === 'team' || kind === 'storeteam' ? { '--pc': binderTeamInfo(pack.team).color || '#173657' } : undefined} data-kind={kind === 'storeteam' ? 'team' : kind} onClick={tear} aria-label="Tear the pack open">
             <span className={styles.packTop} />
             <span className={styles.packBody}>
               <small>Floor Performance Rankings</small>
               <b>{packTitle(pack)}</b>
               <em>Pick 5 · one of three at a time</em>
               {pack.pity && <strong>★ Guaranteed big pull inside</strong>}
-              <i>{kind === 'team' ? binderTeamInfo(pack.team).abbr : 'FPR'}</i>
+              <i>{kind === 'team' || kind === 'storeteam' ? binderTeamInfo(pack.team).abbr : kind === 'goat' ? '★' : 'FPR'}</i>
             </span>
           </button>
           <div className={styles.hintLine}>Tap the pack to tear it open</div>
@@ -280,7 +311,7 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
                 <button type="button" className={styles.ghost} onClick={onClose}>Done</button>
               </>}
           </div>
-          {!more && kind !== 'team' && <div className={styles.hintLine}>Next pack at midnight Eastern{me?.today ? ` · ${me.today.untilBonus} more day${me.today.untilBonus === 1 ? '' : 's'} to a streak bonus` : ''}</div>}
+          {!more && (kind === 'daily' || kind === 'streak') && <div className={styles.hintLine}>Next pack at midnight Eastern{me?.today ? ` · ${me.today.untilBonus} more day${me.today.untilBonus === 1 ? '' : 's'} to a streak bonus` : ''}</div>}
         </>}
       </div>
     </div>
@@ -299,7 +330,7 @@ export function Meter({ meter, dark }) {
 }
 
 // ── The weekly team pack: pick the team ──────────────────────────────────────
-function TeamPicker({ me, onClose, onPick }) {
+function TeamPicker({ me, onClose, onPick, store }) {
   const [busy, setBusy] = useState(null)
   useEffect(() => {
     const k = e => { if (e.key === 'Escape') onClose() }
@@ -311,9 +342,9 @@ function TeamPicker({ me, onClose, onPick }) {
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.picker} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Choose this week’s team pack">
         <button type="button" className={styles.x} onClick={onClose} aria-label="Close">×</button>
-        <div className={styles.kickDark}>Team pack · week of {fmtDay(me.week.start)}</div>
+        <div className={styles.kickDark}>{store ? 'Store · Team Pack · 400 Coins' : `Team pack · week of ${fmtDay(me.week.start)}`}</div>
         <h2>Pick a team</h2>
-        <p>Five picks, one of three at a time, from every season of that franchise’s history. One team pack a week; a new one Monday.</p>
+        <p>{store ? 'Five picks, one of three at a time, from every season of that franchise’s history.' : 'Five picks, one of three at a time, from every season of that franchise’s history. One free team pack a week; a new one Monday.'}</p>
         <div className={styles.teamGrid}>
           {teams.map(t => (
             <button key={t.c} type="button" disabled={!!busy} className={`${styles.teamBtn} ${t.c === fav ? styles.teamFav : ''}`} style={{ '--c': t.color || '#173657' }}
@@ -332,7 +363,7 @@ function TeamPicker({ me, onClose, onPick }) {
 // ── Header controls ──────────────────────────────────────────────────────────
 // The nav: Sign in, or the pack waiting (or half-picked) and your name
 export function AccountBar({ onMine, compact }) {
-  const { me, down, openAuth, claim, resume } = useCollector()
+  const { me, down, openAuth, claim, resume, openStore } = useCollector()
   if (me === undefined || down) return null
   if (!me) return (
     <div className={styles.bar}>
@@ -348,6 +379,7 @@ export function AccountBar({ onMine, compact }) {
         : !t.claimed
           ? <button type="button" className={`${styles.packBtn} ${styles.packReady}`} onClick={claim}><Gift />{t.bonusToday ? 'Open 2 packs' : compact ? 'Open pack' : 'Open today’s pack'}</button>
           : <span className={styles.streak} title={`${t.untilBonus} more day${t.untilBonus === 1 ? '' : 's'} to a bonus pack`}><Flame />{t.streak}<small>day{t.streak === 1 ? '' : 's'}</small></span>}
+      <button type="button" className={styles.coinChip} onClick={openStore} title="Coins · open the store"><Coin />{(me.coins?.balance ?? 0).toLocaleString()}</button>
       <button type="button" className={styles.user} onClick={onMine} title="My binder"><span>{me.user.username[0].toUpperCase()}</span>{!compact && me.user.username}</button>
     </div>
   )

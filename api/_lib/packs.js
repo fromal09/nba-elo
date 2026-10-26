@@ -12,12 +12,41 @@ const ODDS = {
   base: { common: 6200, rare: 2200, standout: 900, legend: 500, icon: 150, goat: 50 },
   rarePlus: { rare: 6000, standout: 2400, legend: 1100, icon: 400, goat: 100 },
   legendPlus: { legend: 7500, icon: 2000, goat: 500 },
+  goatOnly: { goat: 1 },
 }
 // Slots: [source, odds]. recent = last night's games, vault = all of history, team = one franchise's history
 const SLOTS = {
   daily: [['recent', 'base'], ['recent', 'base'], ['vault', 'base'], ['vault', 'base'], ['vault', 'rarePlus']],
   streak: [['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'legendPlus']],
   team: [['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'rarePlus'], ['team', 'rarePlus']],
+  // Store packs (bought with Coins)
+  standard: [['vault', 'base'], ['vault', 'base'], ['vault', 'base'], ['vault', 'base'], ['vault', 'rarePlus']],
+  era: [['era', 'base'], ['era', 'base'], ['era', 'base'], ['era', 'base'], ['era', 'rarePlus']],
+  storeteam: [['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'rarePlus'], ['team', 'rarePlus']],
+  playoff: [['playoff', 'base'], ['playoff', 'base'], ['playoff', 'base'], ['playoff', 'rarePlus'], ['finals', 'rarePlus']],
+  legend: [['vault', 'base'], ['vault', 'base'], ['vault', 'base'], ['vault', 'rarePlus'], ['vault', 'legendPlus']],
+  goat: [['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'goatOnly']],
+}
+
+// The card designs' eras, by season start year (as PlayerCard eraOf); the store's Era pack rotates through them weekly
+export const ERAS = [
+  { id: 'classic', name: 'Classic', from: 1946, to: 1958, years: '1946–59' },
+  { id: 'groove', name: 'Groove', from: 1959, to: 1978, years: '1960–79' },
+  { id: 'stripe', name: 'Stripe', from: 1979, to: 1988, years: '1980–89' },
+  { id: 'edge', name: 'Edge', from: 1989, to: 1998, years: '1990–99' },
+  { id: 'refractor', name: 'Refractor', from: 1999, to: 2018, years: '2000–19' },
+  { id: 'modern', name: 'Modern', from: 2019, to: 9999, years: '2020–' },
+]
+const seasonStart = file => +(file.match(/(\d{4})-\d{2}-\d+\.json$/)?.[1] || 0)
+// Shards limited to an era's seasons, or to the end of each season (where its playoff games are)
+function eraTiers(idx, era) {
+  return Object.fromEntries(Object.entries(idx.tiers).map(([t, list]) => [t, list.filter(([f]) => { const y = seasonStart(f); return y >= era.from && y <= era.to })]))
+}
+function lastShards(idx) {
+  return Object.fromEntries(Object.entries(idx.tiers).map(([t, list]) => {
+    const last = new Map(); list.forEach(x => last.set(x[0].replace(/-\d+\.json$/, ''), x))
+    return [t, [...last.values()]]
+  }))
 }
 
 const roll = weights => {
@@ -68,14 +97,16 @@ function toCard(cols, r, teams, from) {
 }
 
 // One card from a set of shards ({tier: [[file, n], ...]}) at these odds, skipping cards in `taken`
-async function fromShards(origin, idx, tiers, odds, taken, from, avoid) {
+async function fromShards(origin, idx, tiers, odds, taken, from, avoid, rowOk) {
   const avail = Object.fromEntries(Object.entries(odds).filter(([t]) => tiers[t]?.length))
   for (let tries = 0; tries < 12; tries++) {
     const t = roll(avail); if (!t) return null
     const list = tiers[t]
     const file = list[roll(Object.fromEntries(list.map(([, n], i) => [i, n])))][0]
     const sh = await shard(origin, file)
-    const c = toCard(idx.cols, sh.rows[randomInt(sh.rows.length)], sh.teams, from)
+    const rows = rowOk ? sh.rows.filter(r => rowOk(r, idx.cols)) : sh.rows
+    if (!rows.length) continue
+    const c = toCard(idx.cols, rows[randomInt(rows.length)], sh.teams, from)
     if (!taken.has(refOf(c)) && !(avoid?.has(c.row.n) && tries < 8)) return c
   }
   return null
@@ -98,12 +129,17 @@ function fromRecent(idx, odds, taken, avoid) {
  * taken = refs the collector owns or has on offer elsewhere. pity = make the last slot Legend or better.
  * Returns { slots: [{ src, label, cards: [card, card, card] }], pity }
  */
-export async function buildOffers(origin, kind, { taken, team, pity }) {
+export async function buildOffers(origin, kind, { taken, team, pity, era }) {
   const idx = await poolIndex(origin)
+  const bandAt = idx.cols.indexOf('band')
+  const isPlayoff = r => !!r[bandAt]
+  const isFinals = r => r[bandAt] && (r[bandAt][0] === 'finals' || r[bandAt][0] === 'champ')
+  const eraT = era ? eraTiers(idx, era) : null
+  const poT = kind === 'playoff' ? lastShards(idx) : null
   const plan = SLOTS[kind].map(x => [...x])
   if (pity) plan[plan.length - 1] = [plan[plan.length - 1][0] === 'recent' ? 'vault' : plan[plan.length - 1][0], 'legendPlus']
   const teamTiers = team ? idx.teams?.[team] : null
-  if (kind === 'team' && !teamTiers) throw Object.assign(new Error('That team’s cards aren’t in the pool yet.'), { status: 400 })
+  if ((kind === 'team' || kind === 'storeteam') && !teamTiers) throw Object.assign(new Error('That team’s cards aren’t in the pool yet.'), { status: 400 })
   const seen = new Set(taken)
   const slots = []
   for (const [src, oddsKey] of plan) {
@@ -112,6 +148,10 @@ export async function buildOffers(origin, kind, { taken, team, pity }) {
       let c = null
       if (src === 'recent') c = fromRecent(idx, odds, seen, names)
       if (!c && src === 'team') c = await fromShards(origin, idx, teamTiers, odds, seen, 'team', names)
+      if (!c && src === 'era') c = await fromShards(origin, idx, eraT, odds, seen, 'era', names)
+      if (!c && src === 'playoff') c = await fromShards(origin, idx, poT, odds, seen, 'playoff', names, isPlayoff)
+      if (!c && src === 'finals') c = await fromShards(origin, idx, poT, odds, seen, 'playoff', names, isFinals)
+        || await fromShards(origin, idx, poT, odds, seen, 'playoff', names, isPlayoff)
       // Last night or the team ran out of new cards at these odds: widen to the vault
       if (!c) c = await fromShards(origin, idx, idx.tiers, odds, seen, 'vault', names)
       if (!c) continue
@@ -124,4 +164,5 @@ export async function buildOffers(origin, kind, { taken, team, pity }) {
 }
 
 export const teamCodes = async origin => Object.keys((await poolIndex(origin)).teams || {})
+export { toCard, getJSON as poolJSON }
 export const recentDate = async origin => (await poolIndex(origin)).recent?.date || null

@@ -112,3 +112,5 @@
 .boardRow strong { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: #173657; display: flex; align-items: baseline; gap: 3px; }
 .boardRow strong small { font-size: 11px; color: #8a95a2; font-weight: 700; }
 @media (max-width: 760px) { .boardBest { display: none; } .boardRow { gap: 10px; padding: 10px 12px; } }
+.storeBtn { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: #1d2633; color: #f6d77e; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.storeBtn:hover { background: #0f1620; }

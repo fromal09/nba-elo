@@ -5,7 +5,7 @@ import { LEAGUE_SETS, leagueEntries } from './Binders'
 import { BinderHost, primeBinders, binderJSON, binderHeadshots, binderTeamInfo, binderLogo } from './SeasonExplorer'
 import PlayerSearch from './PlayerSearch'
 import { norm } from './predict'
-import { useCollector, CardFace, Meter } from './Collector'
+import { useCollector, CardFace, Meter, Coin } from './Collector'
 
 /*
  * The Binders page: every binder in one room. League-wide sets (title clinchers, greatest debuts...),
@@ -41,7 +41,7 @@ function Cover({ def, list, env, onOpen, owned }) {
   )
 }
 
-export default function BinderRoom({ players, onSelectPlayer, mineTick }) {
+export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTick }) {
   const [index, setIndex] = useState(null)
   const [league, setLeague] = useState(null)
   const [err, setErr] = useState(false)
@@ -57,6 +57,7 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick }) {
     fetch('/api/collect?action=leaders', { credentials: 'same-origin' }).then(r => r.json()).then(d => !d.error && setLeaders(d)).catch(() => {})
   }, [C.down, C.me === undefined, meScore])
   useEffect(() => { if (mineTick && C.me) setOpen({ kind: 'mine' }) }, [mineTick, !!C.me])
+  useEffect(() => { if (storeTick && C.me) setOpen({ kind: 'store' }) }, [storeTick, !!C.me])
   useEffect(() => {
     binderJSON('/data/explorer/index.json').then(setIndex).catch(() => {})
     binderJSON('/data/explorer/binders/league.json').then(setLeague).catch(() => setErr(true))
@@ -98,6 +99,7 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick }) {
               ? <button type="button" className={styles.goldBtn} onClick={() => C.resume(C.me.open[0].id)}>Finish your pack · {C.me.open[0].picked}/{C.me.open[0].total}</button>
               : !C.me.today.claimed && <button type="button" className={styles.goldBtn} onClick={() => C.claim()}>{C.me.today.bonusToday ? 'Open 2 packs' : 'Open today’s pack'}</button>}
             {!C.me.week.claimed && <button type="button" className={styles.teamBtn2} onClick={() => C.openTeam()}>Weekly team pack</button>}
+            <button type="button" className={styles.storeBtn} onClick={() => setOpen({ kind: 'store' })}><Coin size={18} />Store · {(C.me.coins?.balance ?? 0).toLocaleString()}</button>
             <button type="button" className={styles.navyBtn} onClick={() => setOpen({ kind: 'mine' })}>Open my binder</button>
           </div>
           <div className={styles.mineMeter}><Meter meter={C.me.meter} /></div>

@@ -13,7 +13,7 @@ import Daily from './components/Daily'
 import SeasonExplorer from './components/SeasonExplorer'
 import TimeMachine from './components/TimeMachine'
 import BinderRoom from './components/BinderRoom'
-import { CollectorProvider } from './components/Collector'
+import { CollectorProvider, useCollector } from './components/Collector'
 import Methodology from './components/Methodology'
 import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
@@ -41,6 +41,8 @@ export default function App() {
   const [view, setView] = useState(viewFromPath)
   const [mineTick, setMineTick] = useState(0) // asks the Binders page to open My binder
   const openMine = () => { setView('binders'); setMineTick(t => t + 1) }
+  const [storeTick, setStoreTick] = useState(0) // ... or the store
+  const openStore = () => { setView('binders'); setStoreTick(t => t + 1) }
 
   useEffect(() => {
     const path = PATHS[view] || '/'
@@ -99,7 +101,8 @@ export default function App() {
   )
 
   return (
-    <CollectorProvider onOpenMine={openMine}>
+    <CollectorProvider onOpenMine={openMine} onOpenStore={openStore}>
+    <ExploreCoins view={view} profile={!!selectedPlayer} />
     <div className={styles.app}>
       <FanSidedHeader />
       {view !== 'home' && (
@@ -153,7 +156,7 @@ export default function App() {
           onMode={m => setView(m === 'today' ? 'scoreboard' : 'explorer')} />
       )}
       {view === 'timemachine' && <TimeMachine />}
-      {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} mineTick={mineTick} />}
+      {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} mineTick={mineTick} storeTick={storeTick} />}
       {view === 'methodology' && <Methodology />}
 
       {selectedPlayer && !histReady && (
@@ -173,3 +176,12 @@ export default function App() {
   )
 }
 
+
+// Coins for exploring: each part of the site, once a day (the server caps it)
+function ExploreCoins({ view, profile }) {
+  const C = useCollector()
+  const signedIn = !!C.me
+  useEffect(() => { if (signedIn && view !== 'home' && view !== 'binders') C.explore(view === 'explorer' ? 'explorer' : view) }, [view, signedIn])
+  useEffect(() => { if (signedIn && profile) C.explore('profile') }, [profile, signedIn])
+  return null
+}
