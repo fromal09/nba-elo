@@ -3,7 +3,8 @@ import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
 import PlayerCard, { MiniCard, DuelCard, DuelModal, tierFor, momentsFor, setFirstGameLookup } from './PlayerCard'
-import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder } from './Binders'
+import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder, CollectionBinder } from './Binders'
+import { useCollector } from './Collector'
 import { buildForecaster, blendWeight, norm } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
 import { watchDay, useLiveFeeds, computeLive, gameKey, liveDaysAfter } from './liveFeed.js'
@@ -2681,7 +2682,9 @@ export function primeBinders(players, index, best) {
   setFirstGameLookup(n => byName[n]?.team_history?.[0]?.[0] || null)
   NEWEST = index?.seasons[0]?.season || NEWEST
 }
-export { getJSON as binderJSON, getHeadshots as binderHeadshots, teamInfo as binderTeamInfo, logoUrl as binderLogo }
+// A current franchise's logo, by code (no season context needed)
+const currentLogo = code => (ESPN_LOGO[code] ? `https://a.espncdn.com/i/teamlogos/nba/500/${ESPN_LOGO[code]}.png` : null)
+export { getJSON as binderJSON, getHeadshots as binderHeadshots, teamInfo as binderTeamInfo, currentLogo as binderLogo }
 
 // Opens one binder and keeps a back stack, so closing a binder opened from another returns to it
 export function BinderHost({ start, shots, onClose, onProfile }) {
@@ -2691,7 +2694,9 @@ export function BinderHost({ start, shots, onClose, onProfile }) {
   const top = stack[stack.length - 1]
   const push = b => setStack(st => [...st, b])
   const back = () => (stack.length > 1 ? setStack(st => st.slice(0, -1)) : onClose())
+  const collector = useCollector()
   const env = useMemo(() => ({
+    collector, owned: collector.me ? collector.owned : null,
     loadSeason: label => loadSeason(label, label === NEWEST), withTeams, teamInfo, champion, careerSeasons, nightScore, getJSON, slug: rivalSlug, dayDuels: seasonDuels,
     franchiseOf: t => MERGE_FRANCHISE[t] || t,
     cardGameInfo, headshot: n => shots?.[norm(n)]?.headshot,
@@ -2703,13 +2708,14 @@ export function BinderHost({ start, shots, onClose, onProfile }) {
         onCareer={top.kind !== 'career' ? () => { close(); push({ kind: 'career', name }) } : undefined} />
     },
     renderDuel: ({ kind, scope, an, bn, g, sd, onClose: close }) => <DuelView kind={kind} scope={scope} an={an} bn={bn} g={g} sd={sd} shots={shots} onClose={close} />,
-  }), [shots, top.kind])
+  }), [shots, top.kind, collector])
   const openSeason = (name, season) => env.loadSeason(season).then(sd => push({ kind: 'season', name, sd })).catch(() => {})
   const openTeam = (code, season) => env.loadSeason(season).then(sd => push({ kind: 'team', team: code, sd })).catch(() => {})
   if (top.kind === 'season') return <SeasonBinder key={stack.length} name={top.name} sd={top.sd} env={env} onClose={back} onCareer={n => push({ kind: 'career', name: n })} />
   if (top.kind === 'career') return <CareerBinder key={stack.length} name={top.name} env={env} onClose={back} onSeason={openSeason} />
   if (top.kind === 'team') return <TeamBinder key={stack.length} team={top.team} sd={top.sd} env={env} onClose={back} onFranchise={code => push({ kind: 'franchise', code })} />
   if (top.kind === 'franchise') return <FranchiseBinder key={stack.length} code={top.code} env={env} onClose={back} onSeason={openTeam} />
+  if (top.kind === 'mine') return <CollectionBinder key={stack.length} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} />
   if (top.kind === 'league') return <LeagueBinder key={stack.length} set={top.set} env={env} onClose={back} onCareer={n => push({ kind: 'career', name: n })} />
   return null
 }

@@ -69,6 +69,7 @@
 .navBtn.active { background: rgba(255,255,255,0.1); color: #fff; }
 
 .search { flex-shrink: 0; margin-left: auto; }
+.account { flex-shrink: 0; }
 .right {
   flex-shrink: 0;
 }

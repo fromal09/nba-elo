@@ -1,7 +1,8 @@
 import PlayerSearch from './PlayerSearch'
+import { AccountBar } from './Collector'
 import { CURRENT_SEASON_YEAR } from '../season'
 
-export default function Homepage({ data, setView, onSelectPlayer }) {
+export default function Homepage({ data, setView, onSelectPlayer, onMine }) {
   const active = data.players
     .filter(p => p.is_fpr_eligible)
     .sort((a, b) => b.current_elo - a.current_elo)
@@ -147,6 +148,7 @@ export default function Homepage({ data, setView, onSelectPlayer }) {
           Every game. Every player. Measured properly.
         </p>
         {onSelectPlayer && <div style={{ display: 'flex', justifyContent: 'center' }}><PlayerSearch players={data.players} onSelect={onSelectPlayer} variant="hero" /></div>}
+        <div style={{ display: 'flex', justifyContent: 'center', margin: '-16px 0 32px' }}><AccountBar onMine={onMine} /></div>
 
         {/* Rankings card */}
         <div style={{

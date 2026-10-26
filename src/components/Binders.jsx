@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
 import styles from './Binders.module.css'
 import { MiniCard, DuelCard, tierFor, TIERS, momentsFor } from './PlayerCard'
+import { Meter, CURRENT_TEAMS } from './Collector'
 
 /*
  * Binders: a player's season (A), a player's career (C shelf + D album), a team's season (F) and a franchise (G).
@@ -72,9 +73,14 @@ function Pocket({ e, name, env, onPull, pulled, album }) {
             : <Fit><MiniCard name={e.name || name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name || name)} slab={slabFor(e, album)} /></Fit>}
         <span className={styles.glare} />
       </button>
+      {e.owned && <span className={styles.ownedMark} title="In your binder">✓</span>}
       <div className={styles.pocketLab}>
         <span>{e.label}</span>
-        {e.sub && <span style={{ color: e.subColor }}>{e.sub}</span>}
+        {e.sub && !e.showMode && <span style={{ color: e.subColor }}>{e.sub}</span>}
+        {e.showMode && e.pinned && <button type="button" className={`${styles.showBtn} ${e.shown ? styles.showOn : ''}`} aria-pressed={!!e.shown}
+          title={e.shown ? 'Take out of your showcase' : 'Put in your showcase'} onClick={() => e.onShow(e)}>{e.shown ? 'In showcase' : 'Showcase'}</button>}
+        {e.onPin && <button type="button" className={`${styles.pin} ${e.pinned ? styles.pinOn : ''}`} aria-pressed={!!e.pinned}
+          title={e.pinned ? 'Take out of your Starred binder' : 'Star: add to your Starred binder'} onClick={() => e.onPin(e)}>{e.pinned ? '★' : '☆'}</button>}
       </div>
     </div>
   )
@@ -91,7 +97,7 @@ function useSheets(list, per) {
   return { cur, sheets, go, jump, dir, page: list.slice(cur * per, cur * per + per), reset: () => setSheet(0) }
 }
 
-function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, phone, album }) {
+function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, phone, album, filters }) {
   const touch = useRef(null)
   return (
     <div className={styles.right}>
@@ -100,6 +106,7 @@ function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, pho
         {tools}
       </div>
       {tabs && phone && <div className={styles.chips}>{tabs}</div>}
+      {filters && <div className={`${styles.chips} ${styles.filters}`}>{filters}</div>}
       <div className={styles.sheetBody}
         onTouchStart={ev => { touch.current = ev.touches[0].clientX }}
         onTouchEnd={ev => { if (touch.current == null) return; const dx = ev.changedTouches[0].clientX - touch.current; if (Math.abs(dx) > 50) S.go(dx < 0 ? 1 : -1); touch.current = null }}>
@@ -236,7 +243,7 @@ function SmallCard({ e, name, env, onPull, title, line, sub }) {
 }
 
 // A card from a pipeline index (career / franchise files) in the shape a pocket needs
-function fromIndex(env, c, extra = {}) {
+export function fromIndex(env, c, extra = {}) {
   const team = env.teamInfo(c.t, c.tn, c.tc), opp = env.teamInfo(c.o, c.on, c.oc)
   return {
     key: `${c.s}|${c.id}|${c.row.n}`, name: c.row.n, row: c.row, post: !!c.band, season: c.s, id: c.id, tier: tierOfRow(c.row),
@@ -813,7 +820,8 @@ export function leagueEntries(env, def, list) {
     const sub = { titles: `${c.s}`, games: `${r.gs} GmSc`, debuts: `${r.gs} GmSc`, stat: featLine(r), crowns: fullDay(c.date),
       peaks: `Elo ${r0(r.post)}`, swings: sgn(r.post - r.pre) }[def.id]
     const label = def.id === 'titles' ? `${shortName(r.n)} · ${abbr}` : def.chrono ? shortName(r.n) : `${i + 1}. ${shortName(r.n)}`
-    return fromIndex(env, c, { rank: i + 1, date: c.date, gs: r.gs || 0, label, sub, subColor: def.id === 'swings' ? '#1a7a4a' : undefined })
+    return fromIndex(env, c, { rank: i + 1, date: c.date, gs: r.gs || 0, label, sub, subColor: def.id === 'swings' ? '#1a7a4a' : undefined,
+      owned: !!env.owned?.has(`${c.s}|${c.id}|${r.n}`) })
   })
 }
 
@@ -846,6 +854,7 @@ export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
   const switchSet = id => { setSet(id); setOrder('set'); S.reset() }
   const left = <>
     <p className={styles.line}>{def.desc}{years ? ` ${years[0].slice(0, 4)}–${years[1].slice(0, 4)}.` : ''}</p>
+    {!def.duel && env.owned && <div className={styles.ownLine}><b>{entries.filter(e => e.owned).length}</b> of {entries.length} in your binder</div>}
     <div className={styles.stats}>
       <div><b>{entries.length}</b><small>Cards</small></div>
       <div><b>{people.size}</b><small>Players</small></div>
@@ -870,6 +879,147 @@ export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
     <Book tc={def.color} phone={phone} onClose={onClose} head={head} left={left} right={right}
       summary={<span><b>{entries.length} cards</b> · {def.desc}</span>}
       onKey={e => { if (P.open) return true; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
+    {P.view}
+  </>
+}
+
+// ── My binder: every card you've pulled, sorted by franchise and decade, your Starred binder, set progress ──
+const TIER_RANK = Object.fromEntries(TIER_IDS.map((t, i) => [t, i]))
+const MERGE_ABA = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
+const decadeOf = s => `${s.slice(0, 3)}0s`
+
+export function CollectionBinder({ env, onClose, onLeague }) {
+  const phone = useIsPhone()
+  const per = phone ? 6 : 9
+  const C = env.collector
+  const [view, setView] = useState('all')   // all | team | decade | starred | sets
+  const [group, setGroup] = useState(null)  // the franchise or decade shown
+  const [order, setOrder] = useState('new')
+  const [league, setLeague] = useState(null)
+  useEffect(() => { env.getJSON('/data/explorer/binders/league.json').then(setLeague).catch(() => {}) }, [])
+  const P = usePull(env, null)
+  const me = C.me
+  const starred = new Set(me?.user.starred || [])
+  const showIds = me?.user.showcaseIds || []
+  const fr = useMemo(() => Object.fromEntries((league?.franchises || []).map(f => [f.code, f])), [league])
+  const all = useMemo(() => C.cards.map(x => {
+    const fc = MERGE_ABA[x.card.t] || x.card.t
+    return fromIndex(env, x.card, {
+      key: `c${x.id}`, cardId: x.id, tier: x.card.tier, gs: x.card.row.gs || 0, date: x.card.date, fc, decade: decadeOf(x.card.s),
+      label: shortName(x.card.row.n), sub: x.card.s, pinned: starred.has(x.id), onPin: e => C.star(e.cardId, !e.pinned),
+      shown: showIds.includes(x.id), onShow: e => C.showcase(e.cardId, !e.shown),
+    })
+  }), [C.cards, env, me?.user.starred.join(), showIds.join()])
+  // Franchise and decade shelves, with counts
+  const groups = useMemo(() => {
+    const by = (k, name) => { const m = new Map(); all.forEach(e => m.set(e[k], (m.get(e[k]) || 0) + 1)); return [...m].map(([id, n]) => ({ id, n, name: name(id) })) }
+    return {
+      team: by('fc', id => fr[id]?.name || all.find(e => e.fc === id)?.team.name || id).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)),
+      decade: by('decade', id => id).sort((a, b) => a.id.localeCompare(b.id)),
+    }
+  }, [all, fr])
+  const cur = view === 'team' || view === 'decade' ? (groups[view].find(g => g.id === group) || groups[view][0]) : null
+  const list = useMemo(() => {
+    let l = view === 'starred' ? all.filter(e => e.pinned).map(e => ({ ...e, showMode: true })) : cur ? all.filter(e => (view === 'team' ? e.fc : e.decade) === cur.id) : all
+    if (order === 'tier') l = [...l].sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier] || b.gs - a.gs)
+    else if (order === 'best') l = [...l].sort((a, b) => b.gs - a.gs)
+    else if (order === 'chrono') l = [...l].sort((a, b) => a.date.localeCompare(b.date))
+    return l
+  }, [all, view, cur, order])
+  const S = useSheets(list, per)
+  const pickView = v => { setView(v); setGroup(null); S.reset() }
+  if (!me) return null
+  const fav = me.user.favoriteTeam
+  const tc = fav ? env.teamInfo(fav).color : '#173657'
+  const counts = TIER_IDS.map(t => all.filter(e => e.tier === t).length)
+  const t = me.today
+  const show = showIds.map(id => all.find(e => e.cardId === id)).filter(Boolean)
+  const open = me.open?.[0]
+  const packRow = (
+    <div className={styles.packRow}>
+      {open ? <button type="button" className={styles.packCta} onClick={() => C.resume(open.id)}>Finish your {open.kind === 'team' ? 'team ' : ''}pack · {open.picked}/{open.total}</button>
+        : !t.claimed && <button type="button" className={styles.packCta} onClick={() => C.claim()}>{t.bonusToday ? 'Open today’s pack + streak bonus' : 'Open today’s pack'}</button>}
+      {!me.week.claimed
+        ? <button type="button" className={styles.teamCta} onClick={() => C.openTeam()}>Weekly team pack · pick a team</button>
+        : <span className={styles.light}>Next team pack {fullDay(me.week.next)}</span>}
+    </div>
+  )
+  const head = <>
+    <div className={styles.kicker}>My binder</div>
+    <h2 className={styles.title} style={{ color: tc }}>{me.user.username}</h2>
+    <div className={styles.headRow}>
+      <select className={styles.favSel} value={fav || ''} onChange={e => C.saveProfile({ favoriteTeam: e.target.value || null })} aria-label="Favorite team">
+        <option value="">Favorite team…</option>
+        {CURRENT_TEAMS.map(code => <option key={code} value={code}>{env.teamInfo(code).name}</option>)}
+      </select>
+      <button type="button" className={styles.linkBtn} onClick={() => { C.signOut(); onClose() }}>Sign out</button>
+    </div>
+    {phone && packRow}
+  </>
+  const left = <>
+    <div className={styles.stats}>
+      <div><b>{me.stats.cards}</b><small>Cards</small></div>
+      <div><b>{starred.size}</b><small>Starred</small></div>
+      <div><b>{t.streak}</b><small>Day streak</small></div>
+      <div className={styles.statWide}><b>{t.claimed ? `${t.untilBonus} day${t.untilBonus === 1 ? '' : 's'}` : 'Today'}</b><small>{t.claimed ? 'to a streak bonus' : 'pack waiting'}</small></div>
+    </div>
+    {!phone && packRow}
+    <div className={styles.meterBox}><Meter meter={me.meter} /></div>
+    <div className={styles.boxLab}>Showcase · three of your starred cards</div>
+    <div className={styles.showcase}>
+      {[0, 1, 2].map(i => show[i]
+        ? <button key={show[i].key} type="button" className={styles.pocketBtn} onClick={() => P.pull(show[i])} aria-label="Open card"><Fit><MiniCard name={show[i].name} row={show[i].row} game={show[i].game} team={show[i].team} headshot={env.headshot(show[i].name)} /></Fit></button>
+        : <button key={i} type="button" className={styles.showEmpty} onClick={() => pickView('starred')} title="Choose from your starred cards"><span>+</span><small>{starred.size ? 'Pick from Starred' : 'Star cards first'}</small></button>)}
+    </div>
+    <div className={styles.boxLab}>Pulls by tier</div>
+    <TierTally counts={counts} />
+  </>
+  const views = [['all', 'All'], ['team', 'Franchises'], ['decade', 'Decades'], ['starred', `Starred · ${starred.size}`], ['sets', 'Sets']]
+  const tools = <Seg value={view} onChange={pickView} options={views} />
+  let right
+  if (view === 'sets') {
+    right = (
+      <div className={styles.right}>
+        <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Set progress</b><span>league binders you’re filling</span></div>{tools}</div>
+        <div className={styles.sets}>
+          {LEAGUE_SETS.filter(d => !d.duel).map(d => {
+            const l = league?.sets[d.id] || []
+            const have = l.filter(c => C.owned.has(`${c.s}|${c.id}|${c.row.n}`)).length
+            return (
+              <button key={d.id} type="button" className={styles.setRow} style={{ '--c': d.color }} onClick={() => onLeague?.(d.id)}>
+                <i /><span><b>{d.title}</b><small>{d.desc}</small></span>
+                <span className={styles.setBar}><em style={{ width: `${l.length ? (have / l.length) * 100 : 0}%` }} /></span>
+                <strong>{have}<small>/{l.length || '—'}</small></strong>
+              </button>
+            )
+          })}
+          <p className={styles.light}>Every card you keep counts toward the sets it belongs to. The franchise and player binders mark your cards too.</p>
+        </div>
+      </div>
+    )
+  } else if (!all.length) {
+    right = <div className={styles.right}><div className={styles.sheetHead}><div className={styles.sheetTitle}><b>My binder</b></div>{tools}</div>
+      <div className={styles.emptySheet}><b>No cards yet</b><span>Open today’s pack to start your binder.</span></div></div>
+  } else {
+    const filters = <>
+      <select className={styles.sortSel} value={order} onChange={e => { setOrder(e.target.value); S.reset() }} aria-label="Sort">
+        <option value="new">Newest pulls</option><option value="tier">Rarest first</option><option value="best">Best Game Score</option><option value="chrono">By game date</option>
+      </select>
+      {cur && groups[view].map(g => (
+        <button key={g.id} type="button" className={`${styles.chip} ${g.id === cur.id ? styles.chipOn : ''}`} onClick={() => { setGroup(g.id); S.reset() }}>{g.name}<span>{g.n}</span></button>
+      ))}
+    </>
+    right = list.length
+      ? <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone} tools={tools} filters={filters}
+        title={cur ? cur.name : view === 'starred' ? 'Starred' : `Sheet ${S.cur + 1} of ${S.sheets}`}
+        sub={`${list.length} card${list.length === 1 ? '' : 's'}${cur || view === 'starred' ? ` · sheet ${S.cur + 1} of ${S.sheets}` : ''}`} />
+      : <div className={styles.right}><div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Starred</b></div>{tools}</div>
+        <div className={styles.emptySheet}><b>Nothing starred yet</b><span>Tap ☆ under any card to put it in your Starred binder. Star as many as you like, then tap Showcase on up to three to feature them.</span></div></div>
+  }
+  return <>
+    <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right}
+      summary={<span><b>{me.stats.cards} cards</b> · {t.streak}-day streak</span>}
+      onKey={e => { if (P.open) return true; if (view === 'sets') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}
   </>
 }

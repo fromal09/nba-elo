@@ -13,6 +13,7 @@ import Daily from './components/Daily'
 import SeasonExplorer from './components/SeasonExplorer'
 import TimeMachine from './components/TimeMachine'
 import BinderRoom from './components/BinderRoom'
+import { CollectorProvider } from './components/Collector'
 import Methodology from './components/Methodology'
 import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
@@ -38,6 +39,8 @@ export default function App() {
     return Object.keys(PATHS).find(v => PATHS[v] === p) || 'home'
   }
   const [view, setView] = useState(viewFromPath)
+  const [mineTick, setMineTick] = useState(0) // asks the Binders page to open My binder
+  const openMine = () => { setView('binders'); setMineTick(t => t + 1) }
 
   useEffect(() => {
     const path = PATHS[view] || '/'
@@ -96,12 +99,13 @@ export default function App() {
   )
 
   return (
+    <CollectorProvider onOpenMine={openMine}>
     <div className={styles.app}>
       <FanSidedHeader />
       {view !== 'home' && (
-        <Nav meta={data} live={live} view={view} setView={setView} players={players} onSelectPlayer={setSelectedPlayer} />
+        <Nav meta={data} live={live} view={view} setView={setView} players={players} onSelectPlayer={setSelectedPlayer} onMine={openMine} />
       )}
-      {view === 'home' && <Homepage data={{ ...data, players }} setView={setView} onSelectPlayer={setSelectedPlayer} />}
+      {view === 'home' && <Homepage data={{ ...data, players }} setView={setView} onSelectPlayer={setSelectedPlayer} onMine={openMine} />}
       {waiting && (
         <div className={styles.splash} style={{ minHeight: '50vh' }}>
           <div className={styles.splashInner}>
@@ -149,7 +153,7 @@ export default function App() {
           onMode={m => setView(m === 'today' ? 'scoreboard' : 'explorer')} />
       )}
       {view === 'timemachine' && <TimeMachine />}
-      {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} />}
+      {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} mineTick={mineTick} />}
       {view === 'methodology' && <Methodology />}
 
       {selectedPlayer && !histReady && (
@@ -165,6 +169,7 @@ export default function App() {
         />
       )}
     </div>
+    </CollectorProvider>
   )
 }
 

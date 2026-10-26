@@ -24,7 +24,7 @@ Player of the Game / Day and playoff rounds match the site's own rules (markHono
        "sets": {"titles", "debuts", "games", "stat", "crowns", "peaks", "swings": [card, ...],
                 "slayers", "duels": [{"k", "s", "id", "date", "a": card, "b": card, "gap"|"sum"}]}}
 
-Run after build_timemachine.py:  python3 scripts/build_binders.py
+Run after build_timemachine.py:  python3 scripts/build_binders.py   (also builds the pack pool, build_packs.py)
 """
 import heapq, itertools, json, sys
 from collections import defaultdict
@@ -376,3 +376,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # The daily-pack card pool reads the same season files; build it in the same step (nightly included)
+    from build_packs import main as build_packs
+    build_packs()

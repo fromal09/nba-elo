@@ -5,6 +5,7 @@ import { LEAGUE_SETS, leagueEntries } from './Binders'
 import { BinderHost, primeBinders, binderJSON, binderHeadshots, binderTeamInfo, binderLogo } from './SeasonExplorer'
 import PlayerSearch from './PlayerSearch'
 import { norm } from './predict'
+import { useCollector, CardFace, Meter } from './Collector'
 
 /*
  * The Binders page: every binder in one room. League-wide sets (title clinchers, greatest debuts...),
@@ -19,7 +20,7 @@ function Thumb({ children, w }) {
   return <span className={styles.thumb} style={{ width: w, height: 476 * k }}><span style={{ transform: `scale(${k})` }}>{children}</span></span>
 }
 
-function Cover({ def, list, env, onOpen }) {
+function Cover({ def, list, env, onOpen, owned }) {
   const peek = useMemo(() => leagueEntries(env, def, (list || []).slice(0, 3)), [list, def, env])
   return (
     <button type="button" className={styles.cover} style={{ '--c': def.color }} onClick={onOpen}>
@@ -27,7 +28,7 @@ function Cover({ def, list, env, onOpen }) {
         <small>League binder</small>
         <b>{def.title}</b>
         <span>{def.desc}</span>
-        <em>{list ? `${list.length} cards` : 'Loading…'}</em>
+        <em>{list ? `${list.length} cards` : 'Loading…'}{list && owned && !def.duel ? ` · you have ${list.filter(c => owned.has(`${c.s}|${c.id}|${c.row.n}`)).length}` : ''}</em>
       </span>
       <span className={styles.fan} aria-hidden="true">
         {peek.map((e, i) => (
@@ -40,7 +41,7 @@ function Cover({ def, list, env, onOpen }) {
   )
 }
 
-export default function BinderRoom({ players, onSelectPlayer }) {
+export default function BinderRoom({ players, onSelectPlayer, mineTick }) {
   const [index, setIndex] = useState(null)
   const [league, setLeague] = useState(null)
   const [err, setErr] = useState(false)
@@ -48,6 +49,8 @@ export default function BinderRoom({ players, onSelectPlayer }) {
   const [best, setBest] = useState(null)
   const [open, setOpen] = useState(null) // the binder to open: { kind, ... }
   const [past, setPast] = useState(false)
+  const C = useCollector()
+  useEffect(() => { if (mineTick && C.me) setOpen({ kind: 'mine' }) }, [mineTick, !!C.me])
   useEffect(() => {
     binderJSON('/data/explorer/index.json').then(setIndex).catch(() => {})
     binderJSON('/data/explorer/binders/league.json').then(setLeague).catch(() => setErr(true))
@@ -70,11 +73,45 @@ export default function BinderRoom({ players, onSelectPlayer }) {
           onSelect={p => setOpen({ kind: 'career', name: p.name })} />
       </header>
 
+      {!C.down && C.me !== undefined && <section className={styles.section}>
+        {C.me ? <div className={styles.mine}>
+          <div className={styles.mineWho}>
+            <span className={styles.avatar}>{C.me.user.username[0].toUpperCase()}</span>
+            <div>
+              <small>My binder</small>
+              <b>{C.me.user.username}</b>
+              <span>{C.me.stats.cards} cards · {C.me.today.streak}-day streak{C.me.user.favoriteTeam ? ` · ${binderTeamInfo(C.me.user.favoriteTeam).name}` : ''}</span>
+            </div>
+          </div>
+          <div className={styles.mineShow}>
+            {C.me.user.showcase.length ? C.me.user.showcase.map(x => <CardFace key={x.id} card={x.card} shots={shots} w={74} />)
+              : C.me.stats.best ? <CardFace card={C.me.stats.best.card} shots={shots} w={74} /> : null}
+          </div>
+          <div className={styles.mineBtns}>
+            {C.me.open?.length > 0
+              ? <button type="button" className={styles.goldBtn} onClick={() => C.resume(C.me.open[0].id)}>Finish your pack · {C.me.open[0].picked}/{C.me.open[0].total}</button>
+              : !C.me.today.claimed && <button type="button" className={styles.goldBtn} onClick={() => C.claim()}>{C.me.today.bonusToday ? 'Open 2 packs' : 'Open today’s pack'}</button>}
+            {!C.me.week.claimed && <button type="button" className={styles.teamBtn2} onClick={() => C.openTeam()}>Weekly team pack</button>}
+            <button type="button" className={styles.navyBtn} onClick={() => setOpen({ kind: 'mine' })}>Open my binder</button>
+          </div>
+          <div className={styles.mineMeter}><Meter meter={C.me.meter} /></div>
+        </div> : <div className={`${styles.mine} ${styles.mineOut}`}>
+          <div className={styles.mineWho}>
+            <span className={styles.avatar}>★</span>
+            <div><small>Start collecting</small><b>A free pack every day</b><span>Pick five cards, one of three at a time, from last night’s games and 80 years of history. Plus a weekly pack for the team you choose.</span></div>
+          </div>
+          <div className={styles.mineBtns}>
+            <button type="button" className={styles.goldBtn} onClick={() => C.openAuth('signup')}>Create an account</button>
+            <button type="button" className={styles.navyBtn} onClick={() => C.openAuth('login')}>Sign in</button>
+          </div>
+        </div>}
+      </section>}
+
       <section className={styles.section}>
         <div className={styles.head}><h2>League binders</h2><span>{league ? `${LEAGUE_SETS.length} sets · ${cards.toLocaleString()} cards` : ''}</span></div>
         {err ? <p className={styles.note}>The league binders aren’t built yet. They appear after the next data update.</p>
           : <div className={styles.covers}>
-            {LEAGUE_SETS.map(def => <Cover key={def.id} def={def} list={league?.sets[def.id]} env={env} onOpen={() => setOpen({ kind: 'league', set: def.id })} />)}
+            {LEAGUE_SETS.map(def => <Cover key={def.id} def={def} list={league?.sets[def.id]} env={env} owned={C.me ? C.owned : null} onOpen={() => setOpen({ kind: 'league', set: def.id })} />)}
           </div>}
       </section>
 

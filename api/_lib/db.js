@@ -1,0 +1,71 @@
+// Postgres for the card collection (Neon via the Vercel integration sets DATABASE_URL).
+// The schema creates itself on the first request after a cold start.
+import postgres from 'postgres'
+
+let sql = null
+let ready = null
+
+export function db() {
+  if (!sql) {
+    const url = process.env.DATABASE_URL || process.env.POSTGRES_URL
+    if (!url) throw Object.assign(new Error('The collection database isn’t connected yet (DATABASE_URL is missing).'), { status: 503 })
+    // Neon's pooled endpoint runs PgBouncer, which can't keep prepared statements
+    sql = postgres(url, { max: 1, prepare: false, idle_timeout: 20, connect_timeout: 10, onnotice: () => {} })
+  }
+  return sql
+}
+
+export function ensureSchema() {
+  if (!ready) {
+    const s = db()
+    ready = s.begin(async t => {
+      await t`create table if not exists users (
+        id serial primary key,
+        username text not null,
+        username_key text not null unique,
+        pass_hash text not null,
+        favorite_team text,
+        starred bigint[] not null default '{}',
+        showcase bigint[] not null default '{}',
+        streak int not null default 0,
+        last_claim date,
+        since_big int not null default 0,
+        created_at timestamptz not null default now())`
+      await t`create table if not exists sessions (
+        token_hash text primary key,
+        user_id int not null references users(id) on delete cascade,
+        expires_at timestamptz not null)`
+      await t`create table if not exists claims (
+        user_id int not null references users(id) on delete cascade,
+        day date not null,
+        kind text not null,
+        created_at timestamptz not null default now(),
+        primary key (user_id, day, kind))`
+      await t`create table if not exists packs (
+        id serial primary key,
+        user_id int not null references users(id) on delete cascade,
+        kind text not null,
+        day date not null,
+        team text,
+        slots jsonb not null,
+        picks int[] not null default '{}',
+        pity boolean not null default false,
+        status text not null default 'open',
+        opened_at timestamptz not null default now(),
+        done_at timestamptz)`
+      await t`create table if not exists cards (
+        id bigserial primary key,
+        user_id int not null references users(id) on delete cascade,
+        pack_id int not null references packs(id) on delete cascade,
+        tier text not null,
+        ref text not null,
+        card jsonb not null,
+        pulled_at timestamptz not null default now(),
+        unique (user_id, ref))`
+      await t`create index if not exists cards_user on cards (user_id, id desc)`
+      await t`create index if not exists packs_open on packs (user_id) where status = 'open'`
+      await t`create index if not exists sessions_user on sessions (user_id)`
+    }).catch(e => { ready = null; throw e })
+  }
+  return ready
+}
