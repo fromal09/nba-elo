@@ -845,3 +845,8 @@
 .tagSim { background: #f6ecd6; color: #7a5a12; border: 1px dashed #c9a24a; }
 .racePWho small.raceSim { color: #8a6c2a; font-style: italic; }
 .simNote { margin: 0; padding: 10px 14px; background: #fffaf0; border: 1px dashed #d9bf7f; border-radius: 10px; font-size: 12.5px; color: #5c4710; line-height: 1.45; }
+
+/* Box score story cards that open a duel card */
+.cardBtn { border-left: 0; border-right: 0; border-bottom: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; transition: transform .15s ease-out, box-shadow .15s ease-out; }
+.cardBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(23,54,87,.14); }
+.cardOpen { float: right; font-weight: 700; letter-spacing: .3px; text-transform: none; opacity: .75; }

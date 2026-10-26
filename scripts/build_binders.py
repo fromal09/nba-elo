@@ -5,7 +5,9 @@ Reads the Season Explorer files and timemachine.json (run build_timemachine.py f
 
   explorer/binders/p/<slug>.json   one per player (slug as in rivalries.py):
       {"name", "games", "seasons": [{"s", "teams", "n", "rs", "po", "tiers", "start", "end", "peak", "champ", "best"}],
-       "milestones": {"debut", "high_pts", "best_gs", "peak_elo", "best_rank", "swing", "title"}}
+       "milestones": {"debut", "high_pts", "best_gs", "peak_elo", "best_rank", "swing", "title"},
+       "duels": [{"k": "duel"|"slayer", "s", "id", "date", "a": card, "b": card}]}   a = the winner
+      Duel of the Day goes in both players' binders, Giant-Slayer of the Day in the winner's.
   explorer/binders/f/<CODE>.json   one per franchise:
       {"code", "name", "color", "titles", "seasons": [{"s", "name", "color", "w", "l", "pw", "pl", "champ", "potg", "best"}],
        "legends": [{"n", "peak", "s", "games"}], "signature": [card, ...], "records": {...},
@@ -17,9 +19,14 @@ A card is everything a card front needs: {"s", "id", "date", "t", "tn", "tc", "o
 Tiers count cards by the post-game league rank: GOAT top 5, Icon 20, Legend 50, Rare 125, Common the rest.
 Player of the Game / Day and playoff rounds match the site's own rules (markHonors, postBand).
 
+  explorer/binders/league.json     the Binders page: league-wide sets and the franchise list
+      {"franchises": [{"code", "name", "color", "titles", "first", "last", "active"}],
+       "sets": {"titles", "debuts", "games", "stat", "crowns", "peaks", "swings": [card, ...],
+                "slayers", "duels": [{"k", "s", "id", "date", "a": card, "b": card, "gap"|"sum"}]}}
+
 Run after build_timemachine.py:  python3 scripts/build_binders.py
 """
-import json, sys
+import heapq, itertools, json, sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -60,6 +67,76 @@ def honors(games):
         gid, top = max(ps, key=lambda x: night(x[1]))
         out[(gid, top["n"])] = "potd"
     return out
+
+
+def _mp(p):
+    return p.get("mp") or 0
+
+
+def _gs(p):
+    return p.get("gs") or 0
+
+
+def game_slayer(players):
+    """The least likely duel win in a game, as the site's gameSlayer: 12+ minutes each, a 10+ Game Score winner."""
+    best = None
+    for a in players:
+        for b in players:
+            if _mp(a) >= 12 and _mp(b) >= 12 and _gs(a) >= 10 and _gs(a) > _gs(b) and b["pre"] > a["pre"]:
+                if best is None or b["pre"] - a["pre"] > best[2]:
+                    best = (a, b, b["pre"] - a["pre"])
+    return best
+
+
+def game_duel(players):
+    """The top night score on each side, head to head, as the site's gameDuel. Winner = the higher Game Score."""
+    teams = list(dict.fromkeys(p["t"] for p in players))
+    if len(teams) != 2:
+        return None
+    tops = []
+    for t in teams:
+        top = None
+        for p in players:
+            if p["t"] == t and (top is None or night(p) > night(top)):
+                top = p
+        tops.append(top)
+    a, b = (tops[0], tops[1]) if _gs(tops[0]) >= _gs(tops[1]) else (tops[1], tops[0])
+    return (a, b, night(a) + night(b))
+
+
+def day_duels(games):
+    """Duel of the Day (highest combined night score) and Giant-Slayer of the Day (widest Elo gap), by date."""
+    out = {}
+    for g in games:
+        cur = out.setdefault(g["date"], {})
+        sl = game_slayer(g["players"])
+        if sl and ("slayer" not in cur or sl[2] > cur["slayer"][3]):
+            cur["slayer"] = (g, sl[0], sl[1], sl[2])
+        du = game_duel(g["players"])
+        if du and ("duel" not in cur or du[2] > cur["duel"][3]):
+            cur["duel"] = (g, du[0], du[1], du[2])
+    return out
+
+
+class Top:
+    """The n highest-scoring items seen, kept in a heap."""
+    def __init__(self, n=54):
+        self.n, self.h, self.c = n, [], itertools.count()
+
+    def add(self, score, make):
+        if len(self.h) < self.n:
+            heapq.heappush(self.h, (score, next(self.c), make()))
+        elif score > self.h[0][0]:
+            heapq.heapreplace(self.h, (score, next(self.c), make()))
+
+    def items(self):
+        return [x[2] for x in sorted(self.h, key=lambda x: (-x[0], x[1]))]
+
+
+def stat_feat(p):
+    """Rare stat lines for the league-wide stat set: 60 points, a quadruple-double, 40 rebounds, 25 assists."""
+    tens = sum(1 for k in ("pts", "trb", "ast", "stl", "blk") if (p.get(k) or 0) >= 10)
+    return (p.get("pts") or 0) >= 60 or tens >= 4 or (p.get("trb") or 0) >= 40 or (p.get("ast") or 0) >= 25
 
 
 def bands(games):
@@ -127,6 +204,7 @@ def main():
     champs = {(r[TC.index("s")], r[TC.index("t")]) for r in tm["teams"] if r[TC.index("champ")]}
 
     players = {}                     # name -> state
+    L = {"games": Top(), "swings": Top(), "slayers": Top(), "duels": Top(), "stat": [], "crowns": []}
     fr = defaultdict(lambda: {"seasons": [], "peak": {}, "games": defaultdict(int), "best_gs": None, "most_pts": None, "sig": {},
                               "first": None, "clinch": [], "peak_elo": None, "swing": None})
     files = sorted(EXP.glob("[12][0-9][0-9][0-9]-[0-9][0-9].json"))
@@ -178,6 +256,14 @@ def main():
                              ("best_rank", -(p["lrp"] if p.get("lrp") is not None else 1e9)), ("swing", p["post"] - p["pre"])):
                     if k not in ms or v > ms[k][0]:
                         ms[k] = (v, c or mk()); c = ms[k][1]
+                L["games"].add(gs, lambda: c or mk())
+                L["swings"].add(p["post"] - p["pre"], lambda: c or mk())
+                if stat_feat(p):
+                    L["stat"].append(c or mk())
+                # First time at No. 1, once he has 100 games (opening weeks of the first seasons rank tiny samples)
+                if p.get("lrp") == 1 and "crown" not in st and (p.get("gp") or 0) >= 100:
+                    st["crown"] = True
+                    L["crowns"].append(c or mk())
                 b = bnd.get((g["id"], p["t"]))
                 if b and b["champ"] and "title" not in ms:
                     ms["title"] = (0, c or mk())
@@ -202,6 +288,20 @@ def main():
                     potg[p["t"]][p["n"]] += 1
                 if p["t"] not in best_team or gs > best_team[p["t"]][0]:
                     best_team[p["t"]] = (gs, c or mk())
+        for day in day_duels(games).values():
+            for k in ("duel", "slayer"):
+                if k not in day:
+                    continue
+                g, a, b, _ = day[k]
+                entry = {"k": k, "s": season, "id": g["id"], "date": g["date"],
+                         "a": card(season, teams, g, a, bnd.get((g["id"], a["t"])), hon.get((g["id"], a["n"]))),
+                         "b": card(season, teams, g, b, bnd.get((g["id"], b["t"])), hon.get((g["id"], b["n"])))}
+                for who in ((a, b) if k == "duel" else (a,)):
+                    players[who["n"]].setdefault("duels", []).append(entry)
+                if k == "slayer":
+                    L["slayers"].add(_, lambda e=entry: {**e, "gap": round(_, 1)})
+                else:
+                    L["duels"].add(_gs(a) + _gs(b), lambda e=entry: {**e, "sum": round(_gs(a) + _gs(b), 1)})
         for t, info in teams.items():
             fc = MERGE.get(t, t)
             top = max(potg[t].items(), key=lambda x: x[1]) if potg[t] else None
@@ -230,7 +330,7 @@ def main():
                 s[k] = round(s[k], 1)
             seasons.append(s)
         out = {"name": name, "games": st["games"], "seasons": seasons,
-               "milestones": {k: v[1] for k, v in st["ms"].items()}}
+               "milestones": {k: v[1] for k, v in st["ms"].items()}, "duels": st.get("duels", [])}
         (OUT / "p" / f"{slug(name)}.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     for code, F in fr.items():
         if not F["seasons"]:
@@ -248,7 +348,30 @@ def main():
                            "best_gs": F["best_gs"][1], "most_pts": F["most_pts"][1]},
                "milestones": {"first": F["first"], "clinch": F["clinch"], "peak_elo": F["peak_elo"][1], "swing": F["swing"][1]}}
         (OUT / "f" / f"{code.replace('@', '_')}.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print(f"  Binders: {len(players):,} players, {len(fr)} franchises            ")
+    # League-wide sets for the Binders page
+    debuts = Top()
+    for st in players.values():
+        if "debut" in st["ms"]:
+            c = st["ms"]["debut"][1]
+            debuts.add(c["row"]["gs"] or 0, lambda c=c: c)
+    by_peak = sorted(players.values(), key=lambda st: -st["ms"]["peak_elo"][0])[:54]
+    titles = sorted((c for F in fr.values() for c in F["clinch"]), key=lambda c: c["date"])
+    # Current franchises: played this season or last (a season a few days old hasn't seen every team yet)
+    recent = {f.stem for f in files[-2:]}
+    franchises = []
+    for code, F in fr.items():
+        if not F["seasons"]:
+            continue
+        last = F["seasons"][-1]
+        franchises.append({"code": code, "name": last["name"], "color": last["color"], "titles": sum(1 for x in F["seasons"] if x["champ"]),
+                           "first": F["seasons"][0]["s"], "last": last["s"], "active": last["s"] in recent})
+    league = {"franchises": sorted(franchises, key=lambda x: x["name"]),
+              "sets": {"titles": titles, "debuts": debuts.items(), "games": L["games"].items(), "stat": L["stat"], "crowns": L["crowns"],
+                       "peaks": [st["ms"]["peak_elo"][1] for st in by_peak], "swings": L["swings"].items(),
+                       "slayers": L["slayers"].items(), "duels": L["duels"].items()}}
+    (OUT / "league.json").write_text(json.dumps(league, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"  Binders: {len(players):,} players, {len(fr)} franchises, league sets " +
+          ", ".join(f"{k} {len(v)}" for k, v in league["sets"].items()) + "            ")
 
 
 if __name__ == "__main__":

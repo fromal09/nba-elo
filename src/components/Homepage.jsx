@@ -1,6 +1,7 @@
+import PlayerSearch from './PlayerSearch'
 import { CURRENT_SEASON_YEAR } from '../season'
 
-export default function Homepage({ data, setView }) {
+export default function Homepage({ data, setView, onSelectPlayer }) {
   const active = data.players
     .filter(p => p.is_fpr_eligible)
     .sort((a, b) => b.current_elo - a.current_elo)
@@ -141,10 +142,11 @@ export default function Homepage({ data, setView }) {
         }}>
           Floor Performance<br />Rankings
         </h1>
-        <p style={{ fontSize: 15, color: '#a8c5a8', maxWidth: 520, margin: '0 auto 40px', lineHeight: 1.6 }}>
+        <p style={{ fontSize: 15, color: '#a8c5a8', maxWidth: 520, margin: '0 auto 28px', lineHeight: 1.6 }}>
           Era-adjusted Elo ratings, head-to-head dominance, and historical depth.
           Every game. Every player. Measured properly.
         </p>
+        {onSelectPlayer && <div style={{ display: 'flex', justifyContent: 'center' }}><PlayerSearch players={data.players} onSelect={onSelectPlayer} variant="hero" /></div>}
 
         {/* Rankings card */}
         <div style={{

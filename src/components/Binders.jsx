@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
 import styles from './Binders.module.css'
-import { MiniCard, tierFor, TIERS, momentsFor } from './PlayerCard'
+import { MiniCard, DuelCard, tierFor, TIERS, momentsFor } from './PlayerCard'
 
 /*
  * Binders: a player's season (A), a player's career (C shelf + D album), a team's season (F) and a franchise (G).
@@ -8,7 +8,7 @@ import { MiniCard, tierFor, TIERS, momentsFor } from './PlayerCard'
  * On a phone the book becomes one page: a summary you can open, then the pockets two across.
  *
  * env (from SeasonExplorer) supplies what lives there: loadSeason, withTeams, cardGameInfo, teamInfo,
- * renderCard (the full card modal), headshot, careerSeasons, getJSON, slug.
+ * renderCard (the full card modal), renderDuel (the duel card modal), dayDuels, headshot, careerSeasons, getJSON, slug.
  */
 
 const TIER_IDS = TIERS.map(t => t.id)
@@ -21,6 +21,12 @@ const fullDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { mon
 const baseName = n => n.replace(/\s*\(.*\)$/, '')
 const ordinal = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 >> 3 ^ 1 && n % 10) || 0] || 'th')
 const tierOfRow = row => tierFor(row.lrp ?? row.lr).id
+// A team's nickname for the duel cards: "Los Angeles Lakers" -> "Lakers"
+const nick = n => (/Trail Blazers$/.test(n || '') ? 'Trail Blazers' : (n || '').split(' ').pop())
+const DUEL_LABEL = { duel: 'Duel of the Day', slayer: 'Giant-Slayer of the Day' }
+const shortName = n => { const [f, ...r] = baseName(n).split(' '); return r.length ? `${f[0]}. ${r.join(' ')}` : f }
+// A duel side in the shape DuelCard needs: row, the team as it was, headshot
+const duelSide = (env, row, team) => ({ name: row.n, row, color: team.color, team: nick(team.name), abbr: team.abbr, headshot: env.headshot(row.n) })
 
 function useIsPhone() {
   const q = '(max-width: 760px)'
@@ -62,7 +68,8 @@ function Pocket({ e, name, env, onPull, pulled, album }) {
     <div className={`${styles.pocket} ${e.post ? styles.pocketPo : ''}`}>
       <button type="button" className={styles.pocketBtn} disabled={out} onClick={() => onPull(e)} aria-label={`${e.label}: open card`}>
         {out ? <span className={styles.pulledOut}><b>Pulled out</b><small>Close the card to put it back</small></span>
-          : <Fit><MiniCard name={e.name || name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name || name)} slab={slabFor(e, album)} /></Fit>}
+          : e.duel ? <Fit><DuelCard {...e.duel} /></Fit>
+            : <Fit><MiniCard name={e.name || name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name || name)} slab={slabFor(e, album)} /></Fit>}
         <span className={styles.glare} />
       </button>
       <div className={styles.pocketLab}>
@@ -240,15 +247,19 @@ function fromIndex(env, c, extra = {}) {
 
 // Pulling a card: the full card, flippable, with its season. Index cards load their season first.
 function usePull(env, sd, owner) {
-  const [pulled, setPulled] = useState(null) // { key, name, g, sd }
+  const [pulled, setPulled] = useState(null) // { key, name, g, sd, duel }
   const pull = e => {
-    if (e.g && sd) { setPulled({ key: e.key, name: e.name || owner, g: e.g, sd }); return }
+    const set = (g, s) => setPulled({ key: e.key, name: e.name || owner, g, sd: s, duel: e.duel ? { kind: e.duel.kind, an: e.duel.a.name, bn: e.duel.b.name } : null })
+    if (e.g && sd) { set(e.g, sd); return }
     env.loadSeason(e.season).then(s => {
       const g = s.games.find(x => x.id === e.id)
-      if (g) setPulled({ key: e.key, name: e.name || owner, g, sd: s })
+      if (g) set(g, s)
     }).catch(() => {})
   }
-  const view = pulled && <div onClick={ev => ev.stopPropagation()}>{env.renderCard({ name: pulled.name, g: pulled.g, sd: pulled.sd, onClose: () => setPulled(null) })}</div>
+  const close = () => setPulled(null)
+  const view = pulled && <div onClick={ev => ev.stopPropagation()}>{pulled.duel
+    ? env.renderDuel({ ...pulled.duel, scope: 'day', g: pulled.g, sd: pulled.sd, onClose: close })
+    : env.renderCard({ name: pulled.name, g: pulled.g, sd: pulled.sd, onClose: close })}</div>
   return { pulled: pulled?.key, pull, view, open: !!pulled }
 }
 
@@ -284,9 +295,31 @@ export function SeasonBinder({ name, sd: startSd, env, onClose, onCareer }) {
     }
     return list
   }), [name, sd, env])
-  const sorted = useMemo(() => order === 'chrono' ? entries
-    : order === 'best' ? [...entries].sort((a, b) => b.gs - a.gs)
-      : [...entries].sort((a, b) => TIER_IDS.indexOf(a.tier) - TIER_IDS.indexOf(b.tier) || b.gs - a.gs), [entries, order])
+  // Duel of the Day (both players) and Giant-Slayer of the Day (the winner) cards, each after its game
+  const cards = useMemo(() => env.withTeams(sd, () => {
+    const dd = env.dayDuels(sd), out = []
+    for (const e of entries) {
+      out.push(e)
+      const day = dd.get(e.g.date); if (!day) continue
+      for (const kind of ['duel', 'slayer']) {
+        const x = day[kind]
+        if (!x || x.g.id !== e.g.id || !(x.a.n === name || (kind === 'duel' && x.b.n === name))) continue
+        const me = x.a.n === name ? x.a : x.b, other = me === x.a ? x.b : x.a
+        out.push({
+          key: `${e.g.id}|${kind}`, g: e.g, row: me, gs: me.gs || 0, tier: kind, month: e.month, post: e.post, kind,
+          duel: { kind, scope: 'day', date: e.g.date, a: duelSide(env, x.a, env.teamInfo(x.a.t)), b: duelSide(env, x.b, env.teamInfo(x.b.t)) },
+          label: DUEL_LABEL[kind], sub: `${me === x.a ? (kind === 'slayer' ? 'beat' : 'over') : 'vs'} ${shortName(other.n)}`, subColor: me === x.a ? '#1a7a4a' : '#6b7783',
+        })
+      }
+    }
+    return out
+  }), [entries, name, sd, env])
+  const duelN = cards.filter(e => e.kind === 'duel').length, slayerN = cards.filter(e => e.kind === 'slayer').length
+  const HONOR_RANK = { duel: -2, slayer: -1 }
+  const rankOf = t => HONOR_RANK[t] ?? TIER_IDS.indexOf(t)
+  const sorted = useMemo(() => order === 'chrono' ? cards
+    : order === 'best' ? [...cards].sort((a, b) => b.gs - a.gs || !!a.duel - !!b.duel)
+      : [...cards].sort((a, b) => rankOf(a.tier) - rankOf(b.tier) || b.gs - a.gs), [cards, order])
   const S = useSheets(sorted, per)
   const last = entries[entries.length - 1]
   const team = last?.t, tinfo = team && sd.teams[team]
@@ -302,7 +335,12 @@ export function SeasonBinder({ name, sd: startSd, env, onClose, onCareer }) {
   const best = entries.reduce((b, e) => (!b || e.gs > b.gs ? e : b), null)
   const reg = entries.filter(e => !e.post).length, po = entries.length - reg
   const champ = env.champion(sd, team)
-  const shade = order === 'chrono' ? [S.cur * per, Math.min(entries.length, S.cur * per + per)] : null
+  // Shade the Elo path under this sheet's games (path index = game number)
+  const shade = useMemo(() => {
+    if (order !== 'chrono') return null
+    const idx = S.page.filter(e => !e.duel).map(e => entries.indexOf(e)).filter(i => i >= 0)
+    return idx.length ? [idx[0], idx[idx.length - 1] + 1] : null
+  }, [order, S.page, entries])
   const tabs = order === 'chrono' && monthTabs(sorted, per, S)
 
   const head = <>
@@ -322,8 +360,12 @@ export function SeasonBinder({ name, sd: startSd, env, onClose, onCareer }) {
     </div>}
     <div className={styles.boxLab}>Pulls by tier</div>
     <TierTally counts={counts} />
+    {(duelN > 0 || slayerN > 0) && <div className={styles.duelTally}>
+      {duelN > 0 && <span data-k="duel"><b>{duelN}</b> Duel of the Day</span>}
+      {slayerN > 0 && <span data-k="slayer"><b>{slayerN}</b> Giant-Slayer of the Day</span>}
+    </div>}
     <PathChart path={path} color={tc} shade={shade && [shade[0], shade[1]]} label="Elo through the season" />
-    <Checklist entries={sorted} per={per} cur={S.cur} onJump={S.jump} label={`Checklist · ${entries.length} cards`} />
+    <Checklist entries={sorted} per={per} cur={S.cur} onJump={S.jump} label={`Checklist · ${cards.length} cards`} />
     {best && <SmallCard e={best} name={name} env={env} onPull={P.pull} title="Best pull"
       line={`${day(best.g.date)} ${best.game.home === false ? '@' : 'vs'} ${best.game.oppAbbr} · ${best.row.pts ?? 0} pts, ${best.gs.toFixed(1)} Game Score`}
       sub={`${best.row.lrp ? `No. ${best.row.lrp} in the league that night · ` : ''}Elo ${sgn(best.d)}`} />}
@@ -335,7 +377,7 @@ export function SeasonBinder({ name, sd: startSd, env, onClose, onCareer }) {
     tools={<Seg value={order} onChange={v => { setOrder(v); S.reset() }} options={[['chrono', 'Chronological'], ['best', 'Best first'], ['tier', 'By tier']]} />} />
   return <>
     <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right} tabs={tabs}
-      summary={<span><b>{counts[0] ? `${counts[0]} ★ GOAT · ` : ''}{entries.length} cards</b>{tinfo ? ` · ${tinfo.w}–${tinfo.l}${champ ? ' · Champions' : ''}` : ''}</span>}
+      summary={<span><b>{counts[0] ? `${counts[0]} ★ GOAT · ` : ''}{cards.length} cards</b>{tinfo ? ` · ${tinfo.w}–${tinfo.l}${champ ? ' · Champions' : ''}` : ''}</span>}
       onKey={e => { if (P.open) return true; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}
   </>
@@ -363,6 +405,7 @@ export function CareerBinder({ name, env, onClose, onSeason }) {
   const [view, setView] = useState('shelf')
   const [sel, setSel] = useState(null)
   const [albumPage, setAlbumPage] = useState(0)
+  const [albumSet, setAlbumSet] = useState('best')
   const P = usePull(env, null, name)
   useEffect(() => {
     env.getJSON(`/data/explorer/binders/p/${env.slug(name)}.json`).then(d => { setData(d); setSel(d.seasons.reduce((b, s) => (!b || s.peak > b.peak ? s : b), null)?.s) }).catch(() => setErr(true))
@@ -407,6 +450,17 @@ export function CareerBinder({ name, env, onClose, onSeason }) {
     return fromIndex(env, c, { label: capText, cap: capText, capColor: col, sub: `${fullDay(c.date)} · ${env.teamInfo(c.o, c.on, c.oc).abbr}` })
   })
   const bests = vols.filter(v => v.best).map(v => fromIndex(env, v.best, { label: `${v.s} · ${env.teamInfo(v.best.t, v.best.tn).abbr}`, sub: `${v.best.row.gs} GmSc` }))
+  // Duel of the Day and Giant-Slayer of the Day cards across the career (from the pipeline's index)
+  const duels = (data.duels || []).map(d => {
+    const side = c => duelSide(env, c.row, env.teamInfo(c.t, c.tn, c.tc))
+    const me = d.a.row.n === name ? d.a : d.b, other = me === d.a ? d.b : d.a
+    return {
+      key: `${d.s}|${d.id}|${d.k}`, season: d.s, id: d.id, kind: d.k,
+      duel: { kind: d.k, scope: 'day', date: d.date, a: side(d.a), b: side(d.b) },
+      label: `${d.s} · ${d.k === 'slayer' ? 'Giant-Slayer' : 'Duel'}`, sub: `${me === d.a ? (d.k === 'slayer' ? 'beat' : 'over') : 'vs'} ${shortName(other.row.n)}`,
+      subColor: me === d.a ? '#1a7a4a' : '#6b7783',
+    }
+  })
 
   let left, right
   if (view === 'shelf') {
@@ -460,9 +514,15 @@ export function CareerBinder({ name, env, onClose, onSeason }) {
         ))}
       </div>
     </>
-    const per = phone ? 6 : 9, pages = Math.max(1, Math.ceil(bests.length / per)), pg = Math.min(albumPage, pages - 1)
-    const S = { cur: pg, sheets: pages, dir: 1, page: bests.slice(pg * per, pg * per + per), go: k => setAlbumPage(Math.max(0, Math.min(pages - 1, pg + k))), jump: setAlbumPage }
-    right = <Sheet S={S} per={per} name={name} env={env} onPull={P.pull} pulled={P.pulled} phone={phone} title="Best of every season" sub="highest Game Score each season" album="Season best" />
+    const set = albumSet === 'duels' && duels.length ? duels : bests
+    const per = phone ? 6 : 9, pages = Math.max(1, Math.ceil(set.length / per)), pg = Math.min(albumPage, pages - 1)
+    const S = { cur: pg, sheets: pages, dir: 1, page: set.slice(pg * per, pg * per + per), go: k => setAlbumPage(Math.max(0, Math.min(pages - 1, pg + k))), jump: setAlbumPage }
+    const nd = duels.filter(d => d.kind === 'duel').length, ns = duels.length - nd
+    right = <Sheet S={S} per={per} name={name} env={env} onPull={P.pull} pulled={P.pulled} phone={phone}
+      title={set === duels ? 'Duels' : 'Best of every season'}
+      sub={set === duels ? [nd && `${nd} Duel of the Day`, ns && `${ns} Giant-Slayer of the Day`].filter(Boolean).join(' · ') : 'highest Game Score each season'}
+      album={set === duels ? null : 'Season best'}
+      tools={duels.length > 0 && <Seg value={set === duels ? 'duels' : 'best'} onChange={v => { setAlbumSet(v); setAlbumPage(0) }} options={[['best', 'Season bests'], ['duels', `Duels · ${duels.length}`]]} />} />
   }
   return <>
     <Book tc={tc} phone={phone} stack onClose={onClose} head={head} left={left} right={right}
@@ -703,6 +763,112 @@ function FranchiseAlbum({ d, env, phone, head, tc, onClose, page, setPage }) {
   return <>
     <Book tc={tc} phone={phone} stack onClose={onClose} head={head} left={left} right={right}
       summary={<span><b>{d.titles.length} title{d.titles.length === 1 ? '' : 's'}</b> · {d.seasons.length} seasons</span>}
+      onKey={e => { if (P.open) return true; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
+    {P.view}
+  </>
+}
+
+// ── League binders: sets drawn from every season (built by build_binders.py into league.json) ──
+export const LEAGUE_SETS = [
+  { id: 'titles', title: 'Title clinchers', short: 'Clinchers', color: '#8a6414', chrono: true, album: 'Title clincher',
+    desc: 'The Player of the Game from every title-clinching game, NBA and ABA.' },
+  { id: 'games', title: 'Greatest games', short: 'Greatest games', color: '#1a5c3a', album: 'All-time great',
+    desc: 'The 54 highest Game Scores on record.' },
+  { id: 'debuts', title: 'Greatest debuts', short: 'Debuts', color: '#173657', album: 'Debut',
+    desc: 'The 54 best first games, by Game Score, graded against every debut on record.' },
+  { id: 'stat', title: 'Stat-line legends', short: 'Stat lines', color: '#6b2d8a', chrono: true,
+    desc: 'Every 60-point game, quadruple-double, 40-rebound game and 25-assist game on record.' },
+  { id: 'crowns', title: 'Coronations', short: 'Coronations', color: '#9a2a2a', chrono: true,
+    desc: 'The night each player first reached No. 1 in the Elo rankings (100 career games or more).' },
+  { id: 'peaks', title: 'Peak Elo', short: 'Peaks', color: '#2b4c72', album: 'Peak Elo',
+    desc: 'The 54 highest peak ratings ever: the card from the night each player hit his peak.' },
+  { id: 'swings', title: 'Biggest swings', short: 'Swings', color: '#0f6a6a',
+    desc: 'The 54 largest one-game Elo gains.' },
+  { id: 'slayers', title: 'Giant-Slayers', short: 'Giant-Slayers', color: '#7a5a10', duel: 'slayer',
+    desc: 'The 54 widest Elo gaps ever closed by a Giant-Slayer of the Day.' },
+  { id: 'duels', title: 'Greatest duels', short: 'Duels', color: '#0b5f9e', duel: 'duel',
+    desc: 'The 54 Duels of the Day with the highest combined Game Score.' },
+]
+
+const featLine = r => {
+  const v = k => r[k] || 0
+  const tens = ['pts', 'trb', 'ast', 'stl', 'blk'].filter(k => v(k) >= 10).length
+  if (tens >= 4) return `${tens === 5 ? 'Quintuple' : 'Quadruple'}-double`
+  if (v('pts') >= 60) return `${v('pts')} points`
+  if (v('trb') >= 40) return `${v('trb')} rebounds`
+  return `${v('ast')} assists`
+}
+
+export function leagueEntries(env, def, list) {
+  return list.map((c, i) => {
+    if (def.duel) {
+      const side = x => duelSide(env, x.row, env.teamInfo(x.t, x.tn, x.tc))
+      return {
+        key: `${c.s}|${c.id}|${c.k}`, season: c.s, id: c.id, kind: c.k, rank: i + 1, date: c.date, gs: c.sum ?? c.gap ?? 0, tier: c.k,
+        duel: { kind: c.k, scope: 'day', date: c.date, a: side(c.a), b: side(c.b) },
+        label: `${i + 1}. ${shortName(c.a.row.n)}`, sub: c.k === 'slayer' ? `gap ${r0(c.gap)}` : `${c.sum} GmSc`,
+      }
+    }
+    const r = c.row, abbr = env.teamInfo(c.t, c.tn, c.tc).abbr
+    const sub = { titles: `${c.s}`, games: `${r.gs} GmSc`, debuts: `${r.gs} GmSc`, stat: featLine(r), crowns: fullDay(c.date),
+      peaks: `Elo ${r0(r.post)}`, swings: sgn(r.post - r.pre) }[def.id]
+    const label = def.id === 'titles' ? `${shortName(r.n)} · ${abbr}` : def.chrono ? shortName(r.n) : `${i + 1}. ${shortName(r.n)}`
+    return fromIndex(env, c, { rank: i + 1, date: c.date, gs: r.gs || 0, label, sub, subColor: def.id === 'swings' ? '#1a7a4a' : undefined })
+  })
+}
+
+export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
+  const phone = useIsPhone()
+  const per = phone ? 6 : 9
+  const [data, setData] = useState(null)
+  const [err, setErr] = useState(false)
+  const [set, setSet] = useState(startSet || 'titles')
+  const [order, setOrder] = useState('set')
+  const P = usePull(env, null)
+  useEffect(() => { env.getJSON('/data/explorer/binders/league.json').then(setData).catch(() => setErr(true)) }, [])
+  const def = LEAGUE_SETS.find(x => x.id === set) || LEAGUE_SETS[0]
+  const entries = useMemo(() => (data ? leagueEntries(env, def, data.sets[def.id] || []) : []), [data, def, env])
+  const sorted = useMemo(() => order === 'set' ? entries
+    : order === 'chrono' ? [...entries].sort((a, b) => a.date.localeCompare(b.date))
+      : [...entries].sort((a, b) => b.gs - a.gs), [entries, order])
+  const S = useSheets(sorted, per)
+  const head = <>
+    <div className={styles.kicker}>League binder</div>
+    <h2 className={styles.title} style={{ color: def.color }}>{def.title}</h2>
+  </>
+  if (err || !data) {
+    return <Book tc={def.color} phone={phone} onClose={onClose} head={head}
+      left={<p className={styles.line}>{err ? 'The league binders aren’t built yet. They appear after the next data update.' : 'Loading…'}</p>} right={<div className={styles.right} />} />
+  }
+  const years = entries.length ? [entries.reduce((m, e) => (e.date < m ? e.date : m), entries[0].date), entries.reduce((m, e) => (e.date > m ? e.date : m), entries[0].date)] : null
+  const people = new Set(entries.map(e => (e.duel ? e.duel.a.name : e.name)))
+  const most = [...entries.reduce((m, e) => { const n = e.duel ? e.duel.a.name : e.name; m.set(n, (m.get(n) || 0) + 1); return m }, new Map())].sort((a, b) => b[1] - a[1])[0]
+  const switchSet = id => { setSet(id); setOrder('set'); S.reset() }
+  const left = <>
+    <p className={styles.line}>{def.desc}{years ? ` ${years[0].slice(0, 4)}–${years[1].slice(0, 4)}.` : ''}</p>
+    <div className={styles.stats}>
+      <div><b>{entries.length}</b><small>Cards</small></div>
+      <div><b>{people.size}</b><small>Players</small></div>
+      {most && most[1] > 1 && <div className={styles.statWide}><b>{most[1]}</b><small>Most: {baseName(most[0])}</small></div>}
+    </div>
+    {most && most[1] > 1 && onCareer && <button type="button" className={styles.linkBtn} onClick={() => onCareer(most[0])}>{baseName(most[0])}’s career binder</button>}
+    <div className={styles.boxLab}>League binders</div>
+    <div className={styles.setList}>
+      {LEAGUE_SETS.map(x => (
+        <button key={x.id} type="button" className={x.id === def.id ? styles.setOn : ''} style={{ '--c': x.color }} onClick={() => switchSet(x.id)}>
+          <i />{x.title}<span>{(data.sets[x.id] || []).length}</span>
+        </button>
+      ))}
+    </div>
+    <Checklist entries={sorted} per={per} cur={S.cur} onJump={S.jump} label={`Checklist · ${entries.length} cards`} />
+  </>
+  const options = def.chrono ? [['set', 'Chronological'], ['best', 'Best first']] : [['set', 'Ranked'], ['chrono', 'Chronological']]
+  const right = <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone}
+    title={`Sheet ${S.cur + 1} of ${S.sheets}`} sub={def.chrono && order === 'set' && S.page[0] ? `${S.page[0].date.slice(0, 4)} – ${S.page[S.page.length - 1].date.slice(0, 4)}` : ''}
+    album={def.album} tools={<Seg value={order} onChange={v => { setOrder(v); S.reset() }} options={options} />} />
+  return <>
+    <Book tc={def.color} phone={phone} onClose={onClose} head={head} left={left} right={right}
+      summary={<span><b>{entries.length} cards</b> · {def.desc}</span>}
       onKey={e => { if (P.open) return true; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}
   </>

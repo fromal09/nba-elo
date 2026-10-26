@@ -68,9 +68,9 @@
 .navBtn:hover { background: rgba(255,255,255,0.07); color: #fff; }
 .navBtn.active { background: rgba(255,255,255,0.1); color: #fff; }
 
+.search { flex-shrink: 0; margin-left: auto; }
 .right {
   flex-shrink: 0;
-  margin-left: auto;
 }
 .updated {
   font-size: 11px;

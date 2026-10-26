@@ -194,9 +194,10 @@ export function CardFront({ name, row, game, team, headshot }) {
           </div>
         </div>}
         {variant === 'stat' && <div className={styles.statFace}>
-          <div className={styles.statTop}><span className={styles.featTag}>{feats[0].label}</span><b>{fmtDay(game.date)}</b></div>
+          {/* Honored cards carry the date in the header placard; the numeral and its unit name the feat */}
+          {!game.honor && <div className={styles.statTop}><b>{fmtDay(game.date)}</b></div>}
           <div className={styles.statBig}>
-            <span style={{ fontSize: feats[0].big.length <= 2 ? 200 : feats[0].big.length <= 3 ? 156 : feats[0].big.length <= 5 ? 124 : feats[0].big.length <= 8 ? 88 : feats[0].big.length <= 11 ? 68 : 54 }}>{feats[0].big}</span>
+            <span style={{ '--fs': `${statSize(feats[0].big)}px` }}>{feats[0].big}</span>
             <small>{feats[0].unit}</small>
           </div>
           {feats.length > 1 && <div className={styles.statMore}>{feats.slice(1).map(f => <span key={f.key}>+ {f.label}</span>)}</div>}
@@ -243,7 +244,7 @@ export function CardFront({ name, row, game, team, headshot }) {
       {game.score && <div className={`${styles.scoreBar} ${game.won ? styles.barW : styles.barL}`}>
         <span className={game.won ? styles.barHi : styles.barLo}>{team?.abbr} {us}{rookie && <span className={styles.rc} title="Rookie season">RC</span>}</span>
         <em>Final{game.ot ? `/${game.ot}` : ''}</em>
-        <span className={game.won ? styles.barLo : styles.barHi}>{them} {game.oppAbbr}</span>
+        <span className={game.won ? styles.barLo : styles.barHi}>{game.oppAbbr} {them}</span>
       </div>}
       <div className={styles.strip}>
         <div className={styles.stripStats}>
@@ -261,6 +262,9 @@ export function CardFront({ name, row, game, team, headshot }) {
     </div>
   )
 }
+
+// Numeral size by length; the CSS scales it down further when a header band takes room
+const statSize = big => (big.length <= 2 ? 190 : big.length <= 3 ? 150 : big.length <= 5 ? 118 : big.length <= 8 ? 84 : big.length <= 11 ? 64 : 52)
 
 // Statistical feats that earn a stat-line insert, rarest first. Each: { key, label, big (the numerals), unit }
 const FEAT_CATS = [['pts', 'PTS'], ['trb', 'REB'], ['ast', 'AST'], ['stl', 'STL'], ['blk', 'BLK']]
@@ -285,28 +289,214 @@ export function featsFor(r) {
 /**
  * Duel cards: Giant-Slayer (the least likely duel win) and Duel (the top player on each side, head to head),
  * of the game (blue) or of the day (gold). a = the winner, b = the other player:
- * { name, row, color, abbr, team, headshot }. Drawn at full size (340 × 476) like MiniCard.
+ * { name, row, color, team, abbr, headshot }. Drawn at full size (340 × 476) like MiniCard.
+ * Headshots sit in corner medallions, so neither face runs under a name or the score chip.
  */
-export function DuelCard({ kind, scope, a, b, date }) {
-  const title = `${kind === 'slayer' ? 'Giant-Slayer' : 'Duel'} of the ${scope === 'day' ? 'Day' : 'Game'}`
-  const wc = 1 / (1 + 10 ** ((b.row.pre - a.row.pre) / 620))
-  const nm = n => { const [f, ...r] = baseName(n).split(' '); return { first: f, last: r.join(' ') || f } }
-  const A = nm(a.name), B = nm(b.name)
-  const face = (x, cls) => x.headshot ? <img className={cls} src={x.headshot} alt="" /> : <span className={styles.duelMono}>{baseName(x.name).split(' ').map(w => w[0]).slice(0, 2).join('')}</span>
+const initials = n => baseName(n).split(' ').map(w => w[0]).slice(0, 2).join('')
+const splitName = n => { const [f, ...r] = baseName(n).split(' '); return { first: f, last: r.join(' ') || f } }
+const duelChance = (a, b) => 1 / (1 + 10 ** ((b.row.pre - a.row.pre) / 620))
+const duelTitle = (kind, scope) => `${kind === 'slayer' ? 'Giant-Slayer' : 'Duel'} of the ${scope === 'day' ? 'Day' : 'Game'}`
+
+function Medal({ x, cls }) {
+  const [bad, setBad] = useState(false)
   return (
-    <div className={styles.duel} data-scope={scope}>
+    <span className={cls} style={{ '--c': x.color }}>
+      {x.headshot && !bad ? <img src={x.headshot} alt="" onError={() => setBad(true)} /> : <i>{initials(x.name)}</i>}
+    </span>
+  )
+}
+
+// Shrinks a name until it fits its box (measured unscaled, so it fits the same in a pocket)
+function useFit(ref, max, min, dep) {
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return
+    const fit = () => { let s = max; el.style.fontSize = s + 'px'; while (el.scrollWidth > el.clientWidth + 1 && s > min) el.style.fontSize = --s + 'px' }
+    fit(); document.fonts?.ready.then(fit)
+  }, [dep, max, min])
+}
+
+export function DuelCard({ kind, scope, a, b, date }) {
+  const title = duelTitle(kind, scope)
+  const wc = duelChance(a, b)
+  const A = splitName(a.name), B = splitName(b.name)
+  const ra = useRef(null), rb = useRef(null)
+  useFit(ra, 42, 20, a.name); useFit(rb, 30, 14, b.name)
+  return (
+    <div className={styles.duel} data-scope={scope} data-kind={kind}>
       <div className={styles.duelHead} data-long={title.length > 20 ? '' : undefined}>{title}</div>
       <div className={styles.duelBody}>
-        <div className={styles.duelTop} style={{ '--c': a.color }}>{face(a, styles.duelShotA)}</div>
-        <div className={styles.duelBot} style={{ '--c': b.color }}>{face(b, styles.duelShotB)}</div>
-        <div className={styles.duelA}><small>{A.first}</small><b>{A.last}</b><em>{a.team} · Elo {r0(a.row.pre)}</em></div>
+        <div className={styles.duelTop} style={{ '--c': a.color }}><span className={styles.duelWater}>{a.abbr}</span></div>
+        <div className={styles.duelBot} style={{ '--c': b.color }}><span className={styles.duelWater}>{b.abbr}</span></div>
+        <Medal x={a} cls={styles.duelMedA} />
+        <Medal x={b} cls={styles.duelMedB} />
         <div className={styles.duelAGs}><span>Winner</span><b>{f1(a.row.gs)}</b><small>Game Score</small></div>
+        <div className={styles.duelA}><small>{A.first}</small><b ref={ra}>{A.last}</b><em>{a.team} · Elo {r0(a.row.pre)}</em></div>
         <div className={styles.duelChip}>
           {kind === 'slayer' ? <><b>{Math.max(1, Math.round(wc * 100))}%</b><small>Pre-game duel chance</small></>
             : <><b>{f1(a.row.gs)}–{f1(b.row.gs)}</b><small>Game Score</small></>}
         </div>
-        <div className={styles.duelB}><small>{kind === 'slayer' ? 'Beat' : 'Over'}</small><b>{B.last}</b><em>{f1(b.row.gs)} GmSc · {b.team} · {r0(b.row.pre)}</em></div>
+        <div className={styles.duelB}><small>{kind === 'slayer' ? 'Beat' : 'Over'}</small><b ref={rb}>{B.last}</b><em>{f1(b.row.gs)} GmSc · {b.team} · {r0(b.row.pre)}</em></div>
         <div className={styles.duelFoot}><span>{fmtDay(date)}</span><span>{kind === 'slayer' ? `Elo gap ${r0(b.row.pre - a.row.pre)}` : `${Math.round(wc * 100)}% pre-game`}</span></div>
+      </div>
+    </div>
+  )
+}
+
+// Two Elo paths on one time axis: the winner solid, the other dashed; a rule marks this game
+function JointChart({ series, mark, H = 104, fmt }) {
+  const all = series.flatMap(s => s.pts)
+  if (all.length < 3) return <div className={styles.chartEmpty}>Not enough games yet</div>
+  const W = 300, L = 38, R = 8, T = 22, B = 18
+  const xs = all.map(p => p[0]), vs = all.map(p => p[1])
+  const x0 = Math.min(...xs), x1 = Math.max(...xs) || x0 + 1
+  const lo0 = Math.min(...vs), hi0 = Math.max(...vs), pad = Math.max(8, (hi0 - lo0) * 0.1), lo = lo0 - pad, hi = hi0 + pad
+  const x = t => L + ((t - x0) / (x1 - x0 || 1)) * (W - L - R)
+  const y = v => T + (1 - (v - lo) / (hi - lo)) * (H - T - B)
+  const line = pts => {
+    const step = Math.max(1, Math.floor(pts.length / 260))
+    return pts.filter((_, i) => i % step === 0 || i === pts.length - 1).map(p => `${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(' ')
+  }
+  const ticks = [lo0, (lo0 + hi0) / 2, hi0]
+  return (
+    <svg className={styles.chart} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+      {ticks.map((v, i) => <g key={i}>
+        <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="#e2ddd0" strokeDasharray={i === 1 ? '2 3' : ''} />
+        <text x={L - 5} y={y(v) + 3} textAnchor="end" className={styles.tick}>{Math.round(v).toLocaleString()}</text>
+      </g>)}
+      {mark != null && mark >= x0 && mark <= x1 && <>
+        <line x1={x(mark)} x2={x(mark)} y1={T - 4} y2={H - B} stroke="#1d2633" strokeOpacity=".35" strokeDasharray="3 3" />
+        <text x={x(mark)} y={H - 5} textAnchor={x(mark) > W - 60 ? 'end' : x(mark) < L + 30 ? 'start' : 'middle'} className={styles.tick}>This game</text>
+      </>}
+      {series.map((s, i) => <polyline key={i} points={line(s.pts)} fill="none" stroke={s.color} strokeWidth={i ? 1.8 : 2.2} strokeDasharray={i ? '5 3' : ''} strokeLinejoin="round" />)}
+      {series.map((s, i) => {
+        const txt = `${s.label} ${s.pts.length ? Math.round(s.pts[s.pts.length - 1][1]).toLocaleString() : ''}`
+        return i === 0
+          ? <g key={'k' + i}><line x1={L} x2={L + 14} y1="10" y2="10" stroke={s.color} strokeWidth="2.2" /><text x={L + 18} y="13" className={styles.legendLab}>{txt}</text></g>
+          : <g key={'k' + i}><text x={W - R - 18} y="13" textAnchor="end" className={styles.legendLab}>{txt}</text><line x1={W - R - 14} x2={W - R} y1="10" y2="10" stroke={s.color} strokeWidth="2" strokeDasharray="5 3" /></g>
+      })}
+      {fmt && <>
+        {!(mark != null && x(mark) < L + 56) && <text x={L} y={H - 5} textAnchor="start" className={styles.tick}>{fmt(x0)}</text>}
+        {!(mark != null && x(mark) > W - R - 70) && <text x={W - R} y={H - 5} textAnchor="end" className={styles.tick}>{fmt(x1)}</text>}
+      </>}
+    </svg>
+  )
+}
+
+function FlipButton({ onFlip }) {
+  return (
+    <button type="button" className={styles.flipBtn} title="Flip card (F)" aria-label="Flip card"
+      onClick={e => { e.stopPropagation(); onFlip() }}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66" /><path d="M20 4v5h-5" /></svg>
+    </button>
+  )
+}
+
+// Draws a fixed 340 × 476 card scaled to its box
+function Scaled({ children }) {
+  const ref = useRef(null)
+  const [k, setK] = useState(1)
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return
+    const fit = () => { if (el.clientWidth) setK(el.clientWidth / 340) }
+    fit(); const ro = new ResizeObserver(fit); ro.observe(el); return () => ro.disconnect()
+  }, [])
+  return <div ref={ref} className={styles.scaled}><div style={{ transform: `scale(${k})`, transformOrigin: 'top left', width: 340, height: 476 }}>{children}</div></div>
+}
+
+const dayNum = d => Date.parse(d + 'T12:00:00Z') / 864e5
+const seasonPts = (sd, name) => {
+  const out = []
+  ;[...sd.games].sort((p, q) => p.date.localeCompare(q.date) || p.id.localeCompare(q.id)).forEach(g => {
+    const p = g.players.find(r => r.n === name); if (!p) return
+    if (!out.length) out.push([dayNum(g.date) - 1, p.pre])
+    out.push([dayNum(g.date), p.post])
+  })
+  return out
+}
+
+/**
+ * The duel card, full size and flippable. The back: both lines from the game, the pre-game odds,
+ * and the two players' Elo through the season and across their careers on shared axes.
+ * a, b as DuelCard, plus careerA / careerB (elo_history: [[date, elo], ...]); sd = the season's games
+ */
+export function DuelModal({ kind, scope, a, b, date, matchup, sd, careerA, careerB, onClose, onBox }) {
+  const [flipped, setFlipped] = useState(false)
+  useEffect(() => {
+    const k = e => { if (e.key === 'Escape') { e.stopImmediatePropagation(); onClose() } else if (e.key === 'f' || e.key === 'F') setFlipped(f => !f) }
+    window.addEventListener('keydown', k, true)
+    return () => window.removeEventListener('keydown', k, true)
+  }, [onClose])
+  const wc = duelChance(a, b)
+  const short = n => { const { first, last } = splitName(n); return first === last ? last : `${first[0]}. ${last}` }
+  const lastOf = n => splitName(n).last
+  const titleRef = useRef(null)
+  useFit(titleRef, 24, 15, kind + scope)
+  const season = useMemo(() => sd ? [
+    { pts: seasonPts(sd, a.name), color: a.color, label: lastOf(a.name) },
+    { pts: seasonPts(sd, b.name), color: b.color, label: lastOf(b.name) },
+  ] : null, [sd, a.name, b.name])
+  const career = useMemo(() => {
+    const pts = (h, name) => (h || []).map(e => [dayNum(e[0]), e[1]])
+    if (!careerA?.length && !careerB?.length) return null
+    return [
+      { pts: pts(careerA, a.name), color: a.color, label: lastOf(a.name) },
+      { pts: pts(careerB, b.name), color: b.color, label: lastOf(b.name) },
+    ]
+  }, [careerA, careerB, a.name, b.name])
+  const yr = t => new Date(t * 864e5).getUTCFullYear()
+  const mo = t => new Date(t * 864e5).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' })
+  const line = (x, won) => {
+    const d = x.row.post - x.row.pre
+    return (
+      <div className={styles.dRow} style={{ '--c': x.color }}>
+        <span className={styles.dWho} title={`${baseName(x.name)} · ${x.team}`}><i />{short(x.name)}</span>
+        <b>{x.row.pts ?? '—'}</b><b>{x.row.trb ?? '—'}</b><b>{x.row.ast ?? '—'}</b>
+        <b className={won ? styles.dWin : ''}>{f1(x.row.gs)}</b>
+        <b className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</b>
+      </div>
+    )
+  }
+  return (
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.stage} onClick={e => e.stopPropagation()}>
+        <div className={`${styles.card} ${flipped ? styles.flipped : ''}`} style={{ '--tc': scope === 'day' ? '#9a7316' : '#0b5f9e' }}>
+          <div className={styles.tilt}><div className={styles.flip} onClick={e => { if (!e.target.closest('button')) setFlipped(f => !f) }}>
+            <div className={`${styles.face} ${styles.front} ${styles.duelFace}`}>
+              <Scaled><DuelCard kind={kind} scope={scope} a={a} b={b} date={date} /></Scaled>
+              <FlipButton onFlip={() => setFlipped(f => !f)} />
+            </div>
+            <div className={`${styles.face} ${styles.back}`}>
+              <div className={styles.backIn}>
+                <div className={styles.backHead}>
+                  <div>
+                    <div ref={titleRef} className={styles.backName}>{duelTitle(kind, scope)}</div>
+                    <div className={styles.backSub}>{fmtDate(date)}{matchup ? ` · ${matchup}` : ''}</div>
+                  </div>
+                  <span className={styles.tierTag}>{kind === 'slayer' ? `${Math.max(1, Math.round(wc * 100))}%` : 'H2H'}</span>
+                </div>
+                <section>
+                  <h4>This game <span>{kind === 'slayer' ? 'least likely duel win' : 'top player on each side'}</span></h4>
+                  <div className={styles.dTable}>
+                    <div className={`${styles.dRow} ${styles.dHead}`}><span /><small>PTS</small><small>REB</small><small>AST</small><small>GmSc</small><small>Elo Δ</small></div>
+                    {line(a, true)}{line(b, false)}
+                  </div>
+                  <p className={styles.dNote}>Pre-game: Elo {r0(a.row.pre)} vs {r0(b.row.pre)} · {Math.max(1, Math.round(wc * 100))}% duel win chance</p>
+                </section>
+                {season && <section>
+                  <h4>{sd.season} season <span>Elo after each game</span></h4>
+                  <JointChart series={season} mark={dayNum(date)} fmt={mo} H={86} />
+                </section>}
+                {career && <section>
+                  <h4>Careers <span>Elo after each game</span></h4>
+                  <JointChart series={career} mark={dayNum(date)} fmt={yr} H={82} />
+                </section>}
+              </div>
+              <FlipButton onFlip={() => setFlipped(f => !f)} />
+            </div>
+          </div></div>
+        </div>
+        <div className={styles.hint}>Tap the card to flip<span className={styles.keyHint}> · Esc to close</span>
+          {onBox && <button type="button" className={styles.binderBtn} onClick={onBox}>Box score</button>}</div>
       </div>
     </div>
   )
@@ -412,12 +602,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
     el.style.setProperty('--rx', '0deg'); el.style.setProperty('--ry', '0deg')
   }
 
-  const FlipBtn = () => (
-    <button type="button" className={styles.flipBtn} title="Flip card (F)" aria-label="Flip card"
-      onClick={e => { e.stopPropagation(); setFlipped(f => !f) }}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66" /><path d="M20 4v5h-5" /></svg>
-    </button>
-  )
+  const FlipBtn = () => <FlipButton onFlip={() => setFlipped(f => !f)} />
 
   return (
     <div className={styles.overlay} onClick={onClose}>

@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react'
 import styles from './Nav.module.css'
+import PlayerSearch from './PlayerSearch'
 
 const NAV_ITEMS = [
   { view: 'rankings',    label: 'Current Rankings' },
   { view: 'scoreboard',  label: 'Scoreboard' },
   { view: 'explorer',    label: 'Season Explorer' },
+  { view: 'binders',     label: 'Binders' },
   { view: 'timemachine', label: 'Time Machine' },
   { view: 'historical',  label: 'Historical Elo' },
   { view: 'franchise', label: "Who's Been Here?" },
@@ -19,7 +21,7 @@ const NAV_ITEMS = [
   { view: 'methodology', label: 'Methodology' },
 ]
 
-export default function Nav({ meta, live, view, setView }) {
+export default function Nav({ meta, live, view, setView, players, onSelectPlayer }) {
   // On narrow screens the tabs scroll sideways; keep the current one in view
   const navRef = useRef(null)
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function Nav({ meta, live, view, setView }) {
           </button>
         ))}
       </nav>
+      {players && <div className={styles.search}><PlayerSearch players={players} onSelect={onSelectPlayer} /></div>}
       <div className={styles.right}>
         <span className={styles.updated}>{live?.inprog.length
           ? <><i className={styles.liveDot} />Live · {live.inprog.length} game{live.inprog.length === 1 ? '' : 's'} on</>

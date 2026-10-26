@@ -2,8 +2,8 @@ import { historyReady } from '../history.js'
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
-import PlayerCard, { MiniCard, DuelCard, tierFor, momentsFor, setFirstGameLookup } from './PlayerCard'
-import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder } from './Binders'
+import PlayerCard, { MiniCard, DuelCard, DuelModal, tierFor, momentsFor, setFirstGameLookup } from './PlayerCard'
+import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder } from './Binders'
 import { buildForecaster, blendWeight, norm } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
 import { watchDay, useLiveFeeds, computeLive, gameKey, liveDaysAfter } from './liveFeed.js'
@@ -157,6 +157,20 @@ function markHonors(games) {
     if (top) top.potd = true
   }
 }
+
+// Each day's Duel of the Day (highest combined night score) and Giant-Slayer of the Day (widest Elo gap)
+const duelCache = new WeakMap()
+function dayDuels(games) {
+  const out = new Map()
+  for (const g of [...games].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))) {
+    const cur = out.get(g.date) || {}
+    const sl = gameSlayer(g.players); if (sl && (!cur.slayer || sl.gap > cur.slayer.gap)) cur.slayer = { ...sl, g }
+    const du = gameDuel(g.players); if (du && (!cur.duel || du.sum > cur.duel.sum)) cur.duel = { ...du, g }
+    out.set(g.date, cur)
+  }
+  return out
+}
+const seasonDuels = sd => { if (!duelCache.has(sd)) duelCache.set(sd, dayDuels(sd.games)); return duelCache.get(sd) }
 
 // ── Data loading (module-level caches) ───────────────────────────────────────
 const cache = new Map()
@@ -879,6 +893,7 @@ function TeamPanel({ team, sd, shots, selectPlayer, fc, goDay }) {
   const [box, setBox] = useState(null)
   const [preview, setPreview] = useState(null)
   const [card, setCard] = useState(null) // player name, from a box-score click
+  const [duelPick, setDuelPick] = useState(null) // { kind, an, bn }: a Duel / Giant-Slayer of the Game card
   const [binder, setBinder] = useState(null) // { kind, ... } for BinderHost
   const games = useMemo(() => teamGames(sd, team), [sd, team])
   const rawBox = box && sd.games.find(g => g.id === box.id)
@@ -894,7 +909,9 @@ function TeamPanel({ team, sd, shots, selectPlayer, fc, goDay }) {
         ? <Schedule team={team} games={games} onBox={setBox} upcoming={fc?.upcoming[team] || []} onPreview={setPreview} fetched={fc?.fetched} goDay={goDay} />
         : <Progression team={team} games={games} selectPlayer={selectPlayer} />}
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
-      {box && <BoxScore team={team} game={box} has={sd.has} shots={shots} sd={sd} onCard={setCard} onClose={() => setBox(null)} />}
+      {box && <BoxScore team={team} game={box} has={sd.has} shots={shots} sd={sd} onCard={setCard} onClose={() => setBox(null)}
+        onDuel={(kind, an, bn) => setDuelPick({ kind, an, bn })} />}
+      {duelPick && rawBox && <DuelView kind={duelPick.kind} scope="game" an={duelPick.an} bn={duelPick.bn} g={rawBox} sd={sd} shots={shots} onClose={() => setDuelPick(null)} />}
       {card && rawBox && <SeasonCard name={card} g={rawBox} sd={sd} shots={shots}
         onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }} onClose={() => setCard(null)}
         onBinder={() => { setBinder({ kind: 'season', name: card, sd }); setCard(null) }}
@@ -1094,7 +1111,7 @@ function ProjBox({ x, shots }) {
 }
 
 // ── Box score ────────────────────────────────────────────────────────────────
-function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair }) {
+function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel }) {
   const [focus, setFocus] = useState(null)
   const [side, setSide] = useState(team) // which team's table shows; starts on the team you came from
   const [stat, setStat] = useState('box') // box score view, kept when switching teams
@@ -1181,10 +1198,10 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair }) {
           <StoryCard tag="Biggest Drop" tone="down">
             <b>{story.drop.n}</b> {r0(story.drop.pre)} → {r0(story.drop.post)} <em className={styles.down}>{sgn(story.drop.post - story.drop.pre)}</em>
           </StoryCard>
-          {story.duel && <StoryCard tag="Duel of the Game" tone="blue">
+          {story.duel && <StoryCard tag="Duel of the Game" tone="blue" onClick={onDuel && (() => onDuel('duel', story.duel.a.n, story.duel.b.n))}>
             <b>{story.duel.a.n}</b> {story.duel.a.gs.toFixed(1)} vs <b>{story.duel.b.n}</b> {story.duel.b.gs.toFixed(1)} Game Score: the top player on each side, head to head.
           </StoryCard>}
-          {story.gk && <StoryCard tag="Giant-Slayer of the Game" tone="gold">
+          {story.gk && <StoryCard tag="Giant-Slayer of the Game" tone="gold" onClick={onDuel && (() => onDuel('slayer', story.gk.a.n, story.gk.b.n))}>
             <b>{story.gk.a.n}</b> ({r0(story.gk.a.pre)}) out-scored <b>{story.gk.b.n}</b> ({r0(story.gk.b.pre)}): a {r0(story.gk.gap)}-point Elo gap, {Math.max(1, Math.round(story.gk.wc * 100))}% pre-game duel win chance.
           </StoryCard>}
         </div>
@@ -1206,7 +1223,12 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair }) {
   )
 }
 
-function StoryCard({ tag, tone, children }) {
+function StoryCard({ tag, tone, children, onClick }) {
+  if (onClick) return (
+    <button type="button" className={`${styles.card} ${styles['t_' + tone]} ${styles.cardBtn}`} onClick={onClick}>
+      <div className={styles.cardTag}>{tag}<span className={styles.cardOpen}>Open card ›</span></div><div>{children}</div>
+    </button>
+  )
   return <div className={`${styles.card} ${styles['t_' + tone]}`}><div className={styles.cardTag}>{tag}</div><div>{children}</div></div>
 }
 
@@ -2000,6 +2022,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
   const [feedErr, setFeedErr] = useState(null)
   const [box, setBox] = useState(null)        // { id, team }
   const [card, setCard] = useState(null)      // { id: game id, name }
+  const [duelPick, setDuelPick] = useState(null) // { kind, scope, an, bn, id }
   const [binder, setBinder] = useState(null)  // { name, sd }
   const [preview, setPreview] = useState(null)
   const sdOk = sd && (sd.season === seasonFor(day) || (sd.season === index.seasons[0]?.season && seasonFor(day) > sd.season))
@@ -2111,11 +2134,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
     const all = scored.flatMap(g => g.players.map(p => ({ g, p })))
     const potd = all.find(x => x.p.potd)
     const moments = all.map(x => ({ ...x, m: momentsFor(x.p) }))
-    let slayer = null, duel = null
-    for (const g of scored) {
-      const sl = gameSlayer(g.players); if (sl && (!slayer || sl.gap > slayer.gap)) slayer = { ...sl, g }
-      const du = gameDuel(g.players); if (du && (!duel || du.sum > duel.sum)) duel = { ...du, g }
-    }
+    const { slayer = null, duel = null } = dayDuels(scored).get(day) || [...dayDuels(scored).values()][0] || {}
     return {
       picks: [['Player of the Day', potd], ['Duel of the Day', duel, 'duel'], ['Giant-Slayer of the Day', slayer, 'slayer'],
         ['Biggest Elo riser', boards.risers[0]], ['Biggest Elo faller', boards.fallers[0]]].filter(([, x]) => x),
@@ -2172,11 +2191,11 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
           {side.picks.map(([label, x, kind]) => kind ? (
             <div key={label} className={styles.sideCard}>
               <div className={styles.sideLab}>{label}<span>{shortName(x.a.n)} over {shortName(x.b.n)}{kind === 'slayer' ? ` · ${Math.max(1, Math.round(x.wc * 100))}%` : ''}</span></div>
-              <button type="button" className={styles.sideMini} onClick={() => setBox({ id: x.g.id, team: x.a.t, pin: [x.a.n, x.b.n] })} aria-label={`${label}: ${x.a.n} over ${x.b.n}, open box score`}>
+              <button type="button" className={styles.sideMini} onClick={() => setDuelPick({ kind, scope: 'day', an: x.a.n, bn: x.b.n, id: x.g.id })} aria-label={`${label}: ${x.a.n} over ${x.b.n}, open card`}>
                 <span className={styles.sideScale}>
                   <DuelCard kind={kind} scope="day" date={x.g.date}
-                    a={{ name: x.a.n, row: x.a, color: tColor(x.a.t), team: tShort(x.a.t), headshot: shots?.[norm(x.a.n)]?.headshot }}
-                    b={{ name: x.b.n, row: x.b, color: tColor(x.b.t), team: tShort(x.b.t), headshot: shots?.[norm(x.b.n)]?.headshot }} />
+                    a={{ name: x.a.n, row: x.a, color: tColor(x.a.t), team: tShort(x.a.t), abbr: tCode(x.a.t), headshot: shots?.[norm(x.a.n)]?.headshot }}
+                    b={{ name: x.b.n, row: x.b, color: tColor(x.b.t), team: tShort(x.b.t), abbr: tCode(x.b.t), headshot: shots?.[norm(x.b.n)]?.headshot }} />
                 </span>
               </button>
             </div>
@@ -2322,7 +2341,11 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
 
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
       {boxView && <BoxScore key={box.id} team={box.team} game={boxView} has={boxGame.live ? FULL_STATS : sd?.has} shots={shots} sd={daySd} pinPair={box.pin}
-        onCard={n => setCard({ id: box.id, name: n })} onClose={() => setBox(null)} />}
+        onCard={n => setCard({ id: box.id, name: n })} onClose={() => setBox(null)}
+        onDuel={(kind, an, bn) => setDuelPick({ kind, scope: 'game', an, bn, id: box.id, fromBox: true })} />}
+      {duelPick && (g => g && <DuelView kind={duelPick.kind} scope={duelPick.scope} an={duelPick.an} bn={duelPick.bn} g={g} sd={daySd} shots={shots}
+        onClose={() => setDuelPick(null)}
+        onBox={duelPick.fromBox ? undefined : () => { const a = g.players.find(p => p.n === duelPick.an); setDuelPick(null); setBox({ id: g.id, team: a?.t || g.teams[0], pin: [duelPick.an, duelPick.bn] }) }} />)(scored.find(x => x.id === duelPick.id))}
       {cardView && <SeasonCard name={card.name} g={cardGame} sd={cardSd} shots={shots}
         onProfile={n => { setCard(null); setBox(null); selectPlayer(n) }} onClose={() => setCard(null)}
         onBinder={() => { setBinder({ kind: 'season', name: card.name, sd: cardSd }); setCard(null) }}
@@ -2601,6 +2624,20 @@ function SeasonCard({ name, g, sd, shots, onProfile, onClose, onBinder, onCareer
   )
 }
 
+// The duel card modal for two players in one game: sides as the season had them, careers from elo.json
+function DuelView({ kind, scope, an, bn, g, sd, shots, onClose, onBox }) {
+  const a = g.players.find(p => p.n === an), b = g.players.find(p => p.n === bn)
+  if (!a || !b) return null
+  const { A, B, matchup } = withTeams(sd, () => {
+    const mk = p => ({ name: p.n, row: p, color: tColor(p.t), team: tShort(p.t), abbr: tCode(p.t), headshot: shots?.[norm(p.n)]?.headshot })
+    const home = g.home || g.teams[1], away = g.teams.find(t => t !== home)
+    const pt = t => g.pts?.[g.teams.indexOf(t)]
+    return { A: mk(a), B: mk(b), matchup: `${tCode(away)} ${pt(away) ?? ''} @ ${tCode(home)} ${pt(home) ?? ''}`.replace(/\s+/g, ' ').trim() }
+  })
+  return <DuelModal kind={kind} scope={scope} a={A} b={B} date={g.date} matchup={matchup} sd={sd}
+    careerA={CAREER.byName[an]?.elo_history} careerB={CAREER.byName[bn]?.elo_history} onClose={onClose} onBox={onBox} />
+}
+
 // ── Binders (components in Binders.jsx) ─────────────────────────────────────
 // What the binders need from this module: season loading, team names as they were that season, the card modal
 const MERGE_FRANCHISE = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
@@ -2634,8 +2671,20 @@ const careerSeasons = (name, current) => {
   return [...set].sort()
 }
 
+// What the binders need when they open outside Season Explorer (the Binders page): careers, the
+// newest season's label, the rookie lookup and best active ranks
+export function primeBinders(players, index, best) {
+  const byName = {}, peakRank = {}
+  ;(players || []).forEach(p => { byName[p.name] = p })
+  ;[...(players || [])].sort((a, b) => b.peak_elo - a.peak_elo).forEach((p, i) => { peakRank[p.name] = i + 1 })
+  CAREER = { byName, rank: peakRank, best: best || CAREER.best }
+  setFirstGameLookup(n => byName[n]?.team_history?.[0]?.[0] || null)
+  NEWEST = index?.seasons[0]?.season || NEWEST
+}
+export { getJSON as binderJSON, getHeadshots as binderHeadshots, teamInfo as binderTeamInfo, logoUrl as binderLogo }
+
 // Opens one binder and keeps a back stack, so closing a binder opened from another returns to it
-function BinderHost({ start, shots, onClose, onProfile }) {
+export function BinderHost({ start, shots, onClose, onProfile }) {
   const [stack, setStack] = useState([start])
   const [, setTick] = useState(0)
   useEffect(() => { historyReady()?.then(() => setTick(1)).catch(() => {}) }, [])
@@ -2643,7 +2692,7 @@ function BinderHost({ start, shots, onClose, onProfile }) {
   const push = b => setStack(st => [...st, b])
   const back = () => (stack.length > 1 ? setStack(st => st.slice(0, -1)) : onClose())
   const env = useMemo(() => ({
-    loadSeason: label => loadSeason(label, label === NEWEST), withTeams, teamInfo, champion, careerSeasons, nightScore, getJSON, slug: rivalSlug,
+    loadSeason: label => loadSeason(label, label === NEWEST), withTeams, teamInfo, champion, careerSeasons, nightScore, getJSON, slug: rivalSlug, dayDuels: seasonDuels,
     franchiseOf: t => MERGE_FRANCHISE[t] || t,
     cardGameInfo, headshot: n => shots?.[norm(n)]?.headshot,
     renderCard: ({ name, g, sd, onClose: close }) => {
@@ -2653,6 +2702,7 @@ function BinderHost({ start, shots, onClose, onProfile }) {
       return <SeasonCard name={name} g={g} sd={sd} shots={shots} info={info} team={team} onProfile={onProfile} onClose={close}
         onCareer={top.kind !== 'career' ? () => { close(); push({ kind: 'career', name }) } : undefined} />
     },
+    renderDuel: ({ kind, scope, an, bn, g, sd, onClose: close }) => <DuelView kind={kind} scope={scope} an={an} bn={bn} g={g} sd={sd} shots={shots} onClose={close} />,
   }), [shots, top.kind])
   const openSeason = (name, season) => env.loadSeason(season).then(sd => push({ kind: 'season', name, sd })).catch(() => {})
   const openTeam = (code, season) => env.loadSeason(season).then(sd => push({ kind: 'team', team: code, sd })).catch(() => {})
@@ -2660,5 +2710,6 @@ function BinderHost({ start, shots, onClose, onProfile }) {
   if (top.kind === 'career') return <CareerBinder key={stack.length} name={top.name} env={env} onClose={back} onSeason={openSeason} />
   if (top.kind === 'team') return <TeamBinder key={stack.length} team={top.team} sd={top.sd} env={env} onClose={back} onFranchise={code => push({ kind: 'franchise', code })} />
   if (top.kind === 'franchise') return <FranchiseBinder key={stack.length} code={top.code} env={env} onClose={back} onSeason={openTeam} />
+  if (top.kind === 'league') return <LeagueBinder key={stack.length} set={top.set} env={env} onClose={back} onCareer={n => push({ kind: 'career', name: n })} />
   return null
 }

@@ -12,6 +12,7 @@ import Seasons from './components/Seasons'
 import Daily from './components/Daily'
 import SeasonExplorer from './components/SeasonExplorer'
 import TimeMachine from './components/TimeMachine'
+import BinderRoom from './components/BinderRoom'
 import Methodology from './components/Methodology'
 import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
@@ -31,7 +32,7 @@ export default function App() {
   const [error, setError] = useState(null)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
   // /scoreboard and /timemachine have their own URLs; every other view lives at /
-  const PATHS = { scoreboard: '/scoreboard', timemachine: '/timemachine' }
+  const PATHS = { scoreboard: '/scoreboard', timemachine: '/timemachine', binders: '/binders' }
   const viewFromPath = () => {
     const p = window.location.pathname.replace(/\/+$/, '')
     return Object.keys(PATHS).find(v => PATHS[v] === p) || 'home'
@@ -43,7 +44,7 @@ export default function App() {
     if (window.location.pathname.replace(/\/+$/, '') !== path.replace(/\/+$/, '')) {
       window.history.pushState(null, '', path)
     }
-    document.title = view === 'scoreboard' ? 'NBA Scoreboard · FPR' : view === 'timemachine' ? 'Time Machine · FPR' : 'NBA Floor Performance Rankings'
+    document.title = view === 'scoreboard' ? 'NBA Scoreboard · FPR' : view === 'timemachine' ? 'Time Machine · FPR' : view === 'binders' ? 'Binders · FPR' : 'NBA Floor Performance Rankings'
   }, [view])
 
   useEffect(() => {
@@ -98,9 +99,9 @@ export default function App() {
     <div className={styles.app}>
       <FanSidedHeader />
       {view !== 'home' && (
-        <Nav meta={data} live={live} view={view} setView={setView} />
+        <Nav meta={data} live={live} view={view} setView={setView} players={players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {view === 'home' && <Homepage data={{ ...data, players }} setView={setView} />}
+      {view === 'home' && <Homepage data={{ ...data, players }} setView={setView} onSelectPlayer={setSelectedPlayer} />}
       {waiting && (
         <div className={styles.splash} style={{ minHeight: '50vh' }}>
           <div className={styles.splashInner}>
@@ -148,6 +149,7 @@ export default function App() {
           onMode={m => setView(m === 'today' ? 'scoreboard' : 'explorer')} />
       )}
       {view === 'timemachine' && <TimeMachine />}
+      {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} />}
       {view === 'methodology' && <Methodology />}
 
       {selectedPlayer && !histReady && (

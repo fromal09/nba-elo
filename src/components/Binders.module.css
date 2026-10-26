@@ -225,3 +225,20 @@
   .miles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) { .turnNext, .turnPrev, .book, .overlay { animation: none; } .spine { transition: none; } }
+
+/* Duel cards in the checklist and the season tally */
+.check button[data-tier=duel], .check button[data-tier=slayer] { background: linear-gradient(135deg, #8a6414, #f4d27a 50%, #8a6414); }
+.duelTally { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; }
+.duelTally span { display: inline-flex; align-items: baseline; gap: 5px; padding: 5px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700; color: #1a1000;
+  background: linear-gradient(135deg, #e7c160, #fff3c8 50%, #e7c160); box-shadow: inset 0 0 0 1px #b8871e; }
+.duelTally b { font-size: 15px; font-weight: 800; }
+
+/* League binders: the set list on the left page */
+.setList { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.setList button { display: flex; align-items: center; gap: 9px; padding: 6px 9px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 13px; font-weight: 600; color: #3b4652; text-align: left; cursor: pointer; }
+.setList button i { width: 10px; height: 14px; border-radius: 2px; background: var(--c); flex: none; }
+.setList button span { margin-left: auto; font-size: 11.5px; color: #8a95a2; font-variant-numeric: tabular-nums; }
+.setList button:hover { background: rgba(23,54,87,.06); }
+.setList .setOn { background: #fff; color: #1d2633; font-weight: 800; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.statWide { grid-column: span 2; }
+.statWide small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
