@@ -1,7 +1,20 @@
 {
   "rewrites": [
-    { "source": "/scoreboard", "destination": "/index.html" },
-    { "source": "/timemachine", "destination": "/index.html" },
-    { "source": "/binders", "destination": "/index.html" }
+    {
+      "source": "/binders",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/scoreboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/timemachine",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/data/:path*",
+      "destination": "https://pub-c7352b7d5a58402ca7f0926d909b4150.r2.dev/data/:path*"
+    }
   ]
 }
