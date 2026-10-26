@@ -3,10 +3,12 @@ import styles from './PlayerCard.module.css'
 
 // Rarity by where the player stood entering this game: his pre-game Elo rank among every
 // player in that season (same tier names as the Franchise Tenures cards)
+// Each capped tier is a print run: the serial is the rank over the cap (1/1, 3/5, 14/20, 33/50, 88/125)
 export const TIERS = [
-  { id: 'goat', label: '★ GOAT', max: 5 },
-  { id: 'icon', label: 'Icon', max: 20 },
-  { id: 'legend', label: 'Legend', max: 50 },
+  { id: 'goat', label: '★ GOAT', max: 1 },
+  { id: 'icon', label: 'Icon', max: 5 },
+  { id: 'legend', label: 'Legend', max: 20 },
+  { id: 'standout', label: 'Standout', max: 50 },
   { id: 'rare', label: 'Rare', max: 125 },
   { id: 'common', label: 'Common', max: Infinity },
 ]
@@ -14,6 +16,37 @@ export const tierFor = rank => TIERS.find(t => rank != null && rank <= t.max) ||
 // The card's tier follows the player's rank after the game, so the frame matches the medallion
 export const cardTier = row => tierFor(row.lrp ?? row.lr)
 const tierName = t => t.label.replace('★ ', '')
+const serialFor = rank => { const t = tierFor(rank); return rank != null && t.max !== Infinity ? `${rank}/${t.max}` : null }
+
+// Slab grade: the game's Game Score as a percentile of every player-game on record (1,078,633 games
+// with minutes, 1946-47 through 2026-27). Percentile 6-14 grades 1, 15-24 grades 2 ... 85-94 grades 9,
+// 95 and up grades 10. GMSC_PCT[k] is the k-th percentile.
+const GMSC_PCT = [-15.5, -3.1, -2.3, -1.8, -1.5, -1.2, -1.0, -0.7, -0.6, -0.4, -0.2, -0.1, 0.0, 0.1, 0.3, 0.4, 0.6, 0.7, 0.9, 1.1,
+  1.3, 1.4, 1.6, 1.7, 1.9, 2.0, 2.2, 2.4, 2.6, 2.7, 2.9, 3.1, 3.2, 3.4, 3.6, 3.8, 4.0, 4.1, 4.3, 4.5, 4.7, 4.9, 5.0, 5.2, 5.4, 5.6,
+  5.8, 6.0, 6.2, 6.4, 6.6, 6.8, 7.0, 7.2, 7.4, 7.6, 7.8, 8.1, 8.3, 8.5, 8.7, 9.0, 9.2, 9.4, 9.7, 9.9, 10.2, 10.4, 10.7, 11.0, 11.2,
+  11.5, 11.8, 12.1, 12.4, 12.7, 13.0, 13.3, 13.7, 14.0, 14.4, 14.7, 15.1, 15.5, 16.0, 16.4, 16.9, 17.4, 17.9, 18.5, 19.1, 19.8,
+  20.5, 21.3, 22.2, 23.3, 24.5, 26.2, 28.4, 31.9, 86.8]
+// Debuts are graded against every career debut on record (4,426 first games with minutes)
+const DEBUT_PCT = [-9.2, -3.3, -2.6, -2.2, -2.0, -1.8, -1.6, -1.4, -1.3, -1.2, -1.1, -1.0, -0.8, -0.7, -0.7, -0.7, -0.7, -0.5, -0.4, -0.4,
+  -0.4, -0.2, -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.3, 0.4, 0.6, 0.6, 0.7, 0.7, 0.8, 0.9, 1.0, 1.0, 1.2, 1.3,
+  1.3, 1.5, 1.6, 1.7, 1.7, 1.9, 2.0, 2.0, 2.1, 2.3, 2.4, 2.4, 2.5, 2.7, 2.7, 2.9, 3.0, 3.2, 3.3, 3.4, 3.6, 3.7, 3.9, 4.0, 4.2, 4.4,
+  4.6, 4.8, 5.0, 5.2, 5.4, 5.6, 5.8, 6.0, 6.2, 6.6, 6.9, 7.2, 7.6, 8.0, 8.4, 8.8, 9.3, 9.9, 10.4, 11.0, 11.6, 12.2, 13.0, 14.2, 15.7,
+  17.0, 19.5, 23.1, 47.2]
+const GRADE_NAMES = ['Authentic', 'Poor', 'Good', 'VG', 'VG-EX', 'EX', 'EX-MT', 'NM', 'NM-MT', 'Mint', 'Gem Mint']
+export function gradeFor(gs, pop = 'all') {
+  if (gs == null) return null
+  const T = pop === 'debut' ? DEBUT_PCT : GMSC_PCT
+  let pct = 0
+  while (pct < 100 && T[pct + 1] <= gs) pct++
+  const g = pct >= 95 ? 10 : pct >= 6 ? Math.floor((pct + 5) / 10) : 0
+  return { g, label: g ? String(g) : 'A', name: GRADE_NAMES[g], pct }
+}
+
+// First game of a player's career, for the rookie (RC) shield; set by the page that knows the careers
+let firstGame = () => null
+export const setFirstGameLookup = fn => { firstGame = fn }
+const seasonOf = d => (+d.slice(5, 7) >= 8 ? +d.slice(0, 4) : +d.slice(0, 4) - 1)
+const isRookieGame = (name, date) => { const f = firstGame(name); return !!f && !!date && seasonOf(f) === seasonOf(date) }
 
 /**
  * A game's career moments and milestone stamps, highest first.
@@ -117,6 +150,7 @@ export function CardFront({ name, row, game, team, headshot }) {
   const d = row.post - row.pre
   const where = game.home === false ? '@' : 'vs'
   const moments = useMemo(() => momentsFor(row), [row])
+  const rookie = isRookieGame(name, game.date)
   useLayoutEffect(() => {
     const el = lastRef.current; if (!el) return
     // Measure the text itself (scrollWidth rounds, which let italic overhang trigger the ellipsis);
@@ -134,7 +168,7 @@ export function CardFront({ name, row, game, team, headshot }) {
       <div className={styles.photo}>
         <div className={styles.photoBg} />
         {/* foil sits behind the player so the headshot stays crisp */}
-        <div className={styles.holo} /><div className={styles.glitter} /><div className={styles.shine} />
+        <div className={styles.rays} /><div className={styles.holo} /><div className={styles.glitter} /><div className={styles.shine} />
         <span className={styles.bigNum}>{r0(row.post)}</span>
         {headshot && !imgBad
           ? <img className={styles.shot} src={headshot} alt={baseName(name)} onError={() => setImgBad(true)} />
@@ -142,6 +176,8 @@ export function CardFront({ name, row, game, team, headshot }) {
         <div className={styles.fade} />
         {game.band && <div className={styles.poBand}><span>{game.band.champ ? 'Champions' : 'Playoffs'}</span><i>·</i><span>{game.band.label}</span></div>}
         {moments.career && <div className={styles.careerStamp}><span>★ Career game</span><b>{f1(row.gs)} <small>GmSc</small></b></div>}
+        {game.honor && <div className={styles.sash}><span>{game.honor === 'potd' ? 'Player of the Day' : 'Player of the Game'}</span></div>}
+        {serialFor(rank) && <span className={styles.serial}>{serialFor(rank)}</span>}
         {rank != null && <div className={styles.medal}>
           <span>Elo rank</span><b>#{rank}</b>
           {!!move && <i className={move > 0 ? styles.medalUp : styles.medalDown}>
@@ -162,12 +198,12 @@ export function CardFront({ name, row, game, team, headshot }) {
           <div className={styles.metaRow}>
             <span className={styles.meta}>{[row.pos, team?.name].filter(Boolean).join(' · ')}</span>
           </div>
-          {game.score && <div className={styles.scoreRow}>
-            <span className={game.won ? styles.resW : styles.resL}>{game.won ? 'W' : 'L'} {game.score}{game.ot ? ` ${game.ot}` : ''}</span>
+          {(game.score || rookie) && <div className={styles.scoreRow}>
+            {game.score && <span className={game.won ? styles.resW : styles.resL}>{game.won ? 'W' : 'L'} {game.score}{game.ot ? ` ${game.ot}` : ''}</span>}
+            {rookie && <span className={styles.rc} title="Rookie season">RC</span>}
           </div>}
         </div>
       </div>
-      {game.honor && <div className={styles.honorSeam}><span className={game.honor === 'potd' ? styles.pillDay : styles.pillGame}>{game.honor === 'potd' ? 'Player of the Day' : 'Player of the Game'}</span></div>}
       <div className={styles.strip}>
         <div className={styles.stripStats}>
           <div><b>{row.pts ?? '—'}</b><small>PTS</small></div>
@@ -197,11 +233,32 @@ function cardAttrs(row, game) {
   }
 }
 
-// A static card front at full size (340 × 476), for the season binder to scale into a pocket
-export function MiniCard({ name, row, game, team, headshot }) {
+// Graded slab label: what the card is, the game, and the grade
+export function SlabLabel({ row, game, kind, className }) {
+  const debut = /debut/i.test(kind || '')
+  const g = gradeFor(row.gs, debut ? 'debut' : 'all')
+  if (!g) return null
   return (
+    <div className={`${styles.slabLabel} ${className || ''}`}>
+      <span className={styles.slabTxt}><b>FPR Graded · {kind}</b><span>{f1(row.gs)} GmSc · {fmtDay(game.date)} {game.home === false ? '@' : 'vs'} {game.oppAbbr}</span></span>
+      <span className={styles.slabGrade} title={`Game Score in the ${g.pct}th percentile of every ${debut ? 'career debut' : 'game'} on record`}><b>{g.label}</b><small>{g.name}</small></span>
+    </div>
+  )
+}
+
+// A static card front at full size (340 × 476), for the season binder to scale into a pocket.
+// slab: a label (e.g. 'Career game') puts the card in a graded slab, drawn in the same 340 × 476 box
+export function MiniCard({ name, row, game, team, headshot, slab }) {
+  const card = (
     <div className={`${styles.card} ${styles.miniCard}`} {...cardAttrs(row, game)} style={{ '--tc': team?.color || '#173657' }}>
       <div className={`${styles.face} ${styles.front}`}><CardFront name={name} row={row} game={game} team={team} headshot={headshot} /></div>
+    </div>
+  )
+  if (!slab) return card
+  return (
+    <div className={styles.slab}>
+      <SlabLabel row={row} game={game} kind={slab} />
+      <div className={styles.slabWell}><div className={styles.slabCard}>{card}</div></div>
     </div>
   )
 }
@@ -273,6 +330,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.stage} onClick={e => e.stopPropagation()}>
+        {momentsFor(row).career && <SlabLabel row={row} game={game} kind="Career game" className={styles.slabTop} />}
         <div ref={ref} className={`${styles.card} ${flipped ? styles.flipped : ''}`} {...cardAttrs(row, game)}
           style={{ '--tc': color }} onPointerMove={tilt} onPointerLeave={untilt}>
           <div className={styles.tilt}><div className={styles.flip} onClick={e => { if (!e.target.closest('button')) setFlipped(f => !f) }}>

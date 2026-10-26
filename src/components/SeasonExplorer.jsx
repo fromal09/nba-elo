@@ -2,7 +2,7 @@ import { historyReady } from '../history.js'
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
-import PlayerCard, { MiniCard, tierFor, momentsFor } from './PlayerCard'
+import PlayerCard, { MiniCard, tierFor, momentsFor, setFirstGameLookup } from './PlayerCard'
 import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder } from './Binders'
 import { buildForecaster, blendWeight, norm } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
@@ -344,6 +344,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     const m = {}; [...(players || [])].sort((a, b) => b.peak_elo - a.peak_elo).forEach((p, i) => { m[p.name] = i + 1 }); return m
   }, [players])
   CAREER = { byName, rank: peakRank, best }
+  setFirstGameLookup(n => byName[n]?.team_history?.[0]?.[0] || null)
   NEWEST = index?.seasons[0]?.season || NEWEST
 
   // ── Live layer for the newest season ─────────────────────────────────────
@@ -768,12 +769,21 @@ function buildRace({ sd, prevSd, fc, odds, byName }) {
 function AwardRaces({ race, shots, selectPlayer }) {
   if (!race) return <div className={styles.empty}>Simulating the season…</div>
   const fmt1 = v => v.toFixed(1)
+  // Real stats so far on one line, the simulated full-season line under it, each labeled
+  const actual = (r, extra) => {
+    const c = r.p.cur, g = c?.gp || 0
+    if (!g) return 'No games yet'
+    const pg = k => (c[k] || 0) / g
+    const x = extra ? extra({ line: { stl: pg('stl'), blk: pg('blk') } }) : ''
+    return `${fmt1(pg('pts'))} pts · ${fmt1(pg('trb'))} reb · ${fmt1(pg('ast'))} ast${x ? ` · ${x}` : ''} · ${fmt1(pg('gs'))} GmSc · ${g} GP`
+  }
   const row = (r, i, extra) => (
     <button key={r.p.n} type="button" className={styles.raceP} onClick={() => selectPlayer(r.p.n)}>
       <span className={styles.raceRank}>{i + 1}</span>
       <Headshot name={r.p.n} shots={shots} color={tColor(r.p.t)} />
-      <span className={styles.racePWho}><b>{r.p.n}</b>
-        <small>{tShort(r.p.t)} · {fmt1(r.line.pts)} pts · {fmt1(r.line.trb)} reb · {fmt1(r.line.ast)} ast{extra ? ` · ${extra(r)}` : ''} · {fmt1(r.line.gs)} GmSc · {Math.round(r.line.gp)} GP</small></span>
+      <span className={styles.racePWho}><b>{r.p.n} <small className={styles.raceTeam}>{tShort(r.p.t)}</small></b>
+        <small><i className={styles.tagReal}>So far</i>{actual(r, extra)}</small>
+        <small className={styles.raceSim}><i className={styles.tagSim}>Simulated</i>{fmt1(r.line.pts)} pts · {fmt1(r.line.trb)} reb · {fmt1(r.line.ast)} ast{extra ? ` · ${extra(r)}` : ''} · {fmt1(r.line.gs)} GmSc · {Math.round(r.line.gp)} GP</small></span>
       <span className={styles.raceChance}><i style={{ width: `${Math.max(2, r.chance * 100)}%` }} /><em>{r.chance >= 0.995 ? '>99' : r.chance < 0.01 ? '<1' : Math.round(r.chance * 100)}%</em></span>
     </button>
   )
@@ -786,7 +796,8 @@ function AwardRaces({ race, shots, selectPlayer }) {
   )
   return (
     <div className={styles.confs}>
-      {card('Most Valuable Player', race.mvp, 'Chance to win · projected final line', null, true)}
+      <p className={styles.simNote}><i className={styles.tagSim}>Simulated</i>Each player's <b>So far</b> line is real. The <b>Simulated</b> line is his average full-season line across {RACE_N.toLocaleString()} simulated seasons, and the chance to win is how often he won in them.</p>
+      {card('Most Valuable Player', race.mvp, 'Chance to win in simulations', null, true)}
       <div className={styles.raceGrid}>
         {card('Defensive Player of the Year', race.dpoy.slice(0, 6), 'Steals, blocks, defensive boards', r => `${fmt1(r.line.stl)} stl · ${fmt1(r.line.blk)} blk`)}
         {card('Rookie of the Year', race.roy.slice(0, 6), 'First NBA season')}
@@ -1493,7 +1504,8 @@ const GLOSSARY = [
     ['Player Rank', 'League rank by Elo after this game, among qualified players. (▲3) means he moved up three spots.'],
     ['Qualified', 'A player whose most recent game falls within his team’s last 20 games. Retired and long-inactive players drop out of the rankings.'],
     ['Top 100', 'The 100 highest-rated qualified players right now.'],
-    ['Card tiers', 'Set by rank after the game: GOAT 1–5, Icon 6–20, Legend 21–50, Rare 51–125, Common everyone else.'],
+    ['Card tiers', 'Set by rank after the game: GOAT #1, Icon 2–5, Legend 6–20, Standout 21–50, Rare 51–125, Common everyone else. Capped tiers are numbered like a print run: rank over the cap (14/20).'],
+    ['Graded slabs', 'Career games and album cards come in a graded slab. The grade is the game\u2019s Game Score percentile among every player-game on record (debuts against every career debut): 6th–14th percentile grades 1, 15th–24th 2, up to 95th and above for a 10.'],
     ['Player of the Game / Day', 'The best night score in a game, and across the whole day: Game Score plus one-sixth of the Elo gained.'],
     ['Career game', 'A career-best Game Score, once a player has 20 career games.'],
     ['Milestones', 'Tier promotions and relegations, entering or leaving the Top 100, a new #1, and career-high rank or Elo (20+ games).'],

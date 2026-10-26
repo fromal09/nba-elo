@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
 import styles from './Binders.module.css'
-import { MiniCard, tierFor, TIERS } from './PlayerCard'
+import { MiniCard, tierFor, TIERS, momentsFor } from './PlayerCard'
 
 /*
  * Binders: a player's season (A), a player's career (C shelf + D album), a team's season (F) and a franchise (G).
@@ -12,7 +12,7 @@ import { MiniCard, tierFor, TIERS } from './PlayerCard'
  */
 
 const TIER_IDS = TIERS.map(t => t.id)
-const TIER_LABEL = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', rare: 'Rare', common: 'Common' }
+const TIER_LABEL = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const r0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
 const sgn = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1)
@@ -53,13 +53,16 @@ function Fit({ children, label }) {
   )
 }
 
-function Pocket({ e, name, env, onPull, pulled }) {
+// Career games always come graded; album sheets grade every card (slab = the label's wording)
+const slabFor = (e, album) => (momentsFor(e.row).career ? 'Career game' : album || null)
+
+function Pocket({ e, name, env, onPull, pulled, album }) {
   const out = pulled === e.key
   return (
     <div className={`${styles.pocket} ${e.post ? styles.pocketPo : ''}`}>
       <button type="button" className={styles.pocketBtn} disabled={out} onClick={() => onPull(e)} aria-label={`${e.label}: open card`}>
         {out ? <span className={styles.pulledOut}><b>Pulled out</b><small>Close the card to put it back</small></span>
-          : <Fit><MiniCard name={e.name || name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name || name)} /></Fit>}
+          : <Fit><MiniCard name={e.name || name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name || name)} slab={slabFor(e, album)} /></Fit>}
         <span className={styles.glare} />
       </button>
       <div className={styles.pocketLab}>
@@ -81,7 +84,7 @@ function useSheets(list, per) {
   return { cur, sheets, go, jump, dir, page: list.slice(cur * per, cur * per + per), reset: () => setSheet(0) }
 }
 
-function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, phone }) {
+function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, phone, album }) {
   const touch = useRef(null)
   return (
     <div className={styles.right}>
@@ -94,7 +97,7 @@ function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, pho
         onTouchStart={ev => { touch.current = ev.touches[0].clientX }}
         onTouchEnd={ev => { if (touch.current == null) return; const dx = ev.changedTouches[0].clientX - touch.current; if (Math.abs(dx) > 50) S.go(dx < 0 ? 1 : -1); touch.current = null }}>
         <div key={S.cur} className={`${styles.pockets} ${S.dir > 0 ? styles.turnNext : styles.turnPrev}`} style={{ '--cols': phone ? 2 : 3 }}>
-          {S.page.map(e => <Pocket key={e.key} e={e} name={name} env={env} onPull={onPull} pulled={pulled} />)}
+          {S.page.map(e => <Pocket key={e.key} e={e} name={name} env={env} onPull={onPull} pulled={pulled} album={album} />)}
           {Array.from({ length: per - S.page.length }, (_, i) => <div key={`x${i}`} className={`${styles.pocket} ${styles.pocketEmpty}`}><div className={styles.pocketBtn} /></div>)}
         </div>
       </div>
@@ -451,7 +454,7 @@ export function CareerBinder({ name, env, onClose, onSeason }) {
         {miles.map(e => (
           <div key={e.key + e.cap} className={styles.mile}>
             <div className={styles.mileCap} style={{ background: e.capColor }}>{e.cap}</div>
-            <div className={styles.mileCard}><button type="button" className={styles.pocketBtn} onClick={() => P.pull(e)} aria-label={`${e.cap}: open card`}><Fit><MiniCard name={name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(name)} /></Fit></button></div>
+            <div className={styles.mileCard}><button type="button" className={styles.pocketBtn} onClick={() => P.pull(e)} aria-label={`${e.cap}: open card`}><Fit><MiniCard name={name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(name)} slab={slabFor(e, e.cap)} /></Fit></button></div>
             <small>{e.sub}</small>
           </div>
         ))}
@@ -459,7 +462,7 @@ export function CareerBinder({ name, env, onClose, onSeason }) {
     </>
     const per = phone ? 6 : 9, pages = Math.max(1, Math.ceil(bests.length / per)), pg = Math.min(albumPage, pages - 1)
     const S = { cur: pg, sheets: pages, dir: 1, page: bests.slice(pg * per, pg * per + per), go: k => setAlbumPage(Math.max(0, Math.min(pages - 1, pg + k))), jump: setAlbumPage }
-    right = <Sheet S={S} per={per} name={name} env={env} onPull={P.pull} pulled={P.pulled} phone={phone} title="Best of every season" sub="highest Game Score each season" />
+    right = <Sheet S={S} per={per} name={name} env={env} onPull={P.pull} pulled={P.pulled} phone={phone} title="Best of every season" sub="highest Game Score each season" album="Season best" />
   }
   return <>
     <Book tc={tc} phone={phone} stack onClose={onClose} head={head} left={left} right={right}
@@ -689,13 +692,13 @@ function FranchiseAlbum({ d, env, phone, head, tc, onClose, page, setPage }) {
       {miles.map(e => (
         <div key={e.key + e.cap} className={styles.mile}>
           <div className={styles.mileCap} style={{ background: e.capColor }}>{e.cap}</div>
-          <div className={styles.mileCard}><button type="button" className={styles.pocketBtn} onClick={() => P.pull(e)} aria-label={`${e.cap}: open card`}><Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit></button></div>
+          <div className={styles.mileCard}><button type="button" className={styles.pocketBtn} onClick={() => P.pull(e)} aria-label={`${e.cap}: open card`}><Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} slab={slabFor(e, e.cap)} /></Fit></button></div>
           <small>{e.sub}</small>
         </div>
       ))}
     </div>
   </>
-  const right = <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone}
+  const right = <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone} album="Season best"
     title="Best of every season" sub={page0.length ? `${page0[0].season} – ${page0[page0.length - 1].season}` : ''} />
   return <>
     <Book tc={tc} phone={phone} stack onClose={onClose} head={head} left={left} right={right}

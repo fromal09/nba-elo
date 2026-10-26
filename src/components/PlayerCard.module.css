@@ -97,39 +97,39 @@
 [data-tier=rare] .holo { background: linear-gradient(115deg, transparent 30%, rgba(255,190,140,.22) 48%, transparent 62%); background-size: 250% 250%; animation: sweep 7s ease-in-out infinite; mix-blend-mode: screen; }
 
 /* Legend: polished chrome double frame with a moving specular band */
-[data-tier=legend] .front { background: linear-gradient(135deg, #3b444e 0%, #f7f9fb 14%, #6a7581 28%, #ffffff 42%, #545e69 56%, #e9eef3 70%, #444e58 84%, #f2f5f8 100%);
+[data-tier=standout] .front { background: linear-gradient(135deg, #3b444e 0%, #f7f9fb 14%, #6a7581 28%, #ffffff 42%, #545e69 56%, #e9eef3 70%, #444e58 84%, #f2f5f8 100%);
   background-size: 260% 260%; animation: chrome 6s ease-in-out infinite alternate; padding: 11px; }
-[data-tier=legend] .frame { box-shadow: 0 0 0 2px #fff, 0 0 0 3px #4a545e, inset 0 0 0 1px rgba(255,255,255,.25); }
-[data-tier=legend] .tierTag { background: linear-gradient(135deg, #3b444e, #c9d2dc 50%, #3b444e); background-size: 200% 200%; animation: chrome 3s ease-in-out infinite alternate; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
-[data-tier=legend] .holo { background: linear-gradient(110deg, transparent 32%, rgba(255,255,255,.0) 40%, rgba(255,255,255,.55) 47%, rgba(255,255,255,.9) 50%, rgba(255,255,255,.55) 53%, transparent 60%);
+[data-tier=standout] .frame { box-shadow: 0 0 0 2px #fff, 0 0 0 3px #4a545e, inset 0 0 0 1px rgba(255,255,255,.25); }
+[data-tier=standout] .tierTag { background: linear-gradient(135deg, #3b444e, #c9d2dc 50%, #3b444e); background-size: 200% 200%; animation: chrome 3s ease-in-out infinite alternate; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+[data-tier=standout] .holo { background: linear-gradient(110deg, transparent 32%, rgba(255,255,255,.0) 40%, rgba(255,255,255,.55) 47%, rgba(255,255,255,.9) 50%, rgba(255,255,255,.55) 53%, transparent 60%);
   background-size: 300% 100%; mix-blend-mode: overlay; animation: band 4.2s ease-in-out infinite; }
-[data-tier=legend] .glitter { background: repeating-linear-gradient(110deg, rgba(255,255,255,0) 0 18px, rgba(255,255,255,.08) 18px 20px); mix-blend-mode: screen; }
-[data-tier=legend] .shine { opacity: .7; }
+[data-tier=standout] .glitter { background: repeating-linear-gradient(110deg, rgba(255,255,255,0) 0 18px, rgba(255,255,255,.08) 18px 20px); mix-blend-mode: screen; }
+[data-tier=standout] .shine { opacity: .7; }
 
 /* Icon: gold frame, gold-biased holo with constant shimmer */
-[data-tier=icon] .front { background: linear-gradient(135deg, #9a6d12, #f4d27a 25%, #b8871e 48%, #ffe9a8 70%, #a8791a); padding: 11px; }
-[data-tier=icon] .frame { box-shadow: 0 0 0 2px #fff3c8, 0 0 0 3px #b8871e; }
-[data-tier=icon] .tierTag { background: linear-gradient(135deg, #a8791a, #e7c160); color: #2a1c00; }
-[data-tier=icon] .holo { background-image: linear-gradient(115deg, #ffd34d 0%, #ff9a3d 18%, #ff6f91 34%, #ffe9a8 50%, #ffd34d 66%, #ffb347 82%, #ffd34d 100%);
+[data-tier=legend] .front { background: linear-gradient(135deg, #9a6d12, #f4d27a 25%, #b8871e 48%, #ffe9a8 70%, #a8791a); padding: 11px; }
+[data-tier=legend] .frame { box-shadow: 0 0 0 2px #fff3c8, 0 0 0 3px #b8871e; }
+[data-tier=legend] .tierTag { background: linear-gradient(135deg, #a8791a, #e7c160); color: #2a1c00; }
+[data-tier=legend] .holo { background-image: linear-gradient(115deg, #ffd34d 0%, #ff9a3d 18%, #ff6f91 34%, #ffe9a8 50%, #ffd34d 66%, #ffb347 82%, #ffd34d 100%);
   background-size: 300% 300%; mix-blend-mode: color-dodge; opacity: .26; animation: holo 6s ease-in-out infinite alternate, huegentle 9s ease-in-out infinite alternate; }
-[data-tier=icon] .glitter, [data-tier=goat] .glitter { background-image:
+[data-tier=legend] .glitter, [data-tier=icon] .glitter { background-image:
     radial-gradient(1.2px 1.2px at 12% 18%, #fff, transparent), radial-gradient(1px 1px at 72% 34%, #fff, transparent),
     radial-gradient(1.4px 1.4px at 38% 62%, #fff, transparent), radial-gradient(1px 1px at 86% 78%, #fff, transparent),
     radial-gradient(1.2px 1.2px at 22% 88%, #fff, transparent), radial-gradient(1px 1px at 58% 12%, #fff, transparent),
     radial-gradient(1.3px 1.3px at 93% 48%, #fff, transparent), radial-gradient(1px 1px at 6% 52%, #fff, transparent);
   background-size: 140px 140px; mix-blend-mode: screen; animation: twinkle 2.6s ease-in-out infinite alternate; }
-[data-tier=icon] .shine, [data-tier=goat] .shine { opacity: .6; }
+[data-tier=legend] .shine, [data-tier=icon] .shine { opacity: .6; }
 
 /* GOAT: saturated prismatic frame, rainbow foil that deepens color instead of washing it out */
-[data-tier=goat] .face.front { box-shadow: 0 0 0 1px rgba(255,255,255,.8), 0 0 38px rgba(255,200,120,.6), 0 24px 60px rgba(0,0,0,.5); animation: glow 2.8s ease-in-out infinite alternate; }
-[data-tier=goat] .front { background: linear-gradient(120deg, #ff2d95, #ffb52d 14%, #fff3b0 22%, #2dffb4 34%, #2d9bff 48%, #ffffff 56%, #b42dff 66%, #ff2d95 80%, #ffd32d 92%, #2dffb4);
+[data-tier=icon] .face.front { box-shadow: 0 0 0 1px rgba(255,255,255,.8), 0 0 38px rgba(255,200,120,.6), 0 24px 60px rgba(0,0,0,.5); animation: glow 2.8s ease-in-out infinite alternate; }
+[data-tier=icon] .front { background: linear-gradient(120deg, #ff2d95, #ffb52d 14%, #fff3b0 22%, #2dffb4 34%, #2d9bff 48%, #ffffff 56%, #b42dff 66%, #ff2d95 80%, #ffd32d 92%, #2dffb4);
   background-size: 300% 300%; animation: holo 4s linear infinite; padding: 12px; }
-[data-tier=goat] .frame { box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(26,16,48,.55); }
-[data-tier=goat] .tierTag { background: linear-gradient(90deg, #ff2d95, #ffd32d, #2dffb4, #2d9bff, #b42dff, #ff2d95); background-size: 200% 100%; animation: holo 3s linear infinite; color: #1a1030; text-shadow: 0 0 6px rgba(255,255,255,.8); }
-[data-tier=goat] .holo { background-image: linear-gradient(115deg, #ff2d95 0%, #ffd32d 16%, #2dffb4 33%, #2d9bff 50%, #b42dff 66%, #ff2d95 83%, #ffd32d 100%);
+[data-tier=icon] .frame { box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(26,16,48,.55); }
+[data-tier=icon] .tierTag { background: linear-gradient(90deg, #ff2d95, #ffd32d, #2dffb4, #2d9bff, #b42dff, #ff2d95); background-size: 200% 100%; animation: holo 3s linear infinite; color: #1a1030; text-shadow: 0 0 6px rgba(255,255,255,.8); }
+[data-tier=icon] .holo { background-image: linear-gradient(115deg, #ff2d95 0%, #ffd32d 16%, #2dffb4 33%, #2d9bff 50%, #b42dff 66%, #ff2d95 83%, #ffd32d 100%);
   background-size: 300% 300%; mix-blend-mode: overlay; opacity: .34; animation: holo 5s linear infinite; }
-[data-tier=goat] .glitter { animation-duration: 1.8s; }
-[data-tier=goat] .shine { background:
+[data-tier=icon] .glitter { animation-duration: 1.8s; }
+[data-tier=icon] .shine { background:
     radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.45), transparent 40%),
     linear-gradient(110deg, transparent 40%, rgba(255,255,255,.55) 50%, transparent 60%);
   background-size: 100% 100%, 300% 100%; mix-blend-mode: soft-light; opacity: 1; animation: band 3.6s ease-in-out infinite; }
@@ -145,7 +145,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .stage, .overlay { animation: none; }
-  .holo, .glitter, .shine, .front, .tierTag, [data-tier=goat] .face.front { animation: none !important; }
+  .holo, .glitter, .shine, .front, .tierTag, [data-tier=icon] .face.front { animation: none !important; }
   .flip, .tilt { transition: none; }
 }
 
@@ -163,7 +163,7 @@
 .note { font-size: 10px; color: #8a95a2; margin-top: 5px; }
 
 /* ── Front layout B2: rank medallion top-left, name over the photo ── */
-[data-tier=goat] { --tier: #e7c160; } [data-tier=icon] { --tier: #e0b040; } [data-tier=legend] { --tier: #c9d2dc; }
+[data-tier=goat] { --tier: #f5d77a; } [data-tier=icon] { --tier: #e7c160; } [data-tier=legend] { --tier: #e0b040; } [data-tier=standout] { --tier: #c9d2dc; }
 [data-tier=rare] { --tier: #d08a52; } [data-tier=common] { --tier: #7d8ba0; }
 .front .top { display: none; }
 .frame .shot { height: min(282px, 74%); width: auto; bottom: 50px; -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent); mask-image: linear-gradient(180deg, #000 78%, transparent); } /* same scale as the plate layout; raised so the face clears the name and the shoulders fade into it */
@@ -178,10 +178,10 @@
 /* Ring uses the same finish as the card border */
 [data-tier=common] .medal { --ring: #4a5a70; }
 [data-tier=rare] .medal { --ring: linear-gradient(135deg, #8a5a32, #d08a52 40%, #7a4a26 60%, #c07a42); }
-[data-tier=legend] .medal { --ring: linear-gradient(135deg, #3b444e 0%, #f7f9fb 14%, #6a7581 28%, #ffffff 42%, #545e69 56%, #e9eef3 70%, #444e58 84%, #f2f5f8 100%);
+[data-tier=standout] .medal { --ring: linear-gradient(135deg, #3b444e 0%, #f7f9fb 14%, #6a7581 28%, #ffffff 42%, #545e69 56%, #e9eef3 70%, #444e58 84%, #f2f5f8 100%);
   background-size: 200% 200%; animation: chrome 3s ease-in-out infinite alternate; }
-[data-tier=icon] .medal { --ring: linear-gradient(135deg, #9a6d12, #f4d27a 25%, #b8871e 48%, #ffe9a8 70%, #a8791a); }
-[data-tier=goat] .medal { --ring: conic-gradient(from var(--spin), #ff2d95, #ffb52d, #fff3b0, #2dffb4, #2d9bff, #ffffff, #b42dff, #ff2d95);
+[data-tier=legend] .medal { --ring: linear-gradient(135deg, #9a6d12, #f4d27a 25%, #b8871e 48%, #ffe9a8 70%, #a8791a); }
+[data-tier=icon] .medal { --ring: conic-gradient(from var(--spin), #ff2d95, #ffb52d, #fff3b0, #2dffb4, #2d9bff, #ffffff, #b42dff, #ff2d95);
   animation: spin 4s linear infinite; box-shadow: 0 0 0 2px rgba(255,255,255,.6), 0 0 18px rgba(255,200,120,.55), 0 8px 18px rgba(0,0,0,.45); }
 @property --spin { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 @keyframes spin { to { --spin: 360deg; } }
@@ -298,3 +298,88 @@
 .frame { text-align: left; }
 .msLine { gap: 3px 12px; font-size: 8.5px; letter-spacing: .7px; }
 .strip > .msLine { flex-direction: row; align-items: baseline; }
+
+/* ── GOAT (#1): black superfractor, gold cracked-ice foil, 1/1 ── */
+[data-tier=goat] .front { background: linear-gradient(135deg, #0a0a0a, #3a2a05 16%, #f5d77a 28%, #0a0a0a 42%, #c99a2e 56%, #fff1c0 66%, #0a0a0a 80%, #d4a63a 92%, #0a0a0a);
+  background-size: 300% 300%; animation: holo 6s linear infinite alternate; padding: 12px; }
+[data-tier=goat] .face.front { box-shadow: 0 0 0 1px rgba(255,236,170,.9), 0 0 44px rgba(244,200,90,.55), 0 24px 60px rgba(0,0,0,.6); }
+[data-tier=goat] .frame { box-shadow: 0 0 0 2px #f5d77a, 0 0 0 4px rgba(10,10,10,.8); }
+[data-tier=goat] .photoBg { background: radial-gradient(90% 70% at 50% 42%, #3a2a08 0%, #120c02 60%, #050403 100%); }
+[data-tier=goat] .tierTag { background: linear-gradient(135deg, #8a6414, #fff1c0 50%, #b8871e); color: #1a1000; }
+[data-tier=goat] .holo { background-image:
+    repeating-linear-gradient(32deg, rgba(255,215,120,0) 0 20px, rgba(255,228,160,.55) 20px 21.5px),
+    repeating-linear-gradient(-58deg, rgba(255,215,120,0) 0 29px, rgba(255,240,200,.45) 29px 30.5px),
+    repeating-linear-gradient(77deg, rgba(255,215,120,0) 0 35px, rgba(255,220,140,.4) 35px 36.5px),
+    linear-gradient(115deg, #ffd34d, #ff9a3d, #ffe9a8, #b8871e, #fff3c8, #ffd34d);
+  background-size: 210px 210px, 240px 240px, 270px 270px, 300% 300%; mix-blend-mode: color-dodge; opacity: .42; animation: ice 9s linear infinite alternate; }
+[data-tier=goat] .glitter { background-image:
+    radial-gradient(1.4px 1.4px at 12% 18%, #fff3c8, transparent), radial-gradient(1px 1px at 72% 34%, #fff, transparent),
+    radial-gradient(1.6px 1.6px at 38% 62%, #ffe9a8, transparent), radial-gradient(1px 1px at 86% 78%, #fff, transparent),
+    radial-gradient(1.3px 1.3px at 22% 88%, #fff3c8, transparent), radial-gradient(1px 1px at 58% 12%, #fff, transparent);
+  background-size: 120px 120px; mix-blend-mode: screen; animation: twinkle 1.4s ease-in-out infinite alternate; }
+[data-tier=goat] .shine { opacity: .7; }
+[data-tier=goat] .medal { --ring: linear-gradient(135deg, #0a0a0a, #3a2a05 16%, #f5d77a 28%, #0a0a0a 42%, #c99a2e 56%, #fff1c0 66%, #0a0a0a 80%, #d4a63a 92%);
+  box-shadow: 0 0 0 2px rgba(255,236,170,.7), 0 0 18px rgba(244,200,90,.55), 0 8px 18px rgba(0,0,0,.45); }
+@keyframes ice { 0% { background-position: 0 0, 0 0, 0 0, 0% 50% } 100% { background-position: 60px 30px, -45px 60px, 30px -60px, 100% 50% } }
+
+/* Serial: rank over the tier's print run, under the medallion */
+.serial { position: absolute; z-index: 5; left: 15px; top: 96px; padding: 2px 8px; border-radius: 4px; background: rgba(10,22,38,.78); color: #fff;
+  font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 16px; letter-spacing: .5px; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+[data-tier=goat] .serial { background: linear-gradient(135deg, #8a6414, #fff1c0 50%, #b8871e); color: #1a1000; }
+[data-po] .serial { top: 120px; } [data-po=champ] .serial { top: 128px; }
+
+/* Rookie season: shield right of the score */
+.rc { display: inline-flex; align-items: flex-start; justify-content: center; width: 22px; height: 25px; margin-left: 7px; padding-top: 4px; box-sizing: border-box;
+  background: linear-gradient(180deg, #f4d27a, #8a6414); clip-path: polygon(0 0, 100% 0, 100% 70%, 50% 100%, 0 70%); color: #1a1000; font-size: 9px; font-weight: 900; letter-spacing: .3px; }
+.scoreRow { align-items: center; }
+
+/* ── Honors: corner sash and turning rays; Player of the Day in gold, die-cut ── */
+.rays { position: absolute; inset: -50%; z-index: 1; pointer-events: none; display: none; }
+[data-honor] .rays { display: block; }
+[data-honor=potg] .rays { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(190,235,255,.2) 0 5deg, transparent 5deg 16deg); animation: rays 30s linear infinite; }
+[data-honor=potd] .rays { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,226,140,.3) 0 4deg, transparent 4deg 12deg); animation: rays 40s linear infinite reverse; }
+@keyframes rays { to { transform: rotate(360deg) } }
+.sash { position: absolute; z-index: 5; top: 0; right: 0; width: 140px; height: 140px; overflow: hidden; pointer-events: none; }
+[data-po] .sash { top: 26px; } [data-po=cf] .sash { top: 28px; } [data-po=finals] .sash { top: 30px; } [data-po=champ] .sash { top: 34px; }
+.sash span { position: absolute; top: 40px; right: -42px; width: 196px; padding: 5px 0; transform: rotate(45deg); text-align: center; white-space: nowrap;
+  font-size: 8.5px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; background-size: 200% 100%; animation: holo 3s linear infinite alternate; box-shadow: 0 4px 12px rgba(0,0,0,.45); }
+[data-honor=potg] .sash span { background-image: linear-gradient(90deg, #0b5f9e, #5ec8ff 50%, #0b5f9e); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
+[data-honor=potd] .sash span { background-image: linear-gradient(90deg, #8a6414, #fff1c0 30%, #e7c160 50%, #fff1c0 70%, #8a6414); color: #1a1000; text-shadow: 0 1px 0 rgba(255,255,255,.5); }
+/* The sash takes the top-right corner, so the date and matchup drop below it */
+[data-honor] .gameTag { top: 126px; }
+[data-honor][data-po] .gameTag { top: 152px; } [data-honor][data-po=cf] .gameTag { top: 154px; } [data-honor][data-po=finals] .gameTag { top: 156px; } [data-honor][data-po=champ] .gameTag { top: 160px; }
+[data-honor] .careerStamp { top: 62%; }
+[data-honor=potg] .face.front { animation: pulseBlue 2.4s ease-in-out infinite; }
+@keyframes pulseBlue { 0%, 100% { box-shadow: 0 0 0 2px #5ec8ff, 0 0 22px rgba(94,200,255,.45), 0 24px 60px rgba(0,0,0,.5) } 50% { box-shadow: 0 0 0 2px #5ec8ff, 0 0 44px rgba(94,200,255,.85), 0 24px 60px rgba(0,0,0,.5) } }
+/* Player of the Day: notched corners, gold inner edge, gold pulse, falling gold flecks, gold name */
+[data-honor=potd] .face.front { border-radius: 0; clip-path: polygon(24px 0, calc(100% - 24px) 0, 100% 24px, 100% calc(100% - 24px), calc(100% - 24px) 100%, 24px 100%, 0 calc(100% - 24px), 0 24px); }
+[data-honor=potd] .frame { border-radius: 0; box-shadow: inset 0 0 0 2px #f4d27a; clip-path: polygon(16px 0, calc(100% - 16px) 0, 100% 16px, 100% calc(100% - 16px), calc(100% - 16px) 100%, 16px 100%, 0 calc(100% - 16px), 0 16px); }
+[data-honor=potd] .tilt { filter: drop-shadow(0 0 18px rgba(244,210,122,.7)); animation: pulseGold 2.4s ease-in-out infinite; }
+.miniCard[data-honor=potd] { filter: drop-shadow(0 0 12px rgba(244,210,122,.7)); }
+@keyframes pulseGold { 50% { filter: drop-shadow(0 0 34px rgba(244,210,122,1)); } }
+[data-honor=potd] .glitter { background-image:
+    radial-gradient(2px 2px at 20% 10%, #ffe9a8, transparent), radial-gradient(1.4px 1.4px at 60% 30%, #fff3c8, transparent),
+    radial-gradient(2.4px 2.4px at 80% 70%, #f4d27a, transparent), radial-gradient(1.6px 1.6px at 35% 55%, #ffe9a8, transparent),
+    radial-gradient(1.2px 1.2px at 10% 85%, #fff, transparent), radial-gradient(1.8px 1.8px at 90% 20%, #ffd34d, transparent);
+  background-size: 130px 130px; mix-blend-mode: screen; opacity: .95; animation: rain 2.6s linear infinite; }
+@keyframes rain { from { background-position: 0 0 } to { background-position: 0 130px } }
+[data-honor=potd] .nameOver .last { color: #ffe9a8; }
+[data-honor=potd] .fade { background: linear-gradient(180deg, rgba(26,18,6,0) 0%, rgba(40,28,8,.55) 42%, rgba(26,18,6,.96) 100%); }
+[data-honor=potd] .front .strip { border-top-color: #f4d27a; }
+[data-honor=potg] .front .strip { border-top-color: #5ec8ff; }
+
+/* ── Graded slab: career games and album cards ── */
+.slab { position: relative; width: 340px; height: 476px; box-sizing: border-box; padding: 10px; border-radius: 16px; display: flex; flex-direction: column; gap: 8px;
+  background: linear-gradient(160deg, rgba(255,255,255,.5), rgba(220,228,238,.22) 40%, rgba(255,255,255,.38)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.75), inset 0 0 0 5px rgba(160,172,188,.35), 0 8px 20px rgba(0,0,0,.35); }
+.slabLabel { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 12px; border-radius: 6px; background: #fff; box-shadow: inset 0 0 0 2.5px #c0392b; color: #1d2633; font-family: 'Inter', sans-serif; text-align: left; }
+.slab .slabLabel { height: 56px; box-sizing: border-box; flex: none; }
+.slabTxt { display: flex; flex-direction: column; gap: 2px; min-width: 0; line-height: 1.2; }
+.slabTxt b { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slabTxt span { font-size: 11px; font-weight: 600; color: #4a5562; white-space: nowrap; }
+.slabGrade { flex: none; display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.slabGrade b { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 32px; color: #c0392b; }
+.slabGrade small { font-size: 7.5px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; margin-top: 1px; }
+.slabWell { position: relative; flex: 1; min-height: 0; }
+.slabCard { position: absolute; left: 50%; top: 50%; width: 340px; height: 476px; transform: translate(-50%, -50%) scale(.81); }
+.slabTop { width: min(340px, 86vw); box-sizing: border-box; }
+@media (prefers-reduced-motion: reduce) { .rays, .sash span, [data-honor] .face.front, [data-honor] .tilt, [data-honor=potd] .glitter, [data-tier=goat] .holo, [data-tier=goat] .front { animation: none !important; } }

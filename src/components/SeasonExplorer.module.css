@@ -836,3 +836,12 @@
 .stLive { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 1px 7px; border-radius: 10px; background: #fdecec; color: #a12a1f; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stLive .liveDot { margin: 0; }
 .liveRow td { background: #fff8f7; }
+
+/* Award races: real stats vs simulated lines */
+.raceTeam { font-size: 11px; font-weight: 700; color: #7a8694; margin-left: 4px; }
+.racePWho small i { font-style: normal; }
+.tagReal, .tagSim { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; font-size: 9.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; vertical-align: 1px; }
+.tagReal { background: #e8eef5; color: #173657; }
+.tagSim { background: #f6ecd6; color: #7a5a12; border: 1px dashed #c9a24a; }
+.racePWho small.raceSim { color: #8a6c2a; font-style: italic; }
+.simNote { margin: 0; padding: 10px 14px; background: #fffaf0; border: 1px dashed #d9bf7f; border-radius: 10px; font-size: 12.5px; color: #5c4710; line-height: 1.45; }
