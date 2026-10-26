@@ -2,7 +2,7 @@ import { historyReady } from '../history.js'
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
-import PlayerCard, { MiniCard, tierFor, momentsFor, setFirstGameLookup } from './PlayerCard'
+import PlayerCard, { MiniCard, DuelCard, tierFor, momentsFor, setFirstGameLookup } from './PlayerCard'
 import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder } from './Binders'
 import { buildForecaster, blendWeight, norm } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
@@ -126,6 +126,24 @@ function duel(a, b, N) {
 
 // Night score picks Player of the Game and Player of the Day: production plus a share of the Elo gained
 const nightScore = p => p.gs + (p.post - p.pre) / 6
+// Giant-Slayer: the least likely duel win, among players who both logged real minutes and a winner with a real line
+const slayerOk = (a, b) => (a.mp || 0) >= 12 && (b.mp || 0) >= 12 && a.gs >= 10 && a.gs > b.gs && b.pre > a.pre
+function gameSlayer(players) {
+  let best = null
+  for (const a of players) for (const b of players) {
+    if (slayerOk(a, b) && (!best || b.pre - a.pre > best.gap)) best = { a, b, gap: b.pre - a.pre, wc: 1 / (1 + 10 ** ((b.pre - a.pre) / 620)) }
+  }
+  return best
+}
+// Duel: the top Player of the Day candidate on each side, head to head (winner = higher Game Score)
+function gameDuel(players) {
+  const teams = [...new Set(players.map(p => p.t))]
+  if (teams.length !== 2) return null
+  const tops = teams.map(t => players.filter(p => p.t === t).reduce((m, p) => (!m || nightScore(p) > nightScore(m) ? p : m), null))
+  if (tops.some(x => !x)) return null
+  const [a, b] = tops[0].gs >= tops[1].gs ? tops : [tops[1], tops[0]]
+  return { a, b, sum: nightScore(a) + nightScore(b) }
+}
 function markHonors(games) {
   const byDay = {}
   for (const g of games) {
@@ -1096,14 +1114,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair }) {
     const d = p => p.post - p.pre
     const climb = [...P].sort((a, b) => d(b) - d(a))[0]
     const drop = [...P].sort((a, b) => d(a) - d(b))[0]
-    let gk = null
-    for (const a of P) for (const b of P) {
-      // The biggest upset in the grid: the duel the winner was least expected to win (largest Elo gap),
-      // among players who both logged real minutes and a winner with a meaningful line
-      if ((a.mp || 0) >= 12 && (b.mp || 0) >= 12 && a.gs >= 10 && a.gs > b.gs && b.pre - a.pre > (gk ? gk.gap : 0))
-        gk = { a, b, gap: b.pre - a.pre, wc: 1 / (1 + 10 ** ((b.pre - a.pre) / 620)) }
-    }
-    return { climb, drop, gk }
+    return { climb, drop, gk: gameSlayer(P), duel: gameDuel(P) }
   }, [P])
 
   const avail = useMemo(() => new Set(['mp', 'orb', 'drb', 'trb', 'ast', 'stl', 'blk', 'tov', 'pf', 'tpa', 'fga', 'fta'].filter(k => P.some(p => (p[k] || 0) > 0))), [P])
@@ -1170,7 +1181,10 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair }) {
           <StoryCard tag="Biggest Drop" tone="down">
             <b>{story.drop.n}</b> {r0(story.drop.pre)} → {r0(story.drop.post)} <em className={styles.down}>{sgn(story.drop.post - story.drop.pre)}</em>
           </StoryCard>
-          {story.gk && <StoryCard tag="Giant Killer" tone="gold">
+          {story.duel && <StoryCard tag="Duel of the Game" tone="blue">
+            <b>{story.duel.a.n}</b> {story.duel.a.gs.toFixed(1)} vs <b>{story.duel.b.n}</b> {story.duel.b.gs.toFixed(1)} Game Score: the top player on each side, head to head.
+          </StoryCard>}
+          {story.gk && <StoryCard tag="Giant-Slayer of the Game" tone="gold">
             <b>{story.gk.a.n}</b> ({r0(story.gk.a.pre)}) out-scored <b>{story.gk.b.n}</b> ({r0(story.gk.b.pre)}): a {r0(story.gk.gap)}-point Elo gap, {Math.max(1, Math.round(story.gk.wc * 100))}% pre-game duel win chance.
           </StoryCard>}
         </div>
@@ -1517,7 +1531,9 @@ const GLOSSARY = [
     ['Teammate / Opponent duels', 'His duel record against his own team and against the other team.'],
     ['Best win / Costliest loss', 'The single duels that added and cost him the most Elo.'],
     ['Duel %', 'Share of duels won over the season.'],
-    ['Giant Killer', 'The game’s least likely duel win by a player with real minutes.'],
+    ['Giant-Slayer', 'The least likely duel win by a player with real minutes (12+ each, a 10+ Game Score from the winner): of the game, and of the day across every game.'],
+    ['Duel of the Game', 'The top Player of the Day candidate on each team, head to head; the Duel of the Day is the pair with the highest combined score across every game.'],
+    ['Stat-line inserts', 'Feats get their own card: 50-, 60- and 70-point games, triple-, quadruple- and quintuple-doubles, 20/20s, 30+ rebounds, 20+ assists, 10+ threes, blocks or steals.'],
     ['Upset', 'A win by the side with less than a 50% pre-game chance, whether a team or a player in a duel.'],
   ]],
   ['Teams and forecasts', [
@@ -2095,8 +2111,14 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
     const all = scored.flatMap(g => g.players.map(p => ({ g, p })))
     const potd = all.find(x => x.p.potd)
     const moments = all.map(x => ({ ...x, m: momentsFor(x.p) }))
+    let slayer = null, duel = null
+    for (const g of scored) {
+      const sl = gameSlayer(g.players); if (sl && (!slayer || sl.gap > slayer.gap)) slayer = { ...sl, g }
+      const du = gameDuel(g.players); if (du && (!duel || du.sum > duel.sum)) duel = { ...du, g }
+    }
     return {
-      picks: [['Player of the Day', potd], ['Biggest Elo riser', boards.risers[0]], ['Biggest Elo faller', boards.fallers[0]]].filter(([, x]) => x),
+      picks: [['Player of the Day', potd], ['Duel of the Day', duel, 'duel'], ['Giant-Slayer of the Day', slayer, 'slayer'],
+        ['Biggest Elo riser', boards.risers[0]], ['Biggest Elo faller', boards.fallers[0]]].filter(([, x]) => x),
       careerGames: moments.filter(x => x.m.career).sort((a, b) => b.p.gs - a.p.gs),
       milestones: moments.filter(x => x.m.stamps.length).sort((a, b) => (a.p.lrp ?? 999) - (b.p.lrp ?? 999)),
     }
@@ -2147,7 +2169,18 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
 
   // Every table on the day page. Desktop lays them out in grids; phones show one at a time with a picker
   const sideNode = <>
-          {side.picks.map(([label, { g, p }]) => (
+          {side.picks.map(([label, x, kind]) => kind ? (
+            <div key={label} className={styles.sideCard}>
+              <div className={styles.sideLab}>{label}<span>{shortName(x.a.n)} over {shortName(x.b.n)}{kind === 'slayer' ? ` · ${Math.max(1, Math.round(x.wc * 100))}%` : ''}</span></div>
+              <button type="button" className={styles.sideMini} onClick={() => setBox({ id: x.g.id, team: x.a.t, pin: [x.a.n, x.b.n] })} aria-label={`${label}: ${x.a.n} over ${x.b.n}, open box score`}>
+                <span className={styles.sideScale}>
+                  <DuelCard kind={kind} scope="day" date={x.g.date}
+                    a={{ name: x.a.n, row: x.a, color: tColor(x.a.t), team: tShort(x.a.t), headshot: shots?.[norm(x.a.n)]?.headshot }}
+                    b={{ name: x.b.n, row: x.b, color: tColor(x.b.t), team: tShort(x.b.t), headshot: shots?.[norm(x.b.n)]?.headshot }} />
+                </span>
+              </button>
+            </div>
+          ) : (({ g, p }) => (
             <div key={label} className={styles.sideCard}>
               <div className={styles.sideLab}>{label}<span>{shortName(p.n)} · {sgn(p.post - p.pre)} Elo</span></div>
               <button type="button" className={styles.sideMini} onClick={() => openCard(g, p)} aria-label={`${label}: ${p.n}, open card`}>
@@ -2156,7 +2189,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
                 </span>
               </button>
             </div>
-          ))}
+          ))(x))}
           <section className={styles.sideList}>
             <h4><span className={styles.markStar}>★</span> Career games</h4>
             {side.careerGames.length ? side.careerGames.map(({ g, p }) => (

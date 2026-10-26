@@ -617,7 +617,7 @@
 .dayMain .perfTable { min-width: 860px; }
 .daySide { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 12px; }
 .sideCard { display: flex; flex-direction: column; gap: 7px; }
-.sideLab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; color: #173657; }
+.sideLab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 8px; white-space: nowrap; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; color: #173657; }
 .sideLab span { text-transform: none; letter-spacing: 0; font-weight: 600; color: #6b7783; font-size: 12px; white-space: nowrap; }
 .sideMini { position: relative; width: 300px; height: 420px; border: 0; padding: 0; background: none; cursor: pointer; }
 .sideScale { position: absolute; left: 0; top: 0; width: 340px; height: 476px; transform: scale(.882); transform-origin: top left; transition: translate .2s ease-out; }

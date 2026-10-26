@@ -45,6 +45,9 @@ let firstGame = () => null
 export const setFirstGameLookup = fn => { firstGame = fn }
 const seasonOf = d => (+d.slice(5, 7) >= 8 ? +d.slice(0, 4) : +d.slice(0, 4) - 1)
 const isRookieGame = (name, date) => { const f = firstGame(name); return !!f && !!date && seasonOf(f) === seasonOf(date) }
+const isDebutGame = (name, date) => { const f = firstGame(name); return !!f && f === date }
+// Older cards show their age: vintage before 1980, light wear through 1999
+const ageOf = date => { if (!date) return undefined; const s = seasonOf(date); return s < 1979 ? 'vintage' : s < 1999 ? 'worn' : undefined }
 
 /**
  * A game's career moments and milestone stamps, highest first.
@@ -149,6 +152,10 @@ export function CardFront({ name, row, game, team, headshot }) {
   const where = game.home === false ? '@' : 'vs'
   const moments = useMemo(() => momentsFor(row), [row])
   const rookie = isRookieGame(name, game.date)
+  // One front per card: a career debut is a ticket stub, a statistical feat is a stat-line insert
+  const debut = isDebutGame(name, game.date)
+  const feats = useMemo(() => (debut ? [] : featsFor(row)), [row, debut])
+  const variant = debut ? 'debut' : feats.length ? 'stat' : 'std'
   useLayoutEffect(() => {
     const el = lastRef.current; if (!el) return
     // Measure the text itself (scrollWidth rounds, which let italic overhang trigger the ellipsis);
@@ -158,20 +165,46 @@ export function CardFront({ name, row, game, team, headshot }) {
       const k = el.getBoundingClientRect().width / (el.offsetWidth || 1) || 1
       return r.getBoundingClientRect().width / k
     }
-    const fit = () => { let s = 70; el.style.fontSize = s + 'px'; while (textW() > el.clientWidth - 4 && s > 22) el.style.fontSize = --s + 'px' }
+    const max = variant === 'std' ? 70 : variant === 'stat' ? 40 : 46
+    const fit = () => { let s = max; el.style.fontSize = s + 'px'; while (textW() > el.clientWidth - 4 && s > 18) el.style.fontSize = --s + 'px' }
     fit(); document.fonts?.ready.then(fit)
-  }, [name])
+  }, [name, variant])
+  const shot = (cls, monoCls) => headshot && !imgBad
+    ? <img className={cls} src={headshot} alt={baseName(name)} onError={() => setImgBad(true)} />
+    : <span className={monoCls}>{first[0]}{last[0]}</span>
+  const [us, them] = (game.score || '').split('–')
   return (
-    <div className={styles.frame}>
+    <div className={styles.frame} data-front={variant}>
       <div className={styles.photo}>
         <div className={styles.photoBg} />
         {/* foil sits behind the player so the headshot stays crisp */}
         <div className={styles.rays} /><div className={styles.holo} /><div className={styles.glitter} /><div className={styles.shine} />
-        <span className={styles.bigNum}>{r0(row.post)}</span>
-        {headshot && !imgBad
-          ? <img className={styles.shot} src={headshot} alt={baseName(name)} onError={() => setImgBad(true)} />
-          : <span className={styles.mono}>{first[0]}{last[0]}</span>}
-        <div className={styles.fade} />
+        {variant === 'std' && <>
+          <span className={styles.bigNum}>{r0(row.post)}</span>
+          {shot(styles.shot, styles.mono)}
+          <div className={styles.fade} />
+        </>}
+        {variant === 'debut' && <div className={styles.ticket}>
+          <div className={styles.stub} />
+          <div className={styles.ticketBody}>
+            <div className={styles.ticketHead}><span>Admit one · First game</span><b>{team?.abbr}</b></div>
+            <div className={styles.ticketPhoto}>{shot(styles.ticketShot, styles.ticketMono)}<span className={styles.debutStamp}>Debut</span></div>
+            <div className={styles.ticketName}><small>{first}</small><b ref={lastRef}>{last}</b></div>
+            <div className={styles.ticketMeta}><b>{fmtDay(game.date)} {where} {game.oppAbbr}</b><span>{[row.pos, team?.name].filter(Boolean).join(' · ')}</span></div>
+          </div>
+        </div>}
+        {variant === 'stat' && <div className={styles.statFace}>
+          <div className={styles.statTop}><span className={styles.featTag}>{feats[0].label}</span><b>{fmtDay(game.date)}</b></div>
+          <div className={styles.statBig}>
+            <span style={{ fontSize: feats[0].big.length <= 2 ? 200 : feats[0].big.length <= 3 ? 156 : feats[0].big.length <= 5 ? 124 : feats[0].big.length <= 8 ? 88 : feats[0].big.length <= 11 ? 68 : 54 }}>{feats[0].big}</span>
+            <small>{feats[0].unit}</small>
+          </div>
+          {feats.length > 1 && <div className={styles.statMore}>{feats.slice(1).map(f => <span key={f.key}>+ {f.label}</span>)}</div>}
+          <div className={styles.statWho}>
+            <span className={styles.statShot}>{shot(styles.statImg, styles.statMono)}</span>
+            <span className={styles.statName}><small>{first}</small><b ref={lastRef}>{last}</b><em>{team?.name} {where} {game.oppAbbr}</em></span>
+          </div>
+        </div>}
         {game.band && <div className={styles.poBand}><span>{game.band.champ ? 'Champions' : 'Playoffs'}</span><i>·</i><span>{game.band.label}</span></div>}
         {/* Honored games carry the date and matchup in a header placard (under the playoff band, if any), so the sash has room */}
         {game.honor && <div className={styles.honorBand}>
@@ -182,14 +215,14 @@ export function CardFront({ name, row, game, team, headshot }) {
             <TeamLogo src={game.oppLogo} abbr={game.oppAbbr} color={game.oppColor} />
           </span>
         </div>}
-        {moments.career && <div className={styles.careerStamp}><span>★ Career game</span><b>{f1(row.gs)} <small>GmSc</small></b></div>}
+        {variant === 'std' && moments.career && <div className={styles.careerStamp}><span>★ Career game</span><b>{f1(row.gs)} <small>GmSc</small></b></div>}
         {game.honor && <div className={styles.sash}><span>{game.honor === 'potd' ? 'Player of the Day' : 'Player of the Game'}</span></div>}
-        {rank != null && <div className={styles.medal}>
+        {variant === 'std' && rank != null && <div className={styles.medal}>
           <span>Elo rank</span><b>#{rank}</b>
           {!!move && <i className={move > 0 ? styles.medalUp : styles.medalDown}>
             {move > 0 ? `▲ ${move}` : `▼ ${-move}`}</i>}
         </div>}
-        {!game.honor && <div className={styles.gameTag}>
+        {variant === 'std' && !game.honor && <div className={styles.gameTag}>
           <b className={styles.gameDay}>{fmtDay(game.date)}</b>
           {/* Both teams, so the opponent's logo never reads as the player's own */}
           <div className={styles.matchup}>
@@ -198,18 +231,20 @@ export function CardFront({ name, row, game, team, headshot }) {
             <TeamLogo src={game.oppLogo} abbr={game.oppAbbr} color={game.oppColor} />
           </div>
         </div>}
-        <div className={styles.nameOver}>
+        {variant === 'std' && <div className={styles.nameOver}>
           <div className={styles.first}>{first}</div>
           <div ref={lastRef} className={styles.last}>{last}</div>
           <div className={styles.metaRow}>
             <span className={styles.meta}>{[row.pos, team?.name].filter(Boolean).join(' · ')}</span>
           </div>
-          {(game.score || rookie) && <div className={styles.scoreRow}>
-            {game.score && <span className={game.won ? styles.resW : styles.resL}>{game.won ? 'W' : 'L'} {game.score}{game.ot ? ` ${game.ot}` : ''}</span>}
-            {rookie && <span className={styles.rc} title="Rookie season">RC</span>}
-          </div>}
-        </div>
+        </div>}
       </div>
+      {/* Final score bar: green-lit for a win, charcoal with a red rule for a loss; the winner reads bright */}
+      {game.score && <div className={`${styles.scoreBar} ${game.won ? styles.barW : styles.barL}`}>
+        <span className={game.won ? styles.barHi : styles.barLo}>{team?.abbr} {us}{rookie && <span className={styles.rc} title="Rookie season">RC</span>}</span>
+        <em>Final{game.ot ? `/${game.ot}` : ''}</em>
+        <span className={game.won ? styles.barLo : styles.barHi}>{them} {game.oppAbbr}</span>
+      </div>}
       <div className={styles.strip}>
         <div className={styles.stripStats}>
           <div><b>{row.pts ?? '—'}</b><small>PTS</small></div>
@@ -227,6 +262,56 @@ export function CardFront({ name, row, game, team, headshot }) {
   )
 }
 
+// Statistical feats that earn a stat-line insert, rarest first. Each: { key, label, big (the numerals), unit }
+const FEAT_CATS = [['pts', 'PTS'], ['trb', 'REB'], ['ast', 'AST'], ['stl', 'STL'], ['blk', 'BLK']]
+export function featsFor(r) {
+  const out = [], v = k => r[k] || 0
+  const tens = FEAT_CATS.filter(([k]) => v(k) >= 10)
+  const multi = n => ({ big: tens.map(([k]) => v(k)).join('·'), unit: tens.map(([, l]) => l).join(' · ') })
+  if (tens.length >= 5) out.push({ key: 'x5', label: 'Quintuple-double', ...multi() })
+  else if (tens.length === 4) out.push({ key: 'x4', label: 'Quadruple-double', ...multi() })
+  if (v('pts') >= 50) { const t = Math.floor(v('pts') / 10) * 10; out.push({ key: 'pts', label: `${t}-point game`, big: String(v('pts')), unit: 'Points' }) }
+  if (v('trb') >= 30) out.push({ key: 'reb', label: `${Math.floor(v('trb') / 10) * 10}-rebound game`, big: String(v('trb')), unit: 'Rebounds' })
+  if (v('ast') >= 20) out.push({ key: 'ast', label: `${Math.floor(v('ast') / 10) * 10}-assist game`, big: String(v('ast')), unit: 'Assists' })
+  if (v('blk') >= 10) out.push({ key: 'blk', label: '10+ blocks', big: String(v('blk')), unit: 'Blocks' })
+  if (v('stl') >= 10) out.push({ key: 'stl', label: '10+ steals', big: String(v('stl')), unit: 'Steals' })
+  if (v('tp') >= 10) out.push({ key: 'tp', label: '10+ threes', big: String(v('tp')), unit: 'Threes made' })
+  if (tens.length === 3) out.push({ key: 'x3', label: 'Triple-double', ...multi() })
+  const twenties = [['pts', 'PTS'], ['trb', 'REB'], ['ast', 'AST']].filter(([k]) => v(k) >= 20)
+  if (twenties.length >= 2 && tens.length < 3) out.push({ key: '2020', label: twenties.length === 3 ? '20/20/20' : '20/20', big: twenties.map(([k]) => v(k)).join('/'), unit: twenties.map(([, l]) => l).join(' · ') })
+  return out
+}
+
+/**
+ * Duel cards: Giant-Slayer (the least likely duel win) and Duel (the top player on each side, head to head),
+ * of the game (blue) or of the day (gold). a = the winner, b = the other player:
+ * { name, row, color, abbr, team, headshot }. Drawn at full size (340 × 476) like MiniCard.
+ */
+export function DuelCard({ kind, scope, a, b, date }) {
+  const title = `${kind === 'slayer' ? 'Giant-Slayer' : 'Duel'} of the ${scope === 'day' ? 'Day' : 'Game'}`
+  const wc = 1 / (1 + 10 ** ((b.row.pre - a.row.pre) / 620))
+  const nm = n => { const [f, ...r] = baseName(n).split(' '); return { first: f, last: r.join(' ') || f } }
+  const A = nm(a.name), B = nm(b.name)
+  const face = (x, cls) => x.headshot ? <img className={cls} src={x.headshot} alt="" /> : <span className={styles.duelMono}>{baseName(x.name).split(' ').map(w => w[0]).slice(0, 2).join('')}</span>
+  return (
+    <div className={styles.duel} data-scope={scope}>
+      <div className={styles.duelHead} data-long={title.length > 20 ? '' : undefined}>{title}</div>
+      <div className={styles.duelBody}>
+        <div className={styles.duelTop} style={{ '--c': a.color }}>{face(a, styles.duelShotA)}</div>
+        <div className={styles.duelBot} style={{ '--c': b.color }}>{face(b, styles.duelShotB)}</div>
+        <div className={styles.duelA}><small>{A.first}</small><b>{A.last}</b><em>{a.team} · Elo {r0(a.row.pre)}</em></div>
+        <div className={styles.duelAGs}><span>Winner</span><b>{f1(a.row.gs)}</b><small>Game Score</small></div>
+        <div className={styles.duelChip}>
+          {kind === 'slayer' ? <><b>{Math.max(1, Math.round(wc * 100))}%</b><small>Pre-game duel chance</small></>
+            : <><b>{f1(a.row.gs)}–{f1(b.row.gs)}</b><small>Game Score</small></>}
+        </div>
+        <div className={styles.duelB}><small>{kind === 'slayer' ? 'Beat' : 'Over'}</small><b>{B.last}</b><em>{f1(b.row.gs)} GmSc · {b.team} · {r0(b.row.pre)}</em></div>
+        <div className={styles.duelFoot}><span>{fmtDay(date)}</span><span>{kind === 'slayer' ? `Elo gap ${r0(b.row.pre - a.row.pre)}` : `${Math.round(wc * 100)}% pre-game`}</span></div>
+      </div>
+    </div>
+  )
+}
+
 // Data attributes that drive the card's finish: tier, playoff round, honor, career game, milestones
 function cardAttrs(row, game) {
   const m = momentsFor(row)
@@ -236,6 +321,7 @@ function cardAttrs(row, game) {
     'data-honor': game.honor || undefined,
     'data-cg': m.career ? '' : undefined,
     'data-ms': m.stamps.some(x => x.up) ? '' : undefined,
+    'data-age': ageOf(game.date),
   }
 }
 
