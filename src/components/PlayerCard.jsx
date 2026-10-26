@@ -335,7 +335,7 @@ export function DuelCard({ kind, scope, a, b, date }) {
           {kind === 'slayer' ? <><b>{Math.max(1, Math.round(wc * 100))}%</b><small>Pre-game duel chance</small></>
             : <><b>{f1(a.row.gs)}–{f1(b.row.gs)}</b><small>Game Score</small></>}
         </div>
-        <div className={styles.duelB}><small>{kind === 'slayer' ? 'Beat' : 'Over'}</small><b ref={rb}>{B.last}</b><em>{f1(b.row.gs)} GmSc · {b.team} · {r0(b.row.pre)}</em></div>
+        <div className={styles.duelB}><small>{kind === 'slayer' ? 'Beat' : 'Over'} {B.first !== B.last ? B.first : ''}</small><b ref={rb}>{B.last}</b><em>{f1(b.row.gs)} GmSc · {b.team} · {r0(b.row.pre)}</em></div>
         <div className={styles.duelFoot}><span>{fmtDay(date)}</span><span>{kind === 'slayer' ? `Elo gap ${r0(b.row.pre - a.row.pre)}` : `${Math.round(wc * 100)}% pre-game`}</span></div>
       </div>
     </div>
