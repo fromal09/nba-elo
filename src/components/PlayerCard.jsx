@@ -175,6 +175,15 @@ export function CardFront({ name, row, game, team, headshot }) {
           : <span className={styles.mono}>{first[0]}{last[0]}</span>}
         <div className={styles.fade} />
         {game.band && <div className={styles.poBand}><span>{game.band.champ ? 'Champions' : 'Playoffs'}</span><i>·</i><span>{game.band.label}</span></div>}
+        {/* Honored games carry the date and matchup in a header placard (under the playoff band, if any), so the sash has room */}
+        {game.honor && <div className={styles.honorBand}>
+          <b>{fmtDay(game.date)}</b>
+          <span className={styles.honorMatch}>
+            <TeamLogo src={team?.logo} abbr={team?.abbr} color={team?.color} />
+            <em>{where}</em>
+            <TeamLogo src={game.oppLogo} abbr={game.oppAbbr} color={game.oppColor} />
+          </span>
+        </div>}
         {moments.career && <div className={styles.careerStamp}><span>★ Career game</span><b>{f1(row.gs)} <small>GmSc</small></b></div>}
         {game.honor && <div className={styles.sash}><span>{game.honor === 'potd' ? 'Player of the Day' : 'Player of the Game'}</span></div>}
         {serialFor(rank) && <span className={styles.serial}>{serialFor(rank)}</span>}
@@ -183,7 +192,7 @@ export function CardFront({ name, row, game, team, headshot }) {
           {!!move && <i className={move > 0 ? styles.medalUp : styles.medalDown}>
             {move > 0 ? `▲ ${move}` : `▼ ${-move}`}</i>}
         </div>}
-        <div className={styles.gameTag}>
+        {!game.honor && <div className={styles.gameTag}>
           <b className={styles.gameDay}>{fmtDay(game.date)}</b>
           {/* Both teams, so the opponent's logo never reads as the player's own */}
           <div className={styles.matchup}>
@@ -191,7 +200,7 @@ export function CardFront({ name, row, game, team, headshot }) {
             <span>{where}</span>
             <TeamLogo src={game.oppLogo} abbr={game.oppAbbr} color={game.oppColor} />
           </div>
-        </div>
+        </div>}
         <div className={styles.nameOver}>
           <div className={styles.first}>{first}</div>
           <div ref={lastRef} className={styles.last}>{last}</div>

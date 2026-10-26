@@ -339,16 +339,13 @@
 [data-honor=potg] .rays { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(190,235,255,.2) 0 5deg, transparent 5deg 16deg); animation: rays 30s linear infinite; }
 [data-honor=potd] .rays { background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,226,140,.3) 0 4deg, transparent 4deg 12deg); animation: rays 40s linear infinite reverse; }
 @keyframes rays { to { transform: rotate(360deg) } }
-.sash { position: absolute; z-index: 5; top: 0; right: 0; width: 140px; height: 140px; overflow: hidden; pointer-events: none; }
-[data-po] .sash { top: 26px; } [data-po=cf] .sash { top: 28px; } [data-po=finals] .sash { top: 30px; } [data-po=champ] .sash { top: 34px; }
+.sash { position: absolute; z-index: 4; top: 0; right: 0; width: 140px; height: 140px; overflow: hidden; pointer-events: none; }
+[data-honor] .sash { top: 30px; }
 .sash span { position: absolute; top: 40px; right: -42px; width: 196px; padding: 5px 0; transform: rotate(45deg); text-align: center; white-space: nowrap;
   font-size: 8.5px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; background-size: 200% 100%; animation: holo 3s linear infinite alternate; box-shadow: 0 4px 12px rgba(0,0,0,.45); }
 [data-honor=potg] .sash span { background-image: linear-gradient(90deg, #0b5f9e, #5ec8ff 50%, #0b5f9e); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
 [data-honor=potd] .sash span { background-image: linear-gradient(90deg, #8a6414, #fff1c0 30%, #e7c160 50%, #fff1c0 70%, #8a6414); color: #1a1000; text-shadow: 0 1px 0 rgba(255,255,255,.5); }
-/* The sash takes the top-right corner, so the date and matchup drop below it */
-[data-honor] .gameTag { top: 126px; }
-[data-honor][data-po] .gameTag { top: 152px; } [data-honor][data-po=cf] .gameTag { top: 154px; } [data-honor][data-po=finals] .gameTag { top: 156px; } [data-honor][data-po=champ] .gameTag { top: 160px; }
-[data-honor] .careerStamp { top: 62%; }
+/* The date and matchup sit over the sash; the sash is decoration underneath */
 [data-honor=potg] .face.front { animation: pulseBlue 2.4s ease-in-out infinite; }
 @keyframes pulseBlue { 0%, 100% { box-shadow: 0 0 0 2px #5ec8ff, 0 0 22px rgba(94,200,255,.45), 0 24px 60px rgba(0,0,0,.5) } 50% { box-shadow: 0 0 0 2px #5ec8ff, 0 0 44px rgba(94,200,255,.85), 0 24px 60px rgba(0,0,0,.5) } }
 /* Player of the Day: notched corners, gold inner edge, gold pulse, falling gold flecks, gold name */
@@ -383,3 +380,25 @@
 .slabCard { position: absolute; left: 50%; top: 50%; width: 340px; height: 476px; transform: translate(-50%, -50%) scale(.81); }
 .slabTop { width: min(340px, 86vw); box-sizing: border-box; }
 @media (prefers-reduced-motion: reduce) { .rays, .sash span, [data-honor] .face.front, [data-honor] .tilt, [data-honor=potd] .glitter, [data-tier=goat] .holo, [data-tier=goat] .front { animation: none !important; } }
+
+/* Honored games: date and matchup in a header placard (playoff-band style), sash below it */
+.honorBand { position: absolute; z-index: 6; left: 0; right: 0; top: 0; height: 30px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 10px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; }
+.honorBand b { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 17px; letter-spacing: .4px; }
+.honorBand i { font-style: normal; opacity: .55; }
+.honorMatch { display: inline-flex; align-items: center; gap: 4px; }
+.honorMatch em { font-style: normal; font-size: 9px; letter-spacing: .5px; }
+.honorMatch .oppLogo, .honorMatch .oppMark { width: 24px; height: 24px; padding: 2px; font-size: 7px; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.honorMatch .oppMark { padding: 0; }
+[data-honor=potg] .honorBand { background: linear-gradient(90deg, #06182e, #0d2f55 50%, #06182e); border-bottom: 2px solid #5ec8ff; color: #d6f0ff; text-shadow: 0 0 8px rgba(94,200,255,.45); }
+[data-honor=potd] .honorBand { background: linear-gradient(90deg, #0b0b0b, #1c1606 12%, #e7c160 30%, #fffbe8 50%, #e7c160 70%, #1c1606 88%, #0b0b0b); background-size: 200% 100%; animation: holo 4s linear infinite alternate;
+  border-bottom: 2px solid #fff3c8; color: #1a1000; text-shadow: 0 1px 0 rgba(255,255,255,.5); }
+[data-honor] .medal { top: 38px; }
+[data-honor] .serial { top: 125px; }
+/* Playoff honors: the playoff band stays on top, the date placard is its second line */
+[data-honor][data-po] .honorBand, [data-honor][data-po=r2] .honorBand { top: 26px; }
+[data-honor][data-po=cf] .honorBand { top: 28px; } [data-honor][data-po=finals] .honorBand { top: 30px; } [data-honor][data-po=champ] .honorBand { top: 34px; }
+[data-honor][data-po] .sash { top: 56px; } [data-honor][data-po=cf] .sash { top: 58px; } [data-honor][data-po=finals] .sash { top: 60px; } [data-honor][data-po=champ] .sash { top: 64px; }
+[data-honor][data-po] .medal { top: 64px; } [data-honor][data-po=cf] .medal { top: 66px; } [data-honor][data-po=finals] .medal { top: 68px; } [data-honor][data-po=champ] .medal { top: 72px; }
+[data-honor][data-po] .serial { top: 151px; } [data-honor][data-po=cf] .serial { top: 153px; } [data-honor][data-po=finals] .serial { top: 155px; } [data-honor][data-po=champ] .serial { top: 159px; }
+@media (prefers-reduced-motion: reduce) { [data-honor=potd] .honorBand { animation: none !important; } }
