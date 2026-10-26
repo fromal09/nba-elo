@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import styles from './PlayerCard.module.css'
+import './eraFonts.css'
 
 // Rarity by where the player stood entering this game: his pre-game Elo rank among every
 // player in that season (same tier names as the Franchise Tenures cards)
@@ -47,6 +48,20 @@ const seasonOf = d => (+d.slice(5, 7) >= 8 ? +d.slice(0, 4) : +d.slice(0, 4) - 1
 const isRookieGame = (name, date) => { const f = firstGame(name); return !!f && !!date && seasonOf(f) === seasonOf(date) }
 const isDebutGame = (name, date) => { const f = firstGame(name); return !!f && f === date }
 // Older cards show their age: vintage before 1980, light wear through 1999
+// Card designs follow the decade: Classic 1946–59, Groove 1960–79, Stripe 1980–89, Edge 1990–99,
+// Refractor 2000–19, then today's design. The tier foil, honors, playoff band, aging and score bar ride on top.
+export const eraOf = date => {
+  if (!date) return null
+  const s = seasonOf(date)
+  return s < 1959 ? 'classic' : s < 1979 ? 'groove' : s < 1989 ? 'stripe' : s < 1999 ? 'edge' : s < 2019 ? 'refractor' : null
+}
+// Second team colors for the Stripe era's diagonal stripes (current franchises); others get gold
+const TC2 = { ATL: '#C1D32F', BOS: '#BA9653', BKN: '#FFFFFF', CHO: '#00788C', CHI: '#000000', CLE: '#FDBB30', DAL: '#B8C4CA', DEN: '#FEC524', DET: '#1D42BA',
+  GSW: '#FFC72C', HOU: '#C4CED4', IND: '#FDBB30', LAC: '#1D428A', LAL: '#FDB927', MEM: '#12173F', MIA: '#F9A01B', MIL: '#EEE1C6', MIN: '#78BE20', NOP: '#C8102E',
+  NYK: '#F58426', OKC: '#EF3B24', ORL: '#C4CED4', PHI: '#ED174C', PHO: '#E56020', POR: '#E03A3E', SAC: '#63727A', SAS: '#C4CED4', TOR: '#A1A1A4', UTA: '#F9A01B', WAS: '#E31837',
+  SEA: '#FFC200', NJN: '#C4CED4', KCK: '#FFFFFF', SDC: '#F58426', BUF: '#FFFFFF', VAN: '#E43C40', CHH: '#5C2F83', WSB: '#C8102E', NOH: '#FDB927' }
+const NICK2 = ['Trail Blazers']
+const splitTeam = n => { const two = NICK2.find(w => (n || '').endsWith(w)); const nick = two || (n || '').split(' ').pop(); return { nick, city: (n || '').slice(0, (n || '').length - nick.length).trim() } }
 const ageOf = date => { if (!date) return undefined; const s = seasonOf(date); return s < 1979 ? 'vintage' : s < 1999 ? 'worn' : undefined }
 
 /**
@@ -156,6 +171,8 @@ export function CardFront({ name, row, game, team, headshot }) {
   const debut = isDebutGame(name, game.date)
   const feats = useMemo(() => (debut ? [] : featsFor(row)), [row, debut])
   const variant = debut ? 'debut' : feats.length ? 'stat' : 'std'
+  const era = variant === 'std' ? eraOf(game.date) : null
+  const ERA_MAX = { classic: 42, groove: 30, stripe: 30, edge: 60, refractor: 27 }
   useLayoutEffect(() => {
     const el = lastRef.current; if (!el) return
     // Measure the text itself (scrollWidth rounds, which let italic overhang trigger the ellipsis);
@@ -165,25 +182,70 @@ export function CardFront({ name, row, game, team, headshot }) {
       const k = el.getBoundingClientRect().width / (el.offsetWidth || 1) || 1
       return r.getBoundingClientRect().width / k
     }
-    const max = variant === 'std' ? 70 : variant === 'stat' ? 40 : 46
+    const max = era ? ERA_MAX[era] : variant === 'std' ? 70 : variant === 'stat' ? 40 : 46
     const fit = () => { let s = max; el.style.fontSize = s + 'px'; while (textW() > el.clientWidth - 4 && s > 18) el.style.fontSize = --s + 'px' }
     fit(); document.fonts?.ready.then(fit)
-  }, [name, variant])
+  }, [name, variant, era])
   const shot = (cls, monoCls) => headshot && !imgBad
     ? <img className={cls} src={headshot} alt={baseName(name)} onError={() => setImgBad(true)} />
     : <span className={monoCls}>{first[0]}{last[0]}</span>
   const [us, them] = (game.score || '').split('–')
   return (
-    <div className={styles.frame} data-front={variant}>
+    <div className={styles.frame} data-front={variant} data-era={era || undefined}>
       <div className={styles.photo}>
         <div className={styles.photoBg} />
         {/* foil sits behind the player so the headshot stays crisp */}
         <div className={styles.rays} /><div className={styles.holo} /><div className={styles.glitter} /><div className={styles.shine} />
-        {variant === 'std' && <>
+        {variant === 'std' && !era && <>
           <span className={styles.bigNum}>{r0(row.post)}</span>
           {shot(styles.shot, styles.mono)}
           <div className={styles.fade} />
         </>}
+        {era && (() => {
+          const tn = splitTeam(team?.name), when = `${fmtDay(game.date)} ${where} ${game.oppAbbr}`
+          const result = game.score ? `${game.won ? 'W' : 'L'} ${game.score}` : ''
+          // The photo window carries the tier foil (and honor rays) in every era
+          const win = cls => (
+            <div className={cls}>
+              <div className={styles.eraFoil}><div className={styles.rays} /><div className={styles.holo} /><div className={styles.glitter} /><div className={styles.shine} /></div>
+              {shot(styles.eraShot, styles.eraMono)}
+            </div>
+          )
+          return <div className={styles.eraFace} style={{ '--tc2': TC2[team?.abbr] || '#f2c14e' }}>
+            {era === 'classic' && <>
+              <div className={styles.cWin}>{win(styles.eraWin)}{rank != null && <span className={styles.cNo}>No. {rank}</span>}</div>
+              <div className={styles.cPlate}>
+                <span className={styles.cName}><i>{first}</i><b ref={lastRef}>{last}</b></span>
+                <span className={styles.cMeta}><span>{tn.city || tn.nick}</span><span>{fmtDay(game.date)}</span><em className={game.won ? styles.cWon : ''}>{result}</em></span>
+              </div>
+            </>}
+            {era === 'groove' && <>
+              <div className={styles.gHead}><span>{tn.nick}</span><span>{rank != null ? `#${rank}` : ''}</span></div>
+              {win(styles.gWin)}
+              <div className={styles.gPill}><b ref={lastRef}>{last}</b></div>
+              <div className={styles.gMeta}>{when} · {result}</div>
+            </>}
+            {era === 'stripe' && <>
+              <div className={styles.sWin}>{win(styles.eraWin)}<i className={styles.sStripeA} /><i className={styles.sStripeB} /></div>
+              <div className={styles.sName}><b ref={lastRef}>{`${first} ${last}`.trim()}</b>{rank != null && <span>#{rank}</span>}</div>
+              <div className={styles.sMeta}>{tn.nick} · {when} · <em>{result}</em></div>
+            </>}
+            {era === 'edge' && <>
+              {win(styles.eWin)}
+              <div className={styles.ePlate}>
+                <div className={styles.eName}><b ref={lastRef}>{last}</b>{rank != null && <span>#{rank}</span>}</div>
+                <div className={styles.eMeta}><span>{tn.nick} · {fmtDay(game.date)}</span><em className={game.won ? styles.eWon : styles.eLost}>{result}</em></div>
+              </div>
+            </>}
+            {era === 'refractor' && <div className={styles.rFrame}>
+              {win(styles.rWin)}
+              <div className={styles.rPlate}>
+                <div className={styles.rName}><b ref={lastRef}>{`${first} ${last}`.trim()}</b>{rank != null && <span>#{rank}</span>}</div>
+                <div className={styles.rMeta}>{tn.nick} · {when} · {result}</div>
+              </div>
+            </div>}
+          </div>
+        })()}
         {variant === 'debut' && <div className={styles.ticket}>
           <div className={styles.stub} />
           <div className={styles.ticketBody}>
@@ -218,12 +280,12 @@ export function CardFront({ name, row, game, team, headshot }) {
         </div>}
         {variant === 'std' && moments.career && <div className={styles.careerStamp}><span>★ Career game</span><b>{f1(row.gs)} <small>GmSc</small></b></div>}
         {game.honor && <div className={styles.sash}><span>{game.honor === 'potd' ? 'Player of the Day' : 'Player of the Game'}</span></div>}
-        {variant === 'std' && rank != null && <div className={styles.medal}>
+        {variant === 'std' && !era && rank != null && <div className={styles.medal}>
           <span>Elo rank</span><b>#{rank}</b>
           {!!move && <i className={move > 0 ? styles.medalUp : styles.medalDown}>
             {move > 0 ? `▲ ${move}` : `▼ ${-move}`}</i>}
         </div>}
-        {variant === 'std' && !game.honor && <div className={styles.gameTag}>
+        {variant === 'std' && !era && !game.honor && <div className={styles.gameTag}>
           <b className={styles.gameDay}>{fmtDay(game.date)}</b>
           {/* Both teams, so the opponent's logo never reads as the player's own */}
           <div className={styles.matchup}>
@@ -232,7 +294,7 @@ export function CardFront({ name, row, game, team, headshot }) {
             <TeamLogo src={game.oppLogo} abbr={game.oppAbbr} color={game.oppColor} />
           </div>
         </div>}
-        {variant === 'std' && <div className={styles.nameOver}>
+        {variant === 'std' && !era && <div className={styles.nameOver}>
           <div className={styles.first}>{first}</div>
           <div ref={lastRef} className={styles.last}>{last}</div>
           <div className={styles.metaRow}>

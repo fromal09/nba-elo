@@ -531,3 +531,95 @@
 .dWin { background: #fff3c8; border-radius: 4px; box-shadow: inset 0 0 0 1px #d9b25a; }
 .dNote { font-size: 10.5px; line-height: 1.4; color: #5c6876; margin-top: 5px; }
 .legendLab { font-size: 9.5px; font-weight: 700; fill: #3b4652; font-family: 'Inter', sans-serif; }
+
+/* ── Era designs: the photo area and name plate follow the decade ── */
+.eraFace { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; }
+[data-po] .eraFace { top: 26px; } [data-honor] .eraFace { top: 30px; } [data-honor][data-po] .eraFace { top: 56px; }
+.eraWin, .gWin, .eWin, .rWin { overflow: hidden; background: radial-gradient(90% 75% at 50% 40%, color-mix(in srgb, var(--tc) 78%, #fff 22%), var(--tc) 55%, color-mix(in srgb, var(--tc) 55%, #000)); }
+.eraWin { position: absolute; inset: 0; }
+.eraFoil { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
+.eraShot { position: absolute; z-index: 2; left: 50%; bottom: 0; height: 94%; transform: translateX(-50%); max-width: none; }
+.eraMono { position: absolute; z-index: 2; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 120px; line-height: 1; color: rgba(255,255,255,.85); }
+.eraFace b[class], .eraFace b { display: block; white-space: nowrap; overflow: hidden; }
+
+/* Classic · 1946–59: cream stock, serif lettering, duotone photo, card number */
+[data-era=classic] .eraFace { background: #f2e8d2; padding: 12px 12px 8px; gap: 8px; color: #3a2a14; }
+.cWin { position: relative; flex: 1; min-height: 0; }
+[data-era=classic] .eraWin { border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.3);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tc) 40%, #6a7d62), color-mix(in srgb, var(--tc) 35%, #233328)); }
+[data-era=classic] .eraShot { filter: grayscale(1) sepia(.35) contrast(1.05) brightness(1.02); }
+[data-era=classic] .eraMono { font-family: 'DM Serif Display', Georgia, serif; font-size: 116px; color: rgba(255,248,230,.85); }
+.cNo { position: absolute; z-index: 3; left: 8px; top: 8px; padding: 2px 9px; background: #a8271e; color: #f8eedb; font-family: 'DM Serif Display', Georgia, serif; font-size: 16px; }
+.cPlate { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
+.cName { display: flex; flex-direction: column; line-height: 1; min-width: 0; flex: 1; }
+.cName i { font-family: 'DM Serif Display', Georgia, serif; font-size: 15px; }
+.cName b { font-family: 'DM Serif Display', Georgia, serif; font-weight: 400; font-size: 42px; }
+.cMeta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; font-size: 9.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; }
+.cMeta em { font-style: normal; color: #6b5a40; }
+.cMeta .cWon { color: #a8271e; }
+.frame[data-era=classic] .strip { background: #f2e8d2; color: #3a2a14; border-top: 1px solid rgba(58,42,20,.25) !important; }
+.frame[data-era=classic] .strip b { font-family: 'DM Serif Display', Georgia, serif; font-weight: 400; }
+.frame[data-era=classic] .stripElo { border-top-color: rgba(58,42,20,.18); }
+
+/* Groove · 1960–79: rounded window, warm color bands, chunky rounded type */
+[data-era=groove] .eraFace { background: linear-gradient(180deg, #e8742a 0 12%, #f2a33a 12% 17%, var(--tc) 17%); padding: 9px 12px 10px; gap: 8px; }
+.gHead { display: flex; justify-content: space-between; padding: 0 6px; color: #fff6e0; font-family: 'Righteous', sans-serif; font-size: 16px; text-transform: uppercase; }
+.gWin { position: relative; flex: 1; min-height: 0; border-radius: 34px; box-shadow: inset 0 0 0 4px #f2a33a; }
+.gWin::after { content: ""; position: absolute; inset: 0; border-radius: 34px; box-shadow: inset 0 0 0 4px #f2a33a; z-index: 3; pointer-events: none; }
+[data-era=groove] .eraShot { filter: saturate(1.1) sepia(.12); }
+[data-era=groove] .eraMono { font-family: 'Righteous', sans-serif; font-size: 104px; color: rgba(255,240,210,.85); }
+.gPill { align-self: center; max-width: 92%; padding: 4px 22px 5px; border-radius: 24px; background: #f2a33a; color: #3a1a00; box-shadow: 0 3px 0 rgba(0,0,0,.2); }
+.gPill b { font-family: 'Righteous', sans-serif; font-weight: 400; font-size: 30px; line-height: 1.1; }
+.gMeta { text-align: center; font-family: 'Righteous', sans-serif; font-size: 11.5px; color: #fff6e0; opacity: .92; text-transform: uppercase; letter-spacing: .5px; }
+.frame[data-era=groove] .strip { background: color-mix(in srgb, var(--tc) 72%, #000); border-top: 2px solid #f2a33a !important; }
+.frame[data-era=groove] .strip b { font-family: 'Righteous', sans-serif; font-weight: 400; }
+
+/* Stripe · 1980–89: white border, diagonal team stripes, geometric caps */
+[data-era=stripe] .eraFace { background: #fbfbf8; padding: 12px 12px 8px; gap: 5px; color: #1d1530; }
+.sWin { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+[data-era=stripe] .eraWin { background: linear-gradient(180deg, color-mix(in srgb, var(--tc) 75%, #fff 25%), var(--tc)); }
+[data-era=stripe] .eraMono { font-family: 'Russo One', sans-serif; font-size: 100px; top: -10%; }
+.sStripeA, .sStripeB { position: absolute; z-index: 3; left: -30px; right: -30px; transform: rotate(-8deg); }
+.sStripeA { bottom: 24px; height: 22px; background: var(--tc2); }
+.sStripeB { bottom: 10px; height: 8px; background: var(--tc); filter: brightness(.7); }
+.sName { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.sName b { flex: 1; min-width: 0; font-family: 'Russo One', sans-serif; font-weight: 400; font-size: 30px; text-transform: uppercase; line-height: 1.05; }
+.sName span { flex: none; font-family: 'Russo One', sans-serif; font-size: 15px; color: var(--tc); }
+.sMeta { font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #5a5468; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sMeta em { font-style: normal; color: var(--tc); }
+.frame[data-era=stripe] .strip { background: #fbfbf8; color: #1d1530; border-top: 1px solid #e4e2ea !important; }
+.frame[data-era=stripe] .strip b { font-family: 'Russo One', sans-serif; font-weight: 400; color: var(--tc); }
+.frame[data-era=stripe] .stripElo { border-top-color: #ecebf0; }
+.frame[data-era=stripe] .msLine { color: #5a5468; }
+
+/* Edge · 1990–99: black field, angled photo window, chrome nameplate */
+[data-era=edge] .eraFace { background: repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 2px, transparent 2px 9px), radial-gradient(80% 60% at 30% 20%, #2a2a2e, #0a0a0c 70%); }
+.eWin { position: absolute; left: 16px; right: 16px; top: 14px; bottom: 98px; clip-path: polygon(0 7%, 100% 0, 100% 92%, 0 100%);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--tc) 80%, #fff 20%), var(--tc) 50%, color-mix(in srgb, var(--tc) 50%, #000)); }
+[data-era=edge] .eraMono { font-family: 'Bebas Neue', sans-serif; font-size: 136px; }
+.ePlate { position: absolute; left: 16px; right: 16px; bottom: 10px; }
+.eName { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.eName b { flex: 1; min-width: 0; font-family: 'Bebas Neue', sans-serif; font-weight: 400; font-size: 60px; line-height: .9; padding-top: 2px;
+  background: linear-gradient(180deg, #ffffff, #9aa3ad 48%, #f2f5f8 52%, #6a737d); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.eName span { flex: none; font-family: 'Bebas Neue', sans-serif; font-size: 22px; color: #c9ced6; }
+.eMeta { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 10.5px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: #c9ced6; }
+.eMeta em { font-style: normal; }
+.eWon { color: #5fd69a; } .eLost { color: #ff6b6b; }
+.frame[data-era=edge] .strip { background: #0a0a0c; border-top: 1px solid #2c2c30 !important; }
+.frame[data-era=edge] .strip b { font-family: 'Bebas Neue', sans-serif; font-weight: 400; font-size: 22px; letter-spacing: .5px; }
+
+/* Refractor · 2000–19: silver frame, full-bleed photo, wide-spaced condensed type */
+[data-era=refractor] .eraFace { background: linear-gradient(180deg, #8c96a0, #e6ebf0 50%, #8c96a0); padding: 6px; }
+.rFrame { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.rWin { position: absolute; inset: 0; }
+.rWin::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; mix-blend-mode: screen; opacity: .45;
+  background: linear-gradient(120deg, rgba(255,80,160,.32), rgba(80,200,255,.26), rgba(120,255,180,.22), rgba(255,220,90,.26)); background-size: 300% 300%; animation: holo 7s linear infinite alternate; }
+[data-era=refractor] .eraMono { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 110px; top: -14%; }
+.rPlate { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; padding: 46px 14px 10px; background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.86) 55%); color: #fff; }
+.rName { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.rName b { flex: 1; min-width: 0; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 27px; letter-spacing: 5px; text-transform: uppercase; line-height: 1.1; }
+.rName span { flex: none; font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 15px; }
+.rMeta { margin-top: 3px; font-size: 10px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.frame[data-era=refractor] .strip { background: #0d0f14; border-top: 2px solid #c7ced6 !important; }
+.frame[data-era=refractor] .strip b { font-family: 'Oswald', sans-serif; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .rWin::after { animation: none; } }
