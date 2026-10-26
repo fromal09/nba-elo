@@ -22,7 +22,7 @@ Player of the Game / Day and playoff rounds match the site's own rules (markHono
   explorer/binders/league.json     the Binders page: league-wide sets and the franchise list
       {"franchises": [{"code", "name", "color", "titles", "first", "last", "active"}],
        "sets": {"titles", "debuts", "games", "stat", "crowns", "peaks", "swings": [card, ...],
-                "slayers", "duels": [{"k", "s", "id", "date", "a": card, "b": card, "gap"|"sum"}]}}
+                "slayers", "duels": [{"k", "s", "id", "date", "a": card, "b": card, "gap"|"score"}]}}
 
 Run after build_timemachine.py:  python3 scripts/build_binders.py   (also builds the pack pool, build_packs.py)
 """
@@ -88,24 +88,37 @@ def game_slayer(players):
     return best
 
 
+DUEL_MIN_GS, DUEL_MIN_MP = 10, 20
+
+
+def _duel_ok(p):
+    return _gs(p) >= DUEL_MIN_GS and (p.get("mp") is None or p["mp"] >= DUEL_MIN_MP)
+
+
 def game_duel(players):
-    """The top night score on each side, head to head, as the site's gameDuel. Winner = the higher Game Score."""
-    teams = list(dict.fromkeys(p["t"] for p in players))
-    if len(teams) != 2:
+    """Two highly rated opponents who both played well, as the site's gameDuel: every cross-team pair with
+    20+ minutes (where recorded) and a 10+ Game Score each, scored on its weaker side:
+    the lower Game Score x (the lower pre-game Elo / 2,500). Winner = the higher Game Score."""
+    best = None
+    for a in players:
+        if not _duel_ok(a):
+            continue
+        for b in players:
+            if b["t"] == a["t"] or not _duel_ok(b) or b["n"] <= a["n"]:
+                continue
+            score = min(_gs(a), _gs(b)) * (min(a["pre"], b["pre"]) / 2500)
+            if best is None or score > best[2]:
+                best = (a, b, score)
+    if best is None:
         return None
-    tops = []
-    for t in teams:
-        top = None
-        for p in players:
-            if p["t"] == t and (top is None or night(p) > night(top)):
-                top = p
-        tops.append(top)
-    a, b = (tops[0], tops[1]) if _gs(tops[0]) >= _gs(tops[1]) else (tops[1], tops[0])
-    return (a, b, night(a) + night(b))
+    a, b, score = best
+    if _gs(b) > _gs(a):
+        a, b = b, a
+    return (a, b, score)
 
 
 def day_duels(games):
-    """Duel of the Day (highest combined night score) and Giant-Slayer of the Day (widest Elo gap), by date."""
+    """Duel of the Day (the best duel score) and Giant-Slayer of the Day (widest Elo gap), by date."""
     out = {}
     for g in games:
         cur = out.setdefault(g["date"], {})
@@ -301,7 +314,7 @@ def main():
                 if k == "slayer":
                     L["slayers"].add(_, lambda e=entry: {**e, "gap": round(_, 1)})
                 else:
-                    L["duels"].add(_gs(a) + _gs(b), lambda e=entry: {**e, "sum": round(_gs(a) + _gs(b), 1)})
+                    L["duels"].add(_, lambda e=entry, sc=_: {**e, "score": round(sc, 1)})
         for t, info in teams.items():
             fc = MERGE.get(t, t)
             top = max(potg[t].items(), key=lambda x: x[1]) if potg[t] else None

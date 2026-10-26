@@ -796,7 +796,7 @@ export const LEAGUE_SETS = [
   { id: 'slayers', title: 'Giant-Slayers', short: 'Giant-Slayers', color: '#7a5a10', duel: 'slayer',
     desc: 'The 54 widest Elo gaps ever closed by a Giant-Slayer of the Day.' },
   { id: 'duels', title: 'Greatest duels', short: 'Duels', color: '#0b5f9e', duel: 'duel',
-    desc: 'The 54 Duels of the Day with the highest combined Game Score.' },
+    desc: 'The 54 best Duels of the Day: two highly rated opponents who both played well, scored on the weaker side.' },
 ]
 
 const featLine = r => {
@@ -813,9 +813,9 @@ export function leagueEntries(env, def, list) {
     if (def.duel) {
       const side = x => duelSide(env, x.row, env.teamInfo(x.t, x.tn, x.tc))
       return {
-        key: `${c.s}|${c.id}|${c.k}`, season: c.s, id: c.id, kind: c.k, rank: i + 1, date: c.date, gs: c.sum ?? c.gap ?? 0, tier: c.k,
+        key: `${c.s}|${c.id}|${c.k}`, season: c.s, id: c.id, kind: c.k, rank: i + 1, date: c.date, gs: c.score ?? c.gap ?? 0, tier: c.k,
         duel: { kind: c.k, scope: 'day', date: c.date, a: side(c.a), b: side(c.b) },
-        label: `${i + 1}. ${shortName(c.a.row.n)}`, sub: c.k === 'slayer' ? `gap ${r0(c.gap)}` : `${c.sum} GmSc`,
+        label: `${i + 1}. ${shortName(c.a.row.n)}`, sub: c.k === 'slayer' ? `gap ${r0(c.gap)}` : `${c.a.row.gs}–${c.b.row.gs}`,
       }
     }
     const r = c.row, abbr = env.teamInfo(c.t, c.tn, c.tc).abbr

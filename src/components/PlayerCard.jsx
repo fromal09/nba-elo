@@ -349,7 +349,7 @@ export function featsFor(r) {
 }
 
 /**
- * Duel cards: Giant-Slayer (the least likely duel win) and Duel (the top player on each side, head to head),
+ * Duel cards: Giant-Slayer (the least likely duel win) and Duel (two highly rated opponents who both played well),
  * of the game (blue) or of the day (gold). a = the winner, b = the other player:
  * { name, row, color, team, abbr, headshot }. Drawn at full size (340 × 476) like MiniCard.
  * Headshots sit in corner medallions, so neither face runs under a name or the score chip.
@@ -537,7 +537,7 @@ export function DuelModal({ kind, scope, a, b, date, matchup, sd, careerA, caree
                   <span className={styles.tierTag}>{kind === 'slayer' ? `${Math.max(1, Math.round(wc * 100))}%` : 'H2H'}</span>
                 </div>
                 <section>
-                  <h4>This game <span>{kind === 'slayer' ? 'least likely duel win' : 'top player on each side'}</span></h4>
+                  <h4>This game <span>{kind === 'slayer' ? 'least likely duel win' : 'two stars, both playing well'}</span></h4>
                   <div className={styles.dTable}>
                     <div className={`${styles.dRow} ${styles.dHead}`}><span /><small>PTS</small><small>REB</small><small>AST</small><small>GmSc</small><small>Elo Δ</small></div>
                     {line(a, true)}{line(b, false)}

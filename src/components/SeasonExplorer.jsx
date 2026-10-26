@@ -136,14 +136,25 @@ function gameSlayer(players) {
   }
   return best
 }
-// Duel: the top Player of the Day candidate on each side, head to head (winner = higher Game Score)
+// Duel: two highly rated opponents who both played well. Every cross-team pair with real minutes (20+, where
+// the data has minutes) and a 10+ Game Score from each is scored on its weaker side, so one superstar's big
+// night can't carry it: score = the lower Game Score × (the lower pre-game Elo / 2,500). Winner = higher Game Score.
+const DUEL_MIN_GS = 10, DUEL_MIN_MP = 20
+const duelOk = p => (p.gs || 0) >= DUEL_MIN_GS && (p.mp == null || p.mp >= DUEL_MIN_MP)
+export const duelScore = (a, b) => Math.min(a.gs, b.gs) * (Math.min(a.pre, b.pre) / 2500)
 function gameDuel(players) {
-  const teams = [...new Set(players.map(p => p.t))]
-  if (teams.length !== 2) return null
-  const tops = teams.map(t => players.filter(p => p.t === t).reduce((m, p) => (!m || nightScore(p) > nightScore(m) ? p : m), null))
-  if (tops.some(x => !x)) return null
-  const [a, b] = tops[0].gs >= tops[1].gs ? tops : [tops[1], tops[0]]
-  return { a, b, sum: nightScore(a) + nightScore(b) }
+  let best = null
+  for (const a of players) {
+    if (!duelOk(a)) continue
+    for (const b of players) {
+      if (b.t === a.t || !duelOk(b) || b.n <= a.n) continue // each pair once
+      const score = duelScore(a, b)
+      if (!best || score > best.score) best = { a, b, score }
+    }
+  }
+  if (!best) return null
+  const [a, b] = best.a.gs >= best.b.gs ? [best.a, best.b] : [best.b, best.a]
+  return { a, b, score: best.score }
 }
 function markHonors(games) {
   const byDay = {}
@@ -159,14 +170,14 @@ function markHonors(games) {
   }
 }
 
-// Each day's Duel of the Day (highest combined night score) and Giant-Slayer of the Day (widest Elo gap)
+// Each day's Duel of the Day (the best duel score) and Giant-Slayer of the Day (widest Elo gap)
 const duelCache = new WeakMap()
 function dayDuels(games) {
   const out = new Map()
   for (const g of [...games].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))) {
     const cur = out.get(g.date) || {}
     const sl = gameSlayer(g.players); if (sl && (!cur.slayer || sl.gap > cur.slayer.gap)) cur.slayer = { ...sl, g }
-    const du = gameDuel(g.players); if (du && (!cur.duel || du.sum > cur.duel.sum)) cur.duel = { ...du, g }
+    const du = gameDuel(g.players); if (du && (!cur.duel || du.score > cur.duel.score)) cur.duel = { ...du, g }
     out.set(g.date, cur)
   }
   return out
@@ -1200,7 +1211,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel
             <b>{story.drop.n}</b> {r0(story.drop.pre)} → {r0(story.drop.post)} <em className={styles.down}>{sgn(story.drop.post - story.drop.pre)}</em>
           </StoryCard>
           {story.duel && <StoryCard tag="Duel of the Game" tone="blue" onClick={onDuel && (() => onDuel('duel', story.duel.a.n, story.duel.b.n))}>
-            <b>{story.duel.a.n}</b> {story.duel.a.gs.toFixed(1)} vs <b>{story.duel.b.n}</b> {story.duel.b.gs.toFixed(1)} Game Score: the top player on each side, head to head.
+            <b>{story.duel.a.n}</b> {story.duel.a.gs.toFixed(1)} vs <b>{story.duel.b.n}</b> {story.duel.b.gs.toFixed(1)} Game Score: the best head-to-head of two highly rated opponents who both played well.
           </StoryCard>}
           {story.gk && <StoryCard tag="Giant-Slayer of the Game" tone="gold" onClick={onDuel && (() => onDuel('slayer', story.gk.a.n, story.gk.b.n))}>
             <b>{story.gk.a.n}</b> ({r0(story.gk.a.pre)}) out-scored <b>{story.gk.b.n}</b> ({r0(story.gk.b.pre)}): a {r0(story.gk.gap)}-point Elo gap, {Math.max(1, Math.round(story.gk.wc * 100))}% pre-game duel win chance.
@@ -1555,7 +1566,7 @@ const GLOSSARY = [
     ['Best win / Costliest loss', 'The single duels that added and cost him the most Elo.'],
     ['Duel %', 'Share of duels won over the season.'],
     ['Giant-Slayer', 'The least likely duel win by a player with real minutes (12+ each, a 10+ Game Score from the winner): of the game, and of the day across every game.'],
-    ['Duel of the Game', 'The top Player of the Day candidate on each team, head to head; the Duel of the Day is the pair with the highest combined score across every game.'],
+    ['Duel of the Game', 'The best head-to-head between two opponents: both need 20+ minutes and a 10+ Game Score, and the pair is scored on its weaker side, the lower Game Score × the lower pre-game Elo ÷ 2,500, so one superstar’s big night can’t carry it. The Duel of the Day is the best of these across every game.'],
     ['Stat-line inserts', 'Feats get their own card: 50-, 60- and 70-point games, triple-, quadruple- and quintuple-doubles, 20/20s, 30+ rebounds, 20+ assists, 10+ threes, blocks or steals.'],
     ['Upset', 'A win by the side with less than a 50% pre-game chance, whether a team or a player in a duel.'],
   ]],
