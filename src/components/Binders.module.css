@@ -290,3 +290,31 @@
 .showBtn { margin-left: auto; height: 20px; padding: 0 7px; border: 1px solid #c99a2e; border-radius: 10px; background: #fff; color: #8a6414; font: inherit; font-size: 10px; font-weight: 800; letter-spacing: .3px; cursor: pointer; white-space: nowrap; }
 .showOn { background: linear-gradient(135deg, #b8871e, #fff1c0 50%, #b8871e); color: #1a1000; border-color: #b8871e; }
 .showBtn + .pin { margin-left: 4px; }
+
+/* Player checklists, the shelf bar, points help */
+.shelfBar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 0 0 8px; font-size: 12.5px; color: #4a5562; }
+.shelfBar > span { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.shelfBar b { color: #1d2633; font-size: 14px; }
+.checkList { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; padding-right: 2px; }
+.checkRow { background: #fff; border-radius: 9px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+.checkHead { width: 100%; display: grid; grid-template-columns: 64px minmax(0, 1fr) 110px 56px 12px; align-items: center; gap: 10px; padding: 8px 12px; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; --c: #173657; }
+.checkHead b { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.checkHead > span:nth-child(2) { font-size: 12.5px; color: #4a5562; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.checkHead strong { font-size: 14px; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+.checkHead strong small { font-size: 10.5px; color: #8a95a2; }
+.checkHead i { font-style: normal; color: #8a95a2; font-size: 11px; }
+.checkRow:not(.checkHas) .checkHead { opacity: .62; }
+.checkDone { box-shadow: 0 0 0 2px #e7c160; }
+.checkDone .checkHead { --c: #b8871e; }
+.rosterGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; padding: 2px 12px 12px; }
+.rosterGrid > span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8a95a2; min-width: 0; white-space: nowrap; overflow: hidden; }
+.rosterGrid > span i { width: 15px; height: 15px; flex: none; border-radius: 4px; border: 1.5px solid #cfc8b8; font-style: normal; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.rosterGrid > span small { margin-left: auto; font-size: 10px; color: #b0b7c0; }
+.rosterGrid .got { color: #1d2633; font-weight: 700; }
+.rosterGrid .got i { background: #1a7a4a; border-color: #1a7a4a; color: #fff; }
+.rosterGrid .linkBtn { grid-column: 1 / -1; justify-self: start; margin-top: 4px; }
+.help { margin-top: 10px; font-size: 12px; color: #4a5562; background: #fff; border: 1px solid #e6e0d0; border-radius: 8px; padding: 8px 10px; }
+.help summary { cursor: pointer; font-weight: 800; color: #173657; }
+.help p { margin: 6px 0 0; line-height: 1.5; }
+.meterBox .light { display: block; margin-top: 6px; font-size: 11.5px; }
+@media (max-width: 760px) { .checkHead { grid-template-columns: 62px minmax(0, 1fr) 50px 10px; gap: 8px; padding: 8px 10px; } .checkHead .setBar { display: none; } }

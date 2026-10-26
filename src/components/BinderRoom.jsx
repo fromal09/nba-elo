@@ -50,6 +50,12 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick }) {
   const [open, setOpen] = useState(null) // the binder to open: { kind, ... }
   const [past, setPast] = useState(false)
   const C = useCollector()
+  const [leaders, setLeaders] = useState(null)
+  const meScore = C.me?.standing?.score
+  useEffect(() => {
+    if (C.down || C.me === undefined) return
+    fetch('/api/collect?action=leaders', { credentials: 'same-origin' }).then(r => r.json()).then(d => !d.error && setLeaders(d)).catch(() => {})
+  }, [C.down, C.me === undefined, meScore])
   useEffect(() => { if (mineTick && C.me) setOpen({ kind: 'mine' }) }, [mineTick, !!C.me])
   useEffect(() => {
     binderJSON('/data/explorer/index.json').then(setIndex).catch(() => {})
@@ -80,7 +86,7 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick }) {
             <div>
               <small>My binder</small>
               <b>{C.me.user.username}</b>
-              <span>{C.me.stats.cards} cards · {C.me.today.streak}-day streak{C.me.user.favoriteTeam ? ` · ${binderTeamInfo(C.me.user.favoriteTeam).name}` : ''}</span>
+              <span>{(C.me.standing?.score || 0).toLocaleString()} pts{C.me.standing?.rank ? ` · No. ${C.me.standing.rank} of ${C.me.standing.of}` : ''} · {C.me.stats.cards} cards · {C.me.today.streak}-day streak</span>
             </div>
           </div>
           <div className={styles.mineShow}>
@@ -105,6 +111,25 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick }) {
             <button type="button" className={styles.navyBtn} onClick={() => C.openAuth('login')}>Sign in</button>
           </div>
         </div>}
+      </section>}
+
+      {leaders && leaders.leaders.length > 0 && <section className={styles.section}>
+        <div className={styles.head}><h2>Top binders</h2><span>{leaders.binders.toLocaleString()} binder{leaders.binders === 1 ? '' : 's'} · ranked by binder score</span></div>
+        <div className={styles.board}>
+          {leaders.leaders.slice(0, 10).map(l => (
+            <button key={l.username} type="button" className={`${styles.boardRow} ${C.me?.user.username === l.username ? styles.boardYou : ''}`} onClick={() => setOpen({ kind: 'public', name: l.username })}>
+              <b className={styles.boardRank} data-top={l.rank <= 3 ? l.rank : undefined}>{l.rank}</b>
+              <span className={styles.boardWho}><b>{l.username}</b><small>{l.cards} cards · {l.players} players{l.favoriteTeam ? ` · ${binderTeamInfo(l.favoriteTeam).name}` : ''}</small></span>
+              {l.best && <span className={styles.boardBest}><CardFace card={l.best} shots={shots} w={38} /></span>}
+              <strong>{l.score.toLocaleString()}<small>pts</small></strong>
+            </button>
+          ))}
+          {leaders.you?.rank > 10 && <button type="button" className={`${styles.boardRow} ${styles.boardYou}`} onClick={() => setOpen({ kind: 'mine' })}>
+            <b className={styles.boardRank}>{leaders.you.rank}</b>
+            <span className={styles.boardWho}><b>{leaders.you.username} (you)</b><small>{leaders.you.cards} cards · {leaders.you.players} players</small></span>
+            <strong>{leaders.you.score.toLocaleString()}<small>pts</small></strong>
+          </button>}
+        </div>
       </section>}
 
       <section className={styles.section}>

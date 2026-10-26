@@ -13,9 +13,12 @@
 //   POST star        { id, on } add a card to (or take it out of) your Starred binder
 //   POST showcase    { id, on } put a starred card in (or take it out of) your three-card showcase
 //   POST profile     { favoriteTeam }
+//   GET  leaders     the top binders by score, and where yours ranks
+//   GET  binder      ?user= anyone's binder, read-only: profile, score, rank, showcase, cards
 import { db, ensureSchema } from './_lib/db.js'
 import { USERNAME, hashPassword, checkPassword, startSession, endSession, currentUser } from './_lib/auth.js'
 import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER } from './_lib/packs.js'
+import { cardPoints } from './_lib/points.js'
 
 const STREAK_EVERY = 7
 // Packs reset at midnight Eastern, with the NBA's day; team packs reset Monday
@@ -38,6 +41,18 @@ const streakNow = (u, today) => { const last = iso(u.last_claim); return last ==
 
 // A pack as the client sees it
 const packView = p => ({ id: p.id, kind: p.kind, team: p.team, day: iso(p.day), pity: p.pity, status: p.status, picks: p.picks, slots: p.slots })
+
+// A binder's score and rank among every binder with a card (ties share a rank)
+async function standing(sql, userId) {
+  const [r] = await sql`with s as (select user_id, sum(points)::int as score, count(*)::int as cards, count(distinct card->'row'->>'n')::int as players
+      from cards group by user_id)
+    select coalesce((select score from s where user_id = ${userId}), 0) as score,
+      coalesce((select cards from s where user_id = ${userId}), 0) as cards,
+      coalesce((select players from s where user_id = ${userId}), 0) as players,
+      (select count(*)::int from s) as of`
+  const [above] = await sql`select count(*)::int as n from (select sum(points) as score from cards group by user_id) x where score > ${r.score}`
+  return { score: r.score, cards: r.cards, players: r.players, rank: r.score > 0 ? above.n + 1 : null, of: r.of }
+}
 
 async function me(u) {
   if (!u) return { user: null }
@@ -65,6 +80,7 @@ async function me(u) {
     open: open.map(p => ({ id: p.id, kind: p.kind, team: p.team, picked: p.picked || 0, total: p.total })),
     stats: { cards: tierRows.reduce((a, r) => a + r.n, 0), tiers: Object.fromEntries(tierRows.map(r => [r.tier, r.n])),
       best: best[0] ? { id: Number(best[0].id), card: best[0].card } : null },
+    standing: await standing(sql, u.id),
   }
 }
 
@@ -136,7 +152,7 @@ async function pick(u, b) {
     if (slot !== p.picks.length) throw fail(409, 'Pick the cards in order.')
     const c = p.slots[slot]?.cards[choice]
     if (!c) throw fail(400, 'Pick one of the three cards.')
-    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card) values (${u.id}, ${p.id}, ${c.tier}, ${refOf(c)}, ${t.json(c)})
+    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points) values (${u.id}, ${p.id}, ${c.tier}, ${refOf(c)}, ${t.json(c)}, ${cardPoints(c).points})
       on conflict (user_id, ref) do nothing returning id`
     const picks = [...p.picks, choice]
     const done = picks.length === p.slots.length
@@ -183,6 +199,26 @@ export default async function handler(req, res) {
     }
     if (post && action === 'logout') { await endSession(res, req); return send(200, { user: null }) }
 
+    if (action === 'leaders') {
+      const rows = await sql`select u.username, u.favorite_team, x.score, x.cards, x.players,
+          (select c.card from cards c where c.user_id = u.id order by c.points desc limit 1) as best
+        from (select user_id, sum(points)::int as score, count(*)::int as cards, count(distinct card->'row'->>'n')::int as players
+          from cards group by user_id) x join users u on u.id = x.user_id
+        order by x.score desc, x.cards desc, u.id limit 50`
+      const viewer = await currentUser(req)
+      let rank = 1, prev = null
+      const leaders = rows.map((r, i) => { if (prev !== r.score) { rank = i + 1; prev = r.score } return { rank, username: r.username, favoriteTeam: r.favorite_team, score: r.score, cards: r.cards, players: r.players, best: r.best } })
+      const [n] = await sql`select count(distinct user_id)::int as n from cards`
+      return send(200, { leaders, binders: n.n, you: viewer ? { username: viewer.username, ...(await standing(sql, viewer.id)) } : null })
+    }
+    if (action === 'binder') {
+      const [o] = await sql`select * from users where username_key = ${String(q.user || '').toLowerCase()}`
+      if (!o) throw fail(404, 'No binder by that name.')
+      const rows = await sql`select id, card, points, pulled_at from cards where user_id = ${o.id} order by id desc`
+      return send(200, { user: { username: o.username, favoriteTeam: o.favorite_team, joined: iso(o.created_at), showcaseIds: o.showcase.map(Number), starred: o.starred.map(Number) },
+        standing: await standing(sql, o.id), cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at })) })
+    }
+
     const u = await currentUser(req)
     if (!u) throw fail(401, 'Sign in first.')
     if (post && action === 'claim') return send(200, await claimDaily(u, origin))
@@ -194,9 +230,9 @@ export default async function handler(req, res) {
       return send(200, { pack: packView(p) })
     }
     if (action === 'collection') {
-      const rows = await sql`select c.id, c.card, c.pulled_at, p.kind from cards c join packs p on p.id = c.pack_id
+      const rows = await sql`select c.id, c.card, c.points, c.pulled_at, p.kind from cards c join packs p on p.id = c.pack_id
         where c.user_id = ${u.id} order by c.id desc`
-      return send(200, { cards: rows.map(r => ({ id: Number(r.id), card: r.card, pulled: r.pulled_at, pack: r.kind })) })
+      return send(200, { cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at, pack: r.kind })) })
     }
     if (post && action === 'star') {
       const b = await readBody(req), id = Number(b.id)

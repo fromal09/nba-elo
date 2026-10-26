@@ -1,6 +1,7 @@
 // Postgres for the card collection (Neon via the Vercel integration sets DATABASE_URL).
 // The schema creates itself on the first request after a cold start.
 import postgres from 'postgres'
+import { cardPoints } from './points.js'
 
 let sql = null
 let ready = null
@@ -61,7 +62,12 @@ export function ensureSchema() {
         ref text not null,
         card jsonb not null,
         pulled_at timestamptz not null default now(),
+        points int not null default 0,
         unique (user_id, ref))`
+      // Databases created before binder points: add the column, then score the cards already kept
+      await t`alter table cards add column if not exists points int not null default 0`
+      const unscored = await t`select id, card from cards where points = 0 limit 20000`
+      for (const c of unscored) await t`update cards set points = ${cardPoints(c.card).points} where id = ${c.id}`
       await t`create index if not exists cards_user on cards (user_id, id desc)`
       await t`create index if not exists packs_open on packs (user_id) where status = 'open'`
       await t`create index if not exists sessions_user on sessions (user_id)`

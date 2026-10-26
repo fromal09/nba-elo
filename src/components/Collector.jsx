@@ -4,6 +4,7 @@ import { MiniCard } from './PlayerCard'
 import { fromIndex } from './Binders'
 import { binderTeamInfo, binderHeadshots, binderLogo } from './SeasonExplorer'
 import { norm } from './predict'
+import { cardPoints } from '../../api/_lib/points.js'
 
 /*
  * The card collection, client side: who's signed in, their packs, the cards they own.
@@ -158,6 +159,8 @@ const slotLabel = (pack, slot, lastNight) => {
   if (s.src === 'team') return `From ${binderTeamInfo(pack.team).name} history`
   return s.odds === 'legendPlus' ? 'From the vault · Legend or better' : s.odds === 'rarePlus' ? 'From the vault · Rare or better' : 'From the vault · any era'
 }
+// Why a card is worth what it is: "Legend ×12 · grade 8 · Player of the Game +25%"
+const pointsWhy = c => { const p = cardPoints(c); return [`${TIER_NAME[c.tier].replace('★ ', '')} ×${p.base}`, `grade ${p.grade}`, ...p.bonuses.map(([l, v]) => `${l} +${Math.round(v * 100)}%`)].join(' · ') }
 const line = c => [c.row.pts != null && `${c.row.pts} pts`, c.row.trb && `${c.row.trb} reb`, c.row.ast && `${c.row.ast} ast`].filter(Boolean).join(' · ')
 
 function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
@@ -238,13 +241,14 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
                   <span className={styles.back}><span className={styles.backMark} style={{ width: W * 0.4, height: W * 0.4, fontSize: W * 0.16 }}>FPR</span></span>
                   <span className={styles.frontSide}><CardFace card={c} shots={shots} w={W} /></span>
                 </span>
-                {i < shown && <span className={styles.chip} data-tier={c.tier}>{TIER_NAME[c.tier]}</span>}
+                {i < shown && <span className={styles.chip} data-tier={c.tier}>{TIER_NAME[c.tier]} · {cardPoints(c).points.toLocaleString()} pts</span>}
               </button>
             ))}
           </div>
           <div className={styles.pickBar}>
             {chosen ? <>
-              <div className={styles.pickWho}><b>{chosen.row.n}</b><span>{fmtDay(chosen.date)} · {chosen.tn} {chosen.home === false ? '@' : 'vs'} {chosen.on} · {line(chosen)}</span></div>
+              <div className={styles.pickWho}><b>{chosen.row.n} · {cardPoints(chosen).points.toLocaleString()} pts</b><span>{fmtDay(chosen.date)} · {chosen.tn} {chosen.home === false ? '@' : 'vs'} {chosen.on} · {line(chosen)}</span>
+                <small>{pointsWhy(chosen)}</small></div>
               <button type="button" className={styles.keepBtn} onClick={keep} disabled={busy}>{busy ? 'Keeping…' : 'Keep this card'}</button>
             </> : <div className={styles.hintLine}>{shown < 3 ? 'Turning them over…' : 'Choose one. The other two go back.'}</div>}
           </div>
@@ -262,10 +266,11 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
             {kept.map(c => (
               <div key={refOf(c)} className={styles.spreadCard}>
                 <CardFace card={c} shots={shots} w={vw < 520 ? 104 : 140} />
-                <span><b data-tier={c.tier}>{TIER_NAME[c.tier]}</b></span>
+                <span><b data-tier={c.tier}>{TIER_NAME[c.tier]}</b> · {cardPoints(c).points.toLocaleString()} pts</span>
               </div>
             ))}
           </div>
+          <div className={styles.packScore}>+{kept.reduce((a, c) => a + cardPoints(c).points, 0).toLocaleString()} points{me?.standing ? ` · binder score ${me.standing.score.toLocaleString()}${me.standing.rank ? ` · No. ${me.standing.rank} of ${me.standing.of}` : ''}` : ''}</div>
           <Meter meter={me?.meter} dark />
           <div className={styles.actions}>
             {more > 0

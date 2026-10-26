@@ -180,3 +180,5 @@
 .teamLogo b { font-size: 13px; color: var(--c); }
 @media (max-width: 520px) { .offer { gap: 8px; } .chip { font-size: 8.5px; padding: 2px 6px; bottom: -10px; } .keptEmpty { width: 34px; height: 48px; } .teamGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .teamFav { grid-column: span 3; } }
 @media (prefers-reduced-motion: reduce) { .choice { animation: none; transition: none; } }
+.pickWho small { font-size: 11px; color: #e7c160; }
+.packScore { font-size: 15px; font-weight: 800; color: #f4d27a; }

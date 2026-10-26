@@ -13,7 +13,13 @@ Writes, under public/data/explorer/packs/:
   team/<FRANCHISE>/<tier>-<k>.json  the weekly team pack's pool: one franchise's cards across every season
                             {"teams": {"<season>|<code>": [name, color]}, "rows": [...]}   index.json "teams": {franchise: {tier: [[file, n]]}}
 
-A row (cols): s, id, date, t, o, home, won, us, them, ot, band, honor, n, pos, mp, pts, trb, ast, stl, blk, tp, gs, pre, post, lr, lrp, fx
+A row (cols): s, id, date, t, o, home, won, us, them, ot, band, honor, n, pos, mp, pts, trb, ast, stl, blk, tp, gs, pre, post, lr, lrp, fx, gp
+(gp = the player's career game number, so 1 is his debut)
+
+Also writes the personal-binder checklists, which count players (own any card of a player and he's checked off):
+  explorer/binders/checklist.json  {"franchises": {franchise: {"name": latest name, "players": all-time count,
+                                     "seasons": {season: [players, team name that season]}}}, "seasons": {season: players}}
+  explorer/binders/roster/<FRANCHISE>.json  {season: [[name, games, pos], ...]} most games first
 band = [level, label, champ] or null; honor = "potd" | "potg" | null
 
 Run after build_binders.py (it calls this at the end):  python3 scripts/build_packs.py
@@ -29,7 +35,7 @@ EXP = ROOT / "public" / "data" / "explorer"
 OUT = EXP / "packs"
 TIERS = [("goat", 1), ("icon", 5), ("legend", 20), ("standout", 50), ("rare", 125)]
 COLS = ["s", "id", "date", "t", "o", "home", "won", "us", "them", "ot", "band", "honor", "n", "pos", "mp",
-        "pts", "trb", "ast", "stl", "blk", "tp", "gs", "pre", "post", "lr", "lrp", "fx"]
+        "pts", "trb", "ast", "stl", "blk", "tp", "gs", "pre", "post", "lr", "lrp", "fx", "gp"]
 SHARD = 3000   # cards per shard
 # ABA teams that joined the NBA count toward their franchise, as in the franchise binders
 MERGE = {"DEN@ABA": "DEN", "IND@ABA": "IND", "SAS@ABA": "SAS", "BKN@ABA": "BKN"}
@@ -55,7 +61,7 @@ def row(season, g, p, band, honor):
     home = None if g.get("home") is None else g["home"] == p["t"]
     return [season, g["id"], g["date"], p["t"], g["teams"][1 - i], home, g["pts"][i] > g["pts"][1 - i], g["pts"][i], g["pts"][1 - i],
             g.get("ot") or "", b, honor, p["n"], p.get("pos"), r1(p.get("mp")), p.get("pts"), p.get("trb"), p.get("ast"),
-            p.get("stl"), p.get("blk"), p.get("tp"), r1(p.get("gs")), r1(p["pre"]), r1(p["post"]), p.get("lr"), p.get("lrp"), p.get("fx")]
+            p.get("stl"), p.get("blk"), p.get("tp"), r1(p.get("gs")), r1(p["pre"]), r1(p["post"]), p.get("lr"), p.get("lrp"), p.get("fx"), p.get("gp")]
 
 
 def main():
@@ -63,6 +69,8 @@ def main():
     index = {"cols": COLS, "tiers": {}, "total": 0, "teams": {}}
     by_team = {}      # (franchise, tier) -> rows, as JSON text to keep memory down
     team_names = {}   # franchise -> {"season|code": [name, color]}
+    roster = {}       # franchise -> season -> name -> [games, pos]
+    season_players = {}
     written = set()
     last_day, recent, recent_teams = "", [], {}
     for f in files:
@@ -83,6 +91,9 @@ def main():
                 by_tier.setdefault(tr, []).append(r)
                 fc = MERGE.get(p["t"], p["t"])
                 by_team.setdefault((fc, tr), []).append(json.dumps(r, ensure_ascii=False, separators=(",", ":")))
+                rs = roster.setdefault(fc, {}).setdefault(season, {"_name": teams.get(p["t"], [p["t"]])[0]})
+                e = rs.setdefault(p["n"], [0, p.get("pos")]); e[0] += 1
+                season_players.setdefault(season, set()).add(p["n"])
                 names = team_names.setdefault(fc, {})
                 for c in (r[3], r[4]):
                     names.setdefault(f"{season}|{c}", teams.get(c, [c, None]))
@@ -120,6 +131,20 @@ def main():
     for old in list(OUT.glob("*/*.json")) + list(OUT.glob("team/*/*.json")):
         if old.relative_to(OUT).as_posix() not in written:
             old.unlink()
+    check = {"franchises": {}, "seasons": {s_: len(v) for s_, v in season_players.items()}}
+    (EXP / "binders" / "roster").mkdir(parents=True, exist_ok=True)
+    for fc, seasons in roster.items():
+        names, out = set(), {}
+        for s_, rs in seasons.items():
+            tn = rs.pop("_name")
+            out[s_] = sorted(([n, g, pos] for n, (g, pos) in rs.items()), key=lambda x: (-x[1], x[0]))
+            names.update(rs)
+            check["franchises"].setdefault(fc, {"seasons": {}})["seasons"][s_] = [len(rs), tn]
+        f = check["franchises"][fc]
+        f["name"] = f["seasons"][max(f["seasons"])][1]
+        f["players"] = len(names)
+        (EXP / "binders" / "roster" / f"{fc.replace('@', '_')}.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    (EXP / "binders" / "checklist.json").write_text(json.dumps(check, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     index["recent"] = {"date": last_day, "teams": recent_teams, "rows": recent}
     (OUT / "index.json").write_text(json.dumps(index, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     counts = {t: sum(n for _, n in v) for t, v in index["tiers"].items()}
