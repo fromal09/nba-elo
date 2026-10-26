@@ -1504,7 +1504,7 @@ const GLOSSARY = [
     ['Player Rank', 'League rank by Elo after this game, among qualified players. (▲3) means he moved up three spots.'],
     ['Qualified', 'A player whose most recent game falls within his team’s last 20 games. Retired and long-inactive players drop out of the rankings.'],
     ['Top 100', 'The 100 highest-rated qualified players right now.'],
-    ['Card tiers', 'Set by rank after the game: GOAT #1, Icon 2–5, Legend 6–20, Standout 21–50, Rare 51–125, Common everyone else. Capped tiers are numbered like a print run: rank over the cap (14/20).'],
+    ['Card tiers', 'Set by rank after the game: GOAT #1, Icon 2–5, Legend 6–20, Standout 21–50, Rare 51–125, Common everyone else.'],
     ['Graded slabs', 'Career games and album cards come in a graded slab. The grade is the game\u2019s Game Score percentile among every player-game on record (debuts against every career debut): 6th–14th percentile grades 1, 15th–24th 2, up to 95th and above for a 10.'],
     ['Player of the Game / Day', 'The best night score in a game, and across the whole day: Game Score plus one-sixth of the Elo gained.'],
     ['Career game', 'A career-best Game Score, once a player has 20 career games.'],

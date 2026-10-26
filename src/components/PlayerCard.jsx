@@ -3,7 +3,6 @@ import styles from './PlayerCard.module.css'
 
 // Rarity by where the player stood entering this game: his pre-game Elo rank among every
 // player in that season (same tier names as the Franchise Tenures cards)
-// Each capped tier is a print run: the serial is the rank over the cap (1/1, 3/5, 14/20, 33/50, 88/125)
 export const TIERS = [
   { id: 'goat', label: '★ GOAT', max: 1 },
   { id: 'icon', label: 'Icon', max: 5 },
@@ -16,7 +15,6 @@ export const tierFor = rank => TIERS.find(t => rank != null && rank <= t.max) ||
 // The card's tier follows the player's rank after the game, so the frame matches the medallion
 export const cardTier = row => tierFor(row.lrp ?? row.lr)
 const tierName = t => t.label.replace('★ ', '')
-const serialFor = rank => { const t = tierFor(rank); return rank != null && t.max !== Infinity ? `${rank}/${t.max}` : null }
 
 // Slab grade: the game's Game Score as a percentile of every player-game on record (1,078,633 games
 // with minutes, 1946-47 through 2026-27). Percentile 6-14 grades 1, 15-24 grades 2 ... 85-94 grades 9,
@@ -186,7 +184,6 @@ export function CardFront({ name, row, game, team, headshot }) {
         </div>}
         {moments.career && <div className={styles.careerStamp}><span>★ Career game</span><b>{f1(row.gs)} <small>GmSc</small></b></div>}
         {game.honor && <div className={styles.sash}><span>{game.honor === 'potd' ? 'Player of the Day' : 'Player of the Game'}</span></div>}
-        {serialFor(rank) && <span className={styles.serial}>{serialFor(rank)}</span>}
         {rank != null && <div className={styles.medal}>
           <span>Elo rank</span><b>#{rank}</b>
           {!!move && <i className={move > 0 ? styles.medalUp : styles.medalDown}>
