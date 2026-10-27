@@ -6,7 +6,7 @@ import PlayerCard, { MiniCard, DuelCard, DuelModal, tierFor, momentsFor, setFirs
 import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder, CollectionBinder, PublicBinder } from './Binders'
 import { useCollector } from './Collector'
 import { StoreBook } from './Store'
-import { PredictBook, PickBar, usePredSlate } from './Predictions'
+import { PickBar, usePredSlate } from './Predictions'
 import predStyles from './Predictions.module.css'
 import { buildForecaster, blendWeight, norm, WP, winChance, makeProjector, normCdf } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
@@ -2708,10 +2708,10 @@ export function BinderHost({ start, shots, onClose, onProfile }) {
   if (top.kind === 'career') return <CareerBinder key={stack.length} name={top.name} env={env} onClose={back} onSeason={openSeason} />
   if (top.kind === 'team') return <TeamBinder key={stack.length} team={top.team} sd={top.sd} env={env} onClose={back} onFranchise={code => push({ kind: 'franchise', code })} />
   if (top.kind === 'franchise') return <FranchiseBinder key={stack.length} code={top.code} env={env} onClose={back} onSeason={openTeam} />
-  if (top.kind === 'predict') return <PredictBook key={stack.length} env={env} onClose={back} onMine={stack.length > 1 ? back : () => push({ kind: 'mine' })} />
+  if (top.kind === 'predict') return <CollectionBinder key={stack.length} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} startView="predict" onStore={() => push({ kind: 'store' })} />
   if (top.kind === 'store') return <StoreBook key={stack.length} env={env} onClose={back} onMine={() => push({ kind: 'mine', sell: true })} />
   if (top.kind === 'public') return <PublicBinder key={stack.length} name={top.name} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} />
-  if (top.kind === 'mine') return <CollectionBinder key={stack.length} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} startSell={!!top.sell} onStore={() => push({ kind: 'store' })} onPredict={() => push({ kind: 'predict' })} />
+  if (top.kind === 'mine') return <CollectionBinder key={stack.length} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} startSell={!!top.sell} onStore={() => push({ kind: 'store' })} />
   if (top.kind === 'league') return <LeagueBinder key={stack.length} set={top.set} env={env} onClose={back} onCareer={n => push({ kind: 'career', name: n })} />
   return null
 }

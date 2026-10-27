@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import styles from './Predictions.module.css'
-import { Book, Fit, Seg, useIsPhone, fromIndex, usePull } from './Binders'
+import { Fit, Seg, fromIndex, usePull } from './Binders'
 import { MiniCard, DuelCard } from './PlayerCard'
 import { Coin, TIER_NAME, useCollector } from './Collector'
 import { binderLogo, binderTeamInfo } from './SeasonExplorer'
@@ -308,8 +308,9 @@ function RewardPicker({ day, kind, env, onClose, onDone }) {
 }
 
 // ── The book ─────────────────────────────────────────────────────────────────
-export function PredictBook({ env, onClose, onMine }) {
-  const phone = useIsPhone()
+// The Predictions view of My binder: its left and right pages, handed to the binder's own book (render prop),
+// so it keeps the binder's colors and header. tools = the binder's view tabs.
+export function PredictPages({ env, phone, tools, children }) {
   const C = env.collector
   const d = C.preds
   const [err, setErr] = useState(null)
@@ -322,12 +323,11 @@ export function PredictBook({ env, onClose, onMine }) {
     const t = setInterval(() => C.loadPredictions().catch(() => {}), 60e3)
     return () => clearInterval(t)
   }, [])
-  const head = <>
-    <div className={styles.kicker}>My binder · Predictions</div>
-    <h2 className={styles.title}>Predictions</h2>
-    {!phone && <p className={styles.line}>Pick winners, matchups and a lineup. Everything locks at tipoff and can change until then.</p>}
-  </>
-  if (!d) return <Book tc="#1a5a3a" phone={phone} onClose={onClose} head={head} left={<p className={styles.line}>{err || 'Loading the slate…'}</p>} right={<div className={styles.right} />} />
+  if (!d) return children({
+    left: <p className={styles.line}>{err || 'Loading the slate…'}</p>,
+    right: <div className={styles.right}><div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Predictions</b><span>loading…</span></div>{tools}</div></div>,
+    summary: <span>Predictions</span>,
+  })
   const s = d.stats, R = d.rates, F = s.forecast
   const run = async (key, fn) => { setBusy(key); try { await fn() } finally { setBusy(null) } }
   const slate = d.slates[di]
@@ -337,6 +337,8 @@ export function PredictBook({ env, onClose, onMine }) {
   const envX = { ...env, today: d.slates[0].day }
 
   const left = <>
+    <div className={styles.boxLab}>Predictions</div>
+    {!phone && <p className={styles.line}>Pick winners, matchups and a lineup. Everything locks at tipoff and can change until then.</p>}
     <div className={styles.stats}>
       <div className={styles.statWide}><b className={styles.green}>{s.wins}–{s.losses}</b><small>Record</small></div>
       <div><b>{pct(s.pct)}</b><small>Right</small></div>
@@ -388,10 +390,9 @@ export function PredictBook({ env, onClose, onMine }) {
       <div className={styles.boxLab}>Teams you pick most</div>
       <div className={styles.teamsList}>{s.teams.map(t => <span key={t.team}><b>{t.team}</b> {t.w}–{t.l}</span>)}</div>
     </>}
-    {onMine && <button type="button" className={styles.linkBtn} onClick={onMine}>Back to My binder</button>}
   </>
 
-  const tabs = <Seg value={tab} onChange={setTab} options={[['games', 'Games'], ['matchups', 'Matchups'], ['lineup', 'Lineup'], ['standings', 'Standings'], ['history', 'History']]} />
+  const sub_ = <Seg value={tab} onChange={setTab} options={[['games', 'Games'], ['matchups', 'Matchups'], ['lineup', 'Lineup'], ['standings', 'Standings'], ['history', 'History']]} />
   const dayTabs = ['games', 'matchups', 'lineup'].includes(tab) && <Seg value={String(di)} onChange={v => setDi(+v)} options={[['0', 'Today'], ['1', 'Tomorrow']]} />
   const games = slate.games
   let body, title, sub
@@ -422,14 +423,13 @@ export function PredictBook({ env, onClose, onMine }) {
   }
   const right = (
     <div className={styles.right}>
-      <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>{title}</b><span>{sub}</span></div>{tabs}</div>
-      {dayTabs && <div className={styles.dayRow}>{dayTabs}</div>}
+      <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>{title}</b><span>{sub}</span></div>{tools}</div>
+      <div className={styles.dayRow}>{sub_}{dayTabs}</div>
       <div className={styles.body}>{body}</div>
     </div>
   )
   return <>
-    <Book tc="#1a5a3a" phone={phone} onClose={onClose} head={head} left={left} right={right}
-      summary={<span><b>{s.wins}–{s.losses}</b> · {F.rated ? `${sgn(F.over)} vs forecast` : pct(s.pct) + ' right'} · {s.perfect} perfect day{s.perfect === 1 ? '' : 's'}</span>} />
+    {children({ left, right, summary: <span><b>Predictions {s.wins}–{s.losses}</b> · {F.rated ? `${sgn(F.over)} vs forecast` : pct(s.pct) + ' right'} · {s.perfect} perfect day{s.perfect === 1 ? '' : 's'}</span> })}
     {reward && <RewardPicker day={reward.day} kind={reward.kind} env={env} onClose={() => setReward(null)} onDone={() => setReward(null)} />}
   </>
 }

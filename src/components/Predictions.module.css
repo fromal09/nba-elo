@@ -3,7 +3,7 @@
 .sheetHead { composes: sheetHead from './Binders.module.css'; }
 .sheetTitle { composes: sheetTitle from './Binders.module.css'; }
 .kicker { composes: kicker from './Binders.module.css'; }
-.title { composes: title from './Binders.module.css'; color: #1a5a3a; }
+.title { composes: title from './Binders.module.css'; color: var(--tc, #1a5a3a); }
 .line { composes: line from './Binders.module.css'; }
 .boxLab { composes: boxLab from './Binders.module.css'; margin-bottom: 0; }
 .linkBtn { composes: linkBtn from './Binders.module.css'; align-self: flex-start; }
@@ -18,7 +18,7 @@
 .stats small { font-size: 9px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: #6a7684; }
 .statWide { grid-column: span 2; }
 .statWide b { font-size: 26px; }
-.green { color: #1a5a3a; }
+.green { color: var(--tc, #1a5a3a); }
 .goldC { color: #8a6414; }
 .of { font-size: 12px; color: #8a95a2; font-weight: 700; }
 
@@ -29,18 +29,18 @@
 .rules > div { display: flex; justify-content: space-between; gap: 10px; padding: 6px 12px; font-size: 12.5px; border-top: 1px solid #f0ece2; }
 .rules > div:first-child { border-top: 0; }
 .rules b { font-weight: 600; color: #3b4652; }
-.rules span { font-weight: 800; color: #1a5a3a; text-align: right; }
+.rules span { font-weight: 800; color: var(--tc, #1a5a3a); text-align: right; }
 .teamsList { display: flex; flex-wrap: wrap; gap: 6px; }
 .teamsList span { font-size: 12px; background: #fff; border: 1px solid #e6e0d0; border-radius: 12px; padding: 3px 9px; color: #4a5562; font-variant-numeric: tabular-nums; }
 
 /* The day's goal */
-.goal { display: flex; flex-direction: column; gap: 4px; background: #fff; border-radius: 10px; padding: 10px 12px; border: 1px solid #dfe6dd; }
+.goal { display: flex; flex-direction: column; gap: 4px; background: #fff; border-radius: 10px; padding: 10px 12px; border: 1px solid #e3e3e3; }
 .goal > span { font-size: 12.5px; color: #4a5562; }
 .goal b { color: #1d2633; }
 .goalText { font-size: 12px !important; color: #6b7783 !important; }
 .goalBar { display: flex; gap: 3px; margin-bottom: 2px; }
 .goalBar i { flex: 1; height: 7px; border-radius: 4px; background: #e3e7ec; }
-.goalBar i[data-r=picked] { background: #7fb59a; }
+.goalBar i[data-r=picked] { background: color-mix(in srgb, var(--tc, #1a5a3a) 55%, #fff); }
 .goalBar i[data-r=win] { background: #1a7a4a; }
 .goalBar i[data-r=loss] { background: #c45a4a; }
 .goalBar i[data-r=missed] { background: #e9d9c8; }
@@ -49,7 +49,7 @@
 .games { display: flex; flex-direction: column; gap: 8px; }
 .game { background: #fff; border-radius: 12px; padding: 8px 10px 10px; box-shadow: 0 1px 3px rgba(16,32,56,.08); display: flex; flex-direction: column; gap: 6px; }
 .gameTop { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 18px; }
-.status { font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: #1a5a3a; }
+.status { font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--tc, #1a5a3a); }
 .status[data-state=in] { color: #c0392b; }
 .status[data-state=post] { color: #6b7783; }
 .locked .status[data-state=pre] { color: #6b7783; }
@@ -105,7 +105,7 @@
 .picker { position: relative; width: min(1000px, 100%); max-height: calc(100vh - 32px); box-sizing: border-box; background: #f6f3ea; color: #1d2633; border-radius: 16px;
   display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
 .x { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(127,127,127,.15); color: inherit; font-size: 22px; line-height: 1; cursor: pointer; z-index: 2; }
-.pickHead { display: flex; flex-direction: column; gap: 3px; padding: 18px 56px 14px 22px; background: linear-gradient(90deg, #173657, #1a5a3a); color: #fff; }
+.pickHead { display: flex; flex-direction: column; gap: 3px; padding: 18px 56px 14px 22px; background: linear-gradient(90deg, #173657, var(--tc, #1a5a3a)); color: #fff; }
 .pickHead small { font-size: 10.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: #f5d77a; }
 .pickHead b { font-family: Georgia, serif; font-weight: 400; font-size: 24px; }
 .pickHead span { font-size: 13px; color: #c3d4e6; }
@@ -127,10 +127,10 @@
 /* The Scoreboard's pick bar */
 .cardWrap { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .cardWrap > button:first-child { flex: 1; }
-.bar { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 6px 4px 10px; border-radius: 9px; background: #eef5f0; border: 1px solid #d3e6da; font-size: 12px; flex-wrap: wrap; }
+.bar { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 6px 4px 10px; border-radius: 9px; background: color-mix(in srgb, var(--tc, #1a5a3a) 7%, #fff); border: 1px solid color-mix(in srgb, var(--tc, #1a5a3a) 22%, #fff); font-size: 12px; flex-wrap: wrap; }
 .barWin { background: #e3f4ea; border-color: #b7dcc5; }
 .barLoss { background: #f6eeec; border-color: #e6d3cf; }
-.barLab { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: #1a5a3a; white-space: nowrap; }
+.barLab { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--tc, #1a5a3a); white-space: nowrap; }
 .barBtns { display: flex; gap: 5px; flex: 1; min-width: 0; }
 .barBtn { flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 28px; padding: 0 8px; border: 1.5px solid #cfd8d2; border-radius: 14px;
   background: #fff; font: inherit; font-size: 12px; font-weight: 800; color: #1d2633; cursor: pointer; white-space: nowrap; }
@@ -144,7 +144,7 @@
 .barPick { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; }
 .barRes { margin-left: auto; font-weight: 700; color: #3b4652; white-space: nowrap; }
 .barWin .barRes { color: #1a7a4a; }
-.barLink { margin-left: auto; border: 0; background: none; font: inherit; font-size: 11.5px; font-weight: 700; color: #1a5a3a; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; padding: 0 4px; }
+.barLink { margin-left: auto; border: 0; background: none; font: inherit; font-size: 11.5px; font-weight: 700; color: var(--tc, #1a5a3a); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; padding: 0 4px; }
 
 
 /* Lock of the Day */
@@ -163,14 +163,14 @@
 .beatUp b { color: #1a7a4a; }
 .beatDown b { color: #a83232; }
 
-.dayRow { display: flex; justify-content: flex-start; margin-top: -2px; }
+.dayRow { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: -2px; }
 
 /* Lineup */
 .lineup { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .slot, .slotEmpty { display: flex; flex-direction: column; align-items: center; gap: 3px; background: #fff; border-radius: 10px; padding: 8px 6px; text-align: center; min-width: 0; }
 .slot b { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .slot small { font-size: 10.5px; color: #6b7783; }
-.slot strong { font-size: 16px; font-weight: 800; color: #1a5a3a; font-variant-numeric: tabular-nums; }
+.slot strong { font-size: 16px; font-weight: 800; color: var(--tc, #1a5a3a); font-variant-numeric: tabular-nums; }
 .slot strong small { font-size: 9px; }
 .slotCard { position: relative; width: 70%; aspect-ratio: 5 / 7; }
 .slotEmpty { border: 2px dashed #cfd8d2; background: none; justify-content: center; min-height: 150px; color: #8a95a2; }
@@ -192,7 +192,7 @@
 .stHead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .stList { display: flex; flex-direction: column; gap: 4px; }
 .stRow { display: flex; align-items: center; gap: 12px; background: #fff; border-radius: 9px; padding: 8px 12px; }
-.stYou { box-shadow: inset 0 0 0 2px #1a5a3a; }
+.stYou { box-shadow: inset 0 0 0 2px var(--tc, #1a5a3a); }
 .stRank { width: 26px; height: 26px; flex: none; border-radius: 50%; background: #eef2f6; display: flex; align-items: center; justify-content: center; font-size: 12px; }
 .stRank[data-top="1"] { background: linear-gradient(135deg, #b8871e, #fff1c0 50%, #b8871e); }
 .stRank[data-top="2"] { background: linear-gradient(135deg, #8d99a6, #f1f5f9 50%, #8d99a6); }

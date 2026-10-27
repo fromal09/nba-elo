@@ -74,7 +74,9 @@
 .sheetTitle { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .sheetTitle b { font-size: 15px; font-weight: 800; color: #173657; }
 .sheetTitle span { font-size: 13px; color: #5c6876; }
-.seg { display: flex; gap: 3px; background: #dde4ec; border-radius: 18px; padding: 3px; }
+.seg { display: flex; gap: 3px; background: #dde4ec; border-radius: 18px; padding: 3px; max-width: 100%; box-sizing: border-box; overflow-x: auto; scrollbar-width: none; }
+.seg::-webkit-scrollbar { display: none; }
+.seg button { flex: none; }
 .seg button { border: 0; border-radius: 15px; padding: 7px 12px; font: inherit; font-size: 12px; font-weight: 600; background: transparent; color: #4a5563; cursor: pointer; white-space: nowrap; }
 .seg .segOn { background: #fff; color: #173657; font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
 .sheetBody { flex: 1; min-height: 0; }
@@ -324,7 +326,7 @@
 .sellBtn { margin-left: auto; height: 22px; padding: 0 9px; border: 0; border-radius: 11px; background: #1d2633; color: #f6d77e; font: inherit; font-size: 10.5px; font-weight: 800; cursor: pointer; white-space: nowrap; flex: none; }
 .sellBtn:disabled { background: #e3e0d6; color: #8a95a2; cursor: default; }
 .sellConfirm { background: #a83232; color: #fff; }
-.predictCta { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; cursor: pointer; font: inherit; font-size: 13.5px; font-weight: 800; color: #fff; background: #1a5a3a; }
+.predictCta { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; cursor: pointer; font: inherit; font-size: 13.5px; font-weight: 800; color: #fff; background: var(--tc, #1a5a3a); }
 .storeCta { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; cursor: pointer; font: inherit; font-size: 13.5px; font-weight: 800; color: #f6d77e; background: #1d2633; }
 
 /* Achievements */
@@ -338,3 +340,16 @@
 .badge em { position: absolute; left: 0; bottom: 0; height: 2px; background: #c9a24a; }
 .badgeOn { background: linear-gradient(135deg, #b8871e, #fff1c0 50%, #b8871e); color: #1a1000; box-shadow: 0 1px 3px rgba(184,135,30,.35); }
 .badgeOn i { background: #1d2633; color: #f5d77a; font-size: 10px; }
+
+/* The Achievements view */
+.achBody { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 2px; }
+.achGroup h4 { margin: 0 0 8px; font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #6a7684; }
+.achGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.ach { display: flex; gap: 10px; align-items: flex-start; background: #fff; border-radius: 10px; padding: 10px 12px; border: 1px solid #e6e0d0; }
+.ach > i { font-style: normal; width: 32px; height: 32px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; background: #eceae3; color: #a0a9b4; }
+.ach > span { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.ach b { font-size: 13.5px; }
+.ach small { font-size: 11.5px; color: #6b7783; line-height: 1.35; }
+.ach .setBar { --c: var(--tc); margin-top: 3px; }
+.achOn { border-color: #e7c160; background: linear-gradient(135deg, #fff8e4, #fff 55%); }
+.achOn > i { background: linear-gradient(135deg, #b8871e, #fff1c0 50%, #b8871e); color: #1a1000; }

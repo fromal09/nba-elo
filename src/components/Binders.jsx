@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
 import styles from './Binders.module.css'
 import { MiniCard, DuelCard, tierFor, TIERS, momentsFor } from './PlayerCard'
 import { Meter, CURRENT_TEAMS } from './Collector'
+import { PredictPages } from './Predictions'
 import { cardPoints, TIER_BASE } from '../../api/_lib/points.js'
 
 /*
@@ -182,8 +183,19 @@ function SeasonSwitch({ label, sub, prev, next, loading }) {
 }
 
 export function Seg({ value, onChange, options }) {
+  // A row wider than its page scrolls sideways: keep the chosen tab in view
+  const ref = useRef(null)
+  useLayoutEffect(() => {
+    const el = ref.current, on = el?.querySelector('[aria-selected="true"]')
+    // the row itself, or whichever parent scrolls sideways
+    let sc = el
+    while (sc && sc.scrollWidth <= sc.clientWidth + 1) sc = sc.parentElement
+    if (!on || !sc || sc === document.documentElement || sc === document.body) return
+    const a = on.getBoundingClientRect(), b = sc.getBoundingClientRect()
+    if (a.left < b.left || a.right > b.right) sc.scrollLeft += a.left - b.left - (b.width - a.width) / 2
+  }, [value])
   return (
-    <div className={styles.seg} role="tablist">
+    <div ref={ref} className={styles.seg} role="tablist">
       {options.map(([v, l]) => <button key={v} type="button" role="tab" aria-selected={value === v} className={value === v ? styles.segOn : ''} onClick={() => onChange(v)}>{l}</button>)}
     </div>
   )
@@ -903,15 +915,14 @@ const decadeOf = s => `${s.slice(0, 3)}0s`
 const n0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
 
 // Achievements: earned badges in gold; your own binder also shows the ones still to come, with progress
-function Badges({ list, mine }) {
-  const [all, setAll] = useState(false)
+function Badges({ list, mine, onAll }) {
   if (!list?.length && !mine) return null
   const earned = (list || []).filter(a => a.earned)
-  const shown = mine && all ? list : earned
+  const shown = earned
   return (
     <div className={styles.badgeBox}>
       <div className={styles.badgeHead}><span className={styles.boxLab}>Achievements · {earned.length}{mine ? ` of ${list?.length || 0}` : ''}</span>
-        {mine && list?.length > 0 && <button type="button" className={styles.linkBtn} onClick={() => setAll(v => !v)}>{all ? 'Earned only' : 'Show all'}</button>}</div>
+        {list?.length > 0 && <button type="button" className={styles.linkBtn} onClick={onAll}>{mine ? 'See all' : 'See them'}</button>}</div>
       {shown.length ? <div className={styles.badges}>
         {shown.map(a => (
           <span key={a.id} className={`${styles.badge} ${a.earned ? styles.badgeOn : ''}`} title={`${a.desc}${a.earned ? '' : ` · ${a.progress[0]} of ${a.progress[1]}`}`}>
@@ -919,7 +930,7 @@ function Badges({ list, mine }) {
             {!a.earned && <em style={{ width: `${(a.progress[0] / a.progress[1]) * 100}%` }} />}
           </span>
         ))}
-      </div> : <p className={styles.light}>{mine ? 'None yet. Tap Show all to see what’s next.' : 'No achievements yet.'}</p>}
+      </div> : <p className={styles.light}>{mine ? 'None yet. Tap See all for what’s next.' : 'No achievements yet.'}</p>}
     </div>
   )
 }
@@ -936,12 +947,12 @@ function PointsHelp() {
   )
 }
 
-export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onStore, onPredict }) {
+export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onStore, startView }) {
   const phone = useIsPhone()
   const per = phone ? 6 : 9
   const C = env.collector
   const mine = !pub
-  const [view, setView] = useState('all')     // all | team | decade | starred | sets
+  const [view, setView] = useState(startView || 'all')     // all | team | decade | starred | sets | predict | badges
   const [group, setGroup] = useState(null)    // the franchise or decade shown
   const [mode, setMode] = useState('cards')   // cards | checklist, on the franchise and decade shelves
   const [season, setSeason] = useState(null)  // a season within the shelf
@@ -1026,7 +1037,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       {!me.week.claimed
         ? <button type="button" className={styles.teamCta} onClick={() => C.openTeam()}>Weekly team pack · pick a team</button>
         : <span className={styles.light}>Next team pack {fullDay(me.week.next)}</span>}
-      {onPredict && <button type="button" className={styles.predictCta} onClick={onPredict}>Predictions{me.predict?.unclaimed ? ` · ${me.predict.unclaimed} card${me.predict.unclaimed === 1 ? '' : 's'} to choose` : me.predict?.open ? ` · ${me.predict.picked}/${me.predict.games} picked` : ''}</button>}
+      {view !== 'predict' && <button type="button" className={styles.predictCta} onClick={() => pickView('predict')}>Predictions{me.predict?.unclaimed ? ` · ${me.predict.unclaimed} card${me.predict.unclaimed === 1 ? '' : 's'} to choose` : me.predict?.open ? ` · ${me.predict.picked}/${me.predict.games} picked` : ''}</button>}
       {onStore && <button type="button" className={styles.storeCta} onClick={onStore}>Store · {(me.coins?.balance ?? 0).toLocaleString()} Coins</button>}
     </div>
   )
@@ -1059,13 +1070,15 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
         : mine ? <button key={i} type="button" className={styles.showEmpty} onClick={() => pickView('starred')} title="Choose from your starred cards"><span>+</span><small>{starred.size ? 'Pick from Starred' : 'Star cards first'}</small></button>
           : <div key={i} className={styles.showEmpty} />)}
     </div>
-    <Badges list={src.achievements} mine={mine} />
+    <Badges list={src.achievements} mine={mine} onAll={() => pickView('badges')} />
     <div className={styles.boxLab}>Pulls by tier</div>
     <TierTally counts={counts} />
     <PointsHelp />
   </>
-  const views = [['all', 'All'], ['team', 'Franchises'], ['decade', 'Decades'], ['starred', `Starred · ${starred.size}`], ['sets', 'Sets'], ...(mine && onPredict ? [['predict', 'Predictions']] : [])]
-  const tools = <Seg value={view} onChange={v => (v === 'predict' ? onPredict() : pickView(v))} options={views} />
+  const nBadges = (src.achievements || []).filter(a => a.earned).length
+  const views = [['all', 'All'], ['team', 'Franchises'], ['decade', 'Decades'], ['starred', `Starred · ${starred.size}`], ['sets', 'Sets'],
+    ...(mine ? [['predict', 'Predictions']] : []), ['badges', `Achievements · ${nBadges}`]]
+  const tools = <Seg value={view} onChange={pickView} options={views} />
   const sortSel = (
     <select className={styles.sortSel} value={order} onChange={e => { setOrder(e.target.value); S.reset() }} aria-label="Sort">
       <option value="new">Newest pulls</option><option value="points">Most points</option><option value="tier">Rarest first</option><option value="chrono">By game date</option>
@@ -1086,7 +1099,39 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     </div>
   )
   let right
-  if (view === 'sets') {
+  if (view === 'predict' && mine) {
+    return <PredictPages env={env} phone={phone} tools={tools}>{p => <>
+      <Book tc={tc} phone={phone} onClose={onClose} head={head} left={p.left} right={p.right} summary={p.summary} />
+      {P.view}
+    </>}</PredictPages>
+  }
+  if (view === 'badges') {
+    const list = (src.achievements || []).filter(a => mine || a.earned)
+    const groups = [...new Set(list.map(a => a.group))]
+    right = (
+      <div className={styles.right}>
+        <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Achievements</b><span>{nBadges} earned{mine ? ` of ${(src.achievements || []).length}` : ''}</span></div>{tools}</div>
+        <div className={styles.achBody}>
+          {!list.length && <div className={styles.emptySheet}><b>No achievements yet</b><span>{mine ? '' : 'This collector hasn’t earned one yet.'}</span></div>}
+          {groups.map(g => (
+            <section key={g} className={styles.achGroup}>
+              <h4>{g}</h4>
+              <div className={styles.achGrid}>
+                {list.filter(a => a.group === g).map(a => (
+                  <div key={a.id} className={`${styles.ach} ${a.earned ? styles.achOn : ''}`}>
+                    <i>{a.earned ? '★' : '☆'}</i>
+                    <span><b>{a.name}</b><small>{a.desc}</small>
+                      {!a.earned && <span className={styles.setBar}><em style={{ width: `${(a.progress[0] / a.progress[1]) * 100}%` }} /></span>}
+                      {!a.earned && <small>{a.progress[0].toLocaleString()} of {a.progress[1].toLocaleString()}</small>}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+    )
+  } else if (view === 'sets') {
     right = (
       <div className={styles.right}>
         <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Set progress</b><span>league binders, card by card</span></div>{tools}</div>
@@ -1159,7 +1204,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   return <>
     <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right}
       summary={<span><b>{n0(st.score)} pts</b>{st.rank ? ` · No. ${st.rank}` : ''} · {all.length} cards</span>}
-      onKey={e => { if (P.open) return true; if (view === 'sets' || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
+      onKey={e => { if (P.open) return true; if (view === 'sets' || view === 'badges' || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}
   </>
 }
