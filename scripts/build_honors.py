@@ -41,8 +41,9 @@ def site_names(season):
 
 # Basketball-Reference name → the site's name, where they differ
 ALIASES = {"Tiny Archibald": ["Nate Archibald"], "Steve Smith": ["Steven Smith"], "Clifford Robinson": ["Cliff Robinson"],
-           "Anfernee Hardaway": ["Penny Hardaway"], "World B. Free": ["Lloyd Free"], "Metta World Peace": ["Ron Artest"],
-           "Nenê": ["Nene", "Nene Hilario"], "Mahmoud Abdul-Rauf": ["Chris Jackson"], "Jamaal Wilkes": ["Keith Wilkes"]}
+           "Anfernee Hardaway": ["Penny Hardaway"], "World B. Free": ["World Free", "Lloyd Free"], "Metta World Peace": ["Ron Artest"],
+           "Nenê": ["Nene", "Nene Hilario"], "Mahmoud Abdul-Rauf": ["Chris Jackson"], "Jamaal Wilkes": ["Keith Wilkes"],
+           "Michael Ray Richardson": ["Micheal Ray Richardson"], "Fat Lever": ["Lafayette Lever"]}
 
 
 def build(src):
@@ -110,7 +111,7 @@ def publish(verbose=False):
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
     print(f"honors: wrote {dest.relative_to(ROOT)}, {sum(len(v) for v in out.values())} player-seasons; {len(miss)} not found in the season's games")
-    for m in miss[: (None if verbose else 12)]:
+    for m in miss[: (None if verbose else 40)]:
         print("  not found:", m)
 
 
