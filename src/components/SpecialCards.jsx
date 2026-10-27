@@ -441,8 +441,9 @@ function peakState(card, list) {
 }
 
 function SeasonFront({ card, owned, serial }) {
-  const [s, setS] = useState(null)
-  useEffect_(() => { binderSeasonSummary(card.s, card.n, card.t).then(setS).catch(() => {}) }, [card.s, card.n, card.t])
+  // The Greatest Seasons binder ships each card's front with it; any other Season card builds it from the season's games
+  const [s, setS] = useState(card.sum && !owned ? card.sum : null)
+  useEffect_(() => { if (card.sum && !owned) return; binderSeasonSummary(card.s, card.n, card.t).then(setS).catch(() => {}) }, [card.s, card.n, card.t])
   const shots = useShots()
   if (!s) return <div className={styles.season} style={{ '--c': card.tc || '#173657' }}><div className={styles.seasonHead}><span>Season</span><small>{card.s} · {nick(card.tn)}</small></div>
     <div className={styles.seasonBody}><div className={styles.seasonBg} /></div><div className={styles.seasonFoot}><span>{baseName(card.n)}</span></div></div>

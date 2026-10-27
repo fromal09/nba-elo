@@ -62,6 +62,49 @@ def played(p):
     return p.get("gs") is not None and ((p.get("mp") or 0) > 0 or p.get("mp") is None)
 
 
+# Season card points, as api/_lib/points.js: 80 × his final tier's base × games / 82 (up to ×1.25), plus honors
+TIER_BASE = {"common": 1, "rare": 3, "standout": 6, "legend": 12, "icon": 25, "goat": 60}
+
+
+def season_points(rank, gp, honor, champ):
+    mult = 1
+    if honor:
+        mult += 0.25 if "S" in honor else 0
+        mult += next(({"1": 0.6, "2": 0.45, "3": 0.3}[c] for c in honor if c in "123"), 0)
+        mult += 1 if "M" in honor else 0
+    mult += 0.5 if champ else 0
+    return max(5, round(80 * TIER_BASE[tier_of(rank)] * min(1.25, gp / 82) * mult))
+
+
+def season_summary(d, bnd, name, fc):
+    """A Season card's front, as the site's seasonSummary (SeasonExplorer.jsx), for the Greatest Seasons binder"""
+    gp = [(g, p) for g in d["games"] for p in g["players"] if p["n"] == name and MERGE.get(p["t"], p["t"]) == fc and played(p)]
+    if not gp:
+        return None
+    t = gp[-1][1]["t"]
+    tm = d["teams"].get(t, {})
+    won = lambda g, p: g["pts"][g["teams"].index(p["t"])] > g["pts"][1 - g["teams"].index(p["t"])]
+    opp = lambda g, p: g["teams"][1 - g["teams"].index(p["t"])]
+    reg = [x for x in gp if not x[0].get("post")]
+    po = [x for x in gp if x[0].get("post")]
+    av = lambda xs, k: round(sum((p.get(k) or 0) for _, p in xs) / len(xs), 1) if xs else None
+    series = []
+    for g, p in po:
+        o = opp(g, p)
+        b = bnd.get((g["id"], p["t"])) or {}
+        if not series or series[-1]["o"] != o:
+            series.append({"o": o, "on": d["teams"].get(o, {}).get("name", o), "round": b.get("label", ""), "w": 0, "l": 0})
+        series[-1]["w" if won(g, p) else "l"] += 1
+    champ = bool(po) and (bnd.get((po[-1][0]["id"], po[-1][1]["t"])) or {}).get("champ") and won(*po[-1])
+    path = [gp[0][1]["pre"]] + [p["post"] for _, p in gp]
+    bg, bp = max(gp, key=lambda x: x[1].get("gs") or 0)
+    return {"name": name, "s": d["season"], "t": fc, "tn": tm.get("name", fc), "tc": tm.get("color"), "w": tm.get("w"), "l": tm.get("l"),
+            "gp": len(gp), "reg": len(reg), "pts": av(reg, "pts"), "trb": av(reg, "trb"), "ast": av(reg, "ast"), "gs": av(reg, "gs"),
+            "start": round(path[0]), "end": round(path[-1]), "peak": round(max(path)), "rank": gp[-1][1].get("lrp"), "path": [round(x) for x in path],
+            "best": {"date": bg["date"], "o": opp(bg, bp), "home": None if bg.get("home") is None else bg["home"] == bp["t"], "row": {"pts": bp.get("pts"), "gs": bp.get("gs")}},
+            "po": {"w": sum(x["w"] for x in series), "l": sum(x["l"] for x in series), "series": series, "champ": bool(champ)} if po else None}
+
+
 def duel_p(a, b):
     return 1 / (1 + 10 ** ((b["pre"] - a["pre"]) / 620))
 
@@ -73,6 +116,9 @@ def main():
     score, meets = defaultdict(float), defaultdict(int)
     fives = []
     league_size = {}  # season -> ranked players (the deepest league rank seen)
+    season_cands = [] # (points, end Elo, season, franchise, player) for every player-season with a franchise
+    hp = EXP / "binders" / "honors.json"   # published by build_honors.py, which build_binders.py runs first
+    honors_ = json.loads(hp.read_text(encoding="utf-8")) if hp.exists() else {}
     season_rank = {}  # season -> {"r": {player: final rank}, "champ": franchise}: Season card points (api/_lib/points.js)
     for f in files:
         d = load(f)
@@ -85,6 +131,7 @@ def main():
                 meet[frozenset(g["teams"])] += 1
         season_best = {}  # player -> (post, card)
         last_rank = {}    # player -> ((date, game), rank after his last game): a Season card's tier
+        last_end = {}     # player -> Elo after his last game
         for g in games:
             for p in g["players"]:
                 if not played(p):
@@ -93,6 +140,7 @@ def main():
                 rk = p.get("lrp") if p.get("lrp") is not None else p.get("lr")
                 if rk is not None and (n not in last_rank or (g["date"], g["id"]) > last_rank[n][0]):
                     last_rank[n] = ((g["date"], g["id"]), rk)
+                last_end[n] = p["post"]
                 first.setdefault(n, season)
                 # A Former Peak's run ends the first time he climbs past it
                 for pk in open_peaks[n]:
@@ -121,6 +169,17 @@ def main():
             peaks[n].append(c)
             open_peaks[n] = [c]  # only the newest Peak can still be open
         league_size[season] = max((p.get("lr") or 0) for g in games for p in g["players"]) or None
+        # Every Season card's points, for the Greatest Seasons binder
+        gpc = defaultdict(int)
+        for g in games:
+            for p in g["players"]:
+                if played(p):
+                    gpc[(MERGE.get(p["t"], p["t"]), p["n"])] += 1
+        champ_fc = next((MERGE.get(t_, t_) for x in games if x.get("post") for t_ in x["teams"]
+                         if (bnd.get((x["id"], t_)) or {}).get("champ") and x["pts"][x["teams"].index(t_)] > x["pts"][1 - x["teams"].index(t_)]), None)
+        for (fc_, n_), k_ in gpc.items():
+            rk_ = last_rank.get(n_, (None, None))[1]
+            season_cands.append((season_points(rk_, k_, honors_.get(season, {}).get(n_), champ_fc == fc_), last_end.get(n_, 0), season, fc_, n_))
         season_rank[season] = {"r": {n: v[1] for n, v in last_rank.items()},
                                "champ": next((MERGE.get(t_, t_) for x in games if x.get("post") for t_ in x["teams"]
                                               if (bnd.get((x["id"], t_)) or {}).get("champ") and x["pts"][x["teams"].index(t_)] > x["pts"][1 - x["teams"].index(t_)]), None)}
@@ -254,6 +313,25 @@ def main():
             (OUT / name).write_text(json.dumps({"cards": cards[k:k + SHARD]}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
             index[kind].append([name, len(cards[k:k + SHARD])])
     (OUT / "index.json").write_text(json.dumps(index, separators=(",", ":")), encoding="utf-8")
+    # The Greatest Seasons binder: the 125 Season cards worth the most points, with each card's front precomputed
+    top_seasons = sorted(season_cands, key=lambda x: (-x[0], -x[1]))[:125]
+    want_s = defaultdict(list)
+    for i, (pts_, _, s_, fc_, n_) in enumerate(top_seasons):
+        want_s[s_].append((i, pts_, fc_, n_))
+    seasons_set = [None] * len(top_seasons)
+    for f in files:
+        d = None
+        for i, pts_, fc_, n_ in want_s.get(f.stem, []):
+            if d is None:
+                d = load(f); bnd_ = bands(d["games"])
+            sm = season_summary(d, bnd_, n_, fc_)
+            if not sm:
+                continue
+            hc = honors_.get(sm["s"], {}).get(n_)
+            sm["honors"] = {"allStar": "S" in hc, "allNba": next((int(c) for c in hc if c in "123"), 0), "mvp": "M" in hc, "aba": "A" in hc} if hc else None
+            seasons_set[i] = {"kind": "season", "tier": "season", "s": sm["s"], "t": fc_, "tn": sm["tn"], "tc": sm["tc"], "n": n_, "gp": sm["gp"],
+                              "rank": sm["rank"], "honors": hc, "champ": bool(sm["po"] and sm["po"]["champ"]), "points": pts_, "allTime": i + 1, "sum": sm}
+    seasons_set = [x for x in seasons_set if x]
     B = EXP / "binders"
     B.mkdir(parents=True, exist_ok=True)
     (B / "rivalries.json").write_text(json.dumps(rivals, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -263,6 +341,7 @@ def main():
         league = json.loads(lp.read_text(encoding="utf-8"))
         league.setdefault("sets", {})["rivalries"] = rivals
         league["sets"]["lineups"] = top_fives
+        league["sets"]["seasons"] = seasons_set
         lp.write_text(json.dumps(league, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     (B / "peaks.json").write_text(json.dumps({n: [[c["s"], c["id"], round(c["row"]["post"]), c["date"], c["until"]] for c in lst] for n, lst in peaks.items()},
                                              ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

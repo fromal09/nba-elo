@@ -375,3 +375,9 @@
     linear-gradient(115deg, rgba(255,45,149,0) 20%, rgba(255,211,45,.25) 35%, rgba(45,255,180,.22) 50%, rgba(45,155,255,.25) 65%, rgba(180,45,255,0) 80%);
   background-size: 90px 90px, 110px 110px, 70px 70px, 130px 130px, 80px 80px, 300% 300%; mix-blend-mode: screen; animation: seasonIce 9s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .five, .five * { animation: none !important; } }
+/* The chart gives up height first, so a long name, a playoff ribbon or taller fonts never push the best game off the card */
+.seasonBody { display: flex; flex-direction: column; }
+.seasonBody > .seasonTop, .seasonBody > .seasonName, .seasonBody > .seasonStats, .seasonBody > .seasonBest { flex: none; }
+.seasonBody > .seasonChart { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.seasonChart svg { flex: 0 1 74px; min-height: 26px; }
+.seasonBody > .seasonBest { margin-bottom: 8px; }

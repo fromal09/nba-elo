@@ -392,7 +392,7 @@ if __name__ == "__main__":
     # The daily-pack card pool reads the same season files; build it in the same step (nightly included)
     from build_packs import main as build_packs
     build_packs()
+    from build_honors import publish as build_honors   # All-Star, All-League and MVP for Season cards (the specials read them)
+    build_honors()
     from build_specials import main as build_specials
     build_specials()
-    from build_honors import publish as build_honors   # All-Star, All-League and MVP for Season cards
-    build_honors()

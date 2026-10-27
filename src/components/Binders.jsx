@@ -857,6 +857,8 @@ export const LEAGUE_SETS = [
     desc: 'The 54 highest peak ratings ever: the card from the night each player hit his peak.' },
   { id: 'swings', title: 'Biggest swings', short: 'Swings', color: '#0f6a6a',
     desc: 'The 54 largest one-game Elo gains.' },
+  { id: 'seasons', title: 'Greatest seasons', short: 'Seasons', color: '#7a5a12', special: true,
+    desc: 'The 125 Season cards worth the most points: his final rank, the games he played, his honors and the title. Forged by owning every game of the season.' },
   { id: 'lineups', title: 'Starting Fives', short: 'Starting Fives', color: '#2f5d50', special: true,
     desc: 'The 125 greatest starting lineups, by where the five stood in the league that day: one GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares. Every other Starting Five is Common. Random pulls.' },
   { id: 'rivalries', title: 'Rivalries', short: 'Rivalries', color: '#4a5562', special: true,
@@ -878,6 +880,8 @@ const featLine = r => {
 
 export function leagueEntries(env, def, list) {
   return list.map((c, i) => {
+    if (def.special && c.kind === 'season') return fromIndex(env, c, { rank: i + 1, date: `${c.s.slice(0, 4)}-10-01`, name: c.n,
+      label: `${c.allTime}. ${shortName(c.n)} ${c.s.slice(2, 4)}-${c.s.slice(5)}`, sub: `${c.points.toLocaleString()} pts`, owned: !!env.owned?.has(cardRef(c)) })
     if (def.special && c.kind === 'five') return fromIndex(env, c, { rank: i + 1, date: c.date, name: [...c.players].sort((a, b) => b.pre - a.pre)[0]?.n,
       label: `${c.rank}. ${c.s} ${nick(c.tn)}`, sub: { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare' }[c.tier], owned: !!env.owned?.has(cardRef(c)) })
     if (def.special) return fromIndex(env, c, { rank: i + 1, date: `${c.first}-10-01`, name: c.a, label: `${c.rank}. ${shortName(c.a).split(' ').pop()}–${shortName(c.b).split(' ').pop()}`,
@@ -1234,7 +1238,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
               <section key={k} className={styles.spSection}>
                 <div className={styles.spHead}><h4>{title}<span>{list.length}{total ? ` of ${total.toLocaleString()}` : ''}</span></h4>
                   {k === 'rival' && onLeague && <button type="button" className={styles.linkBtn} onClick={() => onLeague('rivalries')}>See all 125</button>}
-                  {k === 'five' && onLeague && <button type="button" className={styles.linkBtn} onClick={() => onLeague('lineups')}>See the top 125</button>}</div>
+                  {k === 'five' && onLeague && <button type="button" className={styles.linkBtn} onClick={() => onLeague('lineups')}>See the top 125</button>}
+                  {k === 'season' && onLeague && <button type="button" className={styles.linkBtn} onClick={() => onLeague('seasons')}>See the top 125</button>}</div>
                 <p className={styles.light}>{desc}</p>
                 {list.length > 0 && <div className={styles.spGrid}>{list.map(e => <Pocket key={e.key} e={e} name={e.name} env={env} onPull={P.pull} pulled={P.pulled} />)}</div>}
               </section>

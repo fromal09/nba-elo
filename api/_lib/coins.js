@@ -97,7 +97,7 @@ export async function cardRewards(t, userId, day, origin, card) {
   const sets = leagueCache.data?.sets || {}
   const ref = `${card.s}|${card.id}|${card.row.n}`
   for (const [id, list] of Object.entries(sets)) {
-    if (id === 'slayers' || id === 'duels' || id === 'rivalries' || id === 'lineups' || !list.some(c => `${c.s}|${c.id}|${c.row.n}` === ref)) continue
+    if (id === 'slayers' || id === 'duels' || id === 'rivalries' || id === 'lineups' || id === 'seasons' || !list.some(c => `${c.s}|${c.id}|${c.row.n}` === ref)) continue
     const refs = list.map(c => `${c.s}|${c.id}|${c.row.n}`)
     const [x] = await t`select count(*)::int as n from cards where user_id = ${userId} and ref = any(${refs})`
     const steps = Math.floor((x.n / refs.length) * 10)
