@@ -12,6 +12,7 @@ import { Coin, TIER_NAME } from './Collector'
 
 const fmtDay = (d, o = { month: 'long', day: 'numeric' }) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', o)
 const n0 = v => Math.round(v || 0).toLocaleString()
+const PRED_KINDS = ['predict', 'predcorrect', 'upset', 'perfect', 'lock', 'lockloss', 'duelcorrect', 'lineup', 'pickweekly']
 const ROWS = [['goat', 1], ['icon', 2], ['legend', 3], ['standout', 4], ['rare', 5]]
 const PACK_LOOK = { standard: ['#0b3a66', '#5ec8ff'], era: ['#6d3a0c', '#f2a33a'], storeteam: ['#173657', '#c3d4e6'], playoff: ['#0b0b0b', '#e7c160'], legend: ['#6d4c0c', '#fff1c0'], goat: ['#0a0a0a', '#f5d77a'] }
 
@@ -56,6 +57,7 @@ export function StoreBook({ env, onClose, onMine }) {
     ['Exploring the site', `${coins.explore?.got || 0} / ${coins.explore?.cap || rates.exploreCap}`, (coins.explore?.got || 0) >= rates.exploreCap],
     ['Finished packs', T.pack ? `+${T.pack}` : `${rates.pack} each`, !!T.pack],
     ['Legend-or-better pulls', T.big ? `+${T.big}` : `${rates.big} each`, !!T.big],
+    ['Predictions', PRED_KINDS.some(k => T[k]) ? `+${PRED_KINDS.reduce((a, k) => a + (T[k] || 0), 0)}` : 'Pick today’s games', PRED_KINDS.some(k => T[k])],
     ['Checklists and sets', T.checklist || T.set ? `+${(T.checklist || 0) + (T.set || 0)}` : '100–500', !!(T.checklist || T.set)],
   ]
   const left = <>
@@ -70,7 +72,8 @@ export function StoreBook({ env, onClose, onMine }) {
       <summary>How Coins work</summary>
       <p>Earn: {rates.visit} for your first visit each day, plus {rates.streakPer} per streak day (up to {rates.streakMax}); {rates.pack} for finishing a pack;
         {' '}{rates.big} for every Legend or better you keep; {rates.explore} for each part of the site you visit (up to {rates.exploreCap} a day); {rates.challenge} for the daily challenge;
-        {' '}100–500 for completing a team-season checklist; 100 for every 10% of a league set; {rates.weeklyTop10} for a top-10 week on the leaderboard, {rates.weeklyTop50} for top 50.</p>
+        {' '}100–500 for completing a team-season checklist; 100 for every 10% of a league set; {rates.weeklyTop10} for a top-10 week on the leaderboard, {rates.weeklyTop50} for top 50.
+        {rates.pred && <> Predictions: {rates.pred.pick} per pick, {rates.pred.correct} per correct pick, {rates.pred.upsetMin}–{rates.pred.upsetMax} more for calling an upset, and {rates.pred.perfectPer} a game for a perfect day; a correct Lock of the Day doubles its Coins; {rates.pred.duel} per correct matchup; 1 per Game Score point in your lineup (up to {rates.pred.lineupMax}); {rates.pred.weeklyTop10} for a top-10 pick’em week.</>}</p>
       <p>Sell: any card a day after you get it, for {Math.round(rates.sellRate * 100)}% of its points, up to {rates.sellCap} Coins a day. Starred and showcase cards can’t be sold,
         Legends and better ask to confirm, and you can buy a sold card back at the same price for {rates.buybackHours} hours. Selling lowers your binder score.</p>
     </details>

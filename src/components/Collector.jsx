@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import styles from './Collector.module.css'
-import { MiniCard } from './PlayerCard'
+import { MiniCard, DuelCard } from './PlayerCard'
 import { fromIndex } from './Binders'
 import { binderTeamInfo, binderHeadshots, binderLogo } from './SeasonExplorer'
 import { norm } from './predict'
@@ -17,7 +17,7 @@ const noop = () => {}
 export const useCollector = () => useContext(Ctx) || { me: null, owned: new Set(), cards: [], openAuth: noop, claim: noop, openTeam: noop, resume: noop }
 
 export const TIER_NAME = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' }
-export const refOf = c => `${c.s}|${c.id}|${c.row.n}`
+export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : `${c.s}|${c.id}|${c.row.n}`)
 export const CURRENT_TEAMS = ['ATL', 'BOS', 'BKN', 'CHO', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN',
   'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
 
@@ -30,7 +30,7 @@ async function api(action, body, query = '') {
   return d
 }
 
-export function CollectorProvider({ children, onOpenMine, onOpenStore }) {
+export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPredict }) {
   const [me, setMe] = useState(undefined)        // undefined: loading · null: signed out
   const [cards, setCards] = useState([])         // [{ id, card, pulled, pack }]
   const [auth, setAuth] = useState(null)         // 'login' | 'signup'
@@ -39,9 +39,13 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore }) {
   const [down, setDown] = useState(false)        // the API isn't reachable (not deployed yet)
   const [toast, setToast] = useState(null)
   const [coinToasts, setCoinToasts] = useState([]) // Coins just earned
+  const [preds, setPreds] = useState(null)       // predictions: today's and tomorrow's slates with your picks
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 5000); return () => clearTimeout(t) }, [toast])
   useEffect(() => { if (!coinToasts.length) return; const t = setTimeout(() => setCoinToasts([]), 4200); return () => clearTimeout(t) }, [coinToasts])
-  const celebrate = awards => { const got = (awards || []).filter(a => a.amount > 0); if (got.length) setCoinToasts(c => [...c, ...got].slice(-5)) }
+  const celebrate = awards => {
+    const got = (awards || []).filter(a => a.amount > 0); if (got.length) setCoinToasts(c => [...c, ...got].slice(-5))
+    const card = (awards || []).find(a => a.kind === 'predreward'); if (card) setToast(`${card.label}. Choose it in Predictions.`)
+  }
 
   const loadCards = useCallback(() => api('collection').then(d => setCards(d.cards)).catch(() => {}), [])
   const refresh = useCallback(() => api('me').then(d => setMe(m => (d.user ? { ...d, lastNight: d.lastNight ?? m?.lastNight } : null))).catch(() => {}), [])
@@ -60,7 +64,7 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore }) {
       setMe(d); setAuth(null); loadCards(); celebrate(d.awards)
       return d
     },
-    signOut: async () => { await api('logout', {}).catch(() => {}); setMe(null); setCards([]) },
+    signOut: async () => { await api('logout', {}).catch(() => {}); setMe(null); setCards([]); setPreds(null) },
     // Today's pack; packs left open (closed mid-pick) come first
     claim: guard(async () => {
       if (!me) { setAuth('signup'); return }
@@ -88,7 +92,18 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore }) {
     buyCard: guard(async ref => { const d = await api('buycard', { ref }); take(d); loadCards(); setToast('Added to your binder.'); return d.store }),
     sell: guard(async (id, confirm) => { const d = await api('sell', { id, confirm }); take(d); loadCards(); return d }),
     buyback: guard(async id => { const d = await api('buyback', { id }); take(d); loadCards(); return d.store }),
-  }), [me, cards, down, loadCards, onOpenMine, onOpenStore])
+    // Predictions: the slate and your record; picks; reward cards
+    preds,
+    loadPredictions: () => api('predictions').then(d => { take(d); setPreds(d.predictions); return d.predictions }),
+    predict: guard(async (game, team) => { const d = await api('predict', { game, team }); take(d); setPreds(d.predictions); return d.predictions }),
+    lock: guard(async (game, on = true) => { const d = await api('lock', { game, on }); take(d); setPreds(d.predictions); return d.predictions }),
+    duelPick: guard(async (game, player) => { const d = await api('duelpick', { game, player }); take(d); setPreds(d.predictions); return d.predictions }),
+    setLineup: guard(async (day, slot, card) => { const d = await api('lineup', { day, slot, card }); take(d); setPreds(d.predictions); return d.predictions }),
+    loadStandings: scope => api('standings', undefined, `&scope=${scope}`).then(d => d.standings),
+    predReward: (day, kind = 'games') => api('predreward', undefined, `&day=${day}&kind=${kind}`).then(d => d.reward),
+    claimPred: guard(async (day, ref, kind = 'games') => { const d = await api('claimpred', { day, ref, kind }); take(d); setPreds(d.predictions); loadCards(); setToast('Added to your binder.'); return d.predictions }),
+    openPredict: () => (me ? onOpenPredict?.() : setAuth('signup')),
+  }), [me, cards, down, preds, loadCards, onOpenMine, onOpenStore, onOpenPredict])
 
   const closeQueue = () => { setQueue(null); loadCards(); refresh() }
   return (
@@ -166,12 +181,12 @@ function useWidth() {
 }
 
 export function CardFace({ card, shots, w = 280 }) {
-  const e = fromIndex(env, card)
+  const e = fromIndex({ ...env, headshot: n => shots?.[norm(n)]?.headshot }, card)
   const k = w / 340
   return (
     <span className={styles.face} style={{ width: w, height: 476 * k }}>
       <span style={{ transform: `scale(${k})` }}>
-        <MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={shots?.[norm(e.name)]?.headshot} />
+        {e.duel ? <DuelCard {...e.duel} /> : <MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={shots?.[norm(e.name)]?.headshot} />}
       </span>
     </span>
   )

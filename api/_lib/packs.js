@@ -82,7 +82,7 @@ function shard(origin, file) {
 }
 
 const tierOf = rank => (rank == null ? 'common' : rank <= 1 ? 'goat' : rank <= 5 ? 'icon' : rank <= 20 ? 'legend' : rank <= 50 ? 'standout' : rank <= 125 ? 'rare' : 'common')
-export const refOf = c => `${c.s}|${c.id}|${c.row.n}`
+export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : `${c.s}|${c.id}|${c.row.n}`)
 
 // A pool row as the card the site renders (the binder index shape, plus what stat-line inserts read)
 function toCard(cols, r, teams, from) {
@@ -164,5 +164,5 @@ export async function buildOffers(origin, kind, { taken, team, pity, era }) {
 }
 
 export const teamCodes = async origin => Object.keys((await poolIndex(origin)).teams || {})
-export { toCard, getJSON as poolJSON }
+export { toCard, getJSON as poolJSON, tierOf }
 export const recentDate = async origin => (await poolIndex(origin)).recent?.date || null

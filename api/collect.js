@@ -21,12 +21,22 @@
 //   POST buycard     { ref } buy one of today's On This Day cards
 //   POST sell        { id, confirm } sell a card for 20% of its points (24 hours after you got it, 500 Coins a day)
 //   POST buyback     { id } buy a sold card back at its sale price, within 24 hours
+//   GET  predictions today's and tomorrow's slates with your picks, your history and stats (grades finished games)
+//   POST predict     { game, team } pick a winner; changeable until that game tips off
+//   POST lock        { game, on } make that pick your Lock of the Day (movable until its game tips off)
+//   POST duelpick    { game, player } who posts the higher Game Score in the game's top player matchup
+//   POST lineup      { day, slot, card } put a player from your binder in a lineup slot (card: null empties it)
+//   GET  standings   ?scope=week|season pick'em points, and where you rank
+//   GET  predreward  ?day=&kind=games|duels the cards you can choose from for a day you earned one
+//   POST claimpred   { day, ref, kind } keep that card
 import { db, ensureSchema } from './_lib/db.js'
 import { USERNAME, hashPassword, checkPassword, startSession, endSession, currentUser } from './_lib/auth.js'
 import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS } from './_lib/packs.js'
 import { cardPoints } from './_lib/points.js'
 import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards } from './_lib/coins.js'
 import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
+import { settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
+import { achievements } from './_lib/achievements.js'
 
 const STREAK_EVERY = 7
 // Packs reset at midnight Eastern, with the NBA's day; team packs reset Monday
@@ -71,7 +81,7 @@ async function me(u) {
   const next = claimed ? streak : streak + 1
   const tierRows = await sql`select tier, count(*)::int as n from cards where user_id = ${u.id} group by tier`
   const best = await sql`select id, card from cards where user_id = ${u.id}
-    order by array_position(${TIER_ORDER}::text[], tier) desc, (card->'row'->>'gs')::float desc nulls last limit 1`
+      and tier <> 'duel' order by array_position(${TIER_ORDER}::text[], tier) desc, (card->'row'->>'gs')::float desc nulls last limit 1`
   const show = u.showcase?.length ? await sql`select id, card from cards where user_id = ${u.id} and id = any(${u.showcase.map(String)}::bigint[])` : []
   const open = await sql`select id, kind, team, array_length(picks, 1) as picked, jsonb_array_length(slots) as total from packs
     where user_id = ${u.id} and status = 'open' order by id`
@@ -90,6 +100,8 @@ async function me(u) {
       best: best[0] ? { id: Number(best[0].id), card: best[0].card } : null },
     standing: await standing(sql, u.id),
     coins: { balance: u.coins, ...(await earnings(sql, u.id, today)) },
+    predict: await predSummary(sql, u.id, today),
+    achievements: await achievements(sql, u.id),
   }
 }
 
@@ -104,9 +116,10 @@ async function earnings(sql, userId, day) {
 }
 
 // The first visit of the day: Coins for showing up, more for a streak; and last week's leaderboard payouts
-async function visit(u) {
+async function visit(u, origin) {
   const sql = db(), today = etDay(), awards = []
   await settleWeek(sql, today)
+  await settlePickWeek(sql, origin, today).catch(e => console.error('pick week', e))
   await sql.begin(async t => {
     const a = await grant(t, u.id, today, 'visit', RATES.visit, { ref: today })
     if (a) {
@@ -117,6 +130,8 @@ async function visit(u) {
       // A weekly payout made today shows with the first visit
       const [w] = await t`select amount from coin_ledger where user_id = ${u.id} and kind = 'weekly' and day = ${today}`
       if (w) awards.push({ kind: 'weekly', amount: w.amount, label: 'Last week’s leaderboard finish' })
+      const [pw] = await t`select amount from coin_ledger where user_id = ${u.id} and kind = 'pickweekly' and day = ${today}`
+      if (pw) awards.push({ kind: 'pickweekly', amount: pw.amount, label: 'Last week’s pick’em finish' })
     }
   })
   return awards
@@ -166,7 +181,7 @@ async function claimDaily(u, origin) {
   const packs = await sql.begin(async t => {
     const got = await t`insert into claims (user_id, day, kind) values (${u.id}, ${today}, 'daily') on conflict do nothing returning day`
     if (!got.length) throw fail(409, 'Today’s pack is already open.')
-    await t`update users set streak = ${next}, last_claim = ${today} where id = ${u.id}`
+    await t`update users set streak = ${next}, best_streak = greatest(best_streak, ${next}), last_claim = ${today} where id = ${u.id}`
     const rows = []
     for (const p of built) rows.push((await t`insert into packs (user_id, kind, day, slots, pity) values (${u.id}, ${p.kind}, ${today}, ${t.json(p.slots)}, ${p.pity}) returning *`)[0])
     return rows
@@ -239,7 +254,7 @@ async function storeView(sql, u, origin) {
     day: today, next: addDays(today, 1), era: eraOfWeek(today), packs: catalog(today),
     featured: { random: f.random, partial: f.partial, cards: f.cards.map(x => ({ ...x, owned: owned.has(refOf(x.card)) })) },
     sold: sold.map(r => ({ id: Number(r.id), card: r.card, points: r.points, price: r.price, soldAt: r.sold_at, owned: mine.has(refOf(r.card)) })),
-    rates: RATES,
+    rates: { ...RATES, pred: PRED },
   }
 }
 
@@ -287,6 +302,7 @@ async function sell(u, origin, b) {
   const sql = db(), today = etDay(), id = Number(b.id)
   const [c] = await sql`select * from cards where id = ${id} and user_id = ${u.id}`
   if (!c) throw fail(404, 'That card isn’t in your binder.')
+  if (c.tier === 'duel') throw fail(409, 'Duel of the Day cards can’t be sold.')
   if (u.starred.map(Number).includes(id)) throw fail(409, 'Un-star the card first. Starred and showcase cards can’t be sold.')
   const hours = (Date.now() - new Date(c.pulled_at).getTime()) / 36e5
   if (hours < RATES.sellCooldownHours) throw fail(409, `You can sell this card in ${Math.ceil(RATES.sellCooldownHours - hours)} hour${Math.ceil(RATES.sellCooldownHours - hours) === 1 ? '' : 's'}. New cards wait a day.`)
@@ -334,7 +350,9 @@ export default async function handler(req, res) {
     const post = req.method === 'POST'
     if (action === 'me') {
       const u0 = await currentUser(req)
-      const awards = u0 ? await visit(u0) : []
+      const awards = u0 ? await visit(u0, origin) : []
+      // Picks on games that finished since the last visit: grade them (only touches ESPN when one is due)
+      if (u0) awards.push(...(await settle(sql, u0.id, etDay(), { onlyStale: true, origin }).catch(e => { console.error('settle', e); return [] })))
       const u1 = u0 && (await sql`select * from users where id = ${u0.id}`)[0]
       return send(200, { ...(await me(u1)), awards, lastNight: await recentDate(origin).catch(() => null) })
     }
@@ -350,13 +368,13 @@ export default async function handler(req, res) {
           on conflict (username_key) do nothing returning *`
         if (!u) throw fail(409, 'That username is taken.')
         await startSession(res, req, u.id)
-        const awards = await visit(u)
+        const awards = await visit(u, origin)
         return send(200, { ...(await me((await sql`select * from users where id = ${u.id}`)[0])), awards })
       }
       const [u] = await sql`select * from users where username_key = ${key}`
       if (!u || !(await checkPassword(String(password), u.pass_hash))) throw fail(401, 'Wrong username or password.')
       await startSession(res, req, u.id)
-      const awards = await visit(u)
+      const awards = await visit(u, origin)
       return send(200, { ...(await me((await sql`select * from users where id = ${u.id}`)[0])), awards })
     }
     if (post && action === 'logout') { await endSession(res, req); return send(200, { user: null }) }
@@ -378,8 +396,10 @@ export default async function handler(req, res) {
       if (!o) throw fail(404, 'No binder by that name.')
       const rows = await sql`select id, card, points, pulled_at from cards where user_id = ${o.id} order by id desc`
       return send(200, { user: { username: o.username, favoriteTeam: o.favorite_team, joined: iso(o.created_at), showcaseIds: o.showcase.map(Number), starred: o.starred.map(Number) },
-        standing: await standing(sql, o.id), cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at })) })
+        standing: await standing(sql, o.id), achievements: (await achievements(sql, o.id)).filter(a => a.earned), cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at })) })
     }
+
+    if (action === 'standings') return send(200, { standings: await standings(sql, origin, q.scope === 'season' ? 'season' : 'week', etDay(), await currentUser(req)) })
 
     const u = await currentUser(req)
     if (!u) throw fail(401, 'Sign in first.')
@@ -391,6 +411,24 @@ export default async function handler(req, res) {
     if (post && action === 'buycard') return send(200, await buyCard(u, origin, await readBody(req)))
     if (post && action === 'sell') return send(200, await sell(u, origin, await readBody(req)))
     if (post && action === 'buyback') return send(200, await buyback(u, origin, await readBody(req)))
+    if (action === 'predictions' || (post && ['predict', 'lock', 'duelpick', 'lineup'].includes(action))) {
+      const today = etDay()
+      const b = post ? await readBody(req) : null
+      const awards = action === 'predict' ? await predict(sql, u, b, today, origin) : []
+      if (action === 'lock') await setLock(sql, u, b, today, origin)
+      if (action === 'duelpick') await duelPick(sql, u, b, today, origin)
+      if (action === 'lineup') await setLineup(sql, u, b, origin, today)
+      const view = await predView(sql, u, today, addDays(today, 1), origin)
+      const [fresh] = await sql`select * from users where id = ${u.id}`
+      return send(200, { predictions: view, ...(await me(fresh)), awards: [...awards, ...view.awards] })
+    }
+    if (action === 'predreward') return send(200, { reward: await rewardOptions(sql, u, origin, String(q.day || ''), q.kind === 'duels' ? 'duels' : 'games') })
+    if (post && action === 'claimpred') {
+      const today = etDay()
+      const r = await claimReward(sql, u, origin, await readBody(req), today)
+      const [fresh] = await sql`select * from users where id = ${u.id}`
+      return send(200, { cardId: r.cardId, awards: r.awards, predictions: await predView(sql, fresh, today, addDays(today, 1), origin), ...(await me(fresh)) })
+    }
     if (post && action === 'explore') {
       const section = String((await readBody(req)).section || '')
       if (!SECTIONS[section]) return send(200, { awards: [] })

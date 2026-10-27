@@ -35,7 +35,8 @@ export const challengeFor = day => CHALLENGES[dayIndex(day) % CHALLENGES.length]
 
 const LABEL = { visit: 'Daily visit', streak: 'Streak bonus', pack: 'Finished a pack', big: 'Kept a Legend or better', explore: 'Explored',
   challenge: 'Daily challenge', checklist: 'Completed a team checklist', set: 'Set milestone', weekly: 'Weekly leaderboard', sell: 'Sold a card',
-  buyback: 'Bought back a card', store: 'Store' }
+  buyback: 'Bought back a card', store: 'Store', predict: 'Pick made', predcorrect: 'Correct pick', upset: 'Upset called', perfect: 'Perfect day', lock: 'Lock of the Day', lockloss: 'Lock of the Day missed',
+  duelcorrect: 'Matchup called', lineup: 'Lineup', pickweekly: 'Weekly pick’em' }
 
 /**
  * Grant (or charge, with a negative amount) Coins inside a transaction. ref makes a grant once-only;

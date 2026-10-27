@@ -2,6 +2,7 @@
 // The schema creates itself on the first request after a cold start.
 import postgres from 'postgres'
 import { cardPoints } from './points.js'
+import { ensurePredSchema } from './predictions.js'
 
 let sql = null
 let ready = null
@@ -34,6 +35,7 @@ export function ensureSchema() {
         coins int not null default 0,
         created_at timestamptz not null default now())`
       await t`alter table users add column if not exists coins int not null default 0`
+      await t`alter table users add column if not exists best_streak int not null default 0`
       await t`create table if not exists sessions (
         token_hash text primary key,
         user_id int not null references users(id) on delete cascade,
@@ -97,6 +99,8 @@ export function ensureSchema() {
         bought_back boolean not null default false)`
       // Weekly leaderboard payouts, once per week
       await t`create table if not exists settlements (week date primary key, settled_at timestamptz not null default now())`
+      // Daily predictions: the slate, your picks, your finished days
+      await ensurePredSchema(t)
       await t`create index if not exists packs_open on packs (user_id) where status = 'open'`
       await t`create index if not exists sessions_user on sessions (user_id)`
     }).catch(e => { ready = null; throw e })

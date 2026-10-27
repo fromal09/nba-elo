@@ -43,6 +43,8 @@ export default function App() {
   const openMine = () => { setView('binders'); setMineTick(t => t + 1) }
   const [storeTick, setStoreTick] = useState(0) // ... or the store
   const openStore = () => { setView('binders'); setStoreTick(t => t + 1) }
+  const [predictTick, setPredictTick] = useState(0) // ... or Predictions
+  const openPredict = () => { setView('binders'); setPredictTick(t => t + 1) }
 
   useEffect(() => {
     const path = PATHS[view] || '/'
@@ -101,7 +103,7 @@ export default function App() {
   )
 
   return (
-    <CollectorProvider onOpenMine={openMine} onOpenStore={openStore}>
+    <CollectorProvider onOpenMine={openMine} onOpenStore={openStore} onOpenPredict={openPredict}>
     <ExploreCoins view={view} profile={!!selectedPlayer} />
     <div className={styles.app}>
       <FanSidedHeader />
@@ -156,7 +158,7 @@ export default function App() {
           onMode={m => setView(m === 'today' ? 'scoreboard' : 'explorer')} />
       )}
       {view === 'timemachine' && <TimeMachine />}
-      {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} mineTick={mineTick} storeTick={storeTick} />}
+      {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} mineTick={mineTick} storeTick={storeTick} predictTick={predictTick} />}
       {view === 'methodology' && <Methodology />}
 
       {selectedPlayer && !histReady && (

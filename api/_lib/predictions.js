@@ -1,0 +1,535 @@
+// Daily predictions, three games a night, all locking at each game's tipoff and changeable until then:
+//
+//   Picks     the winner of every game. Coins for each pick, each correct pick, upsets called (by the Elo
+//             forecast) and a perfect day. More than half right: choose a card of Legend or below from the
+//             day's games. Every game right: choose any card from them.
+//   Lock      one pick a day as your Lock of the Day: a correct lock doubles its Coins (upset bonus included);
+//             a wrong one costs that day's pick Coins.
+//   Matchups  each game's top player matchup (each side's highest-Elo healthy player): who posts the higher
+//             Game Score? More than half right: choose a Rare or Common from the day. All right: the Duel of
+//             the Day card. Graded with the morning data update (Game Scores come from the pipeline).
+//   Lineup    five players from your binder who play that night; you score their Game Scores (1 Coin a point, up to 150).
+//
+// Standings rank pick'em points (a correct pick, a correct matchup, a correct lock's extra point) by week and
+// season, with weekly Coin payouts; Beat the Forecast compares your wins with what the forecast expected of your picks.
+import { slate, dogChance, gradeDay } from './slate.js'
+import { grant, cardRewards } from './coins.js'
+import { poolIndex, poolJSON, toCard, refOf, tierOf, TIER_ORDER } from './packs.js'
+import { cardPoints } from './points.js'
+import { rosters } from './forecast.js'
+import { norm } from '../../src/components/predict.js'
+
+export const PRED = {
+  pick: 5,          // making a pick (once per game, even if you change it)
+  correct: 15,      // each correct pick
+  upsetMin: 10, upsetMax: 80, // calling an underdog: (50% − its chance) × 200, rounded to 5
+  perfectPer: 15, perfectMax: 150, // a perfect day: 15 per game on the slate
+  duel: 10,         // each correct matchup
+  lineupMax: 150,   // lineups: 1 Coin per Game Score point
+  slots: 5,
+  weeklyTop10: 300, weeklyTop50: 100, // pick'em standings, paid each Monday
+}
+export const upsetBonus = p => (p == null || p >= 0.5 ? 0 : Math.max(PRED.upsetMin, Math.min(PRED.upsetMax, Math.round(((0.5 - p) * 200) / 5) * 5)))
+const LEGEND_CAP = TIER_ORDER.indexOf('legend'), RARE_CAP = TIER_ORDER.indexOf('rare')
+const fail = (status, message) => Object.assign(new Error(message), { status })
+const iso = v => (v instanceof Date ? v.toISOString().slice(0, 10) : v ? String(v).slice(0, 10) : null)
+const isDone = g => g.state === 'post' || g.state === 'off'
+const addDays = (day, n) => new Date(Date.parse(day + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10)
+const weekStart = day => addDays(day, -((new Date(day + 'T12:00:00Z').getUTCDay() + 6) % 7))
+const seasonStart = day => `${+day.slice(0, 4) - (+day.slice(5, 7) < 9 ? 1 : 0)}-09-01`
+const isOpen = g => g.state === 'pre' && Date.parse(g.tip) > Date.now()
+
+export async function ensurePredSchema(t) {
+  await t`create table if not exists pred_games (
+    id text primary key, day date not null, tip timestamptz not null, home text not null, away text not null,
+    state text not null, detail text, hs int, as_ int, winner text, line jsonb, updated_at timestamptz not null default now())`
+  await t`create index if not exists pred_games_day on pred_games (day)`
+  await t`create table if not exists predictions (
+    user_id int not null references users(id) on delete cascade,
+    game_id text not null, day date not null, pick text not null,
+    made_at timestamptz not null default now(), updated_at timestamptz not null default now(),
+    result text, chance real, bonus int not null default 0,
+    primary key (user_id, game_id))`
+  await t`alter table predictions add column if not exists lock boolean not null default false`
+  await t`alter table predictions add column if not exists credited boolean not null default false`
+  await t`create index if not exists predictions_day on predictions (user_id, day)`
+  await t`create index if not exists predictions_open on predictions (day) where result is null`
+  await t`create unique index if not exists predictions_lock on predictions (user_id, day) where lock`
+  await t`create table if not exists pred_days (
+    user_id int not null references users(id) on delete cascade, day date not null,
+    total int not null, picked int not null, correct int not null, upsets int not null default 0,
+    reward text, claimed_ref text, claimed_card jsonb, claimed_at timestamptz,
+    graded_at timestamptz not null default now(), primary key (user_id, day))`
+  await t`create table if not exists duel_picks (
+    user_id int not null references users(id) on delete cascade,
+    game_id text not null, day date not null, pick text not null,
+    made_at timestamptz not null default now(), result text, credited boolean not null default false,
+    primary key (user_id, game_id))`
+  await t`create index if not exists duel_picks_day on duel_picks (user_id, day)`
+  await t`create table if not exists duel_days (
+    user_id int not null references users(id) on delete cascade, day date not null,
+    total int not null, picked int not null, correct int not null,
+    reward text, claimed_ref text, claimed_card jsonb, claimed_at timestamptz,
+    graded_at timestamptz not null default now(), primary key (user_id, day))`
+  await t`create table if not exists lineups (
+    user_id int not null references users(id) on delete cascade, day date not null, slot int not null,
+    card_id bigint not null, player text not null, team text not null, game_id text not null, gs real,
+    made_at timestamptz not null default now(), primary key (user_id, day, slot))`
+  await t`create table if not exists lineup_days (
+    user_id int not null references users(id) on delete cascade, day date not null,
+    total real not null, coins int not null, graded_at timestamptz not null default now(), primary key (user_id, day))`
+  await t`create table if not exists pick_settlements (week date primary key, settled_at timestamptz not null default now())`
+}
+
+// ── The day's cards (published by the nightly build): reward picks, matchup and lineup Game Scores ──
+const files = new Map() // day -> { at, data }
+async function dayFile(origin, day) {
+  const m = files.get(day)
+  if (m && (m.data || Date.now() - m.at < 5 * 60e3)) return m.data
+  let data = null
+  try {
+    const idx = await poolIndex(origin)
+    const f = await poolJSON(origin, `days/${day}.json`)
+    const cards = f.rows.map(r => toCard(idx.cols, r, f.teams, 'predict'))
+    data = { cards, duel: f.duel || null }
+  } catch { data = null }
+  files.set(day, { at: Date.now(), data })
+  if (files.size > 30) files.delete(files.keys().next().value)
+  return data
+}
+// A player's card from a game between these two teams (his Game Score is card.row.gs)
+const hasGame = (file, day, home, away) => file.cards.some(c => c.date === day && c.t === home && c.o === away)
+const findRow = (file, day, team, opp, name) => file.cards.find(c => c.date === day && c.t === team && c.o === opp && norm(c.row.n) === norm(name))
+
+// The Duel of the Day as a card for a binder
+function duelCard(d) {
+  const side = c => ({ ...c, tier: tierOf(c.row.lrp ?? c.row.lr) })
+  return { kind: 'duel', k: 'duel', tier: 'duel', s: d.s, id: d.id, date: d.date, score: d.score, a: side(d.a), b: side(d.b) }
+}
+
+// Each game's matchup result from the day's cards: { id: { winner | null (void), ag, bg } }
+function matchupResults(games, file, day) {
+  const out = {}
+  for (const g of games) {
+    const d = g.line?.duel
+    if (!d || g.state !== 'post' || !hasGame(file, day, g.home, g.away)) continue // not in the day's cards yet
+    const A = findRow(file, day, g.away, g.home, d.a), B = findRow(file, day, g.home, g.away, d.b)
+    const ag = A?.row.gs ?? null, bg = B?.row.gs ?? null
+    out[g.id] = { winner: ag == null || bg == null || ag === bg ? null : ag > bg ? d.a : d.b, ag, bg }
+  }
+  return out
+}
+async function gradeMatchups(sql, day, games, file) {
+  const res = matchupResults(games, file, day)
+  for (const [id, r] of Object.entries(res)) {
+    if (r.winner) await sql`update duel_picks set result = case when pick = ${r.winner} then 'win' else 'loss' end where game_id = ${id} and result is null`
+    else await sql`update duel_picks set result = 'void' where game_id = ${id} and result is null`
+  }
+  return res
+}
+
+/**
+ * Credit Coins for graded picks and close finished days, once each: game picks (and the lock), matchups, the lineup.
+ * onlyStale: only days that are over, or today if a game tipped off over two hours ago (keeps `me` from calling ESPN often).
+ */
+export async function settle(sql, userId, today, { onlyStale = false, origin = null } = {}) {
+  const rows = await sql`
+    select day from predictions p where user_id = ${userId} and day <= ${today}
+      and (not credited or not exists (select 1 from pred_days d where d.user_id = p.user_id and d.day = p.day))
+    union select day from duel_picks p where user_id = ${userId} and day <= ${today}
+      and (not credited or not exists (select 1 from duel_days d where d.user_id = p.user_id and d.day = p.day))
+    union select day from lineups l where user_id = ${userId} and day <= ${today}
+      and not exists (select 1 from lineup_days d where d.user_id = l.user_id and d.day = l.day)
+    order by day limit 7`
+  let days = rows.map(r => iso(r.day))
+  if (onlyStale && days.includes(today)) {
+    const [due] = await sql`select 1 from pred_games where day = ${today} and tip < now() - interval '2 hours' limit 1`
+    if (!due) days = days.filter(d => d !== today)
+  }
+  const awards = []
+  for (const day of days) {
+    const games = await slate(sql, day, { origin })
+    if (!games.length) continue
+    await gradeDay(sql, day)
+    const byId = new Map(games.map(g => [g.id, g]))
+    const file = origin ? await dayFile(origin, day) : null
+    const results = file ? await gradeMatchups(sql, day, games, file) : {}
+    await sql.begin(async t => {
+      const push = a => a && awards.push(a)
+      const label = g => `${g.away} at ${g.home}`
+      // Game picks
+      const picks = await t`select * from predictions where user_id = ${userId} and day = ${day} for update`
+      for (const p of picks) {
+        const g = byId.get(p.game_id)
+        if (!g || !p.result || p.credited) continue
+        let bonus = 0
+        if (p.result === 'win') {
+          bonus = upsetBonus(p.chance)
+          push(await grant(t, userId, today, 'predcorrect', PRED.correct, { ref: g.id, label: `Correct pick: ${p.pick} (${label(g)})` }))
+          if (bonus) push(await grant(t, userId, today, 'upset', bonus, { ref: g.id, label: `Upset called: ${p.pick} (${Math.round(p.chance * 100)}% to win)` }))
+          if (p.lock) push(await grant(t, userId, today, 'lock', PRED.correct + bonus, { ref: day, label: `Lock of the Day: ${p.pick}, doubled` }))
+        } else if (p.result === 'loss' && p.lock) {
+          const [{ n }] = await t`select count(*)::int as n from predictions where user_id = ${userId} and day = ${day}`
+          const [{ coins }] = await t`select coins from users where id = ${userId}`
+          const cost = Math.min(coins, n * PRED.pick)
+          if (cost > 0) push(await grant(t, userId, today, 'lockloss', -cost, { ref: day, label: `Lock of the Day missed: ${p.pick}` }))
+        }
+        await t`update predictions set credited = true, bonus = ${bonus} where user_id = ${userId} and game_id = ${p.game_id}`
+        p.credited = true; p.bonus = bonus
+      }
+      // The game-picks day closes once every game is final (or off the schedule)
+      const live = games.filter(g => g.state !== 'off')
+      const [closed] = await t`select 1 from pred_days where user_id = ${userId} and day = ${day}`
+      if (picks.length && live.length && games.every(isDone) && picks.every(p => p.result) && !closed) {
+        const mine = picks.filter(p => p.result && p.result !== 'void')
+        const correct = mine.filter(p => p.result === 'win').length
+        const total = live.length
+        const reward = correct === total ? 'any' : correct * 2 > total ? 'legend' : null
+        await t`insert into pred_days (user_id, day, total, picked, correct, upsets, reward)
+          values (${userId}, ${day}, ${total}, ${mine.length}, ${correct}, ${mine.filter(p => p.bonus > 0).length}, ${reward}) on conflict do nothing`
+        if (correct === total) push(await grant(t, userId, today, 'perfect', Math.min(PRED.perfectMax, PRED.perfectPer * total), { ref: day, label: `Perfect day: ${total} for ${total}` }))
+        if (reward) awards.push({ kind: 'predreward', amount: 0, label: reward === 'any' ? 'Perfect day: choose any card from the day' : 'More than half right: choose a card from the day' })
+      }
+      // Matchups
+      const dps = await t`select * from duel_picks where user_id = ${userId} and day = ${day} for update`
+      for (const p of dps) {
+        if (!p.result || p.credited) continue
+        if (p.result === 'win') push(await grant(t, userId, today, 'duelcorrect', PRED.duel, { ref: p.game_id, label: `Matchup called: ${p.pick}` }))
+        await t`update duel_picks set credited = true where user_id = ${userId} and game_id = ${p.game_id}`
+      }
+      const withDuel = live.filter(g => g.line?.duel)
+      const [dclosed] = await t`select 1 from duel_days where user_id = ${userId} and day = ${day}`
+      if (dps.length && file && games.every(isDone) && withDuel.every(g => results[g.id]) && dps.every(p => p.result) && !dclosed) {
+        const total = withDuel.filter(g => results[g.id].winner).length
+        const mine = dps.filter(p => results[p.game_id]?.winner)
+        const correct = mine.filter(p => p.pick === results[p.game_id].winner).length
+        let reward = total > 0 && correct === total ? 'duel' : correct * 2 > total ? 'rare' : null
+        let claimed = null
+        if (reward === 'duel') {
+          if (file.duel) {
+            const c = duelCard(file.duel)
+            const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, 'duel', ${refOf(c)}, ${t.json(c)}, ${cardPoints(c).points}, 'matchups')
+              on conflict (user_id, ref) do nothing returning id`
+            claimed = c
+            if (row) awards.push({ kind: 'predreward', amount: 0, label: `Every matchup right: the Duel of the Day card is in your binder` })
+          } else reward = 'legend' // no game produced a Duel of the Day: choose a Legend or below instead
+        }
+        await t`insert into duel_days (user_id, day, total, picked, correct, reward, claimed_ref, claimed_card, claimed_at)
+          values (${userId}, ${day}, ${total}, ${mine.length}, ${correct}, ${reward}, ${claimed ? refOf(claimed) : null}, ${claimed ? t.json(claimed) : null}, ${claimed ? new Date() : null})
+          on conflict do nothing`
+        if (reward === 'rare' || reward === 'legend') awards.push({ kind: 'predreward', amount: 0, label: 'Matchups: more than half right, choose a card from the day' })
+      }
+      // The lineup
+      const slots = await t`select * from lineups where user_id = ${userId} and day = ${day} order by slot`
+      const [lclosed] = await t`select 1 from lineup_days where user_id = ${userId} and day = ${day}`
+      const inFile = s_ => { const g = byId.get(s_.game_id); return !g || g.state === 'off' || hasGame(file, day, g.home, g.away) }
+      if (slots.length && file && games.every(isDone) && !lclosed && slots.every(inFile)) {
+        let total = 0
+        for (const s_ of slots) {
+          const g = byId.get(s_.game_id)
+          const opp = g ? (g.home === s_.team ? g.away : g.home) : null
+          const r = g && g.state !== 'off' ? findRow(file, day, s_.team, opp, s_.player) : null
+          const gs = r?.row.gs ?? 0 // didn't play: 0
+          total += gs
+          await t`update lineups set gs = ${gs} where user_id = ${userId} and day = ${day} and slot = ${s_.slot}`
+        }
+        const coins = Math.max(0, Math.min(PRED.lineupMax, Math.round(total)))
+        await t`insert into lineup_days (user_id, day, total, coins) values (${userId}, ${day}, ${Math.round(total * 10) / 10}, ${coins}) on conflict do nothing`
+        if (coins) push(await grant(t, userId, today, 'lineup', coins, { ref: day, label: `Lineup: ${total.toFixed(1)} Game Score` }))
+      }
+    })
+  }
+  return awards
+}
+
+// The summary `me` carries: today's slate size, your picks, cards waiting to be chosen
+export async function predSummary(sql, userId, today) {
+  const [x] = await sql`select (select count(*)::int from pred_games where day = ${today} and state <> 'off') as games,
+      (select count(*)::int from predictions where user_id = ${userId} and day = ${today}) as picked,
+      (select count(*)::int from pred_games where day = ${today} and state = 'pre' and tip > now()) as open,
+      (select count(*)::int from pred_days where user_id = ${userId} and reward is not null and claimed_ref is null)
+        + (select count(*)::int from duel_days where user_id = ${userId} and reward in ('rare', 'legend') and claimed_ref is null) as unclaimed`
+  return x
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+function stats({ picks, days, duels, duelDays, lineDays, coins }) {
+  const graded = picks.filter(r => r.result === 'win' || r.result === 'loss').sort((a, b) => a.tip - b.tip || a.game_id.localeCompare(b.game_id))
+  let cur = 0, best = 0
+  graded.forEach(r => { cur = r.result === 'win' ? cur + 1 : 0; best = Math.max(best, cur) })
+  const wins = graded.filter(r => r.result === 'win').length
+  // Beat the Forecast: your wins against the wins the forecast expected from your picks
+  const rated = graded.filter(r => r.chance != null)
+  const expected = rated.reduce((a, r) => a + r.chance, 0)
+  const ratedWins = rated.filter(r => r.result === 'win').length
+  const favWon = rated.filter(r => (r.chance >= 0.5) === (r.result === 'win')).length // the forecast's favorite won
+  const dogs = rated.filter(r => r.chance < 0.5)
+  const locks = graded.filter(r => r.lock)
+  const byTeam = {}
+  graded.forEach(r => { const b = (byTeam[r.pick] = byTeam[r.pick] || [0, 0]); b[r.result === 'win' ? 0 : 1]++ })
+  const teams = Object.entries(byTeam).map(([t, [w, l]]) => ({ team: t, w, l })).sort((a, b) => b.w + b.l - (a.w + a.l) || b.w - a.w)
+  const dg = duels.filter(r => r.result === 'win' || r.result === 'loss')
+  return {
+    picks: graded.length, wins, losses: graded.length - wins, pct: graded.length ? wins / graded.length : null,
+    streak: cur, best, days: days.length, perfect: days.filter(d => d.correct === d.total).length,
+    rewards: days.filter(d => d.reward).length, claimed: days.filter(d => d.claimed_ref).length + duelDays.filter(d => d.claimed_ref).length,
+    upsets: dogs.filter(r => r.result === 'win').length, dogPicks: dogs.length, coins,
+    forecast: { rated: rated.length, wins: ratedWins, expected: Math.round(expected * 10) / 10, over: Math.round((ratedWins - expected) * 10) / 10, favW: favWon, favL: rated.length - favWon },
+    locks: { w: locks.filter(r => r.result === 'win').length, l: locks.filter(r => r.result === 'loss').length },
+    duels: { w: dg.filter(r => r.result === 'win').length, l: dg.filter(r => r.result === 'loss').length, cards: duelDays.filter(d => d.reward === 'duel' && d.claimed_ref).length },
+    lineup: { days: lineDays.length, best: lineDays.reduce((m, d) => Math.max(m, d.total), 0), avg: lineDays.length ? Math.round(lineDays.reduce((a, d) => a + d.total, 0) / lineDays.length * 10) / 10 : null },
+    teams: teams.slice(0, 6),
+  }
+}
+
+// ── Lineups ──────────────────────────────────────────────────────────────────
+// Your players who play that day (any card of theirs counts) and your five slots
+async function lineupView(sql, u, origin, day, games) {
+  const live = games.filter(g => g.state !== 'off')
+  const slots = await sql`select l.*, c.card from lineups l left join cards c on c.id = l.card_id where l.user_id = ${u.id} and l.day = ${day} order by slot`
+  const [graded] = await sql`select total, coins from lineup_days where user_id = ${u.id} and day = ${day}`
+  const gameOf = t => live.find(g => g.home === t || g.away === t)
+  const slotView = s_ => {
+    const g = gameOf(s_.team)
+    return { slot: s_.slot, cardId: Number(s_.card_id), player: s_.player, team: s_.team, opp: g ? (g.home === s_.team ? g.away : g.home) : null, home: g?.home === s_.team,
+      tip: g?.tip || null, open: g ? isOpen(g) : false, gs: s_.gs, card: s_.card }
+  }
+  let candidates = []
+  if (live.some(isOpen) && origin) {
+    const teams = [...new Set(live.flatMap(g => [g.home, g.away]))]
+    const R = await rosters(origin, teams, day).catch(() => ({}))
+    const onTeam = new Map()
+    for (const [t, rows] of Object.entries(R)) for (const r of rows) onTeam.set(norm(r.name), { ...r, team: t })
+    const mine = await sql`select id, card, points from cards where user_id = ${u.id} and tier <> 'duel'`
+    const by = new Map()
+    for (const c of mine) {
+      const k = norm(c.card.row.n), r = onTeam.get(k)
+      if (!r) continue
+      const cur = by.get(k)
+      if (!cur || c.points > cur.points) by.set(k, { ...c, n: (cur?.n || 0) + 1, r })
+      else cur.n++
+    }
+    candidates = [...by.values()].map(x => {
+      const g = gameOf(x.r.team)
+      return { name: x.r.name, team: x.r.team, opp: g.home === x.r.team ? g.away : g.home, home: g.home === x.r.team, tip: g.tip, open: isOpen(g),
+        elo: x.r.elo, mp: x.r.mp, out: x.r.out, status: x.r.status, cardId: Number(x.id), card: x.card, cards: x.n }
+    }).sort((a, b) => b.open - a.open || b.elo - a.elo)
+  }
+  return { slots: slots.map(slotView), candidates, graded: graded ? { total: graded.total, coins: graded.coins } : null }
+}
+
+export async function setLineup(sql, u, b, origin, today) {
+  const day = String(b.day || ''), slot = Number(b.slot)
+  if (day < today || day > addDays(today, 1)) throw fail(400, 'Lineups are for today’s and tomorrow’s games.')
+  if (!(slot >= 0 && slot < PRED.slots)) throw fail(400, 'Pick one of the five slots.')
+  const games = (await slate(sql, day, { origin })).filter(g => g.state !== 'off')
+  const [cur] = await sql`select * from lineups where user_id = ${u.id} and day = ${day} and slot = ${slot}`
+  const curGame = cur && games.find(g => g.id === cur.game_id)
+  if (cur && curGame && !isOpen(curGame)) throw fail(409, `${cur.player}’s game has tipped off. That slot is locked.`)
+  if (b.card == null) { if (cur) await sql`delete from lineups where user_id = ${u.id} and day = ${day} and slot = ${slot}`; return }
+  const [c] = await sql`select id, card, tier from cards where id = ${Number(b.card)} and user_id = ${u.id}`
+  if (!c || c.tier === 'duel') throw fail(404, 'Pick a player card from your binder.')
+  const teams = [...new Set(games.flatMap(g => [g.home, g.away]))]
+  const R = await rosters(origin, teams, day)
+  const k = norm(c.card.row.n)
+  const team = Object.keys(R).find(t => R[t].some(r => norm(r.name) === k))
+  if (!team) throw fail(409, `${c.card.row.n} doesn’t play ${day === today ? 'today' : 'tomorrow'}.`)
+  const g = games.find(x => x.home === team || x.away === team)
+  if (!isOpen(g)) throw fail(409, `${c.card.row.n}’s game has tipped off.`)
+  const dup = await sql`select slot from lineups where user_id = ${u.id} and day = ${day} and slot <> ${slot}`
+  for (const d of dup) {
+    const [o] = await sql`select player from lineups where user_id = ${u.id} and day = ${day} and slot = ${d.slot}`
+    if (norm(o.player) === k) throw fail(409, `${c.card.row.n} is already in your lineup.`)
+  }
+  await sql`insert into lineups (user_id, day, slot, card_id, player, team, game_id) values (${u.id}, ${day}, ${slot}, ${c.id}, ${c.card.row.n}, ${team}, ${g.id})
+    on conflict (user_id, day, slot) do update set card_id = excluded.card_id, player = excluded.player, team = excluded.team, game_id = excluded.game_id, made_at = now()`
+}
+
+// ── Everything the Predictions page shows ────────────────────────────────────
+export async function predView(sql, u, today, tomorrow, origin) {
+  const awards = await settle(sql, u.id, today, { origin }).catch(e => { console.error('settle', e); return [] })
+  const slates = await Promise.all([today, tomorrow].map(d => slate(sql, d, { origin }).catch(() => [])))
+  const ids = slates.flat().map(g => g.id)
+  const mine = await sql`select game_id, pick, result, bonus, lock from predictions where user_id = ${u.id} and game_id = any(${ids})`
+  const mineD = await sql`select game_id, pick, result from duel_picks where user_id = ${u.id} and game_id = any(${ids})`
+  const crowd = await sql`select game_id, pick, count(*)::int as n from predictions where game_id = any(${ids}) group by game_id, pick`
+  const decorate = g => {
+    const p = mine.find(x => x.game_id === g.id), dp = mineD.find(x => x.game_id === g.id)
+    const c = crowd.filter(x => x.game_id === g.id), tot = c.reduce((a, x) => a + x.n, 0)
+    return { ...g, open: isOpen(g), pick: p?.pick || null, result: p?.result || null, bonus: p?.bonus || 0, lock: !!p?.lock,
+      crowd: tot ? { n: tot, home: (c.find(x => x.pick === g.home)?.n || 0) / tot } : null,
+      upset: { [g.home]: upsetBonus(dogChance(g, g.home)), [g.away]: upsetBonus(dogChance(g, g.away)) },
+      duel: g.line?.duel ? { ...g.line.duel, pick: dp?.pick || null, result: dp?.result || null } : null }
+  }
+  const view = await Promise.all([today, tomorrow].map(async (day, i) => {
+    const games = slates[i].filter(g => g.state !== 'off').map(decorate)
+    return { day, games, lineup: await lineupView(sql, u, origin, day, slates[i]).catch(e => { console.error('lineup', e); return { slots: [], candidates: [], graded: null } }) }
+  }))
+  const picks = await sql`select p.game_id, p.pick, p.result, p.chance, p.bonus, p.lock, p.day, g.tip from predictions p join pred_games g on g.id = p.game_id where p.user_id = ${u.id}`
+  const duels = await sql`select game_id, pick, result, day from duel_picks where user_id = ${u.id}`
+  const days = await sql`select * from pred_days where user_id = ${u.id} order by day desc`
+  const duelDays = await sql`select * from duel_days where user_id = ${u.id} order by day desc`
+  const lineDays = await sql`select * from lineup_days where user_id = ${u.id} order by day desc`
+  const [c] = await sql`select coalesce(sum(amount), 0)::int as n from coin_ledger where user_id = ${u.id}
+    and kind in ('predict', 'predcorrect', 'upset', 'perfect', 'lock', 'lockloss', 'duelcorrect', 'lineup', 'pickweekly')`
+  // History: one row a day, with the picks, the matchups and the lineup
+  const H = new Map()
+  const at = d => { const k = iso(d); if (!H.has(k)) H.set(k, { day: k }); return H.get(k) }
+  for (const r of picks) { const h = at(r.day); h.open = h.open || { picked: 0, graded: 0, correct: 0 }; h.open.picked++; if (r.result === 'win' || r.result === 'loss') h.open.graded++; if (r.result === 'win') h.open.correct++ }
+  for (const d of days) at(d.day).games = { total: d.total, picked: d.picked, correct: d.correct, upsets: d.upsets, reward: d.reward,
+    claimed: d.claimed_ref ? { ref: d.claimed_ref, card: d.claimed_card } : null, lock: picks.find(p => iso(p.day) === iso(d.day) && p.lock)?.result || null }
+  for (const r of duels) { const h = at(r.day); h.dopen = h.dopen || { picked: 0 }; h.dopen.picked++ }
+  for (const d of duelDays) at(d.day).duels = { total: d.total, picked: d.picked, correct: d.correct, reward: d.reward, claimed: d.claimed_ref ? { ref: d.claimed_ref, card: d.claimed_card } : null }
+  for (const d of lineDays) at(d.day).lineup = { total: d.total, coins: d.coins }
+  const history = [...H.values()].sort((a, b) => b.day.localeCompare(a.day))
+  return {
+    awards, slates: view, history,
+    stats: stats({ picks: picks.map(r => ({ ...r, tip: Date.parse(r.tip) })), days, duels, duelDays, lineDays: lineDays.map(d => ({ ...d, total: +d.total })), coins: c.n }),
+    rates: PRED,
+  }
+}
+
+async function openGame(sql, origin, id, today) {
+  const [row] = await sql`select day from pred_games where id = ${id}`
+  if (!row) throw fail(404, 'That game isn’t on the slate.')
+  const day = iso(row.day)
+  if (day < today) throw fail(409, 'That game has already been played.')
+  const g = (await slate(sql, day, { fresh: true, origin })).find(x => x.id === id)
+  if (!g || g.state === 'off') throw fail(409, 'That game is off the schedule.')
+  if (!isOpen(g)) throw fail(409, 'That game has tipped off. Picks lock at tipoff.')
+  return { g, day }
+}
+
+export async function predict(sql, u, b, today, origin) {
+  const id = String(b.game || ''), team = String(b.team || '')
+  const { g, day } = await openGame(sql, origin, id, today)
+  if (team !== g.home && team !== g.away) throw fail(400, 'Pick one of the two teams.')
+  const awards = []
+  await sql.begin(async t => {
+    await t`insert into predictions (user_id, game_id, day, pick) values (${u.id}, ${id}, ${day}, ${team})
+      on conflict (user_id, game_id) do update set pick = excluded.pick, updated_at = now() where predictions.result is null`
+    const a = await grant(t, u.id, today, 'predict', PRED.pick, { ref: id, label: `Pick made: ${g.away} at ${g.home}` })
+    if (a) awards.push(a)
+  })
+  return awards
+}
+
+// Make a pick your Lock of the Day (or take the lock off). The lock moves freely until its game tips off.
+export async function setLock(sql, u, b, today, origin) {
+  const id = String(b.game || '')
+  const { day } = await openGame(sql, origin, id, today)
+  const [p] = await sql`select pick from predictions where user_id = ${u.id} and game_id = ${id}`
+  if (!p) throw fail(400, 'Pick a winner first, then make it your lock.')
+  const [cur] = await sql`select p.game_id, g.tip, g.state from predictions p join pred_games g on g.id = p.game_id where p.user_id = ${u.id} and p.day = ${day} and p.lock`
+  if (cur && cur.game_id !== id && (cur.state !== 'pre' || new Date(cur.tip) <= new Date())) throw fail(409, 'Your Lock of the Day has tipped off. It stays where it is.')
+  await sql.begin(async t => {
+    await t`update predictions set lock = false where user_id = ${u.id} and day = ${day} and lock`
+    if (b.on !== false) await t`update predictions set lock = true where user_id = ${u.id} and game_id = ${id}`
+  })
+}
+
+export async function duelPick(sql, u, b, today, origin) {
+  const id = String(b.game || ''), player = String(b.player || '')
+  const { g, day } = await openGame(sql, origin, id, today)
+  const d = g.line?.duel
+  if (!d) throw fail(409, 'That game has no matchup yet.')
+  if (player !== d.a && player !== d.b) throw fail(400, 'Pick one of the two players.')
+  await sql`insert into duel_picks (user_id, game_id, day, pick) values (${u.id}, ${id}, ${day}, ${player})
+    on conflict (user_id, game_id) do update set pick = excluded.pick, made_at = now() where duel_picks.result is null`
+}
+
+// ── Reward cards: a card from the day for game picks (Legend or below / any) or matchups (Rare or below) ──
+async function rewardRow(sql, u, day, kind) {
+  const [d] = kind === 'duels' ? await sql`select * from duel_days where user_id = ${u.id} and day = ${day}` : await sql`select * from pred_days where user_id = ${u.id} and day = ${day}`
+  if (!d?.reward || d.reward === 'duel') throw fail(404, 'No card to choose for that day.')
+  return d
+}
+const capOf = reward => (reward === 'any' ? 99 : reward === 'legend' ? LEGEND_CAP : RARE_CAP)
+
+export async function rewardOptions(sql, u, origin, day, kind = 'games') {
+  const d = await rewardRow(sql, u, day, kind)
+  const file = await dayFile(origin, day)
+  if (!file) return { day, kind, reward: d.reward, pending: true, cards: [] }
+  const owned = new Set((await sql`select ref from cards where user_id = ${u.id} and ref = any(${file.cards.map(refOf)})`).map(r => r.ref))
+  return {
+    day, kind, reward: d.reward, claimed: d.claimed_ref ? { ref: d.claimed_ref, card: d.claimed_card } : null,
+    cards: file.cards.map(c => ({ card: c, points: cardPoints(c).points, owned: owned.has(refOf(c)), ok: TIER_ORDER.indexOf(c.tier) <= capOf(d.reward) })),
+  }
+}
+
+export async function claimReward(sql, u, origin, b, today) {
+  const day = String(b.day || ''), ref = String(b.ref || ''), kind = b.kind === 'duels' ? 'duels' : 'games'
+  const file = await dayFile(origin, day)
+  if (!file) throw fail(409, 'That day’s cards aren’t published yet. They arrive with the morning update.')
+  const c = file.cards.find(x => refOf(x) === ref)
+  if (!c) throw fail(400, 'That card isn’t from that day.')
+  return sql.begin(async t => {
+    const [d] = kind === 'duels' ? await t`select * from duel_days where user_id = ${u.id} and day = ${day} for update` : await t`select * from pred_days where user_id = ${u.id} and day = ${day} for update`
+    if (!d?.reward || d.reward === 'duel') throw fail(404, 'No card to choose for that day.')
+    if (d.claimed_ref) throw fail(409, 'You already chose your card for that day.')
+    if (TIER_ORDER.indexOf(c.tier) > capOf(d.reward)) throw fail(403, d.reward === 'rare' ? 'Matchups earn a Rare or a Common.' : 'More than half right earns a Legend or below. Icons and GOATs take a perfect day.')
+    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${u.id}, null, ${c.tier}, ${ref}, ${t.json(c)}, ${cardPoints(c).points}, 'predict')
+      on conflict (user_id, ref) do nothing returning id`
+    if (!row) throw fail(409, 'That card is already in your binder. Choose another.')
+    if (kind === 'duels') await t`update duel_days set claimed_ref = ${ref}, claimed_card = ${t.json(c)}, claimed_at = now() where user_id = ${u.id} and day = ${day}`
+    else await t`update pred_days set claimed_ref = ${ref}, claimed_card = ${t.json(c)}, claimed_at = now() where user_id = ${u.id} and day = ${day}`
+    return { cardId: Number(row.id), awards: await cardRewards(t, u.id, today, origin, c) }
+  })
+}
+
+// ── Standings: pick'em points by week or season ──────────────────────────────
+// Grade recent days for everyone before ranking (grading happens when a slate or the day's cards are read)
+async function refresh(sql, origin, today) {
+  const open = await sql`select distinct day from predictions where result is null and day <= ${today} and day >= ${addDays(today, -8)}
+    union select distinct day from duel_picks where result is null and day < ${today} and day >= ${addDays(today, -8)} order by day`
+  for (const { day: d } of open) {
+    const day = iso(d)
+    const games = await slate(sql, day, { origin }).catch(() => [])
+    const file = origin && games.length ? await dayFile(origin, day) : null
+    if (file) await gradeMatchups(sql, day, games, file)
+  }
+}
+
+async function rank(sql, from, to, limit) {
+  return sql`with p as (
+      select user_id, count(*) filter (where result = 'win')::int as w, count(*) filter (where result in ('win', 'loss'))::int as n,
+        count(*) filter (where result = 'win' and lock)::int as lw,
+        coalesce(sum(case when result in ('win', 'loss') and chance is not null then (case when result = 'win' then 1 else 0 end) - chance end), 0)::float as over
+      from predictions where day between ${from} and ${to} group by user_id),
+    d as (select user_id, count(*) filter (where result = 'win')::int as w, count(*) filter (where result in ('win', 'loss'))::int as n
+      from duel_picks where day between ${from} and ${to} group by user_id)
+    select u.id, u.username, u.favorite_team, coalesce(p.w, 0) + coalesce(p.lw, 0) + coalesce(d.w, 0) as score,
+      coalesce(p.w, 0) as w, coalesce(p.n, 0) as n, coalesce(d.w, 0) as dw, coalesce(d.n, 0) as dn, coalesce(p.lw, 0) as lw, coalesce(p.over, 0) as over
+    from users u left join p on p.user_id = u.id left join d on d.user_id = u.id
+    where coalesce(p.n, 0) + coalesce(d.n, 0) > 0
+    order by score desc, over desc, u.id limit ${limit}`
+}
+
+export async function standings(sql, origin, scope, today, viewer) {
+  await refresh(sql, origin, today).catch(e => console.error('refresh', e.message))
+  const from = scope === 'season' ? seasonStart(today) : weekStart(today), to = scope === 'season' ? today : addDays(weekStart(today), 6)
+  const rows = await rank(sql, from, to, 1000)
+  let r = 0, prev = null
+  const all = rows.map((x, i) => { if (prev !== x.score) { r = i + 1; prev = x.score } return { rank: r, username: x.username, favoriteTeam: x.favorite_team, score: x.score,
+    picks: [x.w, x.n - x.w], matchups: [x.dw, x.dn - x.dw], locks: x.lw, over: Math.round(x.over * 10) / 10, id: x.id } })
+  const you = viewer ? all.find(x => x.id === viewer.id) || null : null
+  const strip = ({ id, ...x }) => x
+  return { scope, from, to, entrants: all.length, leaders: all.slice(0, 25).map(strip), you: you ? strip(you) : null,
+    payouts: scope === 'week' ? { top10: PRED.weeklyTop10, top50: PRED.weeklyTop50 } : null }
+}
+
+// Last week's pick'em top 10 and top 50 are paid once, the first time anyone visits in the new week
+export async function settlePickWeek(sql, origin, today) {
+  const last = addDays(weekStart(today), -7)
+  const [x] = await sql`select 1 from pick_settlements where week = ${last}`
+  if (x) return
+  await refresh(sql, origin, today).catch(() => {})
+  const [first] = await sql`insert into pick_settlements (week) values (${last}) on conflict do nothing returning week`
+  if (!first) return
+  const rows = (await rank(sql, last, addDays(last, 6), 50)).filter(r => r.score > 0)
+  await sql.begin(async t => {
+    for (const [i, r] of rows.entries()) {
+      await grant(t, r.id, today, 'pickweekly', i < 10 ? PRED.weeklyTop10 : PRED.weeklyTop50, { ref: last, label: `Pick’em, week of ${last}: No. ${i + 1}` })
+    }
+  })
+}

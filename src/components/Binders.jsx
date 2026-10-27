@@ -246,8 +246,16 @@ function SmallCard({ e, name, env, onPull, title, line, sub }) {
   )
 }
 
+// A Duel of the Day card from a binder (kind 'duel': the day's two players) in the shape a pocket needs
+export function duelEntry(env, c, extra = {}) {
+  const side = x => duelSide(env, x.row, env.teamInfo(x.t, x.tn, x.tc))
+  return { key: `duel|${c.date}`, name: c.a.row.n, season: c.s, id: c.id, date: c.date, tier: 'duel', gs: c.score || 0,
+    duel: { kind: 'duel', scope: 'day', date: c.date, a: side(c.a), b: side(c.b) }, ...extra }
+}
+
 // A card from a pipeline index (career / franchise files) in the shape a pocket needs
 export function fromIndex(env, c, extra = {}) {
+  if (c.kind === 'duel') return duelEntry(env, c, extra)
   const team = env.teamInfo(c.t, c.tn, c.tc), opp = env.teamInfo(c.o, c.on, c.oc)
   return {
     key: `${c.s}|${c.id}|${c.row.n}`, name: c.row.n, row: c.row, post: !!c.band, season: c.s, id: c.id, tier: tierOfRow(c.row),
@@ -889,10 +897,32 @@ export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
 
 // ── A personal binder: yours, or anyone's (read-only) from the leaderboard ──
 // Shelves by franchise and decade, player checklists for every team-season, Starred, the showcase, points
-const TIER_RANK = Object.fromEntries(TIER_IDS.map((t, i) => [t, i]))
+const TIER_RANK = { ...Object.fromEntries(TIER_IDS.map((t, i) => [t, i])), duel: TIER_IDS.length }
 const MERGE_ABA = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
 const decadeOf = s => `${s.slice(0, 3)}0s`
 const n0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
+
+// Achievements: earned badges in gold; your own binder also shows the ones still to come, with progress
+function Badges({ list, mine }) {
+  const [all, setAll] = useState(false)
+  if (!list?.length && !mine) return null
+  const earned = (list || []).filter(a => a.earned)
+  const shown = mine && all ? list : earned
+  return (
+    <div className={styles.badgeBox}>
+      <div className={styles.badgeHead}><span className={styles.boxLab}>Achievements · {earned.length}{mine ? ` of ${list?.length || 0}` : ''}</span>
+        {mine && list?.length > 0 && <button type="button" className={styles.linkBtn} onClick={() => setAll(v => !v)}>{all ? 'Earned only' : 'Show all'}</button>}</div>
+      {shown.length ? <div className={styles.badges}>
+        {shown.map(a => (
+          <span key={a.id} className={`${styles.badge} ${a.earned ? styles.badgeOn : ''}`} title={`${a.desc}${a.earned ? '' : ` · ${a.progress[0]} of ${a.progress[1]}`}`}>
+            <i>{a.earned ? '★' : `${Math.round((a.progress[0] / a.progress[1]) * 100)}%`}</i><b>{a.name}</b>
+            {!a.earned && <em style={{ width: `${(a.progress[0] / a.progress[1]) * 100}%` }} />}
+          </span>
+        ))}
+      </div> : <p className={styles.light}>{mine ? 'None yet. Tap Show all to see what’s next.' : 'No achievements yet.'}</p>}
+    </div>
+  )
+}
 
 function PointsHelp() {
   return (
@@ -906,7 +936,7 @@ function PointsHelp() {
   )
 }
 
-export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onStore }) {
+export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onStore, onPredict }) {
   const phone = useIsPhone()
   const per = phone ? 6 : 9
   const C = env.collector
@@ -927,26 +957,28 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     env.getJSON('/data/explorer/binders/checklist.json').then(setCheck).catch(() => {})
   }, [])
   const P = usePull(env, null)
-  const src = pub || (C.me && { user: C.me.user, standing: C.me.standing, cards: C.cards })
+  const src = pub || (C.me && { user: C.me.user, standing: C.me.standing, cards: C.cards, achievements: C.me.achievements })
   const starred = new Set(src?.user.starred || [])
   const showIds = src?.user.showcaseIds || []
   const all = useMemo(() => (src?.cards || []).map(x => {
-    const fc = MERGE_ABA[x.card.t] || x.card.t
+    const duel = x.card.kind === 'duel', lead = duel ? x.card.a : x.card
+    const fc = MERGE_ABA[lead.t] || lead.t
     const pts = x.points ?? cardPoints(x.card).points
     return fromIndex(env, x.card, {
-      key: `c${x.id}`, cardId: x.id, tier: x.card.tier, gs: x.card.row.gs || 0, pts, date: x.card.date, fc, s: x.card.s, decade: decadeOf(x.card.s),
-      label: shortName(x.card.row.n), sub: `${pts.toLocaleString()} pts`, pinned: starred.has(x.id), shown: showIds.includes(x.id), pulledAt: x.pulled,
+      key: `c${x.id}`, cardId: x.id, tier: x.card.tier, gs: duel ? x.card.score || 0 : x.card.row.gs || 0, pts, date: x.card.date, fc, s: x.card.s, decade: decadeOf(x.card.s),
+      label: duel ? `Duel · ${shortName(x.card.a.row.n)}` : shortName(x.card.row.n), sub: `${pts.toLocaleString()} pts`, pinned: starred.has(x.id), shown: showIds.includes(x.id), pulledAt: x.pulled,
       ...(mine ? { onPin: e => C.star(e.cardId, !e.pinned), onShow: e => C.showcase(e.cardId, !e.shown) } : {}),
     })
   }), [src?.cards, env, [...starred].join(), showIds.join(), mine])
-  const owned = useMemo(() => new Set(all.map(e => `${e.s}|${e.id}|${e.name}`)), [all])
+  const cardsOnly = useMemo(() => all.filter(e => e.tier !== 'duel'), [all])
+  const owned = useMemo(() => new Set(cardsOnly.map(e => `${e.s}|${e.id}|${e.name}`)), [cardsOnly])
   // Players you have, by franchise, by team-season and by season
   const have = useMemo(() => {
     const fr = new Map(), ts = new Map(), ss = new Map(), cards = new Map()
     const add = (m, k, n) => { if (!m.has(k)) m.set(k, new Set()); m.get(k).add(n) }
-    all.forEach(e => { add(fr, e.fc, e.name); add(ts, `${e.fc}|${e.s}`, e.name); add(ss, e.s, e.name); cards.set(e.fc, (cards.get(e.fc) || 0) + 1) })
+    cardsOnly.forEach(e => { add(fr, e.fc, e.name); add(ts, `${e.fc}|${e.s}`, e.name); add(ss, e.s, e.name); cards.set(e.fc, (cards.get(e.fc) || 0) + 1) })
     return { fr, ts, ss, cards }
-  }, [all])
+  }, [cardsOnly])
   const frName = id => check?.franchises[id]?.name || all.find(e => e.fc === id)?.team.name || id
   const groups = useMemo(() => ({
     team: [...have.fr].map(([id, set]) => ({ id, n: set.size, cards: have.cards.get(id), name: frName(id), total: check?.franchises[id]?.players }))
@@ -959,8 +991,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     if (season && cur) l = l.filter(e => e.s === season)
     if (sellMode) l = l.map(e => {
       const hrs = 24 - (Date.now() - Date.parse(e.pulledAt)) / 36e5
-      const block = e.pinned ? 'Starred cards can’t be sold. Un-star it first.' : hrs > 0 ? `Sellable in ${Math.ceil(hrs)} hour${Math.ceil(hrs) === 1 ? '' : 's'}` : null
-      return { ...e, sellMode: true, sellPrice: Math.max(1, Math.round(e.pts * 0.2)), sellBlock: block, sellShort: e.pinned ? 'Starred' : `In ${Math.ceil(hrs)}h`, sellConfirm: confirmId === e.cardId,
+      const block = e.tier === 'duel' ? 'Duel of the Day cards can’t be sold.' : e.pinned ? 'Starred cards can’t be sold. Un-star it first.' : hrs > 0 ? `Sellable in ${Math.ceil(hrs)} hour${Math.ceil(hrs) === 1 ? '' : 's'}` : null
+      return { ...e, sellMode: true, sellPrice: Math.max(1, Math.round(e.pts * 0.2)), sellBlock: block, sellShort: e.tier === 'duel' ? 'Keeper' : e.pinned ? 'Starred' : `In ${Math.ceil(hrs)}h`, sellConfirm: confirmId === e.cardId,
         onSell: async x => {
           if (['legend', 'icon', 'goat'].includes(x.tier) && confirmId !== x.cardId) { setConfirmId(x.cardId); return }
           setConfirmId(null); await C.sell(x.cardId, true)
@@ -994,6 +1026,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       {!me.week.claimed
         ? <button type="button" className={styles.teamCta} onClick={() => C.openTeam()}>Weekly team pack · pick a team</button>
         : <span className={styles.light}>Next team pack {fullDay(me.week.next)}</span>}
+      {onPredict && <button type="button" className={styles.predictCta} onClick={onPredict}>Predictions{me.predict?.unclaimed ? ` · ${me.predict.unclaimed} card${me.predict.unclaimed === 1 ? '' : 's'} to choose` : me.predict?.open ? ` · ${me.predict.picked}/${me.predict.games} picked` : ''}</button>}
       {onStore && <button type="button" className={styles.storeCta} onClick={onStore}>Store · {(me.coins?.balance ?? 0).toLocaleString()} Coins</button>}
     </div>
   )
@@ -1026,12 +1059,13 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
         : mine ? <button key={i} type="button" className={styles.showEmpty} onClick={() => pickView('starred')} title="Choose from your starred cards"><span>+</span><small>{starred.size ? 'Pick from Starred' : 'Star cards first'}</small></button>
           : <div key={i} className={styles.showEmpty} />)}
     </div>
+    <Badges list={src.achievements} mine={mine} />
     <div className={styles.boxLab}>Pulls by tier</div>
     <TierTally counts={counts} />
     <PointsHelp />
   </>
-  const views = [['all', 'All'], ['team', 'Franchises'], ['decade', 'Decades'], ['starred', `Starred · ${starred.size}`], ['sets', 'Sets']]
-  const tools = <Seg value={view} onChange={pickView} options={views} />
+  const views = [['all', 'All'], ['team', 'Franchises'], ['decade', 'Decades'], ['starred', `Starred · ${starred.size}`], ['sets', 'Sets'], ...(mine && onPredict ? [['predict', 'Predictions']] : [])]
+  const tools = <Seg value={view} onChange={v => (v === 'predict' ? onPredict() : pickView(v))} options={views} />
   const sortSel = (
     <select className={styles.sortSel} value={order} onChange={e => { setOrder(e.target.value); S.reset() }} aria-label="Sort">
       <option value="new">Newest pulls</option><option value="points">Most points</option><option value="tier">Rarest first</option><option value="chrono">By game date</option>

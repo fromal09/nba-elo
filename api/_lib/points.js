@@ -39,8 +39,17 @@ export function hasFeat(r) {
 
 const PLAYOFF = { r1: ['Playoffs', 0.15], r2: ['Playoffs', 0.15], cf: ['Conference Finals', 0.25], finals: ['Finals', 0.4], champ: ['Title clincher', 0.75] }
 
-/** A card's points and how they add up: { points, base, grade, bonuses: [[label, pct]] }. card: the pack/binder card shape */
+// A side of a duel card carries no tier of its own: it comes from his rank after the game, as on every card
+const rankTier = r => { const k = r?.lrp ?? r?.lr; return k == null ? 'common' : k <= 1 ? 'goat' : k <= 5 ? 'icon' : k <= 20 ? 'legend' : k <= 50 ? 'standout' : k <= 125 ? 'rare' : 'common' }
+export const DUEL_MULT = 1.25
+
+/** A card's points and how they add up: { points, base, grade, bonuses: [[label, pct]] }. card: the pack/binder card shape.
+ *  A Duel of the Day card (kind 'duel') is worth both players' cards together, plus 25%. */
 export function cardPoints(card) {
+  if (card?.kind === 'duel') {
+    const a = cardPoints({ ...card.a, tier: card.a.tier || rankTier(card.a.row) }).points, b = cardPoints({ ...card.b, tier: card.b.tier || rankTier(card.b.row) }).points
+    return { points: Math.round((a + b) * DUEL_MULT), base: 0, grade: 0, bonuses: [['Duel of the Day', DUEL_MULT - 1]], duel: [a, b] }
+  }
   const r = card.row || {}
   const debut = r.gp === 1
   const base = TIER_BASE[card.tier] ?? 1

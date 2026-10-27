@@ -6,7 +6,9 @@ import PlayerCard, { MiniCard, DuelCard, DuelModal, tierFor, momentsFor, setFirs
 import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder, CollectionBinder, PublicBinder } from './Binders'
 import { useCollector } from './Collector'
 import { StoreBook } from './Store'
-import { buildForecaster, blendWeight, norm } from './predict'
+import { PredictBook, PickBar, usePredSlate } from './Predictions'
+import predStyles from './Predictions.module.css'
+import { buildForecaster, blendWeight, norm, WP, winChance, makeProjector, normCdf } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
 import { watchDay, useLiveFeeds, computeLive, gameKey, liveDaysAfter } from './liveFeed.js'
 import { simulateOdds } from './odds.js'
@@ -234,14 +236,9 @@ function TeamMark({ t, size = 28 }) {
 // Win chance: the duel formula refit on 53,674 games with team ratings and home court.
 // Fit by era: pre-1970 ratings separate teams less, and home court has shrunk since 2020
 // (about 70 Elo points through 2019, about 44 since; the 2024-26 forecast backtest agrees).
-const WP = sy => (sy < 1970 ? { scale: 1540, home: 420 } : sy < 2020 ? { scale: 400, home: 72 } : { scale: 450, home: 44 })
 function lineupElo(ps, key) {
   const m = ps.reduce((s, p) => s + (p.mp || 0), 0)
   return m ? ps.reduce((s, p) => s + p[key] * (p.mp || 0), 0) / m : ps.reduce((s, p) => s + p[key], 0) / ps.length
-}
-function winChance(sy, eloA, eloB, homeA) {
-  const { scale, home } = WP(sy)
-  return 1 / (1 + 10 ** (-(eloA - eloB + (homeA == null ? 0 : homeA ? home : -home)) / scale))
 }
 const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 >> 3 ^ 1 && n % 10) || 0] || 'th')
 
@@ -722,36 +719,7 @@ function TeamOdds({ t, o, games }) {
   )
 }
 
-// ── Projected scores ────────────────────────────────────────────────────────
-// From scoring.json (scripts/build_scoring.py), fitted and backtested on every game since 2020-21:
-//   margin = home court + Elo gap of the forecast ratings + gap in team net scoring + back-to-backs
-//   total  = each team's offense + the other's defense − twice the league average, less for back-to-backs
-// Team offense/defense weight recent games more, with last season as a 10-game prior.
-function makeProjector(sc, sched) {
-  if (!sc || !sc.teams) return null
-  const [c0, cElo, cNet, cB2bH, cB2bA] = sc.margin
-  const lg = sc.league, sigma = sc.sigma || 13.7
-  const played = new Set((sched?.games || []).map(g => [g.home + '|' + g.day, g.away + '|' + g.day]).flat())
-  const b2b = (t, day) => (day && played.has(t + '|' + addDays(day, -1)) ? 1 : 0)
-  const rate = t => sc.teams[t] || [lg, lg]
-  const net = t => rate(t)[0] - rate(t)[1]
-  const margin = fg => c0 + cElo * (fg.home.rating - fg.away.rating) + cNet * (net(fg.home.team) - net(fg.away.team))
-    + cB2bH * b2b(fg.home.team, fg.home.day) + cB2bA * b2b(fg.away.team, fg.home.day)
-  const score = fg => {
-    if (!fg) return null
-    const h = fg.home.team, v = fg.away.team, day = fg.home.day
-    const [oh, dh] = rate(h), [ov, dv] = rate(v)
-    const total = oh + dv + ov + dh - 2 * lg + sc.total_b2b * (b2b(h, day) + b2b(v, day))
-    const m = fg.margin ?? margin(fg)
-    return [Math.round(total / 2 + m / 2), Math.round(total / 2 - m / 2)]
-  }
-  return { margin, score, sigma, home: c0, win: m => normCdf(m / sigma), strength: (t, rating) => cElo * rating + cNet * net(t) }
-}
-const normCdf = x => {
-  const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2)
-  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2)
-  return x >= 0 ? (1 + y) / 2 : (1 - y) / 2
-}
+// ── Projected scores: makeProjector, in predict.js (shared with the server's prediction forecasts) ──
 
 // ── Award races ─────────────────────────────────────────────────────────────
 const RACE_N = 2000
@@ -2115,6 +2083,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
     const p = x.g.players.find(q => q.n === x.a)
     setBox({ id: x.g.id, team: p?.t || x.g.teams[0], pin: [x.a, x.b] })
   }
+  const predLive = usePredSlate(day) // today and tomorrow: pick bars under the cards
   const cards = useMemo(() => {
     const order = { in: 0, pre: 1, post: 2 }
     const list = [
@@ -2333,8 +2302,12 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
         : !cards.length ? <div className={styles.empty}>No games on {fmtDate(day, { weekday: 'long', month: 'long', day: 'numeric' })}.</div>
         : <div className={styles.dayLayout}><div className={styles.dayMain}>
           <div className={styles.gGrid}>
-            {cards.map(c => <GameCard key={c.key} c={c} shots={shots}
-              onOpen={c.g ? () => openBox(c.g) : c.fg ? () => setPreview({ day, fg: c.fg }) : null} />)}
+            {cards.map(c => {
+              const home = c.g ? (c.g.home || c.g.teams[1]) : c.x.home, away = c.g ? c.g.teams.find(t => t !== home) : c.x.away
+              const card = <GameCard key={c.key} c={c} shots={shots}
+                onOpen={c.g ? () => openBox(c.g) : c.fg ? () => setPreview({ day, fg: c.fg }) : null} />
+              return predLive ? <div key={c.key} className={predStyles.cardWrap}>{card}<PickBar day={day} home={home} away={away} state={c.state} tip={c.tip} /></div> : card
+            })}
           </div>
 
           {phone ? <PhoneTables tables={tables} /> : <>
@@ -2382,7 +2355,6 @@ function GameCard({ c, shots, onOpen }) {
   const started = c.state !== 'pre'
   const lead = started && pts[home] !== pts[away] ? (pts[home] > pts[away] ? home : away) : null
   const wp = g ? g.wp : c.fg ? { [home]: c.fg.pHome, [away]: c.fg.pAway } : null
-  const upset = lead && wp && wp[lead] < 0.5
   const status = c.state === 'in' ? <span className={styles.liveTxt}><i className={styles.liveDot} />{(g?.live || x).detail}</span>
     : c.state === 'pre' ? tipTime(x.tip) : `Final${(g || x).ot ? `/${(g || x).ot}` : ''}`
   const top = g && [...g.players].sort((a, b) => b.gs - a.gs)[0]
@@ -2395,6 +2367,15 @@ function GameCard({ c, shots, onOpen }) {
   // Pre-game favorite: by win chance, else by projected score
   const fav = wp ? (wp[home] >= wp[away] ? home : away) : preProj && preProj[away] > preProj[home] ? away : home
   const dog = fav === home ? away : home
+  // Upset: the pre-game underdog won. Upset watch, in progress: the underdog is now projected to win, from the
+  // pre-game projection plus the lead and the time left (a few early points don't flip a big favorite).
+  // Without a projection, a late lead (fourth quarter or overtime) or a big one (12+) has to do.
+  const st = { ...(g?.live || x), hs: pts[home] || 0, as: pts[away] || 0 }
+  const pLiveHome = c.state === 'in' && preProj ? liveWinHome(preProj[home] - preProj[away], st, 13.7) : null
+  const upset = c.state === 'in'
+    ? (pLiveHome != null ? (dog === home ? pLiveHome : 1 - pLiveHome) >= 0.5 && wp?.[dog] < 0.5
+      : lead === dog && wp?.[dog] < 0.5 && ((st.period || 0) >= 4 || Math.abs((pts[home] || 0) - (pts[away] || 0)) >= 12))
+    : c.state === 'post' && lead && wp && wp[lead] < 0.5
   const liveProj = c.state === 'in' && preProj ? liveFinal([preProj[home], preProj[away]], g?.live || x, pts[home] || 0, pts[away] || 0) : null
   return (
     <button type="button" className={`${styles.gCard} ${c.state === 'in' ? styles.gLive : ''}`} onClick={onOpen || undefined} disabled={!onOpen}>
@@ -2727,9 +2708,10 @@ export function BinderHost({ start, shots, onClose, onProfile }) {
   if (top.kind === 'career') return <CareerBinder key={stack.length} name={top.name} env={env} onClose={back} onSeason={openSeason} />
   if (top.kind === 'team') return <TeamBinder key={stack.length} team={top.team} sd={top.sd} env={env} onClose={back} onFranchise={code => push({ kind: 'franchise', code })} />
   if (top.kind === 'franchise') return <FranchiseBinder key={stack.length} code={top.code} env={env} onClose={back} onSeason={openTeam} />
+  if (top.kind === 'predict') return <PredictBook key={stack.length} env={env} onClose={back} onMine={stack.length > 1 ? back : () => push({ kind: 'mine' })} />
   if (top.kind === 'store') return <StoreBook key={stack.length} env={env} onClose={back} onMine={() => push({ kind: 'mine', sell: true })} />
   if (top.kind === 'public') return <PublicBinder key={stack.length} name={top.name} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} />
-  if (top.kind === 'mine') return <CollectionBinder key={stack.length} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} startSell={!!top.sell} onStore={() => push({ kind: 'store' })} />
+  if (top.kind === 'mine') return <CollectionBinder key={stack.length} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} startSell={!!top.sell} onStore={() => push({ kind: 'store' })} onPredict={() => push({ kind: 'predict' })} />
   if (top.kind === 'league') return <LeagueBinder key={stack.length} set={top.set} env={env} onClose={back} onCareer={n => push({ kind: 'career', name: n })} />
   return null
 }

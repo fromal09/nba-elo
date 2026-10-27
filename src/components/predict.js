@@ -95,3 +95,45 @@ export function buildForecaster({ players, roster, rotation, injuries, fetched, 
 
   return { team, game, reportDay }
 }
+
+// ── Team-level Elo win chance ───────────────────────────────────────────────
+// The duel formula refit on 53,674 games with team ratings and home court.
+// Fit by era: pre-1970 ratings separate teams less, and home court has shrunk since 2020
+// (about 70 Elo points through 2019, about 44 since; the 2024-26 forecast backtest agrees).
+export const WP = sy => (sy < 1970 ? { scale: 1540, home: 420 } : sy < 2020 ? { scale: 400, home: 72 } : { scale: 450, home: 44 })
+export function winChance(sy, eloA, eloB, homeA) {
+  const { scale, home } = WP(sy)
+  return 1 / (1 + 10 ** (-(eloA - eloB + (homeA == null ? 0 : homeA ? home : -home)) / scale))
+}
+
+// ── Projected scores ────────────────────────────────────────────────────────
+// From scoring.json (scripts/build_scoring.py), fitted and backtested on every game since 2020-21:
+//   margin = home court + Elo gap of the forecast ratings + gap in team net scoring + back-to-backs
+//   total  = each team's offense + the other's defense − twice the league average, less for back-to-backs
+// Team offense/defense weight recent games more, with last season as a 10-game prior.
+export function makeProjector(sc, sched) {
+  if (!sc || !sc.teams) return null
+  const [c0, cElo, cNet, cB2bH, cB2bA] = sc.margin
+  const lg = sc.league, sigma = sc.sigma || 13.7
+  const played = new Set((sched?.games || []).map(g => [g.home + '|' + g.day, g.away + '|' + g.day]).flat())
+  const b2b = (t, day) => (day && played.has(t + '|' + addDays(day, -1)) ? 1 : 0)
+  const rate = t => sc.teams[t] || [lg, lg]
+  const net = t => rate(t)[0] - rate(t)[1]
+  const margin = fg => c0 + cElo * (fg.home.rating - fg.away.rating) + cNet * (net(fg.home.team) - net(fg.away.team))
+    + cB2bH * b2b(fg.home.team, fg.home.day) + cB2bA * b2b(fg.away.team, fg.home.day)
+  const score = fg => {
+    if (!fg) return null
+    const h = fg.home.team, v = fg.away.team, day = fg.home.day
+    const [oh, dh] = rate(h), [ov, dv] = rate(v)
+    const total = oh + dv + ov + dh - 2 * lg + sc.total_b2b * (b2b(h, day) + b2b(v, day))
+    const m = fg.margin ?? margin(fg)
+    return [Math.round(total / 2 + m / 2), Math.round(total / 2 - m / 2)]
+  }
+  return { margin, score, sigma, home: c0, win: m => normCdf(m / sigma), strength: (t, rating) => cElo * rating + cNet * net(t) }
+}
+export const normCdf = x => {
+  const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2)
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2)
+  return x >= 0 ? (1 + y) / 2 : (1 - y) / 2
+}
+

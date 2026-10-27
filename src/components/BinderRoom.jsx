@@ -41,7 +41,7 @@ function Cover({ def, list, env, onOpen, owned }) {
   )
 }
 
-export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTick }) {
+export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTick, predictTick }) {
   const [index, setIndex] = useState(null)
   const [league, setLeague] = useState(null)
   const [err, setErr] = useState(false)
@@ -56,8 +56,11 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
     if (C.down || C.me === undefined) return
     fetch('/api/collect?action=leaders', { credentials: 'same-origin' }).then(r => r.json()).then(d => !d.error && setLeaders(d)).catch(() => {})
   }, [C.down, C.me === undefined, meScore])
+  const [picks, setPicks] = useState(null)
+  useEffect(() => { if (!C.down && C.me !== undefined) C.loadStandings?.('week').then(setPicks).catch(() => {}) }, [C.down, C.me === undefined])
   useEffect(() => { if (mineTick && C.me) setOpen({ kind: 'mine' }) }, [mineTick, !!C.me])
   useEffect(() => { if (storeTick && C.me) setOpen({ kind: 'store' }) }, [storeTick, !!C.me])
+  useEffect(() => { if (predictTick && C.me) setOpen({ kind: 'predict' }) }, [predictTick, !!C.me])
   useEffect(() => {
     binderJSON('/data/explorer/index.json').then(setIndex).catch(() => {})
     binderJSON('/data/explorer/binders/league.json').then(setLeague).catch(() => setErr(true))
@@ -99,6 +102,7 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
               ? <button type="button" className={styles.goldBtn} onClick={() => C.resume(C.me.open[0].id)}>Finish your pack · {C.me.open[0].picked}/{C.me.open[0].total}</button>
               : !C.me.today.claimed && <button type="button" className={styles.goldBtn} onClick={() => C.claim()}>{C.me.today.bonusToday ? 'Open 2 packs' : 'Open today’s pack'}</button>}
             {!C.me.week.claimed && <button type="button" className={styles.teamBtn2} onClick={() => C.openTeam()}>Weekly team pack</button>}
+            <button type="button" className={styles.predictBtn} onClick={() => setOpen({ kind: 'predict' })}>{C.me.predict?.unclaimed ? `Choose your prediction card${C.me.predict.unclaimed > 1 ? 's' : ''}` : C.me.predict?.open ? `Predict today’s games · ${C.me.predict.picked}/${C.me.predict.games}` : 'Predictions'}</button>
             <button type="button" className={styles.storeBtn} onClick={() => setOpen({ kind: 'store' })}><Coin size={18} />Store · {(C.me.coins?.balance ?? 0).toLocaleString()}</button>
             <button type="button" className={styles.navyBtn} onClick={() => setOpen({ kind: 'mine' })}>Open my binder</button>
           </div>
@@ -130,6 +134,24 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
             <b className={styles.boardRank}>{leaders.you.rank}</b>
             <span className={styles.boardWho}><b>{leaders.you.username} (you)</b><small>{leaders.you.cards} cards · {leaders.you.players} players</small></span>
             <strong>{leaders.you.score.toLocaleString()}<small>pts</small></strong>
+          </button>}
+        </div>
+      </section>}
+
+      {picks && picks.leaders.length > 0 && <section className={styles.section}>
+        <div className={styles.head}><h2>Pick’em this week</h2><span>{picks.entrants} collector{picks.entrants === 1 ? '' : 's'} · correct picks, matchups and locks · top 10 win {picks.payouts?.top10} Coins</span></div>
+        <div className={styles.board}>
+          {picks.leaders.slice(0, 5).map(l => (
+            <button key={l.username} type="button" className={`${styles.boardRow} ${C.me?.user.username === l.username ? styles.boardYou : ''}`} onClick={() => C.openPredict()}>
+              <b className={styles.boardRank} data-top={l.rank <= 3 ? l.rank : undefined}>{l.rank}</b>
+              <span className={styles.boardWho}><b>{l.username}</b><small>Picks {l.picks[0]}–{l.picks[1]} · matchups {l.matchups[0]}–{l.matchups[1]} · {l.over > 0 ? '+' : ''}{l.over.toFixed(1)} vs forecast</small></span>
+              <strong>{l.score}<small>pts</small></strong>
+            </button>
+          ))}
+          {picks.you?.rank > 5 && <button type="button" className={`${styles.boardRow} ${styles.boardYou}`} onClick={() => C.openPredict()}>
+            <b className={styles.boardRank}>{picks.you.rank}</b>
+            <span className={styles.boardWho}><b>{picks.you.username} (you)</b><small>Picks {picks.you.picks[0]}–{picks.you.picks[1]}</small></span>
+            <strong>{picks.you.score}<small>pts</small></strong>
           </button>}
         </div>
       </section>}

@@ -20,6 +20,9 @@ Also writes the personal-binder checklists, which count players (own any card of
   explorer/binders/checklist.json  {"franchises": {franchise: {"name": latest name, "players": all-time count,
                                      "seasons": {season: [players, team name that season]}}}, "seasons": {season: players}}
   explorer/binders/roster/<FRANCHISE>.json  {season: [[name, games, pos], ...]} most games first
+  explorer/packs/days/<YYYY-MM-DD>.json  every card from one day of the current season, for prediction rewards
+                                         {"date", "teams": {code: [name, color]}, "rows": [...], "duel": the Duel of the Day
+                                          as in league.json ({"k", "s", "id", "date", "a": card, "b": card, "score"}) or absent}
   explorer/packs/onthisday/<MM-DD>.json  the store's On This Day pool: the 40 best cards (by Game Score) of each tier
                                          from games on that calendar date, every year {"teams": {"season|code": [...]}, "tiers": {tier: [row, ...]}}
 band = [level, label, champ] or null; honor = "potd" | "potg" | null
@@ -30,7 +33,7 @@ import heapq, itertools, json, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_binders import honors, bands   # noqa: E402  (same Player of the Game / Day and playoff rules)
+from build_binders import honors, bands, day_duels, card   # noqa: E402  (same Player of the Game / Day, playoff and duel rules)
 
 ROOT = Path(__file__).resolve().parent.parent
 EXP = ROOT / "public" / "data" / "explorer"
@@ -77,6 +80,7 @@ def main():
     otd = {}          # (MM-DD, tier) -> heap of (gs, n, row, names)
     otd_n = itertools.count()
     last_day, recent, recent_teams = "", [], {}
+    day_pool = {}     # the newest season's cards by date
     for f in files:
         d = json.loads(f.read_text(encoding="utf-8"))
         C, season = d["cols"], d["season"]
@@ -107,10 +111,24 @@ def main():
                 names = team_names.setdefault(fc, {})
                 for c in (r[3], r[4]):
                     names.setdefault(f"{season}|{c}", teams.get(c, [c, None]))
+                if f == files[-1]:
+                    dp = day_pool.setdefault(g["date"], {"date": g["date"], "teams": {}, "rows": []})
+                    dp["rows"].append(r)
+                    for c in (r[3], r[4]):
+                        dp["teams"][c] = teams.get(c, [c, None])
                 if g["date"] > last_day:
                     last_day, recent, recent_teams = g["date"], [], teams
                 if g["date"] == last_day:
                     recent.append(r)
+        if f == files[-1]:
+            # The Duel of the Day, the card a perfect day of matchup picks wins
+            for day, x in day_duels(games).items():
+                if "duel" in x and day in day_pool:
+                    g, a, b, sc = x["duel"]
+                    day_pool[day]["duel"] = {"k": "duel", "s": season, "id": g["id"], "date": g["date"],
+                                             "a": card(season, d["teams"], g, a, bnd.get((g["id"], a["t"])), hon.get((g["id"], a["n"]))),
+                                             "b": card(season, d["teams"], g, b, bnd.get((g["id"], b["t"])), hon.get((g["id"], b["n"]))),
+                                             "score": round(sc, 1)}
         for t, rows in by_tier.items():
             (OUT / t).mkdir(parents=True, exist_ok=True)
             for k in range(0, len(rows), SHARD):
@@ -147,6 +165,12 @@ def main():
             d["teams"].update(names)
     for md, d in days.items():
         name = f"onthisday/{md}.json"
+        (OUT / name).write_text(json.dumps(d, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        written.add(name)
+    # Prediction rewards: one file per day of the newest season
+    (OUT / "days").mkdir(parents=True, exist_ok=True)
+    for day, d in day_pool.items():
+        name = f"days/{day}.json"
         (OUT / name).write_text(json.dumps(d, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         written.add(name)
     # Shards from an older cut that this build didn't write
