@@ -36,7 +36,7 @@
 //   POST unwish      { id } take a wish off
 import { db, ensureSchema } from './_lib/db.js'
 import { USERNAME, hashPassword, checkPassword, startSession, endSession, currentUser } from './_lib/auth.js'
-import { upgradePoints } from './_lib/rescore.js'
+import { upgradePoints, pointsStatus } from './_lib/rescore.js'
 import { loadWishes, applyWishes, resetMeters, tickMeters, wishView, addWish, removeWish, wishNames, wishCards } from './_lib/wishes.js'
 import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS, SPECIAL_KINDS } from './_lib/packs.js'
 import { cardPoints } from './_lib/points.js'
@@ -439,6 +439,7 @@ export default async function handler(req, res) {
         : { username: viewer.username, score: 0, cards: 0, players: 0, rank: null, of: n }
       return send(200, { leaders, binders: n, you })
     }
+    if (action === 'status') return send(200, { points: await pointsStatus(sql, origin) })
     if (action === 'topcards') {
       // The most valuable cards anyone holds (one row a card, with how many binders have it), and the best pulls of the last day
       const top = await sql`select c.ref, max(c.points)::int as points, count(distinct c.user_id)::int as owners,
