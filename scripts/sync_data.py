@@ -19,7 +19,7 @@ Environment
 
 Objects live under data/<path>, next to data/_manifest.json ({path: md5}).
 """
-import argparse, hashlib, json, mimetypes, os, sys, urllib.request
+import argparse, hashlib, json, mimetypes, os, sys, time, urllib.error, urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -128,7 +128,15 @@ def pull(args):
     base = os.environ.get("DATA_URL", "").rstrip("/")
     if not base:
         sys.exit("Set DATA_URL to the bucket's public URL.")
-    fetch = lambda k: urllib.request.urlopen(urllib.request.Request(f"{base}/{PREFIX}{k}", headers={"User-Agent": "fpr-sync"}), timeout=60).read()
+    def fetch(k):
+        # A dropped connection now and then is normal over thousands of files: retry with a pause, then give up
+        for i in range(5):
+            try:
+                return urllib.request.urlopen(urllib.request.Request(f"{base}/{PREFIX}{k}", headers={"User-Agent": "fpr-sync"}), timeout=60).read()
+            except (OSError, urllib.error.URLError) as e:
+                if i == 4:
+                    raise SystemExit(f"Couldn't download {k} after 5 tries ({e}). Nothing is half-written; run the pull again.")
+                time.sleep(2 * (i + 1))
     keys = list(json.loads(fetch("_manifest.json"))) if args.all else args.paths
     if not keys:
         sys.exit("Name files to pull, or use --all.")
@@ -139,7 +147,7 @@ def pull(args):
         dest.write_bytes(fetch(k))
         return k
 
-    with ThreadPoolExecutor(16) as ex:
+    with ThreadPoolExecutor(8) as ex:
         for n, _ in enumerate(as_completed([ex.submit(get, k) for k in keys]), 1):
             _.result()
             if n % 500 == 0:
