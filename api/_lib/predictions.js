@@ -8,7 +8,10 @@
 //   Matchups  each game's top player matchup (each side's highest-Elo healthy player): who posts the higher
 //             Game Score? More than half right: choose a Rare or Common from the day. All right: the Duel of
 //             the Day card. Graded with the morning data update (Game Scores come from the pipeline).
-//   Lineup    five players from your binder who play that night; you score their Game Scores (1 Coin a point, up to 150).
+//   Lineup    five player cards from your binder whose players play that night. Each scores its Game Score times the
+//             card's tier multiplier (GOAT 2×, Icon 1.75×, Legend 1.5×, Standout 1.25×, Rare 1.1×, Common 1×; a
+//             negative Game Score isn't multiplied). 1 Coin a point, up to 250. Top-tier cards then rest: a GOAT
+//             card can't go in another lineup for 7 days, an Icon for 5, a Legend for 3.
 //
 // Standings rank pick'em points (a correct pick, a correct matchup, a correct lock's extra point) by week and
 // season, with weekly Coin payouts; Beat the Forecast compares your wins with what the forecast expected of your picks.
@@ -25,7 +28,9 @@ export const PRED = {
   upsetMin: 10, upsetMax: 80, // calling an underdog: (50% − its chance) × 200, rounded to 5
   perfectPer: 15, perfectMax: 150, // a perfect day: 15 per game on the slate
   duel: 10,         // each correct matchup
-  lineupMax: 150,   // lineups: 1 Coin per Game Score point
+  lineupMax: 250,   // lineups: 1 Coin per (multiplied) Game Score point
+  lineupMult: { goat: 2, icon: 1.75, legend: 1.5, standout: 1.25, rare: 1.1, common: 1 },
+  lineupRest: { goat: 7, icon: 5, legend: 3 }, // days before the same card can play again
   slots: 5,
   weeklyTop10: 300, weeklyTop50: 100, // pick'em standings, paid each Monday
 }
@@ -75,6 +80,11 @@ export async function ensurePredSchema(t) {
     user_id int not null references users(id) on delete cascade, day date not null, slot int not null,
     card_id bigint not null, player text not null, team text not null, game_id text not null, gs real,
     made_at timestamptz not null default now(), primary key (user_id, day, slot))`
+  await t`alter table lineups add column if not exists tier text`
+  await t`alter table lineups add column if not exists mult real`
+  await t`create index if not exists lineups_card on lineups (card_id, day)`
+  // Lineups set before multipliers: give them their card's tier (still-open days score with it)
+  await t`update lineups l set tier = c.tier from cards c where c.id = l.card_id and l.tier is null`
   await t`create table if not exists lineup_days (
     user_id int not null references users(id) on delete cascade, day date not null,
     total real not null, coins int not null, graded_at timestamptz not null default now(), primary key (user_id, day))`
@@ -230,12 +240,12 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
           const opp = g ? (g.home === s_.team ? g.away : g.home) : null
           const r = g && g.state !== 'off' ? findRow(file, day, s_.team, opp, s_.player) : null
           const gs = r?.row.gs ?? 0 // didn't play: 0
-          total += gs
+          total += lineupPts(gs, s_.mult ?? PRED.lineupMult[s_.tier] ?? 1)
           await t`update lineups set gs = ${gs} where user_id = ${userId} and day = ${day} and slot = ${s_.slot}`
         }
         const coins = Math.max(0, Math.min(PRED.lineupMax, Math.round(total)))
         await t`insert into lineup_days (user_id, day, total, coins) values (${userId}, ${day}, ${Math.round(total * 10) / 10}, ${coins}) on conflict do nothing`
-        if (coins) push(await grant(t, userId, today, 'lineup', coins, { ref: day, label: `Lineup: ${total.toFixed(1)} Game Score` }))
+        if (coins) push(await grant(t, userId, today, 'lineup', coins, { ref: day, label: `Lineup: ${total.toFixed(1)} points` }))
       }
     })
   }
@@ -283,6 +293,29 @@ function stats({ picks, days, duels, duelDays, lineDays, coins }) {
 }
 
 // ── Lineups ──────────────────────────────────────────────────────────────────
+// A slot's points: Game Score times the card's multiplier; a bad night isn't magnified
+export const lineupPts = (gs, mult) => (gs > 0 ? gs * (mult || 1) : gs)
+const multOf = tier => PRED.lineupMult[tier] || 1
+const restOf = tier => PRED.lineupRest[tier] || 0
+// The other days each card is in a lineup, near enough to matter for its rest
+async function cardDays(sql, userId, day, ids) {
+  if (!ids.length) return new Map()
+  const rows = await sql`select card_id, day from lineups where user_id = ${userId} and card_id = any(${ids.map(String)}::bigint[])
+    and day <> ${day} and day > ${addDays(day, -8)} and day < ${addDays(day, 8)}`
+  const m = new Map()
+  for (const r of rows) { const k = Number(r.card_id); if (!m.has(k)) m.set(k, []); m.get(k).push(iso(r.day)) }
+  return m
+}
+const gap = (a, b) => Math.round((Date.parse(a + 'T12:00:00Z') - Date.parse(b + 'T12:00:00Z')) / 864e5)
+// Resting on `day` (null if free): the nearest other lineup day closer than the card's rest
+function restInfo(tier, days, day) {
+  const n = restOf(tier)
+  if (!n || !days?.length) return null
+  const clash = days.filter(d => Math.abs(gap(day, d)) < n).sort()
+  if (!clash.length) return null
+  const before = clash.filter(d => d < day), after = clash.filter(d => d > day)
+  return before.length ? { since: before[before.length - 1], until: addDays(before[before.length - 1], n) } : { next: after[0], days: n }
+}
 // Your players who play that day (any card of theirs counts) and your five slots
 async function lineupView(sql, u, origin, day, games) {
   const live = games.filter(g => g.state !== 'off')
@@ -291,8 +324,9 @@ async function lineupView(sql, u, origin, day, games) {
   const gameOf = t => live.find(g => g.home === t || g.away === t)
   const slotView = s_ => {
     const g = gameOf(s_.team)
+    const tier = s_.tier || s_.card?.tier, mult = s_.mult ?? (graded && s_.gs != null ? 1 : multOf(tier))
     return { slot: s_.slot, cardId: Number(s_.card_id), player: s_.player, team: s_.team, opp: g ? (g.home === s_.team ? g.away : g.home) : null, home: g?.home === s_.team,
-      tip: g?.tip || null, open: g ? isOpen(g) : false, gs: s_.gs, card: s_.card }
+      tip: g?.tip || null, open: g ? isOpen(g) : false, gs: s_.gs, pts: s_.gs == null ? null : Math.round(lineupPts(s_.gs, mult) * 10) / 10, tier, mult, rest: restOf(tier), card: s_.card }
   }
   let candidates = []
   if (live.some(isOpen) && origin) {
@@ -300,24 +334,32 @@ async function lineupView(sql, u, origin, day, games) {
     const R = await rosters(origin, teams, day).catch(() => ({}))
     const onTeam = new Map()
     for (const [t, rows] of Object.entries(R)) for (const r of rows) onTeam.set(norm(r.name), { ...r, team: t })
-    const mine = await sql`select id, card, points from cards where user_id = ${u.id} and tier <> 'duel'`
+    // Game cards only (special cards have no single game line), every card of each player who plays
+    const mine = (await sql`select id, card, points, tier from cards where user_id = ${u.id} and tier = any(${TIER_ORDER})`).filter(c => c.card?.row?.n)
+    const used = await cardDays(sql, u.id, day, mine.map(c => c.id))
     const by = new Map()
     for (const c of mine) {
       const k = norm(c.card.row.n), r = onTeam.get(k)
       if (!r) continue
-      const cur = by.get(k)
-      if (!cur || c.points > cur.points) by.set(k, { ...c, n: (cur?.n || 0) + 1, r })
-      else cur.n++
+      if (!by.has(k)) by.set(k, { r, cards: [] })
+      const rest = restInfo(c.tier, used.get(Number(c.id)), day)
+      by.get(k).cards.push({ cardId: Number(c.id), tier: c.tier, mult: multOf(c.tier), rest: restOf(c.tier), resting: rest, points: c.points, card: c.card })
     }
-    candidates = [...by.values()].map(x => {
-      const g = gameOf(x.r.team)
-      return { name: x.r.name, team: x.r.team, opp: g.home === x.r.team ? g.away : g.home, home: g.home === x.r.team, tip: g.tip, open: isOpen(g),
-        elo: x.r.elo, mp: x.r.mp, out: x.r.out, status: x.r.status, cardId: Number(x.id), card: x.card, cards: x.n }
-    }).sort((a, b) => b.open - a.open || b.elo - a.elo)
+    candidates = [...by.values()].map(({ r, cards }) => {
+      const g = gameOf(r.team)
+      // Best multiplier first; among equals, the card worth the most
+      cards.sort((a, b) => !!a.resting - !!b.resting || b.mult - a.mult || b.points - a.points)
+      const top = cards[0]
+      return { name: r.name, team: r.team, opp: g.home === r.team ? g.away : g.home, home: g.home === r.team, tip: g.tip, open: isOpen(g),
+        elo: r.elo, mp: r.mp, out: r.out, status: r.status, cardId: top.cardId, card: top.card, tier: top.tier, mult: top.mult, resting: top.resting,
+        cards: cards.map(({ card, points, ...x }) => x), n: cards.length }
+    }).sort((a, b) => b.open - a.open || !!a.resting - !!b.resting || b.mult * b.elo - a.mult * a.elo)
   }
   return { slots: slots.map(slotView), candidates, graded: graded ? { total: graded.total, coins: graded.coins } : null }
 }
 
+const tierLabel = t => ({ goat: 'GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' })[t] || t
+const fmtD = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
 export async function setLineup(sql, u, b, origin, today) {
   const day = String(b.day || ''), slot = Number(b.slot)
   if (day < today || day > addDays(today, 1)) throw fail(400, 'Lineups are for today’s and tomorrow’s games.')
@@ -328,7 +370,10 @@ export async function setLineup(sql, u, b, origin, today) {
   if (cur && curGame && !isOpen(curGame)) throw fail(409, `${cur.player}’s game has tipped off. That slot is locked.`)
   if (b.card == null) { if (cur) await sql`delete from lineups where user_id = ${u.id} and day = ${day} and slot = ${slot}`; return }
   const [c] = await sql`select id, card, tier from cards where id = ${Number(b.card)} and user_id = ${u.id}`
-  if (!c || c.tier === 'duel') throw fail(404, 'Pick a player card from your binder.')
+  if (!c || !TIER_ORDER.includes(c.tier) || !c.card?.row?.n) throw fail(404, 'Pick a game card from your binder.')
+  const rest = restInfo(c.tier, (await cardDays(sql, u.id, day, [c.id])).get(Number(c.id)), day)
+  if (rest) throw fail(409, rest.until ? `That ${tierLabel(c.tier)} card is resting. It can play again ${fmtD(rest.until)}.`
+    : `That ${tierLabel(c.tier)} card plays on ${fmtD(rest.next)}, and needs ${rest.days} days between games.`)
   const teams = [...new Set(games.flatMap(g => [g.home, g.away]))]
   const R = await rosters(origin, teams, day)
   const k = norm(c.card.row.n)
@@ -341,8 +386,8 @@ export async function setLineup(sql, u, b, origin, today) {
     const [o] = await sql`select player from lineups where user_id = ${u.id} and day = ${day} and slot = ${d.slot}`
     if (norm(o.player) === k) throw fail(409, `${c.card.row.n} is already in your lineup.`)
   }
-  await sql`insert into lineups (user_id, day, slot, card_id, player, team, game_id) values (${u.id}, ${day}, ${slot}, ${c.id}, ${c.card.row.n}, ${team}, ${g.id})
-    on conflict (user_id, day, slot) do update set card_id = excluded.card_id, player = excluded.player, team = excluded.team, game_id = excluded.game_id, made_at = now()`
+  await sql`insert into lineups (user_id, day, slot, card_id, player, team, game_id, tier, mult) values (${u.id}, ${day}, ${slot}, ${c.id}, ${c.card.row.n}, ${team}, ${g.id}, ${c.tier}, ${multOf(c.tier)})
+    on conflict (user_id, day, slot) do update set card_id = excluded.card_id, player = excluded.player, team = excluded.team, game_id = excluded.game_id, tier = excluded.tier, mult = excluded.mult, made_at = now()`
 }
 
 // ── Everything the Predictions page shows ────────────────────────────────────

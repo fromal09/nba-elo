@@ -126,6 +126,20 @@ function EloChart({ path, peakAt, at, color, H = 92, ends }) {
   const pts = path.map((v, i) => (i % step === 0 || i === path.length - 1 || i === peakAt || i === at) ? `${x(i)},${y(v)}` : null).filter(Boolean).join(' ')
   const ticks = [lo0, (lo0 + hi0) / 2, hi0]
   const lab = i => { const px = x(i); return px > W - 90 ? { x: px + 4, a: 'end' } : px < L + 50 ? { x: px - 4, a: 'start' } : { x: px, a: 'middle' } }
+  // A label goes where the line isn't: try above and below the dot, nearer first, and take the first spot clear of the line and the peak label
+  const placeGame = () => {
+    const text = `This game ${Math.round(path[at]).toLocaleString()}`, w = text.length * 5.3
+    const { x: lx, a } = lab(at), x0 = a === 'end' ? lx - w : a === 'start' ? lx : lx - w / 2, x1 = x0 + w
+    const cy = y(path[at]), top = 9, bottom = H - B + (ends ? 0 : 10)
+    const pk = at !== peakAt ? (() => { const p = lab(peakAt), pw = 50, px0 = p.a === 'end' ? p.x - pw : p.a === 'start' ? p.x : p.x - pw / 2; return [px0, px0 + pw, y(path[peakAt]) - 16, y(path[peakAt]) - 4] })() : null
+    const near = []
+    for (let i = 0; i < path.length; i++) { const px = x(i); if (px >= x0 - 2 && px <= x1 + 2) near.push(y(path[i])) }
+    const hits = base => near.filter(v => v >= base - 9 && v <= base + 3).length + (pk && x1 > pk[0] && x0 < pk[1] && base > pk[2] && base - 8 < pk[3] ? 99 : 0)
+    const tries = [cy + 16, cy - 9, cy + 26, cy - 19, cy + 36, cy - 29].filter(b => b - 8 >= top - 9 && b <= bottom)
+    let best = tries[0] ?? Math.min(cy + 16, H - 2), score = Infinity
+    for (const b of tries) { const h = hits(b); if (h < score) { best = b; score = h } if (!h) break }
+    return { text, x: lx, a, base: best }
+  }
   return (
     <svg className={styles.chart} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
       {ticks.map((v, i) => <g key={i}>
@@ -135,14 +149,14 @@ function EloChart({ path, peakAt, at, color, H = 92, ends }) {
       <polyline points={`${x(0)},${H - B} ${pts} ${x(path.length - 1)},${H - B}`} fill={color} opacity=".1" />
       <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
       <circle cx={x(peakAt)} cy={y(path[peakAt])} r="4.5" fill="#e7c160" stroke="#8a6a12" strokeWidth="1" />
-      <text x={lab(peakAt).x} y={y(path[peakAt]) - 7} textAnchor={lab(peakAt).a} className={styles.peakLab}>{at === peakAt ? 'Peak · this game' : 'Peak'} {Math.round(path[peakAt]).toLocaleString()}</text>
+      <text x={lab(peakAt).x} y={y(path[peakAt]) - 7} textAnchor={lab(peakAt).a} className={styles.peakLab} stroke="#fff" strokeWidth="3" strokeLinejoin="round" paintOrder="stroke">{at === peakAt ? 'Peak · this game' : 'Peak'} {Math.round(path[peakAt]).toLocaleString()}</text>
       {ends && <>
         <text x={L} y={H - 6} textAnchor="start" className={styles.tick}>{ends[0]}</text>
         <text x={W - R - 34} y={H - 6} textAnchor="end" className={styles.tick}>{ends[1]}</text>
       </>}
       {at > 0 && at !== peakAt && <>
         <circle cx={x(at)} cy={y(path[at])} r="5.5" fill="#fff" stroke={color} strokeWidth="2.5" />
-        <text x={lab(at).x} y={Math.min(y(path[at]) + 16, H - 2)} textAnchor={lab(at).a} className={styles.gameLab} fill={color}>This game {Math.round(path[at]).toLocaleString()}</text>
+        {(g => <text x={g.x} y={g.base} textAnchor={g.a} className={styles.gameLab} fill={color} stroke="#fff" strokeWidth="3" strokeLinejoin="round" paintOrder="stroke">{g.text}</text>)(placeGame())}
       </>}
     </svg>
   )

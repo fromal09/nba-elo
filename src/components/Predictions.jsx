@@ -120,16 +120,29 @@ function MatchupRow({ g, onPick, busy }) {
 }
 
 // ── Lineup ───────────────────────────────────────────────────────────────────
-function LineupTab({ day, lu, env, busy, onSet, slots }) {
+const MULT_TIERS = ['goat', 'icon', 'legend', 'standout', 'rare', 'common']
+const xFmt = m => `${+Number(m).toFixed(2)}×`
+const shortDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+const restText = r => r.until ? `resting, can play again ${shortDay(r.until)}` : `in your ${shortDay(r.next)} lineup, needs ${r.days} days between games`
+function TierX({ tier, mult }) {
+  return <span className={styles.tierX} data-tier={tier}>{TIER_NAME[tier] || tier} <b>{xFmt(mult)}</b></span>
+}
+
+function LineupTab({ day, lu, env, busy, onSet, slots, R }) {
   const [q, setQ] = useState('')
+  const [pickCard, setPickCard] = useState({}) // player name → chosen card id
   const taken = new Set(lu.slots.map(s => s.player))
   const free = [...Array(slots).keys()].find(i => !lu.slots.some(s => s.slot === i))
-  const total = lu.slots.reduce((a, s) => a + (s.gs || 0), 0)
+  const total = lu.slots.reduce((a, s) => a + (s.pts ?? 0), 0)
   const list = lu.candidates.filter(c => !q || c.name.toLowerCase().includes(q.toLowerCase()) || c.team.toLowerCase() === q.toLowerCase())
+  const M = R.lineupMult || {}, Rest = R.lineupRest || {}
   return <>
     <div className={styles.goal}>
-      <span><b>{lu.slots.length} of {slots} slots filled</b>{lu.graded ? ` · ${lu.graded.total} Game Score · +${lu.graded.coins} Coins` : ''}</span>
-      <span className={styles.goalText}>Put five players from your binder who play {day === env.today ? 'today' : 'tomorrow'} in your lineup. You score their Game Scores: 1 Coin a point, up to 150. Each slot locks when that player’s game tips off. Scored with the morning data update.</span>
+      <span><b>{lu.slots.length} of {slots} slots filled</b>{lu.graded ? ` · ${lu.graded.total} points · +${lu.graded.coins} Coins` : ''}</span>
+      <span className={styles.goalText}>Put five cards from your binder in your lineup, of players who play {day === env.today ? 'today' : 'tomorrow'}. Each scores its player’s Game Score times the card’s multiplier: 1 Coin a point, up to {R.lineupMax}. Each slot locks when that player’s game tips off. Scored with the morning data update.</span>
+    </div>
+    <div className={styles.multRow}>
+      {MULT_TIERS.map(t => <span key={t} className={styles.multCell} data-tier={t}><b>{xFmt(M[t] || 1)}</b><small>{TIER_NAME[t]}{Rest[t] ? ` · ${Rest[t]}-day rest` : ''}</small></span>)}
     </div>
     <div className={styles.lineup}>
       {[...Array(slots).keys()].map(i => {
@@ -140,34 +153,43 @@ function LineupTab({ day, lu, env, busy, onSet, slots }) {
           <div key={i} className={styles.slot}>
             <span className={styles.slotCard}>{e && <Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit>}</span>
             <b>{shortName(s.player)}</b>
+            {s.tier && <TierX tier={s.tier} mult={s.mult} />}
             <small>{s.team} {s.home ? 'vs' : '@'} {s.opp || '—'}{s.tip && s.open ? ` · ${tipTime(s.tip)}` : ''}</small>
-            {s.gs != null ? <strong>{s.gs.toFixed(1)} <small>GmSc</small></strong>
+            {s.gs != null ? <strong>{s.pts.toFixed(1)} <small>pts</small>{s.mult > 1 && s.gs > 0 && <em className={styles.slotRaw}>{s.gs.toFixed(1)} GmSc</em>}</strong>
               : s.open ? <button type="button" className={styles.ghostSm} disabled={busy} onClick={() => onSet(day, i, null)}>Remove</button>
                 : <span className={styles.slotLock}>🔒 Locked</span>}
           </div>
         )
       })}
     </div>
-    {lu.graded && <p className={styles.light}>Total {total.toFixed(1)} Game Score.</p>}
+    {lu.graded && <p className={styles.light}>Total {total.toFixed(1)} points.</p>}
     {lu.candidates.length > 0 && <>
       <div className={styles.candHead}><span className={styles.boxLab}>Your players {day === env.today ? 'today' : 'tomorrow'} · {lu.candidates.length}</span>
         <input className={styles.search} value={q} onChange={e => setQ(e.target.value)} placeholder="Find a player or team" aria-label="Find a player" /></div>
       <div className={styles.cands}>
         {list.map(c => {
-          const inIt = taken.has(c.name) || lu.slots.some(s => s.cardId === c.cardId)
+          const cards = c.cards || [{ cardId: c.cardId, tier: c.tier, mult: c.mult, resting: c.resting }]
+          const chosen = cards.find(x => x.cardId === pickCard[c.name]) || cards[0]
+          const inIt = taken.has(c.name) || lu.slots.some(s => s.cardId === chosen.cardId)
           return (
             <div key={c.name} className={`${styles.cand} ${c.out ? styles.candOut : ''}`}>
               <Logo t={c.team} size={26} />
               <span className={styles.candText}><b>{baseName(c.name)}</b>
-                <small>{c.team} {c.home ? 'vs' : '@'} {c.opp} · {c.open ? tipTime(c.tip) : 'tipped off'} · {n0(c.elo)} Elo{c.mp ? ` · ${c.mp} min` : ''}{c.status ? ` · ${c.status}` : ''}</small></span>
-              <button type="button" className={styles.claimBtn} disabled={busy || inIt || !c.open || free == null} onClick={() => onSet(day, free, c.cardId)}>
-                {inIt ? 'In lineup' : !c.open ? 'Locked' : free == null ? 'Full' : 'Add'}</button>
+                <small>{c.team} {c.home ? 'vs' : '@'} {c.opp} · {c.open ? tipTime(c.tip) : 'tipped off'} · {n0(c.elo)} Elo{c.mp ? ` · ${c.mp} min` : ''}{c.status ? ` · ${c.status}` : ''}</small>
+                {chosen.resting && <small className={styles.candRest}>{TIER_NAME[chosen.tier]} card: {restText(chosen.resting)}</small>}</span>
+              {cards.length > 1
+                ? <select className={styles.cardSel} value={chosen.cardId} onChange={e => setPickCard(v => ({ ...v, [c.name]: +e.target.value }))} aria-label={`Which ${baseName(c.name)} card`}>
+                    {cards.map(x => <option key={x.cardId} value={x.cardId}>{TIER_NAME[x.tier]} {xFmt(x.mult)}{x.resting ? ' · resting' : ''}</option>)}
+                  </select>
+                : <TierX tier={chosen.tier} mult={chosen.mult} />}
+              <button type="button" className={styles.claimBtn} disabled={busy || inIt || !c.open || free == null || !!chosen.resting} onClick={() => onSet(day, free, chosen.cardId)}>
+                {inIt ? 'In lineup' : !c.open ? 'Locked' : chosen.resting ? 'Resting' : free == null ? 'Full' : 'Add'}</button>
             </div>
           )
         })}
       </div>
     </>}
-    {!lu.candidates.length && !lu.slots.length && <div className={styles.empty}><b>None of your players play {day === env.today ? 'today' : 'tomorrow'}</b><span>Cards of current players count, from any season. Open packs to find some.</span></div>}
+    {!lu.candidates.length && !lu.slots.length && <div className={styles.empty}><b>None of your players play {day === env.today ? 'today' : 'tomorrow'}</b><span>Game cards of current players count, from any season. Open packs to find some.</span></div>}
   </>
 }
 
@@ -376,7 +398,7 @@ export function PredictPages({ env, phone, tools, children }) {
       <div><b>Correct matchup</b><span>+{R.duel}</span></div>
       <div><b>More than half the matchups</b><span>a Rare or Common</span></div>
       <div><b>Every matchup</b><span>the Duel of the Day card</span></div>
-      <div><b>Lineup</b><span>1 Coin a Game Score point, up to {R.lineupMax}</span></div>
+      <div><b>Lineup</b><span>Game Score × card multiplier, 1 Coin a point, up to {R.lineupMax}</span></div>
     </div>
     <details className={styles.help}>
       <summary>How it works</summary>
@@ -419,7 +441,7 @@ export function PredictPages({ env, phone, tools, children }) {
           text={`Who posts the higher Game Score in each game’s top player matchup? Get ${need(m.length)} right to choose a Rare or Common from the day. Get all ${m.length} for the Duel of the Day card.`} />
         <div className={styles.games}>{m.map(g => <MatchupRow key={g.id} g={g} busy={busy === `d${g.id}`} onPick={(g_, p) => g_.duel.pick !== p && run(`d${g_.id}`, () => C.duelPick(g_.id, p))} />)}</div>
       </> : <div className={styles.empty}><b>Matchups aren’t set yet</b><span>They come from the Elo forecast and appear before tipoff.</span></div>
-    } else body = <LineupTab day={slate.day} lu={slate.lineup} env={envX} slots={R.slots} busy={!!busy} onSet={(day, slot, card) => run('lineup', () => C.setLineup(day, slot, card))} />
+    } else body = <LineupTab day={slate.day} lu={slate.lineup} env={envX} slots={R.slots} R={R} busy={!!busy} onSet={(day, slot, card) => run('lineup', () => C.setLineup(day, slot, card))} />
   }
   const right = (
     <div className={styles.right}>

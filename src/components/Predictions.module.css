@@ -240,3 +240,25 @@
 
 /* The left page scrolls; its boxes keep their size */
 .stats, .beat, .claimBig, .rules, .help, .teamsList, .boxLab, .linkBtn { flex-shrink: 0; }
+
+/* Lineup multipliers */
+.multRow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin: 2px 0 12px; }
+.multCell { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; border-radius: 8px; background: #fff; border-top: 3px solid var(--tier, #9aa5b1); text-align: center; }
+.multCell b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.multCell small { font-size: 10px; color: #6b7783; line-height: 1.25; }
+.multCell[data-tier=goat], .tierX[data-tier=goat] { --tier: #c9a227; } .multCell[data-tier=icon], .tierX[data-tier=icon] { --tier: #8f6bd8; } .multCell[data-tier=legend], .tierX[data-tier=legend] { --tier: #d6a842; }
+.multCell[data-tier=standout], .tierX[data-tier=standout] { --tier: #9aa7b4; } .multCell[data-tier=rare], .tierX[data-tier=rare] { --tier: #c27a45; } .multCell[data-tier=common], .tierX[data-tier=common] { --tier: #7c8894; }
+.tierX { display: inline-flex; align-items: center; gap: 4px; flex: none; height: 20px; padding: 0 7px; border-radius: 10px; font-size: 10.5px; font-weight: 700; color: #1d2633;
+  background: color-mix(in srgb, var(--tier, #9aa5b1) 22%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tier, #9aa5b1) 60%, #fff); white-space: nowrap; }
+.tierX b { font-weight: 800; }
+.slot .tierX { margin: 1px 0; }
+.slotRaw { display: block; font-style: normal; font-size: 9.5px; font-weight: 700; color: #6b7783; }
+.candRest { color: #9a5b12 !important; font-weight: 700; }
+.cardSel { flex: none; height: 32px; max-width: 140px; padding: 0 6px; border: 1px solid #dcd6c6; border-radius: 8px; background: #fff; font: 600 12px Inter, sans-serif; color: #1d2633; }
+@media (max-width: 600px) {
+  .multRow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cand { flex-wrap: wrap; }
+  .cand .candText { flex-basis: calc(100% - 40px); }
+  .cardSel, .cand .tierX { margin-left: 36px; }
+  .cand .claimBtn { margin-left: auto; }
+}

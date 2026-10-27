@@ -1051,7 +1051,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     return fromIndex(env, x.card, {
       key: `c${x.id}`, cardId: x.id, tier: sp ? x.card.kind : x.card.tier, gs: duel ? x.card.score || 0 : sp ? 0 : x.card.row.gs || 0, pts, date, fc, s: ss, decade: decadeOf(ss),
       label: duel ? `Duel · ${shortName(x.card.a.row.n)}` : sp ? specialTitle(x.card) : shortName(x.card.row.n), sub: `${pts.toLocaleString()} pts`, serial: x.serial,
-      owned: mine ? false : undefined, // your own binder: no marks; someone else's: a mark on the cards you own too pinned: starred.has(x.id), shown: showIds.includes(x.id), pulledAt: x.pulled,
+      // your own binder: no marks; someone else's: a mark on the cards you own too
+      owned: mine ? false : undefined, pinned: starred.has(x.id), shown: showIds.includes(x.id), pulledAt: x.pulled,
       ...(mine ? { onPin: e => C.star(e.cardId, !e.pinned), onShow: e => C.showcase(e.cardId, !e.shown) } : {}),
     })
   }), [src?.cards, env, [...starred].join(), showIds.join(), mine])
