@@ -79,3 +79,9 @@
   [data-m=pm-back] { padding: 0 !important; align-items: flex-end !important; }
   [data-m=pm-box] { border-radius: 16px 16px 0 0 !important; max-height: 92vh !important; max-height: 92dvh !important; padding-bottom: env(safe-area-inset-bottom); }
 }
+
+/* Phones: thumbnail cards (binder pockets, covers, lists) hold still. Dozens of looping holo layers at 3x
+   pixel density exhaust Safari's graphics memory and reload the tab. Full-size cards still animate. */
+@media (hover: none), (pointer: coarse) {
+  [data-still] *, [data-still] *::before, [data-still] *::after { animation: none !important; transition: none !important; }
+}

@@ -183,11 +183,11 @@ function useWidth() {
   return w
 }
 
-export function CardFace({ card, shots, w = 280 }) {
+export function CardFace({ card, shots, w = 280, live }) {
   const e = fromIndex({ ...env, headshot: n => shots?.[norm(n)]?.headshot }, card)
   const k = w / 340
   return (
-    <span className={styles.face} style={{ width: w, height: 476 * k }}>
+    <span className={styles.face} data-still={live ? undefined : ''} style={{ width: w, height: 476 * k }}>
       <span style={{ transform: `scale(${k})` }}>
         {isSpecial(card) ? <SpecialFace card={card} /> : e.duel ? <DuelCard {...e.duel} /> : <MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={shots?.[norm(e.name)]?.headshot} />}
       </span>
@@ -290,7 +290,7 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
                 onClick={() => setSel(i)} onDoubleClick={() => { setSel(i); }} aria-pressed={sel === i} aria-label={`${cardName(c)}, ${tierName(c)}`}>
                 <span className={styles.flipInner}>
                   <span className={styles.back}><span className={styles.backMark} style={{ width: W * 0.4, height: W * 0.4, fontSize: W * 0.16 }}>FPR</span></span>
-                  <span className={styles.frontSide}><CardFace card={c} shots={shots} w={W} /></span>
+                  <span className={styles.frontSide}><CardFace card={c} shots={shots} w={W} live /></span>
                 </span>
                 {i < shown && <span className={styles.chip} data-tier={isSpecial(c) ? 'special' : c.tier}>{tierName(c)} · {cardPoints(c).points.toLocaleString()} pts</span>}
               </button>

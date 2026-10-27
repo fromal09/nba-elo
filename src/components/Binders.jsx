@@ -57,7 +57,7 @@ export function Fit({ children, label }) {
     return () => ro.disconnect()
   }, [])
   return (
-    <div ref={ref} className={styles.fit} aria-label={label}>
+    <div ref={ref} className={styles.fit} data-still="" aria-label={label}>
       <div className={styles.fitCard} style={{ transform: `translate(-50%, -50%) scale(${s})`, visibility: s ? 'visible' : 'hidden' }}>{children}</div>
     </div>
   )

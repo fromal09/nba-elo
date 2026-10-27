@@ -2176,7 +2176,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
             <div key={label} className={styles.sideCard}>
               <div className={styles.sideLab}>{label}<span>{shortName(x.a.n)} over {shortName(x.b.n)}{kind === 'slayer' ? ` · ${Math.max(1, Math.round(x.wc * 100))}%` : ''}</span></div>
               <button type="button" className={styles.sideMini} onClick={() => setDuelPick({ kind, scope: 'day', an: x.a.n, bn: x.b.n, id: x.g.id })} aria-label={`${label}: ${x.a.n} over ${x.b.n}, open card`}>
-                <span className={styles.sideScale}>
+                <span className={styles.sideScale} data-still="">
                   <DuelCard kind={kind} scope="day" date={x.g.date}
                     a={{ name: x.a.n, row: x.a, color: tColor(x.a.t), team: tShort(x.a.t), abbr: tCode(x.a.t), headshot: shots?.[norm(x.a.n)]?.headshot }}
                     b={{ name: x.b.n, row: x.b, color: tColor(x.b.t), team: tShort(x.b.t), abbr: tCode(x.b.t), headshot: shots?.[norm(x.b.n)]?.headshot }} />
@@ -2187,7 +2187,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
             <div key={label} className={styles.sideCard}>
               <div className={styles.sideLab}>{label}<span>{shortName(p.n)} · {sgn(p.post - p.pre)} Elo</span></div>
               <button type="button" className={styles.sideMini} onClick={() => openCard(g, p)} aria-label={`${label}: ${p.n}, open card`}>
-                <span className={styles.sideScale}>
+                <span className={styles.sideScale} data-still="">
                   <MiniCard name={p.n} row={p} game={cardGameInfo(g, p.t, daySd, p)} team={{ name: tName(p.t), color: tColor(p.t), abbr: tCode(p.t), logo: logoUrl(p.t) }} headshot={shots?.[norm(p.n)]?.headshot} />
                 </span>
               </button>

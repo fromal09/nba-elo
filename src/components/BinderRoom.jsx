@@ -17,7 +17,7 @@ const baseName = n => n.replace(/\s*\(.*\)$/, '')
 // A card drawn at full size and scaled down to a fixed width
 function Thumb({ children, w }) {
   const k = w / 340
-  return <span className={styles.thumb} style={{ width: w, height: 476 * k }}><span style={{ transform: `scale(${k})` }}>{children}</span></span>
+  return <span className={styles.thumb} data-still="" style={{ width: w, height: 476 * k }}><span style={{ transform: `scale(${k})` }}>{children}</span></span>
 }
 
 function Cover({ def, list, env, onOpen, owned }) {
