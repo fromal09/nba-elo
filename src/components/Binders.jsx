@@ -3,6 +3,7 @@ import styles from './Binders.module.css'
 import { MiniCard, DuelCard, tierFor, TIERS, momentsFor } from './PlayerCard'
 import { Meter, CURRENT_TEAMS } from './Collector'
 import { PredictPages } from './Predictions'
+import { Serial, SpecialFace, SpecialModal, isSpecial, specialTitle } from './SpecialCards'
 import { cardPoints, TIER_BASE } from '../../api/_lib/points.js'
 
 /*
@@ -62,6 +63,13 @@ export function Fit({ children, label }) {
   )
 }
 
+// Any card's face: a special card, a duel, or a player's game
+export function AnyFace({ e, env }) {
+  if (e.special) return <SpecialFace card={e.special} />
+  if (e.duel) return <DuelCard {...e.duel} />
+  return <MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} />
+}
+
 // Career games always come graded; album sheets grade every card (slab = the label's wording)
 const slabFor = (e, album) => (momentsFor(e.row).career ? 'Career game' : album || null)
 
@@ -71,8 +79,9 @@ function Pocket({ e, name, env, onPull, pulled, album }) {
     <div className={`${styles.pocket} ${e.post ? styles.pocketPo : ''}`}>
       <button type="button" className={styles.pocketBtn} disabled={out} onClick={() => onPull(e)} aria-label={`${e.label}: open card`}>
         {out ? <span className={styles.pulledOut}><b>Pulled out</b><small>Close the card to put it back</small></span>
-          : e.duel ? <Fit><DuelCard {...e.duel} /></Fit>
-            : <Fit><MiniCard name={e.name || name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name || name)} slab={slabFor(e, album)} /></Fit>}
+          : e.special ? <Fit><SpecialFace card={e.special} serial={e.serial && <Serial k={e.serial[0]} n={e.serial[1]} inline />} owned={e.owned_} /></Fit>
+          : e.duel ? <Fit><DuelCard {...e.duel} />{e.serial && <Serial k={e.serial[0]} n={e.serial[1]} pocket />}</Fit>
+            : <Fit><MiniCard name={e.name || name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name || name)} slab={slabFor(e, album)} />{e.serial && !slabFor(e, album) && <Serial k={e.serial[0]} n={e.serial[1]} pocket />}</Fit>}
         <span className={styles.glare} />
       </button>
       {e.owned && <span className={styles.ownedMark} title="In your binder">✓</span>}
@@ -258,6 +267,10 @@ function SmallCard({ e, name, env, onPull, title, line, sub }) {
   )
 }
 
+// Any card's identity, as the server's refOf
+export const cardRef = c => (c.kind === 'duel' ? `duel|${c.date}` : isSpecial(c) ? specialRef(c) : `${c.s}|${c.id}|${c.row.n}`)
+const specialRef = c => (c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}` : c.kind === 'five' ? `five|${c.s}|${c.t}` : `season|${c.s}|${c.t}|${c.n}`)
+
 // A Duel of the Day card from a binder (kind 'duel': the day's two players) in the shape a pocket needs
 export function duelEntry(env, c, extra = {}) {
   const side = x => duelSide(env, x.row, env.teamInfo(x.t, x.tn, x.tc))
@@ -268,6 +281,7 @@ export function duelEntry(env, c, extra = {}) {
 // A card from a pipeline index (career / franchise files) in the shape a pocket needs
 export function fromIndex(env, c, extra = {}) {
   if (c.kind === 'duel') return duelEntry(env, c, extra)
+  if (isSpecial(c)) return { key: specialRef(c), special: c, name: c.row?.n || c.n || c.a || '', season: c.s, id: c.id, date: c.date, tier: c.kind, gs: 0, ...extra }
   const team = env.teamInfo(c.t, c.tn, c.tc), opp = env.teamInfo(c.o, c.on, c.oc)
   return {
     key: `${c.s}|${c.id}|${c.row.n}`, name: c.row.n, row: c.row, post: !!c.band, season: c.s, id: c.id, tier: tierOfRow(c.row),
@@ -280,7 +294,8 @@ export function fromIndex(env, c, extra = {}) {
 export function usePull(env, sd, owner) {
   const [pulled, setPulled] = useState(null) // { key, name, g, sd, duel }
   const pull = e => {
-    const set = (g, s) => setPulled({ key: e.key, name: e.name || owner, g, sd: s, duel: e.duel ? { kind: e.duel.kind, an: e.duel.a.name, bn: e.duel.b.name } : null })
+    if (e.special) { setPulled({ key: e.key, special: e.special, serial: e.serial }); return }
+    const set = (g, s) => setPulled({ key: e.key, name: e.name || owner, g, sd: s, serial: e.serial, duel: e.duel ? { kind: e.duel.kind, an: e.duel.a.name, bn: e.duel.b.name } : null })
     if (e.g && sd) { set(e.g, sd); return }
     env.loadSeason(e.season).then(s => {
       const g = s.games.find(x => x.id === e.id)
@@ -288,9 +303,11 @@ export function usePull(env, sd, owner) {
     }).catch(() => {})
   }
   const close = () => setPulled(null)
-  const view = pulled && <div onClick={ev => ev.stopPropagation()}>{pulled.duel
+  const view = pulled && <div onClick={ev => ev.stopPropagation()}>{pulled.special
+    ? <SpecialModal card={pulled.special} serial={pulled.serial && <Serial k={pulled.serial[0]} n={pulled.serial[1]} inline />} onClose={close} />
+    : pulled.duel
     ? env.renderDuel({ ...pulled.duel, scope: 'day', g: pulled.g, sd: pulled.sd, onClose: close })
-    : env.renderCard({ name: pulled.name, g: pulled.g, sd: pulled.sd, onClose: close })}</div>
+    : env.renderCard({ name: pulled.name, g: pulled.g, sd: pulled.sd, serial: pulled.serial, onClose: close })}</div>
   return { pulled: pulled?.key, pull, view, open: !!pulled }
 }
 
@@ -815,6 +832,8 @@ export const LEAGUE_SETS = [
     desc: 'The 54 highest peak ratings ever: the card from the night each player hit his peak.' },
   { id: 'swings', title: 'Biggest swings', short: 'Swings', color: '#0f6a6a',
     desc: 'The 54 largest one-game Elo gains.' },
+  { id: 'rivalries', title: 'Rivalries', short: 'Rivalries', color: '#4a5562', special: true,
+    desc: 'The 125 greatest head-to-head rivalries, by tier: one GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares. Rivalry cards are random pulls.' },
   { id: 'slayers', title: 'Giant-Slayers', short: 'Giant-Slayers', color: '#7a5a10', duel: 'slayer',
     desc: 'The 54 widest Elo gaps ever closed by a Giant-Slayer of the Day.' },
   { id: 'duels', title: 'Greatest duels', short: 'Duels', color: '#0b5f9e', duel: 'duel',
@@ -832,6 +851,8 @@ const featLine = r => {
 
 export function leagueEntries(env, def, list) {
   return list.map((c, i) => {
+    if (def.special) return fromIndex(env, c, { rank: i + 1, date: `${c.first}-10-01`, name: c.a, label: `${c.rank}. ${shortName(c.a).split(' ').pop()}–${shortName(c.b).split(' ').pop()}`,
+      sub: { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare' }[c.tier], owned: !!env.owned?.has(cardRef(c)) })
     if (def.duel) {
       const side = x => duelSide(env, x.row, env.teamInfo(x.t, x.tn, x.tc))
       return {
@@ -972,16 +993,19 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const starred = new Set(src?.user.starred || [])
   const showIds = src?.user.showcaseIds || []
   const all = useMemo(() => (src?.cards || []).map(x => {
-    const duel = x.card.kind === 'duel', lead = duel ? x.card.a : x.card
-    const fc = MERGE_ABA[lead.t] || lead.t
+    const duel = x.card.kind === 'duel', sp = isSpecial(x.card), lead = duel ? x.card.a : x.card
+    const fc = MERGE_ABA[lead.t] || lead.t || null
     const pts = x.points ?? cardPoints(x.card).points
+    // A Rivalry spans seasons: file it under its first; a Season card under its season's opening
+    const ss = x.card.s || (x.card.first ? `${x.card.first}-${String(x.card.first + 1).slice(2)}` : '1946-47')
+    const date = x.card.date || `${ss.slice(0, 4)}-10-01`
     return fromIndex(env, x.card, {
-      key: `c${x.id}`, cardId: x.id, tier: x.card.tier, gs: duel ? x.card.score || 0 : x.card.row.gs || 0, pts, date: x.card.date, fc, s: x.card.s, decade: decadeOf(x.card.s),
-      label: duel ? `Duel · ${shortName(x.card.a.row.n)}` : shortName(x.card.row.n), sub: `${pts.toLocaleString()} pts`, pinned: starred.has(x.id), shown: showIds.includes(x.id), pulledAt: x.pulled,
+      key: `c${x.id}`, cardId: x.id, tier: sp ? x.card.kind : x.card.tier, gs: duel ? x.card.score || 0 : sp ? 0 : x.card.row.gs || 0, pts, date, fc, s: ss, decade: decadeOf(ss),
+      label: duel ? `Duel · ${shortName(x.card.a.row.n)}` : sp ? specialTitle(x.card) : shortName(x.card.row.n), sub: `${pts.toLocaleString()} pts`, serial: x.serial, pinned: starred.has(x.id), shown: showIds.includes(x.id), pulledAt: x.pulled,
       ...(mine ? { onPin: e => C.star(e.cardId, !e.pinned), onShow: e => C.showcase(e.cardId, !e.shown) } : {}),
     })
   }), [src?.cards, env, [...starred].join(), showIds.join(), mine])
-  const cardsOnly = useMemo(() => all.filter(e => e.tier !== 'duel'), [all])
+  const cardsOnly = useMemo(() => all.filter(e => e.tier !== 'duel' && !e.special), [all])
   const owned = useMemo(() => new Set(cardsOnly.map(e => `${e.s}|${e.id}|${e.name}`)), [cardsOnly])
   // Players you have, by franchise, by team-season and by season
   const have = useMemo(() => {
@@ -990,7 +1014,16 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     cardsOnly.forEach(e => { add(fr, e.fc, e.name); add(ts, `${e.fc}|${e.s}`, e.name); add(ss, e.s, e.name); cards.set(e.fc, (cards.get(e.fc) || 0) + 1) })
     return { fr, ts, ss, cards }
   }, [cardsOnly])
-  const frName = id => check?.franchises[id]?.name || all.find(e => e.fc === id)?.team.name || id
+  // Games owned per player-season with a franchise (key fc|season|player): X of Y on the checklists, and the Season card reveal
+  const gamesOwned = useMemo(() => {
+    const m = new Map()
+    cardsOnly.forEach(e => { const k = `${e.fc}|${e.s}|${e.name}`; if (!m.has(k)) m.set(k, new Set()); m.get(k).add(e.id) })
+    return m
+  }, [cardsOnly])
+  const [reveal, setReveal] = useState(null)
+  const [fives, setFives] = useState(null)
+  useEffect(() => { if ((view === 'team' && mode === 'checklist') || view === 'specials') env.getJSON('/data/explorer/binders/fives.json').then(setFives).catch(() => {}) }, [view, mode])
+  const frName = id => check?.franchises[id]?.name || cardsOnly.find(e => e.fc === id)?.team?.name || id
   const groups = useMemo(() => ({
     team: [...have.fr].map(([id, set]) => ({ id, n: set.size, cards: have.cards.get(id), name: frName(id), total: check?.franchises[id]?.players }))
       .sort((a, b) => b.n - a.n || b.cards - a.cards || a.name.localeCompare(b.name)),
@@ -1002,8 +1035,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     if (season && cur) l = l.filter(e => e.s === season)
     if (sellMode) l = l.map(e => {
       const hrs = 24 - (Date.now() - Date.parse(e.pulledAt)) / 36e5
-      const block = e.tier === 'duel' ? 'Duel of the Day cards can’t be sold.' : e.pinned ? 'Starred cards can’t be sold. Un-star it first.' : hrs > 0 ? `Sellable in ${Math.ceil(hrs)} hour${Math.ceil(hrs) === 1 ? '' : 's'}` : null
-      return { ...e, sellMode: true, sellPrice: Math.max(1, Math.round(e.pts * 0.2)), sellBlock: block, sellShort: e.tier === 'duel' ? 'Keeper' : e.pinned ? 'Starred' : `In ${Math.ceil(hrs)}h`, sellConfirm: confirmId === e.cardId,
+      const block = e.tier === 'duel' || e.special ? 'Special cards can’t be sold.' : e.pinned ? 'Starred cards can’t be sold. Un-star it first.' : hrs > 0 ? `Sellable in ${Math.ceil(hrs)} hour${Math.ceil(hrs) === 1 ? '' : 's'}` : null
+      return { ...e, sellMode: true, sellPrice: Math.max(1, Math.round(e.pts * 0.2)), sellBlock: block, sellShort: e.tier === 'duel' || e.special ? 'Keeper' : e.pinned ? 'Starred' : `In ${Math.ceil(hrs)}h`, sellConfirm: confirmId === e.cardId,
         onSell: async x => {
           if (['legend', 'icon', 'goat'].includes(x.tier) && confirmId !== x.cardId) { setConfirmId(x.cardId); return }
           setConfirmId(null); await C.sell(x.cardId, true)
@@ -1066,7 +1099,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     <div className={styles.boxLab}>Showcase</div>
     <div className={styles.showcase}>
       {[0, 1, 2].map(i => show[i]
-        ? <button key={show[i].key} type="button" className={styles.pocketBtn} onClick={() => P.pull(show[i])} aria-label="Open card"><Fit><MiniCard name={show[i].name} row={show[i].row} game={show[i].game} team={show[i].team} headshot={env.headshot(show[i].name)} /></Fit></button>
+        ? <button key={show[i].key} type="button" className={styles.pocketBtn} onClick={() => P.pull(show[i])} aria-label="Open card"><Fit><AnyFace e={show[i]} env={env} /></Fit></button>
         : mine ? <button key={i} type="button" className={styles.showEmpty} onClick={() => pickView('starred')} title="Choose from your starred cards"><span>+</span><small>{starred.size ? 'Pick from Starred' : 'Star cards first'}</small></button>
           : <div key={i} className={styles.showEmpty} />)}
     </div>
@@ -1076,8 +1109,9 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     <PointsHelp />
   </>
   const nBadges = (src.achievements || []).filter(a => a.earned).length
+  const specials = all.filter(e => e.special || e.duel)
   const views = [['all', 'All'], ['team', 'Franchises'], ['decade', 'Decades'], ['starred', `Starred · ${starred.size}`], ['sets', 'Sets'],
-    ...(mine ? [['predict', 'Predictions']] : []), ['badges', `Achievements · ${nBadges}`]]
+    ['specials', `Specials · ${specials.length}`], ...(mine ? [['predict', 'Predictions']] : []), ['badges', `Achievements · ${nBadges}`]]
   const tools = <Seg value={view} onChange={pickView} options={views} />
   const sortSel = (
     <select className={styles.sortSel} value={order} onChange={e => { setOrder(e.target.value); S.reset() }} aria-label="Sort">
@@ -1105,7 +1139,34 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       {P.view}
     </>}</PredictPages>
   }
-  if (view === 'badges') {
+  if (view === 'specials') {
+    const groups = [
+      ['season', 'Season cards', 'Forged by owning every game of a player’s season with a team. Track them on the franchise checklists.'],
+      ['peak', 'Peaks', 'A player’s career highs after his rookie year: the reigning Peak and every Former Peak. Random pulls.'],
+      ['rival', 'Rivalries', 'The 125 greatest head-to-head rivalries. Random pulls.'],
+      ['five', 'Starting Fives', 'Each team-season’s best single-day five. Random pulls.'],
+      ['duel', 'Duels of the Day', 'Won by getting every matchup right in Predictions.'],
+    ]
+    right = (
+      <div className={styles.right}>
+        <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Specials</b><span>{specials.length} card{specials.length === 1 ? '' : 's'}</span></div>{tools}</div>
+        <div className={styles.achBody}>
+          {groups.map(([k, title, desc]) => {
+            const list = specials.filter(e => (k === 'duel' ? !!e.duel : e.special?.kind === k))
+            const total = k === 'rival' ? league?.sets?.rivalries?.length : k === 'five' && fives ? Object.values(fives).reduce((a, x) => a + Object.keys(x).length, 0) : null
+            return (
+              <section key={k} className={styles.spSection}>
+                <div className={styles.spHead}><h4>{title}<span>{list.length}{total ? ` of ${total.toLocaleString()}` : ''}</span></h4>
+                  {k === 'rival' && onLeague && <button type="button" className={styles.linkBtn} onClick={() => onLeague('rivalries')}>See all 125</button>}</div>
+                <p className={styles.light}>{desc}</p>
+                {list.length > 0 && <div className={styles.spGrid}>{list.map(e => <Pocket key={e.key} e={e} name={e.name} env={env} onPull={P.pull} pulled={P.pulled} />)}</div>}
+              </section>
+            )
+          })}
+        </div>
+      </div>
+    )
+  } else if (view === 'badges') {
     const list = (src.achievements || []).filter(a => mine || a.earned)
     const groups = [...new Set(list.map(a => a.group))]
     right = (
@@ -1138,7 +1199,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
         <div className={styles.sets}>
           {LEAGUE_SETS.filter(d => !d.duel).map(d => {
             const l = league?.sets[d.id] || []
-            const n = l.filter(c => owned.has(`${c.s}|${c.id}|${c.row.n}`)).length
+            const n = l.filter(c => owned.has(cardRef(c))).length
             return (
               <button key={d.id} type="button" className={styles.setRow} style={{ '--c': d.color }} onClick={() => onLeague?.(d.id)}>
                 <i /><span><b>{d.title}</b><small>{d.desc}</small></span>
@@ -1180,9 +1241,19 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
                 </button>
                 {isOpen && <div className={styles.rosterGrid}>
                   {!roster ? <span className={styles.light}>Loading roster…</span> : (roster[x.s] || []).map(([n, g]) => {
-                    const got = mineSet?.has(n)
-                    return <span key={n} className={got ? styles.got : ''} title={`${g} game${g === 1 ? '' : 's'} with ${x.name}`}><i>{got ? '✓' : ''}</i>{baseName(n)}<small>{g}g</small></span>
+                    const ids = gamesOwned.get(`${cur.id}|${x.s}|${n}`), k = ids?.size || 0, done = k >= g
+                    return <button key={n} type="button" className={`${styles.rosterChip} ${k ? styles.got : ''} ${done ? styles.gotAll : ''}`} style={{ '--p': `${Math.min(1, k / g) * 360}deg` }}
+                      title={done ? `Season card complete: all ${g} games` : `${k} of ${g} games with ${x.name} · tap to see his Season card`}
+                      onClick={() => setReveal({ card: { kind: 'season', tier: 'season', s: x.s, t: cur.id, tn: x.name, tc: env.teamInfo(cur.id)?.color, n, gp: g, owned: done ? undefined : (ids || new Set()) }, done, k, g })}>
+                      <i>{done ? '★' : k ? '✓' : ''}</i><span>{baseName(n)}</span><small>{k}/{g}</small></button>
                   })}
+                  {(() => {
+                    const f = fives?.[cur.id]?.[x.s]
+                    if (!f) return null
+                    const got = all.some(e => e.special?.kind === 'five' && e.special.fc === cur.id && e.special.s === x.s)
+                    return <div className={`${styles.fiveRow} ${got ? styles.fiveGot : ''}`}><b>Starting Five</b><span>{f[5].map(m => baseName(m).split(' ').slice(-1)[0]).join(' · ')}</span>
+                      <small>Five Elo {n0(f[0])}</small><em>{got ? '✓ Pulled' : 'Not yet'}</em></div>
+                  })()}
                   {x.n > 0 && <button type="button" className={styles.linkBtn} onClick={() => { setSeason(x.s); setMode('cards'); S.reset() }}>See your {x.s} cards</button>}
                 </div>}
               </div>
@@ -1202,9 +1273,11 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
         <div className={styles.emptySheet}><b>Nothing starred yet</b><span>{mine ? 'Tap ☆ under any card to put it in your Starred binder. Star as many as you like, then tap Showcase on up to three to feature them.' : 'No starred cards in this binder.'}</span></div></div>
   }
   return <>
+    {reveal && <SpecialModal card={reveal.card} onClose={() => setReveal(null)}
+      locked={reveal.done ? null : `${reveal.k} of ${reveal.g} games · collect every one to forge his Season card`} />}
     <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right}
       summary={<span><b>{n0(st.score)} pts</b>{st.rank ? ` · No. ${st.rank}` : ''} · {all.length} cards</span>}
-      onKey={e => { if (P.open) return true; if (view === 'sets' || view === 'badges' || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
+      onKey={e => { if (P.open) return true; if (view === 'sets' || view === 'badges' || view === 'specials' || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}
   </>
 }

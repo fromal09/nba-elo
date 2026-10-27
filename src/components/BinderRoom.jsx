@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import styles from './BinderRoom.module.css'
 import { MiniCard, DuelCard } from './PlayerCard'
-import { LEAGUE_SETS, leagueEntries } from './Binders'
+import { LEAGUE_SETS, leagueEntries, AnyFace, cardRef } from './Binders'
 import { BinderHost, primeBinders, binderJSON, binderHeadshots, binderTeamInfo, binderLogo } from './SeasonExplorer'
 import PlayerSearch from './PlayerSearch'
 import { norm } from './predict'
@@ -28,12 +28,12 @@ function Cover({ def, list, env, onOpen, owned }) {
         <small>League binder</small>
         <b>{def.title}</b>
         <span>{def.desc}</span>
-        <em>{list ? `${list.length} cards` : 'Loading…'}{list && owned && !def.duel ? ` · you have ${list.filter(c => owned.has(`${c.s}|${c.id}|${c.row.n}`)).length}` : ''}</em>
+        <em>{list ? `${list.length} cards` : 'Loading…'}{list && owned && !def.duel ? ` · you have ${list.filter(c => owned.has(cardRef(c))).length}` : ''}</em>
       </span>
       <span className={styles.fan} aria-hidden="true">
         {peek.map((e, i) => (
           <span key={e.key} className={styles.fanCard} style={{ '--i': i }}>
-            <Thumb w={92}>{e.duel ? <DuelCard {...e.duel} /> : <MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} />}</Thumb>
+            <Thumb w={92}><AnyFace e={e} env={env} /></Thumb>
           </span>
         ))}
       </span>

@@ -44,8 +44,23 @@ const rankTier = r => { const k = r?.lrp ?? r?.lr; return k == null ? 'common' :
 export const DUEL_MULT = 1.25
 
 /** A card's points and how they add up: { points, base, grade, bonuses: [[label, pct]] }. card: the pack/binder card shape.
- *  A Duel of the Day card (kind 'duel') is worth both players' cards together, plus 25%. */
+ *  Special cards:
+ *    duel    both players' cards together, plus 25%
+ *    peak    the game's card, plus 50%
+ *    rival   10 × 3 × its tier's base (GOAT 1,800 · Icon 750 · Legend 360 · Standout 180 · Rare 90)
+ *    five    10 × 6 × (1 + (five Elo − 2,200) / 500), between ×1 and ×2.5, plus 40% for a title team
+ *    season  5 per game in the season */
 export function cardPoints(card) {
+  if (card?.kind === 'peak') {
+    const p = cardPoints({ ...card, kind: undefined, tier: card.tier || rankTier(card.row) })
+    return { ...p, points: Math.round(p.points * 1.5), bonuses: [...p.bonuses, ['Peak', 0.5]] }
+  }
+  if (card?.kind === 'rival') return { points: 30 * (TIER_BASE[card.tier] ?? 3), base: TIER_BASE[card.tier] ?? 3, grade: 0, bonuses: [['Rivalry', 2]] }
+  if (card?.kind === 'five') {
+    const k = Math.max(1, Math.min(2.5, 1 + ((card.elo || 2200) - 2200) / 500))
+    return { points: Math.round(60 * k * (card.champ ? 1.4 : 1)), base: 6, grade: 0, bonuses: [['Starting Five', k - 1], ...(card.champ ? [['Title team', 0.4]] : [])] }
+  }
+  if (card?.kind === 'season') return { points: 5 * (card.gp || 0), base: 0, grade: 0, bonuses: [['Season card', 0]] }
   if (card?.kind === 'duel') {
     const a = cardPoints({ ...card.a, tier: card.a.tier || rankTier(card.a.row) }).points, b = cardPoints({ ...card.b, tier: card.b.tier || rankTier(card.b.row) }).points
     return { points: Math.round((a + b) * DUEL_MULT), base: 0, grade: 0, bonuses: [['Duel of the Day', DUEL_MULT - 1]], duel: [a, b] }

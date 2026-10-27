@@ -195,3 +195,9 @@
 .coinToast span { color: rgba(255,255,255,.85); }
 @keyframes coinIn { from { transform: translateY(14px) scale(.9); opacity: 0 } }
 @media (max-width: 760px) { .coinToasts { left: 12px; right: 12px; bottom: 12px; align-items: stretch; } .coinChip { padding: 0 8px 0 5px; } }
+
+/* Special cards in a pack: an icy foil glow on the card back and the chip */
+.choice:not(.isFlipped)[data-tier=special] .back { animation: pulse 1s ease-in-out infinite, rainbow 2s linear infinite; }
+.isFlipped[data-tier=special] .frontSide { animation: flash .9s ease-out .35s; }
+.chip[data-tier=special] { background: linear-gradient(135deg, #5d8fb8, #eaf6ff 50%, #9cc9ec); color: #06121f; }
+b[data-tier=special] { color: #4c7aa3; }

@@ -31,9 +31,9 @@
 //   POST claimpred   { day, ref, kind } keep that card
 import { db, ensureSchema } from './_lib/db.js'
 import { USERNAME, hashPassword, checkPassword, startSession, endSession, currentUser } from './_lib/auth.js'
-import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS } from './_lib/packs.js'
+import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS, SPECIAL_KINDS } from './_lib/packs.js'
 import { cardPoints } from './_lib/points.js'
-import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards } from './_lib/coins.js'
+import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons } from './_lib/coins.js'
 import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
 import { settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
 import { achievements } from './_lib/achievements.js'
@@ -61,6 +61,13 @@ const streakNow = (u, today) => { const last = iso(u.last_claim); return last ==
 const packView = p => ({ id: p.id, kind: p.kind, team: p.team, day: iso(p.day), pity: p.pity, status: p.status, picks: p.picks, slots: p.slots })
 
 // A binder's score and rank among every binder with a card (ties share a rank)
+// Serial numbers: each copy's order among everyone who owns that card (first kept = #1), and how many own it
+async function serials(sql, userId) {
+  const rows = await sql`select id, k::int, n::int from (select id, user_id, row_number() over (partition by ref order by pulled_at, id) as k, count(*) over (partition by ref) as n
+      from cards where ref in (select ref from cards where user_id = ${userId})) x where user_id = ${userId}`
+  return new Map(rows.map(r => [Number(r.id), [r.k, r.n]]))
+}
+
 async function standing(sql, userId) {
   const [r] = await sql`with s as (select user_id, sum(points)::int as score, count(*)::int as cards, count(distinct card->'row'->>'n')::int as players
       from cards group by user_id)
@@ -81,7 +88,7 @@ async function me(u) {
   const next = claimed ? streak : streak + 1
   const tierRows = await sql`select tier, count(*)::int as n from cards where user_id = ${u.id} group by tier`
   const best = await sql`select id, card from cards where user_id = ${u.id}
-      and tier <> 'duel' order by array_position(${TIER_ORDER}::text[], tier) desc, (card->'row'->>'gs')::float desc nulls last limit 1`
+      and tier = any(${TIER_ORDER}) order by array_position(${TIER_ORDER}::text[], tier) desc, (card->'row'->>'gs')::float desc nulls last limit 1`
   const show = u.showcase?.length ? await sql`select id, card from cards where user_id = ${u.id} and id = any(${u.showcase.map(String)}::bigint[])` : []
   const open = await sql`select id, kind, team, array_length(picks, 1) as picked, jsonb_array_length(slots) as total from packs
     where user_id = ${u.id} and status = 'open' order by id`
@@ -219,7 +226,7 @@ async function pick(u, b, origin) {
     const c = p.slots[slot]?.cards[choice]
     if (!c) throw fail(400, 'Pick one of the three cards.')
     const pts = cardPoints(c).points
-    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${u.id}, ${p.id}, ${c.tier}, ${refOf(c)}, ${t.json(c)}, ${pts}, ${p.kind})
+    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${u.id}, ${p.id}, ${SPECIAL_KINDS.has(c.kind) ? c.kind : c.tier}, ${refOf(c)}, ${t.json(c)}, ${pts}, ${p.kind})
       on conflict (user_id, ref) do nothing returning id`
     const picks = [...p.picks, choice]
     const done = picks.length === p.slots.length
@@ -235,7 +242,7 @@ async function pick(u, b, origin) {
     if (done) push(await grant(t, u.id, today, 'pack', RATES.pack, { ref: String(p.id) }))
     push(await tryChallenge(t, u.id, today, 'card', c, pts))
     if (done) push(await tryChallenge(t, u.id, today, 'pack'))
-    if (row) push(await cardRewards(t, u.id, today, origin, c))
+    if (row && !c.kind) push(await cardRewards(t, u.id, today, origin, c))
     return { pack: np, cardId: row ? Number(row.id) : null, awards }
   })
   const [fresh] = await sql`select * from users where id = ${u.id}`
@@ -302,7 +309,7 @@ async function sell(u, origin, b) {
   const sql = db(), today = etDay(), id = Number(b.id)
   const [c] = await sql`select * from cards where id = ${id} and user_id = ${u.id}`
   if (!c) throw fail(404, 'That card isn’t in your binder.')
-  if (c.tier === 'duel') throw fail(409, 'Duel of the Day cards can’t be sold.')
+  if (SPECIAL_KINDS.has(c.tier)) throw fail(409, 'Special cards (Duels, Peaks, Rivalries, Starting Fives, Season cards) can’t be sold.')
   if (u.starred.map(Number).includes(id)) throw fail(409, 'Un-star the card first. Starred and showcase cards can’t be sold.')
   const hours = (Date.now() - new Date(c.pulled_at).getTime()) / 36e5
   if (hours < RATES.sellCooldownHours) throw fail(409, `You can sell this card in ${Math.ceil(RATES.sellCooldownHours - hours)} hour${Math.ceil(RATES.sellCooldownHours - hours) === 1 ? '' : 's'}. New cards wait a day.`)
@@ -395,8 +402,9 @@ export default async function handler(req, res) {
       const [o] = await sql`select * from users where username_key = ${String(q.user || '').toLowerCase()}`
       if (!o) throw fail(404, 'No binder by that name.')
       const rows = await sql`select id, card, points, pulled_at from cards where user_id = ${o.id} order by id desc`
+      const ser = await serials(sql, o.id)
       return send(200, { user: { username: o.username, favoriteTeam: o.favorite_team, joined: iso(o.created_at), showcaseIds: o.showcase.map(Number), starred: o.starred.map(Number) },
-        standing: await standing(sql, o.id), achievements: (await achievements(sql, o.id)).filter(a => a.earned), cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at })) })
+        standing: await standing(sql, o.id), achievements: (await achievements(sql, o.id)).filter(a => a.earned), cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at, serial: ser.get(Number(r.id)) })) })
     }
 
     if (action === 'standings') return send(200, { standings: await standings(sql, origin, q.scope === 'season' ? 'season' : 'week', etDay(), await currentUser(req)) })
@@ -448,9 +456,12 @@ export default async function handler(req, res) {
       return send(200, { pack: packView(p) })
     }
     if (action === 'collection') {
+      // Season cards: forge any player-season you've completed (cards kept before Season cards existed count too)
+      const forged = await sql.begin(t => forgeSeasons(t, u.id, etDay(), origin)).catch(e => { console.error('forge', e); return [] })
       const rows = await sql`select c.id, c.card, c.points, c.pulled_at, coalesce(p.kind, c.source) as kind from cards c left join packs p on p.id = c.pack_id
         where c.user_id = ${u.id} order by c.id desc`
-      return send(200, { cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at, pack: r.kind })) })
+      const ser = await serials(sql, u.id)
+      return send(200, { awards: forged, cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at, pack: r.kind, serial: ser.get(Number(r.id)) })) })
     }
     if (post && action === 'star') {
       const b = await readBody(req), id = Number(b.id)

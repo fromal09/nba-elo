@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import styles from './Collector.module.css'
 import { MiniCard, DuelCard } from './PlayerCard'
+import { SpecialFace, isSpecial, specialTitle, specialLabel, specialLine } from './SpecialCards'
 import { fromIndex } from './Binders'
 import { binderTeamInfo, binderHeadshots, binderLogo } from './SeasonExplorer'
 import { norm } from './predict'
@@ -17,7 +18,8 @@ const noop = () => {}
 export const useCollector = () => useContext(Ctx) || { me: null, owned: new Set(), cards: [], openAuth: noop, claim: noop, openTeam: noop, resume: noop }
 
 export const TIER_NAME = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' }
-export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : `${c.s}|${c.id}|${c.row.n}`)
+export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}`
+  : c.kind === 'five' ? `five|${c.s}|${c.t}` : c.kind === 'season' ? `season|${c.s}|${c.t}|${c.n}` : `${c.s}|${c.id}|${c.row.n}`)
 export const CURRENT_TEAMS = ['ATL', 'BOS', 'BKN', 'CHO', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN',
   'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
 
@@ -45,9 +47,10 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
   const celebrate = awards => {
     const got = (awards || []).filter(a => a.amount > 0); if (got.length) setCoinToasts(c => [...c, ...got].slice(-5))
     const card = (awards || []).find(a => a.kind === 'predreward'); if (card) setToast(`${card.label}. Choose it in Predictions.`)
+    const forged = (awards || []).filter(a => a.kind === 'season'); if (forged.length) setToast(forged.map(a => a.label).join(' · ') + '. It’s in Specials in your binder.')
   }
 
-  const loadCards = useCallback(() => api('collection').then(d => setCards(d.cards)).catch(() => {}), [])
+  const loadCards = useCallback(() => api('collection').then(d => { setCards(d.cards); celebrate(d.awards) }).catch(() => {}), [])
   const refresh = useCallback(() => api('me').then(d => setMe(m => (d.user ? { ...d, lastNight: d.lastNight ?? m?.lastNight } : null))).catch(() => {}), [])
   useEffect(() => {
     api('me').then(d => { setMe(d.user ? d : null); if (d.user) { loadCards(); celebrate(d.awards) } }).catch(() => { setMe(null); setDown(true) })
@@ -186,7 +189,7 @@ export function CardFace({ card, shots, w = 280 }) {
   return (
     <span className={styles.face} style={{ width: w, height: 476 * k }}>
       <span style={{ transform: `scale(${k})` }}>
-        {e.duel ? <DuelCard {...e.duel} /> : <MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={shots?.[norm(e.name)]?.headshot} />}
+        {isSpecial(card) ? <SpecialFace card={card} /> : e.duel ? <DuelCard {...e.duel} /> : <MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={shots?.[norm(e.name)]?.headshot} />}
       </span>
     </span>
   )
@@ -206,8 +209,10 @@ const slotLabel = (pack, slot, lastNight) => {
   return s.odds === 'legendPlus' ? 'From the vault · Legend or better' : s.odds === 'rarePlus' ? 'From the vault · Rare or better' : 'From the vault · any era'
 }
 // Why a card is worth what it is: "Legend ×12 · grade 8 · Player of the Game +25%"
-const pointsWhy = c => { const p = cardPoints(c); return [`${TIER_NAME[c.tier].replace('★ ', '')} ×${p.base}`, `grade ${p.grade}`, ...p.bonuses.map(([l, v]) => `${l} +${Math.round(v * 100)}%`)].join(' · ') }
-const line = c => [c.row.pts != null && `${c.row.pts} pts`, c.row.trb && `${c.row.trb} reb`, c.row.ast && `${c.row.ast} ast`].filter(Boolean).join(' · ')
+const pointsWhy = c => { const p = cardPoints(c); if (isSpecial(c) || c.kind === 'duel') return p.bonuses.map(([l]) => l).join(' · '); return [`${TIER_NAME[c.tier].replace('★ ', '')} ×${p.base}`, `grade ${p.grade}`, ...p.bonuses.map(([l, v]) => `${l} +${Math.round(v * 100)}%`)].join(' · ') }
+const tierName = c => (isSpecial(c) || c.kind === 'duel' ? specialLabel(c) : TIER_NAME[c.tier])
+const cardName = c => (isSpecial(c) || c.kind === 'duel' ? specialTitle(c) : c.row.n)
+const line = c => (isSpecial(c) ? specialLine(c) : null) || [c.row?.pts != null && `${c.row.pts} pts`, c.row.trb && `${c.row.trb} reb`, c.row.ast && `${c.row.ast} ast`].filter(Boolean).join(' · ')
 
 function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
   const shots = useShots()
@@ -281,19 +286,19 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
           <div className={styles.offer} key={slot}>
             {offer.cards.map((c, i) => (
               <button key={refOf(c)} type="button" className={`${styles.choice} ${i < shown ? styles.isFlipped : ''} ${sel === i ? styles.chosen : ''} ${sel != null && sel !== i ? styles.passed : ''}`}
-                data-tier={c.tier} style={{ width: W, height: W * 1.4, '--d': `${i * 80}ms` }} disabled={i >= shown || busy}
-                onClick={() => setSel(i)} onDoubleClick={() => { setSel(i); }} aria-pressed={sel === i} aria-label={`${c.row.n}, ${TIER_NAME[c.tier]}`}>
+                data-tier={isSpecial(c) ? 'special' : c.tier} style={{ width: W, height: W * 1.4, '--d': `${i * 80}ms` }} disabled={i >= shown || busy}
+                onClick={() => setSel(i)} onDoubleClick={() => { setSel(i); }} aria-pressed={sel === i} aria-label={`${cardName(c)}, ${tierName(c)}`}>
                 <span className={styles.flipInner}>
                   <span className={styles.back}><span className={styles.backMark} style={{ width: W * 0.4, height: W * 0.4, fontSize: W * 0.16 }}>FPR</span></span>
                   <span className={styles.frontSide}><CardFace card={c} shots={shots} w={W} /></span>
                 </span>
-                {i < shown && <span className={styles.chip} data-tier={c.tier}>{TIER_NAME[c.tier]} · {cardPoints(c).points.toLocaleString()} pts</span>}
+                {i < shown && <span className={styles.chip} data-tier={isSpecial(c) ? 'special' : c.tier}>{tierName(c)} · {cardPoints(c).points.toLocaleString()} pts</span>}
               </button>
             ))}
           </div>
           <div className={styles.pickBar}>
             {chosen ? <>
-              <div className={styles.pickWho}><b>{chosen.row.n} · {cardPoints(chosen).points.toLocaleString()} pts</b><span>{fmtDay(chosen.date)} · {chosen.tn} {chosen.home === false ? '@' : 'vs'} {chosen.on} · {line(chosen)}</span>
+              <div className={styles.pickWho}><b>{cardName(chosen)} · {cardPoints(chosen).points.toLocaleString()} pts</b><span>{isSpecial(chosen) ? line(chosen) : `${fmtDay(chosen.date)} · ${chosen.tn} ${chosen.home === false ? '@' : 'vs'} ${chosen.on} · ${line(chosen)}`}</span>
                 <small>{pointsWhy(chosen)}</small></div>
               <button type="button" className={styles.keepBtn} onClick={keep} disabled={busy}>{busy ? 'Keeping…' : 'Keep this card'}</button>
             </> : <div className={styles.hintLine}>{shown < 3 ? 'Turning them over…' : 'Choose one. The other two go back.'}</div>}
@@ -312,7 +317,7 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
             {kept.map(c => (
               <div key={refOf(c)} className={styles.spreadCard}>
                 <CardFace card={c} shots={shots} w={vw < 520 ? 104 : 140} />
-                <span><b data-tier={c.tier}>{TIER_NAME[c.tier]}</b> · {cardPoints(c).points.toLocaleString()} pts</span>
+                <span><b data-tier={isSpecial(c) ? 'special' : c.tier}>{tierName(c)}</b> · {cardPoints(c).points.toLocaleString()} pts</span>
               </div>
             ))}
           </div>

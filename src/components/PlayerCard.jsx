@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import styles from './PlayerCard.module.css'
+import { Serial } from './SpecialCards'
 import './eraFonts.css'
 
 // Rarity by where the player stood entering this game: his pre-game Elo rank among every
@@ -618,7 +619,7 @@ function TeamLogo({ src, abbr, color }) {
  * props: name, row (this game's box-score row), game, sd (season data), team (info: name, color, code),
  *        logo (url|null), headshot (url|null), career (elo.json player|null), peakRank, onProfile, onClose
  */
-export default function PlayerCard({ name, row, game, sd, team, logo, headshot, career, peakRank, bestRank, onProfile, onClose, onBinder, onCareer }) {
+export default function PlayerCard({ name, row, game, sd, team, logo, headshot, career, peakRank, bestRank, onProfile, onClose, onBinder, onCareer, serial }) {
   const [flipped, setFlipped] = useState(false)
   const ref = useRef(null)
   const backNameRef = useRef(null)
@@ -676,6 +677,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
             {/* ── Front ── */}
             <div className={`${styles.face} ${styles.front}`}>
               <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />
+              {serial && <Serial k={serial[0]} n={serial[1]} flip />}
               <FlipBtn />
             </div>
 

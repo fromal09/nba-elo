@@ -88,12 +88,14 @@ export async function cardRewards(t, userId, day, origin, card) {
       if (a) out.push(a)
     }
   }
+  // Season card: every game of his season with this franchise
+  out.push(...(await forgeSeasons(t, userId, day, origin, { s: card.s, fc, n: card.row.n })))
   // League sets: 100 Coins at every 10% of a set
   if (!leagueCache || Date.now() - leagueCache.at > 10 * 60e3) leagueCache = { at: Date.now(), data: await dataJSON(origin, 'binders/league.json') }
   const sets = leagueCache.data?.sets || {}
   const ref = `${card.s}|${card.id}|${card.row.n}`
   for (const [id, list] of Object.entries(sets)) {
-    if (id === 'slayers' || id === 'duels' || !list.some(c => `${c.s}|${c.id}|${c.row.n}` === ref)) continue
+    if (id === 'slayers' || id === 'duels' || id === 'rivalries' || !list.some(c => `${c.s}|${c.id}|${c.row.n}` === ref)) continue
     const refs = list.map(c => `${c.s}|${c.id}|${c.row.n}`)
     const [x] = await t`select count(*)::int as n from cards where user_id = ${userId} and ref = any(${refs})`
     const steps = Math.floor((x.n / refs.length) * 10)
@@ -101,6 +103,37 @@ export async function cardRewards(t, userId, day, origin, card) {
       const a = await grant(t, userId, day, 'set', RATES.setStep, { ref: `${id}|${k}`, label: `${k * 10}% of a league set` })
       if (a) out.push(a)
     }
+  }
+  return out
+}
+
+/**
+ * Season cards: when a collector owns a card of every game a player played for a franchise in a season, the Season card
+ * is forged into the binder (kind 'season'). only = { s, fc, n } checks one player-season; without it, every one the
+ * collector has cards from (for collectors who completed one before Season cards existed).
+ */
+export async function forgeSeasons(t, userId, day, origin, only = null) {
+  const rows = only
+    ? await t`select card->>'s' as s, card->>'t' as t, card->'row'->>'n' as n, count(*)::int as k, max(card->>'tn') as tn, max(card->>'tc') as tc from cards
+        where user_id = ${userId} and card->>'s' = ${only.s} and card->'row'->>'n' = ${only.n} and card->>'kind' is null group by 1, 2, 3`
+    : await t`select card->>'s' as s, card->>'t' as t, card->'row'->>'n' as n, count(*)::int as k, max(card->>'tn') as tn, max(card->>'tc') as tc from cards
+        where user_id = ${userId} and card->>'kind' is null group by 1, 2, 3 having count(*) >= 2`
+  const by = new Map()
+  for (const r of rows) {
+    const fc = MERGE[r.t] || r.t, key = `${r.s}|${fc}|${r.n}`
+    const x = by.get(key) || { s: r.s, fc, n: r.n, k: 0, tn: r.tn, tc: r.tc }
+    x.k += r.k; by.set(key, x)
+  }
+  const out = []
+  for (const x of by.values()) {
+    if (!rosterCache.has(x.fc)) rosterCache.set(x.fc, dataJSON(origin, `binders/roster/${x.fc.replace('@', '_')}.json`))
+    const games = (await rosterCache.get(x.fc))?.[x.s]?.find(([n]) => n === x.n)?.[1]
+    if (!games || x.k < games) continue
+    const card = { kind: 'season', tier: 'season', s: x.s, t: x.fc, tn: x.tn, tc: x.tc, n: x.n, gp: games }
+    const ref = `season|${x.s}|${x.fc}|${x.n}`
+    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, 'season', ${ref}, ${t.json(card)}, ${5 * games}, 'forged')
+      on conflict (user_id, ref) do nothing returning id`
+    if (row) out.push({ kind: 'season', amount: 0, label: `Season card forged: ${x.n}, ${x.s}` })
   }
   return out
 }

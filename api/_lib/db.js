@@ -76,6 +76,7 @@ export function ensureSchema() {
       await t`alter table cards alter column pack_id drop not null`
       await t`alter table cards add column if not exists source text`
       await t`create index if not exists cards_user on cards (user_id, id desc)`
+      await t`create index if not exists cards_ref on cards (ref, pulled_at, id)`
       // Coins: every grant and charge; ref makes a grant once-only (nulls never conflict)
       await t`create table if not exists coin_ledger (
         id bigserial primary key,

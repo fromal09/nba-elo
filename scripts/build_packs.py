@@ -175,7 +175,7 @@ def main():
         written.add(name)
     # Shards from an older cut that this build didn't write
     for old in list(OUT.glob("*/*.json")) + list(OUT.glob("team/*/*.json")):
-        if old.relative_to(OUT).as_posix() not in written:
+        if old.relative_to(OUT).as_posix() not in written and not old.relative_to(OUT).as_posix().startswith("special/"):
             old.unlink()
     check = {"franchises": {}, "seasons": {s_: len(v) for s_, v in season_players.items()}}
     (EXP / "binders" / "roster").mkdir(parents=True, exist_ok=True)

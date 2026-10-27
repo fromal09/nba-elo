@@ -309,9 +309,9 @@
 .checkDone { box-shadow: 0 0 0 2px #e7c160; }
 .checkDone .checkHead { --c: #b8871e; }
 .rosterGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; padding: 2px 12px 12px; }
-.rosterGrid > span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8a95a2; min-width: 0; white-space: nowrap; overflow: hidden; }
-.rosterGrid > span i { width: 15px; height: 15px; flex: none; border-radius: 4px; border: 1.5px solid #cfc8b8; font-style: normal; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-.rosterGrid > span small { margin-left: auto; font-size: 10px; color: #b0b7c0; }
+.rosterGrid > span, .rosterChip { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8a95a2; min-width: 0; white-space: nowrap; overflow: hidden; }
+.rosterGrid > span i, .rosterChip i { width: 15px; height: 15px; flex: none; border-radius: 4px; border: 1.5px solid #cfc8b8; font-style: normal; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.rosterGrid > span small, .rosterChip small { margin-left: auto; font-size: 10px; color: #b0b7c0; }
 .rosterGrid .got { color: #1d2633; font-weight: 700; }
 .rosterGrid .got i { background: #1a7a4a; border-color: #1a7a4a; color: #fff; }
 .rosterGrid .linkBtn { grid-column: 1 / -1; justify-self: start; margin-top: 4px; }
@@ -353,3 +353,29 @@
 .ach .setBar { --c: var(--tc); margin-top: 3px; }
 .achOn { border-color: #e7c160; background: linear-gradient(135deg, #fff8e4, #fff 55%); }
 .achOn > i { background: linear-gradient(135deg, #b8871e, #fff1c0 50%, #b8871e); color: #1a1000; }
+
+/* Checklist chips: games owned of games played, a ring of progress; tap for the Season card */
+.rosterChip { border: 0; background: none; font: inherit; text-align: left; cursor: pointer; padding: 3px 4px; border-radius: 6px; }
+.rosterChip:hover { background: rgba(23,54,87,.06); }
+.rosterChip > span { overflow: hidden; text-overflow: ellipsis; }
+.rosterChip i { background: conic-gradient(var(--tc, #173657) var(--p), transparent 0); }
+.rosterChip.got i { background: conic-gradient(#1a7a4a var(--p), #d7efe0 0); border-color: #1a7a4a; color: #fff; }
+.rosterChip.gotAll i { background: linear-gradient(135deg, #b8871e, #fff1c0 50%, #b8871e); border-color: #b8871e; color: #1a1000; }
+.rosterChip small { font-variant-numeric: tabular-nums; }
+.rosterChip.got small { color: #1a7a4a; font-weight: 700; }
+.fiveRow { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin-top: 6px; padding: 7px 10px; border-radius: 8px; background: #fff; border: 1px solid #e3ddcc; font-size: 12px; }
+.fiveRow b { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #6a7684; white-space: nowrap; }
+.fiveRow span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #3b4652; }
+.fiveRow small { color: #6b7783; white-space: nowrap; }
+.fiveRow em { font-style: normal; font-weight: 700; color: #a0a9b4; white-space: nowrap; }
+.fiveGot { border-color: #c99a2e; background: linear-gradient(90deg, #fff8e4, #fff); }
+.fiveGot em { color: #8a6414; }
+
+/* Specials */
+.spSection { display: flex; flex-direction: column; gap: 6px; }
+.spHead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.spHead h4 { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #3b4652; display: flex; gap: 8px; align-items: baseline; }
+.spHead h4 span { font-weight: 600; letter-spacing: 0; text-transform: none; color: #8a95a2; }
+.spHead .linkBtn { height: 28px; font-size: 12px; padding: 0 12px; }
+.spGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 10px 12px; }
+.spGrid > .pocket { aspect-ratio: 5 / 7.7; }

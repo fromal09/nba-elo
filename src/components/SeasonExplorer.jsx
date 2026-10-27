@@ -2606,7 +2606,7 @@ function cardGameInfo(g, t, sd, p) {
   }
 }
 
-function SeasonCard({ name, g, sd, shots, onProfile, onClose, onBinder, onCareer, info, team }) {
+function SeasonCard({ name, g, sd, shots, onProfile, onClose, onBinder, onCareer, info, team, serial }) {
   const row = g.players.find(p => p.n === name)
   if (!row) return null
   return (
@@ -2614,7 +2614,7 @@ function SeasonCard({ name, g, sd, shots, onProfile, onClose, onBinder, onCareer
       team={team || { name: tName(row.t), color: tColor(row.t), abbr: tCode(row.t), logo: logoUrl(row.t) }}
       logo={logoUrl(row.t)} headshot={shots?.[norm(name)]?.headshot}
       career={CAREER.byName[name] || null} peakRank={CAREER.rank[name]} bestRank={CAREER.best[name]}
-      onProfile={onProfile} onClose={onClose} onBinder={onBinder} onCareer={onCareer} />
+      onProfile={onProfile} onClose={onClose} onBinder={onBinder} onCareer={onCareer} serial={serial} />
   )
 }
 
@@ -2679,6 +2679,63 @@ export function primeBinders(players, index, best) {
 const currentLogo = code => (ESPN_LOGO[code] ? `https://a.espncdn.com/i/teamlogos/nba/500/${ESPN_LOGO[code]}.png` : null)
 export { getJSON as binderJSON, getHeadshots as binderHeadshots, teamInfo as binderTeamInfo, currentLogo as binderLogo }
 
+// ── Special cards: what they need from the seasons and careers ──
+const MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+// A player's season with one franchise, for his Season card: every game as a tile, months, best games, the playoff run
+function seasonSummary(sd, name, fc) {
+  const fr = t => MERGE_FRANCHISE[t] || t
+  const gp = [...sd.games].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+    .map(g => [g, g.players.find(p => p.n === name && fr(p.t) === fc)]).filter(x => x[1])
+  if (!gp.length) return null
+  const t = gp[gp.length - 1][1].t, tm = sd.teams[t] || {}
+  const won = (g, p) => g.pts[g.teams.indexOf(p.t)] > g.pts[1 - g.teams.indexOf(p.t)]
+  const opp = (g, p) => g.teams[1 - g.teams.indexOf(p.t)]
+  const reg = gp.filter(([g]) => !g.post), po = gp.filter(([g]) => g.post)
+  const av = (xs, k) => (xs.length ? Math.round((xs.reduce((s, [, p]) => s + (p[k] || 0), 0) / xs.length) * 10) / 10 : null)
+  const series = []
+  for (const [g, p] of po) {
+    const o = opp(g, p), b = postBand(sd, g, p.t)
+    if (!series.length || series[series.length - 1].o !== o) series.push({ o, on: sd.teams[o]?.name || o, round: b.label, w: 0, l: 0 })
+    series[series.length - 1][won(g, p) ? 'w' : 'l']++
+  }
+  const lastPo = po[po.length - 1]
+  const champ = !!lastPo && postBand(sd, lastPo[0], lastPo[1].t).champ && won(...lastPo)
+  const months = [], byM = {}
+  for (const [g, p] of reg) { const m = MON3[+g.date.slice(5, 7) - 1]; if (!byM[m]) { byM[m] = []; months.push(m) } byM[m].push([g, p]) }
+  const top = [...gp].sort((a, b) => (b[1].gs || 0) - (a[1].gs || 0)).slice(0, 3)
+  const path = [gp[0][1].pre, ...gp.map(([, p]) => p.post)]
+  const r = x => Math.round(x)
+  const tl = top[0]
+  return {
+    name, s: sd.season, t: fc, tn: tm.name || fc, tc: tm.color, w: tm.w, l: tm.l, gp: gp.length, reg: reg.length,
+    pts: av(reg, 'pts'), trb: av(reg, 'trb'), ast: av(reg, 'ast'), gs: av(reg, 'gs'),
+    start: r(path[0]), end: r(path[path.length - 1]), peak: r(Math.max(...path)), rank: gp[gp.length - 1][1].lrp, path: path.map(r),
+    tiles: gp.map(([g, p]) => ({ id: g.id, d: g.date, o: opp(g, p), w: won(g, p), gs: Math.round((p.gs || 0) * 10) / 10, post: !!g.post })),
+    best: { date: tl[0].date, o: opp(...tl), home: tl[0].home == null ? null : tl[0].home === tl[1].t, row: { pts: tl[1].pts, gs: tl[1].gs } },
+    top: top.map(([g, p]) => ({ date: g.date, o: opp(g, p), home: g.home == null ? null : g.home === p.t, won: won(g, p), pts: p.pts, trb: p.trb, ast: p.ast, gs: p.gs, post: !!g.post })),
+    months: months.map(m => ({ m, gp: byM[m].length, pts: av(byM[m], 'pts'), gs: av(byM[m], 'gs') })),
+    po: po.length ? { w: series.reduce((a, x) => a + x.w, 0), l: series.reduce((a, x) => a + x.l, 0), series, champ, pts: av(po, 'pts'), gs: av(po, 'gs') } : null,
+    potd: gp.filter(([, p]) => p.potd).length, potg: gp.filter(([, p]) => p.potg || p.potd).length,
+  }
+}
+const summaries = new Map()
+export const binderSeasonSummary = (s, name, fc) => {
+  const k = `${s}|${fc}|${name}`
+  if (!summaries.has(k)) summaries.set(k, loadSeason(s, s === NEWEST).then(sd => seasonSummary(sd, name, fc)))
+  return summaries.get(k)
+}
+// A player's career Elo path up to a date (for a Peak card's climb), and the whole of it
+export function binderCareerPath(name, date) {
+  const h = CAREER.byName[name]?.elo_history
+  if (!h?.length) return null
+  const all = [1500, ...h.map(e => e[1])], cut = 1 + h.filter(e => e[0] <= date).length
+  const k = Math.max(1, Math.floor(all.length / 140))
+  const idx = []; for (let i = 0; i < all.length; i += k) idx.push(i); if (idx[idx.length - 1] !== all.length - 1) idx.push(all.length - 1)
+  return { path: [...idx.filter(i => i < cut).map(i => all[i]), all[cut - 1]], pathAll: idx.map(i => all[i]) }
+}
+export const binderPeaks = () => getJSON('/data/explorer/binders/peaks.json')
+export const binderHistory = () => historyReady()
+
 // Opens one binder and keeps a back stack, so closing a binder opened from another returns to it
 export function BinderHost({ start, shots, onClose, onProfile }) {
   const [stack, setStack] = useState([start])
@@ -2693,11 +2750,11 @@ export function BinderHost({ start, shots, onClose, onProfile }) {
     loadSeason: label => loadSeason(label, label === NEWEST), withTeams, teamInfo, champion, careerSeasons, nightScore, getJSON, slug: rivalSlug, dayDuels: seasonDuels,
     franchiseOf: t => MERGE_FRANCHISE[t] || t,
     cardGameInfo, headshot: n => shots?.[norm(n)]?.headshot,
-    renderCard: ({ name, g, sd, onClose: close }) => {
+    renderCard: ({ name, g, sd, serial, onClose: close }) => {
       const row = g.players.find(p => p.n === name)
       if (!row) return null
       const { info, team } = withTeams(sd, () => ({ info: cardGameInfo(g, row.t, sd, row), team: teamInfo(row.t) }))
-      return <SeasonCard name={name} g={g} sd={sd} shots={shots} info={info} team={team} onProfile={onProfile} onClose={close}
+      return <SeasonCard name={name} g={g} sd={sd} shots={shots} info={info} team={team} serial={serial} onProfile={onProfile} onClose={close}
         onCareer={top.kind !== 'career' ? () => { close(); push({ kind: 'career', name }) } : undefined} />
     },
     renderDuel: ({ kind, scope, an, bn, g, sd, onClose: close }) => <DuelView kind={kind} scope={scope} an={an} bn={bn} g={g} sd={sd} shots={shots} onClose={close} />,
