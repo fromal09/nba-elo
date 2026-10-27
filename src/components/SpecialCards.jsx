@@ -136,7 +136,7 @@ export function SeasonCard({ s, owned, headshot, serial }) {
     <div className={styles.season} data-done={done ? '' : undefined} data-champ={champ ? '' : undefined} style={{ '--c': s.tc || '#173657' }}>
       <div className={styles.seasonHead}><span>{champ ? 'Champions' : 'Season'}</span><small>{s.s} · {nick(s.tn)}</small></div>
       {po && <div className={styles.seasonPo} data-champ={champ ? '' : undefined}>{champ ? <>★ {+s.s.slice(0, 4) + 1} NBA champions <b>{po.w}–{po.l}</b></>
-        : <>Playoffs · {poResult(po)} <b>{po.w}–{po.l}</b></>}</div>}
+        : <>Playoffs · {poResult(po)}{po.series.length > 1 && <b>· {po.w}–{po.l}</b>}</>}</div>}
       <div className={styles.seasonBody}>
         <div className={styles.seasonBg} />
         <div className={styles.seasonTop}>
@@ -256,6 +256,9 @@ export function RivalryCard({ r: r0_, shotA, shotB, serial }) {
 
 const TIER_LABEL = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare' }
 
+// A player's teams in the rivalry, most games first: two, then "+N"
+const teamList = ts => (ts.length > 2 ? `${ts.slice(0, 2).join(' · ')} +${ts.length - 2}` : ts.join(' · '))
+
 // The back of a Rivalry card: season by season, their teams' games, the best duel for each side, and both Elo paths
 export function RivalryBack({ r: r0_ }) {
   const r = leaderFirst(r0_)
@@ -272,8 +275,8 @@ export function RivalryBack({ r: r0_ }) {
       <div className={styles.backHead}><div><FitName>{`${A.last} vs. ${B.last}`}</FitName><small>{TIER_LABEL[r.tier]} rivalry · No. {r.rank} all-time</small></div><span>{r.w}–{r.l}</span></div>
       <section>
         <h4>Season by season <em>Game Score duels</em></h4>
-        <div className={styles.rivalTable}>
-          {r.seasons.map(x => <span key={x.sy}><small>{x.sy}-{String(x.sy + 1).slice(2)}</small><i><em style={{ width: `${(x.w / (x.w + x.l + (x.t || 0) || 1)) * 100}%` }} /></i><b>{x.w}–{x.l}</b></span>)}
+        <div className={styles.rivalTable} data-cols={r.seasons.length > 21 ? 4 : r.seasons.length > 12 ? 3 : 2}>
+          {r.seasons.map(x => <span key={x.sy}><small>{r.seasons.length > 12 ? `’${String(x.sy).slice(2)}-${String(x.sy + 1).slice(2)}` : `${x.sy}-${String(x.sy + 1).slice(2)}`}</small><i><em style={{ width: `${(x.w / (x.w + x.l + (x.t || 0) || 1)) * 100}%` }} /></i><b>{x.w}–{x.l}</b></span>)}
         </div>
       </section>
       <section>
@@ -295,7 +298,7 @@ export function RivalryBack({ r: r0_ }) {
         <svg className={styles.backChart} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"><path d={line(r.a)} className={styles.lineA} /><path d={line(r.b)} className={styles.lineB} /></svg>
         <div className={styles.chartKey}><span><i className={styles.keyA} />{A.last} · peak {r0(r.peakA)}</span><span><i className={styles.keyB} />{B.last} · peak {r0(r.peakB)}</span></div>
       </section>
-      <div className={styles.backFoot}><span>{r.teamsA.join(' · ')} vs. {r.teamsB.join(' · ')}</span><span>{n} duels</span></div>
+      <div className={styles.backFoot}><span>{teamList(r.teamsA)} vs. {teamList(r.teamsB)}</span><span>{n} duels</span></div>
     </div>
   )
 }

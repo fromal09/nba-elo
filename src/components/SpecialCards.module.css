@@ -223,6 +223,16 @@
 .rivalTable i { height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--b) 60%, #fff); overflow: hidden; }
 .rivalTable i em { display: block; height: 100%; background: var(--a); }
 .rivalTable b { text-align: right; font-variant-numeric: tabular-nums; }
+/* Long rivalries: three or four narrow columns, so the back still fits */
+.rivalTable[data-cols="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px 8px; }
+.rivalTable[data-cols="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px 6px; }
+.rivalTable[data-cols="3"] span, .rivalTable[data-cols="4"] span { grid-template-columns: 34px 1fr 26px; gap: 3px; font-size: 9.5px; }
+.rivalTable[data-cols="4"] span { grid-template-columns: 30px 1fr 24px; font-size: 9px; }
+.rivalTable[data-cols="3"] small, .rivalTable[data-cols="4"] small { font-size: 9px; }
+.rivalTable[data-cols="3"] i, .rivalTable[data-cols="4"] i { height: 5px; }
+/* Whatever the length, sections never push the footer off the card */
+.back section { flex: none; }
+.back .backChart { height: 50px; }
 .backGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .backGrid div { display: flex; flex-direction: column; align-items: center; padding: 5px 2px; border-radius: 7px; background: #fff; border: 1px solid #e6e0d0; text-align: center; }
 .backGrid b { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
