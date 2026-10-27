@@ -348,3 +348,30 @@
 .backHonors { display: flex; flex-wrap: wrap; gap: 4px; margin-top: -3px; }
 .backHonors span { height: 18px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: 9px; font-size: 9.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase;
   background: linear-gradient(135deg, #9a6d12, #f4d27a 50%, #b8871e); color: #2a1c00; }
+
+/* ── Starting Five tiers: the same foils as Season cards, by the lineup's all-time rank ── */
+.fiveFoil { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.five[data-tier=common] { background: linear-gradient(135deg, #3a4656, #8593a5 50%, #2f3a48); }
+.five[data-tier=rare] { background: linear-gradient(135deg, #7a4a26, #f0b07a 45%, #8a5a32 60%, #d08a52); box-shadow: 0 0 0 1px rgba(255,200,160,.6), 0 14px 30px rgba(0,0,0,.5); }
+.five[data-tier=rare] .fiveHead span { color: #f0b07a; }
+.five[data-tier=rare] .fiveFoil { background: linear-gradient(115deg, transparent 35%, rgba(255,190,140,.22) 48%, transparent 60%); background-size: 250% 250%; animation: seasonSweep 7s ease-in-out infinite; mix-blend-mode: screen; }
+.five[data-tier=standout] { background: linear-gradient(135deg, #3b444e 0%, #f7f9fb 16%, #6a7581 32%, #ffffff 48%, #545e69 64%, #e9eef3 80%, #444e58 100%); background-size: 200% 200%; animation: seasonChrome 4s ease-in-out infinite alternate; }
+.five[data-tier=standout] .fiveHead span { color: #eef2f6; }
+.five[data-tier=standout] .fiveFoil { background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,.4) 48%, rgba(255,255,255,.75) 50%, rgba(255,255,255,.4) 52%, transparent 65%); background-size: 300% 100%; animation: seasonSweep 5s ease-in-out infinite; mix-blend-mode: soft-light; }
+.five[data-tier=legend] { background: linear-gradient(135deg, #8a6414, #fff1c0 50%, #b8871e); box-shadow: 0 0 0 1px rgba(255,243,200,.8), 0 14px 30px rgba(0,0,0,.5); }
+.five[data-tier=legend] .fiveHead span { color: #f5d77a; }
+.five[data-tier=legend] .fiveFoil { background: linear-gradient(115deg, transparent 30%, rgba(255,215,120,.28) 46%, rgba(255,240,190,.4) 50%, transparent 64%); background-size: 260% 260%; animation: seasonSweep 6s ease-in-out infinite; mix-blend-mode: screen; }
+.five[data-tier=icon] { background: linear-gradient(120deg, #ff2d95, #ffb52d 14%, #fff3b0 22%, #2dffb4 34%, #2d9bff 48%, #ffffff 56%, #b42dff 66%, #ff2d95 80%, #ffd32d 92%, #2dffb4);
+  background-size: 300% 300%; animation: seasonHolo 6s linear infinite; box-shadow: 0 0 0 1px rgba(255,255,255,.8), 0 0 30px rgba(255,200,120,.5), 0 14px 30px rgba(0,0,0,.5); }
+.five[data-tier=icon] .fiveHead span { background: linear-gradient(90deg, #ff7ac0, #ffe27a, #7affd0, #7ac4ff, #d27aff, #ff7ac0); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: seasonHolo 4s linear infinite; }
+.five[data-tier=icon] .fiveFoil { background: linear-gradient(115deg, transparent 28%, rgba(255,255,255,.16) 42%, rgba(255,140,220,.2) 48%, rgba(140,230,255,.2) 54%, rgba(255,240,160,.14) 60%, transparent 72%); background-size: 260% 260%; mix-blend-mode: screen; animation: seasonSweep 6s ease-in-out infinite; }
+.five[data-tier=goat] { background: linear-gradient(120deg, #1a1000, #f5d77a 18%, #1a1000 32%, #fff1c0 50%, #1a1000 66%, #f5d77a 82%, #1a1000); background-size: 300% 300%;
+  animation: seasonHolo 7s linear infinite, seasonGlow 2.6s ease-in-out infinite alternate; }
+.five[data-tier=goat] .fiveHead, .five[data-tier=goat] .fiveFoot { background: #050505; }
+.five[data-tier=goat] .fiveHead span { background: linear-gradient(90deg, #b8871e, #fff1c0, #f5d77a, #fff, #b8871e); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: seasonHolo 3s linear infinite; }
+.five[data-tier=goat] .fiveFoil { background:
+    radial-gradient(1.2px 1.2px at 12% 18%, #fff, transparent), radial-gradient(1.2px 1.2px at 70% 30%, #fff, transparent), radial-gradient(1px 1px at 40% 62%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 85% 75%, #fff, transparent), radial-gradient(1px 1px at 22% 85%, #fff, transparent),
+    linear-gradient(115deg, rgba(255,45,149,0) 20%, rgba(255,211,45,.25) 35%, rgba(45,255,180,.22) 50%, rgba(45,155,255,.25) 65%, rgba(180,45,255,0) 80%);
+  background-size: 90px 90px, 110px 110px, 70px 70px, 130px 130px, 80px 80px, 300% 300%; mix-blend-mode: screen; animation: seasonIce 9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .five, .five * { animation: none !important; } }

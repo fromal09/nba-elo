@@ -36,6 +36,12 @@ async function run(sql, origin) {
   // Game cards, Peaks, Duels, Rivalries and Starting Fives rescore right away; Season cards wait for the Season data
   if (!done.has(POINTS_VERSION)) await rescore(sql, origin, c => c?.kind !== 'season', POINTS_VERSION)
   if (!done.has(POINTS_VERSION + '-seasons') && seasonsReady) await rescore(sql, origin, c => c?.kind === 'season', POINTS_VERSION + '-seasons')
+  // Starting Fives refresh again once the pool carries their tiers (Common to GOAT)
+  if (!done.has('fives-tiers')) {
+    const idx = await poolJSON(origin, 'special/index.json').catch(() => null)
+    const first = idx?.fives?.[0] && (await poolJSON(origin, `special/${idx.fives[0][0]}`).catch(() => null))?.cards?.[0]
+    if (first?.tier) await rescore(sql, origin, c => c?.kind === 'five', 'fives-tiers')
+  }
 }
 
 export async function pointsStatus(sql, origin) {

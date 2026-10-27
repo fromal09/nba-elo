@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 EXP = ROOT / "public" / "data" / "explorer"
 OUT = EXP / "packs" / "special"
 MERGE = {"DEN@ABA": "DEN", "IND@ABA": "IND", "SAS@ABA": "SAS", "BKN@ABA": "BKN"}
+K_FIVE = 40   # how fast a Starting Five player's weight falls with his league rank (see the Starting Five tiers)
 TIERS = [("goat", 1), ("icon", 5), ("legend", 20), ("standout", 50), ("rare", 125)]
 SHARD = 1500
 
@@ -71,6 +72,7 @@ def main():
     first, high, open_peaks, peaks = {}, {}, defaultdict(list), defaultdict(list)
     score, meets = defaultdict(float), defaultdict(int)
     fives = []
+    league_size = {}  # season -> ranked players (the deepest league rank seen)
     season_rank = {}  # season -> {"r": {player: final rank}, "champ": franchise}: Season card points (api/_lib/points.js)
     for f in files:
         d = load(f)
@@ -118,6 +120,7 @@ def main():
         for n, (_, c) in season_best.items():
             peaks[n].append(c)
             open_peaks[n] = [c]  # only the newest Peak can still be open
+        league_size[season] = max((p.get("lr") or 0) for g in games for p in g["players"]) or None
         season_rank[season] = {"r": {n: v[1] for n, v in last_rank.items()},
                                "champ": next((MERGE.get(t_, t_) for x in games if x.get("post") for t_ in x["teams"]
                                               if (bnd.get((x["id"], t_)) or {}).get("champ") and x["pts"][x["teams"].index(t_)] > x["pts"][1 - x["teams"].index(t_)]), None)}
@@ -233,6 +236,17 @@ def main():
         old.unlink()
     index = {}
     all_peaks = [c for n in sorted(peaks) for c in peaks[n]]
+    # Starting Five tiers. Lineups compare across eras by where the five stood in the league that day, not by raw
+    # Elo (which runs higher in later eras): each player counts exp(-K × his league rank going in ÷ that season's
+    # number of ranked players), so a top-10 player in an eight-team league counts for less than in a 30-team one. The best lineup ever is the GOAT, then Icons (2-5), Legends (6-20), Standouts (21-50), Rares (51-125);
+    # the rest are Common. The top 125 are the Starting Fives league binder.
+    for c in fives:
+        n_ = league_size.get(c["s"]) or 300
+        c["str"] = round(sum(math.exp(-(p["lr"] if p.get("lr") is not None else n_) / n_ * K_FIVE) for p in c["players"]), 4)
+    for i, c in enumerate(sorted(fives, key=lambda c: (-c["str"], -c["elo"]))):
+        c["rank"] = i + 1
+        c["tier"] = tier_of(i + 1)
+    top_fives = sorted([c for c in fives if c["rank"] <= 125], key=lambda c: c["rank"])
     for kind, cards in (("peaks", all_peaks), ("rivals", rivals), ("fives", fives)):
         index[kind] = []
         for k in range(0, len(cards), SHARD):
@@ -248,6 +262,7 @@ def main():
     if lp.exists():
         league = json.loads(lp.read_text(encoding="utf-8"))
         league.setdefault("sets", {})["rivalries"] = rivals
+        league["sets"]["lineups"] = top_fives
         lp.write_text(json.dumps(league, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     (B / "peaks.json").write_text(json.dumps({n: [[c["s"], c["id"], round(c["row"]["post"]), c["date"], c["until"]] for c in lst] for n, lst in peaks.items()},
                                              ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

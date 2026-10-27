@@ -336,13 +336,15 @@ export function RivalryBack({ r: r0_ }) {
 }
 
 // ── Starting Five ────────────────────────────────────────────────────────────
+const FIVE_TIER = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' }
 const SPOTS = [[24, 27], [76, 27], [50, 52], [22, 77], [78, 77]] // % positions: two up top, one in the middle, two below
 export function FiveCard({ f, shots = {}, serial }) {
   const ps = [...f.players].sort((a, b) => b.pre - a.pre)
   return (
-    <div className={styles.five} style={{ '--c': f.tc || '#173657' }}>
-      <div className={styles.fiveHead}><span>Starting Five</span><small>Best five of {f.s}</small></div>
+    <div className={styles.five} data-tier={f.tier || 'common'} style={{ '--c': f.tc || '#173657' }}>
+      <div className={styles.fiveHead}><span>Starting Five</span><small>{f.rank && f.rank <= 125 ? `${FIVE_TIER[f.tier]} · No. ${f.rank}` : `Best five of ${f.s}`}</small></div>
       <div className={styles.fiveBody}>
+        <div className={styles.fiveFoil} />
         <svg className={styles.fiveCourt} viewBox="0 0 316 300" preserveAspectRatio="none" aria-hidden="true">
           <rect x="98" y="0" width="120" height="150" /><circle cx="158" cy="150" r="46" /><path d="M18,0 L18,60 A150,150 0 0 0 298,60 L298,0" /><circle cx="158" cy="300" r="46" />
         </svg>
