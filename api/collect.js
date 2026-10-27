@@ -14,6 +14,7 @@
 //   POST showcase    { id, on } put a starred card in (or take it out of) your three-card showcase
 //   POST profile     { favoriteTeam }
 //   GET  leaders     the top binders by score, and where yours ranks
+//   GET  topcards    the highest-point cards in anyone's binder, and the best pulls of the last 24 hours
 //   GET  binder      ?user= anyone's binder, read-only: profile, score, rank, showcase, cards
 //   POST explore     { section } Coins for visiting a part of the site (10 each, 60 a day)
 //   GET  store       the catalog, today's On This Day cards, your Coins, today's earnings, recent sales
@@ -435,6 +436,18 @@ export default async function handler(req, res) {
       const you = !viewer ? null : mine ? { username: viewer.username, score: mine.score, cards: mine.cards, players: mine.players, rank: mine.score > 0 ? mine.rk : null, of: n }
         : { username: viewer.username, score: 0, cards: 0, players: 0, rank: null, of: n }
       return send(200, { leaders, binders: n, you })
+    }
+    if (action === 'topcards') {
+      // The most valuable cards anyone holds (one row a card, with how many binders have it), and the best pulls of the last day
+      const top = await sql`select c.ref, max(c.points)::int as points, count(distinct c.user_id)::int as owners,
+          (array_agg(c.card order by c.pulled_at))[1] as card, (array_agg(u.username order by c.pulled_at))[1] as first
+        from cards c join users u on u.id = c.user_id group by c.ref order by points desc, owners desc limit 10`
+      const recent = await sql`select c.card, c.points, c.pulled_at, c.source, u.username from cards c join users u on u.id = c.user_id
+        where c.pulled_at > now() - interval '24 hours' order by c.points desc, c.pulled_at desc limit 10`
+      return send(200, {
+        top: top.map(r => ({ card: r.card, points: r.points, owners: r.owners, first: r.first })),
+        recent: recent.map(r => ({ card: r.card, points: r.points, at: r.pulled_at, username: r.username, forged: r.card?.kind === 'season' })),
+      })
     }
     if (action === 'wishes' && q.user) {
       const [o] = await sql`select * from users where username_key = ${String(q.user).toLowerCase()}`

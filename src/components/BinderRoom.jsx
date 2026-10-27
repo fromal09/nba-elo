@@ -5,7 +5,7 @@ import { LEAGUE_SETS, leagueEntries, AnyFace, cardRef } from './Binders'
 import { BinderHost, primeBinders, binderJSON, binderHeadshots, binderTeamInfo, binderLogo } from './SeasonExplorer'
 import PlayerSearch from './PlayerSearch'
 import { norm } from './predict'
-import { useCollector, CardFace, Meter, Coin } from './Collector'
+import { useCollector, CardFace, Meter, Coin, cardName, tierName } from './Collector'
 
 /*
  * The Binders page: every binder in one room. League-wide sets (title clinchers, greatest debuts...),
@@ -41,6 +41,9 @@ function Cover({ def, list, env, onOpen, owned }) {
   )
 }
 
+const shortDate = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+const ago = t => { const m = Math.max(1, Math.round((Date.now() - Date.parse(t)) / 60e3)); return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} hr ago` }
+
 export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTick, predictTick }) {
   const [index, setIndex] = useState(null)
   const [league, setLeague] = useState(null)
@@ -63,6 +66,11 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
     get()
     return () => { live = false }
   }, [C.down, C.me === undefined, meScore, lbTry])
+  const [tops, setTops] = useState(null)
+  useEffect(() => {
+    if (C.down || C.me === undefined) return
+    fetch('/api/collect?action=topcards', { credentials: 'same-origin', cache: 'no-store' }).then(r => r.json()).then(d => !d.error && setTops(d)).catch(() => {})
+  }, [C.down, C.me === undefined, meScore])
   const [picks, setPicks] = useState(null)
   useEffect(() => { if (!C.down && C.me !== undefined) C.loadStandings?.('week').then(setPicks).catch(() => {}) }, [C.down, C.me === undefined])
   useEffect(() => { if (mineTick && C.me) setOpen({ kind: 'mine' }) }, [mineTick, !!C.me])
@@ -126,7 +134,8 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
         </div>}
       </section>}
 
-      {!C.down && C.me !== undefined && (!leaders || leaders.failed || leaders.leaders.length > 0) && <section className={styles.section}>
+      {!C.down && C.me !== undefined && <section className={`${styles.section} ${styles.boards}`}>
+        {(!leaders || leaders.failed || leaders.leaders.length > 0) && <div className={styles.boardCol}>
         <div className={styles.head}><h2>Top binders</h2><span>{leaders?.leaders ? `${leaders.binders.toLocaleString()} binder${leaders.binders === 1 ? '' : 's'} · ranked by binder score` : ''}</span></div>
         {!leaders ? <div className={`${styles.board} ${styles.boardWait}`}>{[0, 1, 2].map(i => <span key={i} />)}</div>
         : leaders.failed ? <div className={`${styles.board} ${styles.boardFail}`}><span>The leaderboard didn’t load.</span><button type="button" onClick={() => { setLeaders(null); setLbTry(t => t + 1) }}>Try again</button></div>
@@ -144,6 +153,32 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
             <span className={styles.boardWho}><b>{leaders.you.username} (you)</b><small>{leaders.you.cards} cards · {leaders.you.players} players</small></span>
             <strong>{leaders.you.score.toLocaleString()}<small>pts</small></strong>
           </button>}
+        </div>}
+        </div>}
+        {tops?.top?.length > 0 && <div className={styles.boardCol}>
+          <div className={styles.head}><h2>Top cards in binders</h2><span>by points</span></div>
+          <div className={styles.board}>
+            {tops.top.map((x, i) => (
+              <button key={i} type="button" className={styles.boardRow} onClick={() => setOpen({ kind: 'public', name: x.first })}>
+                <b className={styles.boardRank} data-top={i < 3 ? i + 1 : undefined}>{i + 1}</b>
+                <span className={styles.cardThumb}><CardFace card={x.card} shots={shots} w={34} /></span>
+                <span className={styles.boardWho}><b>{cardName(x.card)}</b><small>{tierName(x.card)}{x.card.date ? ` · ${shortDate(x.card.date)}` : x.card.s ? ` · ${x.card.s}` : ''} · {x.owners > 1 ? `${x.first} + ${x.owners - 1} more` : x.first}</small></span>
+                <strong>{x.points.toLocaleString()}<small>pts</small></strong>
+              </button>
+            ))}
+          </div>
+        </div>}
+        {tops && <div className={styles.boardCol}>
+          <div className={styles.head}><h2>Top pulls, last 24 hours</h2></div>
+          {tops.recent.length ? <div className={styles.board}>
+            {tops.recent.map((x, i) => (
+              <button key={i} type="button" className={styles.boardRow} onClick={() => setOpen({ kind: 'public', name: x.username })}>
+                <span className={styles.cardThumb}><CardFace card={x.card} shots={shots} w={34} /></span>
+                <span className={styles.boardWho}><b>{cardName(x.card)}</b><small>{tierName(x.card)} · {x.forged ? 'forged by' : 'pulled by'} {x.username} · {ago(x.at)}</small></span>
+                <strong>{x.points.toLocaleString()}<small>pts</small></strong>
+              </button>
+            ))}
+          </div> : <div className={`${styles.board} ${styles.boardFail}`}><span>No pulls in the last day yet.</span></div>}
         </div>}
       </section>}
 

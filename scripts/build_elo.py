@@ -68,6 +68,33 @@ NAME_ALIASES = {
     "Luol Deng":             "Luol Deng",
     "Nene Hilario":          "Nene",
     "Nene":                  "Nene",
+    # One player, two names: the 1973-74-on box scores spell (or cut off) the name differently from the
+    # Basketball-Reference pre-1974 and ABA sources, which split a career in two. The site keeps the early name.
+    # (Checked by season, team and games played against Basketball-Reference.)
+    "Norm Van":              "Norm Van Lier",
+    "Dick Van":              "Dick Van Arsdale",
+    "Tom Van":               "Tom Van Arsdale",
+    "Jojo White":            "Jo Jo White",
+    "Jan Van Breda Kolff":   "Jan van Breda Kolff",
+    "Larue Martin":          "LaRue Martin",
+    "Garfield Heard":        "Gar Heard",
+    "Charlie Johnson":       "Charles Johnson",
+    "Emanuel Leaks":         "Manny Leaks",
+    "Fred Boyd":             "Freddie Boyd",
+    "Isaac Stallworth":      "Bud Stallworth",
+    "John Clemens":          "Barry Clemens",
+    "Johnny Warren":         "John Warren",
+    "Lou Dampier":           "Louie Dampier",
+    "Luke Rackley":          "Luther Rackley",
+    "Luther Burden":         "Ticky Burden",
+    "Roland Taylor":         "Fatty Taylor",
+    "Tommy Patterson":       "Tom Patterson",
+    "William Averitt":       "Bird Averitt",
+    "Ted, Hound":            "Ted McClain",
+    "Double D":              "Dwight Davis",
+    "Eldo Garrett":          "Dick Garrett",
+    "Dennis Layton":         "Mo Layton",
+    "Arthur Williams":       "Art Williams",
 }
 
 def normalize_name(name):

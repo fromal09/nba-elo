@@ -122,3 +122,14 @@
 @keyframes boardShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 .boardFail { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; font-size: 14px; color: #4a5562; }
 .boardFail button { height: 32px; padding: 0 14px; border: 0; border-radius: 16px; background: #173657; color: #fff; font: 700 13px Inter, sans-serif; cursor: pointer; }
+
+/* Top binders, top cards and the last day's best pulls, side by side */
+.boards { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 0 22px; align-items: start; }
+.boards > .boardCol { min-width: 0; }
+.boards .head h2 { font-size: 22px; }
+.cardThumb { flex: none; }
+@media (max-width: 1100px) { .boards { grid-template-columns: 1fr 1fr; } .boards > .boardCol:first-child { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .boards { grid-template-columns: 1fr; gap: 22px; } }
+.boards .boardWho b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.boards .boardRow { gap: 10px; padding: 9px 12px; }
+.boards .boardRow strong { font-size: 15px; }

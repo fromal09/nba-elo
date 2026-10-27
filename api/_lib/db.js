@@ -4,6 +4,7 @@ import postgres from 'postgres'
 import { cardPoints } from './points.js'
 import { ensurePredSchema } from './predictions.js'
 import { ensureWishSchema } from './wishes.js'
+import { applyRenames } from './renames.js'
 
 let sql = null
 let ready = null
@@ -106,6 +107,7 @@ export function ensureSchema() {
       // Daily predictions: the slate, your picks, your finished days
       await ensurePredSchema(t)
       await ensureWishSchema(t)
+      await applyRenames(t)
       await t`create index if not exists packs_open on packs (user_id) where status = 'open'`
       await t`create index if not exists sessions_user on sessions (user_id)`
     }).catch(e => { ready = null; throw e })

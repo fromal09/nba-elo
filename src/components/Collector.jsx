@@ -216,8 +216,8 @@ const slotLabel = (pack, slot, lastNight) => {
 }
 // Why a card is worth what it is: "Legend ×12 · grade 8 · Player of the Game +25%"
 const pointsWhy = c => { const p = cardPoints(c); if (isSpecial(c) || c.kind === 'duel') return p.bonuses.map(([l]) => l).join(' · '); return [`${TIER_NAME[c.tier].replace('★ ', '')} ×${p.base}`, `grade ${p.grade}`, ...p.bonuses.map(([l, v]) => `${l} +${Math.round(v * 100)}%`)].join(' · ') }
-const tierName = c => (isSpecial(c) || c.kind === 'duel' ? specialLabel(c) : TIER_NAME[c.tier])
-const cardName = c => (isSpecial(c) || c.kind === 'duel' ? specialTitle(c) : c.row.n)
+export const tierName = c => (isSpecial(c) || c.kind === 'duel' ? specialLabel(c) : TIER_NAME[c.tier])
+export const cardName = c => (isSpecial(c) || c.kind === 'duel' ? specialTitle(c) : c.row.n)
 const line = c => (isSpecial(c) ? specialLine(c) : null) || [c.row?.pts != null && `${c.row.pts} pts`, c.row.trb && `${c.row.trb} reb`, c.row.ast && `${c.row.ast} ast`].filter(Boolean).join(' · ')
 
 function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
