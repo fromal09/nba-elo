@@ -379,3 +379,20 @@
 .spHead .linkBtn { height: 28px; font-size: 12px; padding: 0 12px; }
 .spGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 10px 12px; }
 .spGrid > .pocket { aspect-ratio: 5 / 7.7; }
+
+/* Binder score by week */
+.histBox { flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; background: #fff; border: 1px solid #e6e0d0; border-radius: 9px; padding: 9px 12px 7px; }
+.histTop { display: flex; justify-content: space-between; align-items: baseline; }
+.histTop .boxLab { margin: 0; }
+.histTop .light { font-size: 11px; }
+.histNums { display: flex; align-items: baseline; gap: 8px; }
+.histNums b { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.histNums em { font-style: normal; font-size: 12px; font-weight: 800; }
+.histNums span { margin-left: auto; font-size: 12px; font-weight: 700; color: #4a5562; }
+.histUp { color: #1a7a4a; }
+.histDown { color: #a83232; }
+.histChart { width: 100%; height: 74px; display: block; cursor: crosshair; }
+.histFill { fill: color-mix(in srgb, var(--c, #173657) 12%, transparent); }
+.histLine { fill: none; stroke: var(--c, #173657); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.histDot { fill: var(--c, #173657); }
+.histAxis { display: flex; justify-content: space-between; font-size: 10px; color: #8a95a2; }

@@ -850,3 +850,6 @@
 .cardBtn { border-left: 0; border-right: 0; border-bottom: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; transition: transform .15s ease-out, box-shadow .15s ease-out; }
 .cardBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(23,54,87,.14); }
 .cardOpen { float: right; font-weight: 700; letter-spacing: .3px; text-transform: none; opacity: .75; }
+
+/* A card you own, in a box score */
+.ownTick { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 5px; border-radius: 50%; background: #1a7a4a; color: #fff; font-size: 9px; font-weight: 900; vertical-align: 1px; flex: none; }

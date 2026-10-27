@@ -1093,6 +1093,7 @@ function ProjBox({ x, shots }) {
 
 // ── Box score ────────────────────────────────────────────────────────────────
 function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel }) {
+  const collector = useCollector() // a ✓ by each player whose card from this game is in your binder
   const [focus, setFocus] = useState(null)
   const [side, setSide] = useState(team) // which team's table shows; starts on the team you came from
   const [stat, setStat] = useState('box') // box score view, kept when switching teams
@@ -1196,7 +1197,8 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel
           ))}
         </div>
         <TeamBox key={side} t={side} rows={P.filter(p => p.t === side)} P={P} N={N} has={has} avail={avail} shots={shots}
-          focus={focus} setFocus={setFocus} onCard={onCard} stat={stat} setStat={setStat} />
+          focus={focus} setFocus={setFocus} onCard={onCard} stat={stat} setStat={setStat}
+          owns={n => !!collector.me && collector.owned.has(`${sd?.season}|${game.id}|${n}`)} />
 
         <DuelGrid P={P} focus={focus} setFocus={setFocus} shots={shots} game={game} sd={sd} pinPair={pinPair} />
       </div>
@@ -1359,7 +1361,7 @@ function DuelTrack({ w, xw, n }) {
   )
 }
 
-function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, stat, setStat }) {
+function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, stat, setStat, owns }) {
   const n = N - 1
   const starters = has?.has('st') && rows.some(p => p.st)
   const sorted = [...rows].sort((a, b) => (starters ? b.st - a.st : 0) || (b.mp || 0) - (a.mp || 0) || (b.pts || 0) - (a.pts || 0))
@@ -1421,7 +1423,7 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
           <span className={styles.pl}>
             <Headshot name={p.n} shots={shots} color={tColor(t)} />
             <span><span className={styles.pNameRow}><button className={styles.pName} onClick={() => onCard(p.n)} title="Open player card">{wide ? p.n : shortName(p.n)}</button>
-              <MomentMarks p={p} /></span>
+              {owns?.(p.n) && <span className={styles.ownTick} title="This card is in your binder">✓</span>}<MomentMarks p={p} /></span>
               <small>{[stat === 'box' && F.mp && p.mp != null ? `${p.mp} min` : null, p.pos, p.potd ? 'Player of the Day' : p.potg ? 'Player of the Game' : null].filter(Boolean).join(' · ')}</small></span>
           </span>
         </td>

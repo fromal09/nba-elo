@@ -68,6 +68,26 @@ async function serials(sql, userId) {
   return new Map(rows.map(r => [Number(r.id), [r.k, r.n]]))
 }
 
+// Binder score and rank at the end of each week (Monday to Sunday, Eastern), for the last year. A card counts from the
+// week it was kept; a sold card counts until the week it was sold (sales before score history began aren't known).
+async function scoreHistory(sql, userId) {
+  const rows = await sql`
+    with held as (
+      select user_id, points, pulled_at as a, null::timestamptz as b from cards
+      union all select user_id, points, pulled_at, sold_at from sold where pulled_at is not null),
+    weeks as (
+      select generate_series(
+        greatest(date_trunc('week', (select min(a) from held where user_id = ${userId}) at time zone 'America/New_York'), date_trunc('week', now() at time zone 'America/New_York') - interval '51 weeks'),
+        date_trunc('week', now() at time zone 'America/New_York'), interval '1 week')::date as w),
+    s as (
+      select w.w, h.user_id, sum(h.points)::int as score from weeks w
+      join held h on h.a at time zone 'America/New_York' < w.w + 7 and (h.b is null or h.b at time zone 'America/New_York' >= w.w + 7)
+      group by 1, 2),
+    r as (select w, user_id, score, rank() over (partition by w order by score desc)::int as rk, count(*) over (partition by w)::int as n from s)
+    select w, score, rk, n from r where user_id = ${userId} order by w`
+  return rows.map(x => ({ week: iso(x.w), score: x.score, rank: x.rk, of: x.n }))
+}
+
 async function standing(sql, userId) {
   const [r] = await sql`with s as (select user_id, sum(points)::int as score, count(*)::int as cards, count(distinct card->'row'->>'n')::int as players
       from cards group by user_id)
@@ -319,7 +339,7 @@ async function sell(u, origin, b) {
     const [x] = await t`select coalesce(sum(amount), 0)::int as n from coin_ledger where user_id = ${u.id} and day = ${today} and kind = 'sell'`
     if (x.n + price > RATES.sellCap) throw fail(409, `Selling this card would pass today’s ${RATES.sellCap}-Coin limit on sales (${x.n} so far).`)
     await t`delete from cards where id = ${id}`
-    const [s_] = await t`insert into sold (user_id, ref, card, points, price) values (${u.id}, ${c.ref}, ${t.json(c.card)}, ${c.points}, ${price}) returning id`
+    const [s_] = await t`insert into sold (user_id, ref, card, points, price, pulled_at) values (${u.id}, ${c.ref}, ${t.json(c.card)}, ${c.points}, ${price}, ${c.pulled_at}) returning id`
     await t`insert into coin_ledger (user_id, day, kind, ref, amount) values (${u.id}, ${today}, 'sell', ${'sold:' + s_.id}, ${price})`
     await t`update users set coins = coins + ${price} where id = ${u.id}`
   })
@@ -397,6 +417,12 @@ export default async function handler(req, res) {
       const leaders = rows.map((r, i) => { if (prev !== r.score) { rank = i + 1; prev = r.score } return { rank, username: r.username, favoriteTeam: r.favorite_team, score: r.score, cards: r.cards, players: r.players, best: r.best } })
       const [n] = await sql`select count(distinct user_id)::int as n from cards`
       return send(200, { leaders, binders: n.n, you: viewer ? { username: viewer.username, ...(await standing(sql, viewer.id)) } : null })
+    }
+    if (action === 'history') {
+      const name = String(q.user || '').toLowerCase()
+      const [o] = name ? await sql`select id from users where username_key = ${name}` : [await currentUser(req)]
+      if (!o) throw fail(404, 'No binder by that name.')
+      return send(200, { history: await scoreHistory(sql, o.id) })
     }
     if (action === 'binder') {
       const [o] = await sql`select * from users where username_key = ${String(q.user || '').toLowerCase()}`

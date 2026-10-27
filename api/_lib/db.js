@@ -98,6 +98,8 @@ export function ensureSchema() {
         price int not null,
         sold_at timestamptz not null default now(),
         bought_back boolean not null default false)`
+      // When the sold card was first kept, so binder score history counts it for the weeks it was held
+      await t`alter table sold add column if not exists pulled_at timestamptz`
       // Weekly leaderboard payouts, once per week
       await t`create table if not exists settlements (week date primary key, settled_at timestamptz not null default now())`
       // Daily predictions: the slate, your picks, your finished days

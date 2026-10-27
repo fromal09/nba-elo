@@ -73,8 +73,17 @@ export function AnyFace({ e, env }) {
 // Career games always come graded; album sheets grade every card (slab = the label's wording)
 const slabFor = (e, album) => (momentsFor(e.row).career ? 'Career game' : album || null)
 
+// Do you own this pocket's card? League binders say so themselves; everywhere else, look it up by the card's identity
+const ownsCard = (e, name, env) => {
+  if (e.owned != null) return e.owned
+  if (!env.owned || e.special || e.duel || !e.row) return false
+  const s = e.season || e.s, id = e.id || e.g?.id, n = e.name || name
+  return !!(s && id && n && env.owned.has(`${s}|${id}|${n}`))
+}
+
 function Pocket({ e, name, env, onPull, pulled, album }) {
   const out = pulled === e.key
+  const owned = ownsCard(e, name, env)
   return (
     <div className={`${styles.pocket} ${e.post ? styles.pocketPo : ''}`}>
       <button type="button" className={styles.pocketBtn} disabled={out} onClick={() => onPull(e)} aria-label={`${e.label}: open card`}>
@@ -84,7 +93,7 @@ function Pocket({ e, name, env, onPull, pulled, album }) {
             : <Fit><MiniCard name={e.name || name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name || name)} slab={slabFor(e, album)} />{e.serial && !slabFor(e, album) && <Serial k={e.serial[0]} n={e.serial[1]} pocket />}</Fit>}
         <span className={styles.glare} />
       </button>
-      {e.owned && <span className={styles.ownedMark} title="In your binder">✓</span>}
+      {owned && <span className={styles.ownedMark} title="In your binder">✓</span>}
       <div className={styles.pocketLab}>
         <span>{e.label}</span>
         {e.sub && !e.showMode && !e.sellMode && <span style={{ color: e.subColor }}>{e.sub}</span>}
@@ -335,7 +344,7 @@ export function SeasonBinder({ name, sd: startSd, env, onClose, onCareer }) {
       const info = env.cardGameInfo(g, p.t, sd, p)
       const d = p.post - p.pre
       list.push({
-        key: g.id, g, row: p, game: info, team: env.teamInfo(p.t), post: !!g.post, tier: tierOfRow(p), t: p.t,
+        key: g.id, g, row: p, game: info, team: env.teamInfo(p.t), post: !!g.post, tier: tierOfRow(p), t: p.t, season: sd.season,
         month: g.post ? 'Playoffs' : MONTHS[+g.date.slice(5, 7) - 1],
         label: g.post ? info.band.label : `G${reg} · ${info.home === false ? '@' : 'vs'} ${info.oppAbbr}`,
         sub: sgn(d), subColor: d >= 0 ? '#1a7a4a' : '#a83232', gs: p.gs || 0, d,
@@ -609,7 +618,7 @@ export function TeamBinder({ team, sd: startSd, env, onClose, onFranchise }) {
       if (!g.post) reg++
       const info = env.cardGameInfo(g, t, sd, p)
       list.push({
-        key: g.id, g, name: p.n, row: p, game: info, team: env.teamInfo(t), post: !!g.post, tier: tierOfRow(p), res: info.won ? 'w' : 'l',
+        key: g.id, g, name: p.n, row: p, game: info, team: env.teamInfo(t), post: !!g.post, tier: tierOfRow(p), res: info.won ? 'w' : 'l', season: sd.season,
         month: g.post ? 'Playoffs' : MONTHS[+g.date.slice(5, 7) - 1], gs: p.gs || 0,
         label: g.post ? info.band.label : `G${reg} · ${info.home === false ? '@' : 'vs'} ${info.oppAbbr}`,
         sub: `${info.won ? 'W' : 'L'} ${info.score}`, subColor: info.won ? '#1a7a4a' : '#a83232',
@@ -935,6 +944,44 @@ const MERGE_ABA = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@A
 const decadeOf = s => `${s.slice(0, 3)}0s`
 const n0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
 
+// Binder score by week, with the rank each week ended at (tap or hover a week for it)
+function ScoreHistory({ user, mine, tc }) {
+  const [h, setH] = useState(null)
+  const [at, setAt] = useState(null)
+  useEffect(() => {
+    fetch(`/api/collect?action=history${mine ? '' : `&user=${encodeURIComponent(user)}`}`, { credentials: 'same-origin' })
+      .then(r => r.json()).then(d => setH(d.history || [])).catch(() => setH([]))
+  }, [user, mine])
+  if (!h || h.length < 2) return null
+  const W = 300, H = 74, P = 4
+  const max = Math.max(...h.map(x => x.score)) || 1
+  const xy = (x, i) => [P + (i / (h.length - 1)) * (W - 2 * P), H - P - (x.score / max) * (H - 2 * P)]
+  const pts = h.map(xy)
+  const line = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('')
+  const cur = h[at ?? h.length - 1], prev = h[(at ?? h.length - 1) - 1]
+  const best = Math.min(...h.map(x => x.rank))
+  const wk = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return (
+    <div className={styles.histBox} style={{ '--c': tc }}>
+      <div className={styles.histTop}><span className={styles.boxLab}>Binder score by week</span>
+        <span className={styles.light}>{at == null ? 'this week' : `week of ${wk(cur.week)}`}</span></div>
+      <div className={styles.histNums}>
+        <b>{n0(cur.score)}</b>{prev && <em className={cur.score >= prev.score ? styles.histUp : styles.histDown}>{cur.score >= prev.score ? '+' : '−'}{n0(Math.abs(cur.score - prev.score))}</em>}
+        <span>No. {cur.rank} of {cur.of}{best < cur.rank ? ` · best No. ${best}` : ''}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className={styles.histChart} onMouseLeave={() => setAt(null)}>
+        <path d={`${line}L${pts[pts.length - 1][0]},${H}L${pts[0][0]},${H}Z`} className={styles.histFill} />
+        <path d={line} className={styles.histLine} />
+        {pts.map(([x, y], i) => <g key={i} onMouseEnter={() => setAt(i)} onClick={() => setAt(i)}>
+          <rect x={x - (W / h.length) / 2} y={0} width={W / h.length} height={H} fill="transparent" />
+          <circle cx={x} cy={y} r={i === (at ?? h.length - 1) ? 3.6 : 2} className={styles.histDot} />
+        </g>)}
+      </svg>
+      <div className={styles.histAxis}><span>{wk(h[0].week)}</span><span>{wk(h[h.length - 1].week)}</span></div>
+    </div>
+  )
+}
+
 // Achievements: earned badges in gold; your own binder also shows the ones still to come, with progress
 function Badges({ list, mine, onAll }) {
   if (!list?.length && !mine) return null
@@ -1001,7 +1048,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     const date = x.card.date || `${ss.slice(0, 4)}-10-01`
     return fromIndex(env, x.card, {
       key: `c${x.id}`, cardId: x.id, tier: sp ? x.card.kind : x.card.tier, gs: duel ? x.card.score || 0 : sp ? 0 : x.card.row.gs || 0, pts, date, fc, s: ss, decade: decadeOf(ss),
-      label: duel ? `Duel · ${shortName(x.card.a.row.n)}` : sp ? specialTitle(x.card) : shortName(x.card.row.n), sub: `${pts.toLocaleString()} pts`, serial: x.serial, pinned: starred.has(x.id), shown: showIds.includes(x.id), pulledAt: x.pulled,
+      label: duel ? `Duel · ${shortName(x.card.a.row.n)}` : sp ? specialTitle(x.card) : shortName(x.card.row.n), sub: `${pts.toLocaleString()} pts`, serial: x.serial,
+      owned: mine ? false : undefined, // your own binder: no marks; someone else's: a mark on the cards you own too pinned: starred.has(x.id), shown: showIds.includes(x.id), pulledAt: x.pulled,
       ...(mine ? { onPin: e => C.star(e.cardId, !e.pinned), onShow: e => C.showcase(e.cardId, !e.shown) } : {}),
     })
   }), [src?.cards, env, [...starred].join(), showIds.join(), mine])
@@ -1093,6 +1141,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       <div><b>{all.length}</b><small>Cards</small></div>
       <div><b>{have.fr.size ? new Set(all.map(e => e.name)).size : 0}</b><small>Players</small></div>
     </div>
+    <ScoreHistory user={src.user.username} mine={mine} tc={tc} />
     {top && <p className={styles.line}>Most collected: <b>{top.name}</b> · {top.n} player{top.n === 1 ? '' : 's'}, {top.cards} card{top.cards === 1 ? '' : 's'}</p>}
     {!phone && packRow}
     {me && <div className={styles.meterBox}><Meter meter={me.meter} />{t && <span className={styles.light}>{t.streak}-day streak · {t.claimed ? `${t.untilBonus} day${t.untilBonus === 1 ? '' : 's'} to a streak bonus` : 'today’s pack is waiting'}</span>}</div>}
