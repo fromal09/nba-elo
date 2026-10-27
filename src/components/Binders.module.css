@@ -398,3 +398,39 @@
 .histAxis { display: flex; justify-content: space-between; font-size: 10px; color: #8a95a2; }
 
 .histNote { margin: 6px 0 0; font-size: 12px; color: #6b7783; }
+
+/* ── Wish list ── */
+.wishBtn { height: 34px; padding: 0 14px; border: 1.5px solid #ff6f9b; border-radius: 17px; background: #fff; color: #d6336c; font: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.wishBtn:hover:not(:disabled) { background: #fff0f5; }
+.wishBtn:disabled { opacity: .55; cursor: default; }
+.wishOn { background: linear-gradient(135deg, #ff4f8b, #ff8fb5); border-color: transparent; color: #fff; }
+.wishOn:hover:not(:disabled) { background: linear-gradient(135deg, #e63f79, #ff7aa8); }
+.wishDark { background: rgba(255,255,255,.1); color: #ffb3cb; border-color: #ff8fb5; }
+.wishDark.wishOn { background: linear-gradient(135deg, #ff4f8b, #ff8fb5); color: #fff; }
+.wishBody { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 2px; }
+.wishList { display: flex; flex-direction: column; gap: 10px; }
+.wishItem { background: #fff; border-radius: 12px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(16,32,56,.06); border-left: 4px solid #ff6f9b; }
+.wishTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wishTop .linkBtn { height: 30px; padding: 0 12px; font-size: 12px; }
+.wishWho { display: flex; flex-direction: column; min-width: 0; }
+.wishWho b { font-size: 16px; }
+.wishWho small { font-size: 12px; color: #6b7783; }
+.wishMeters { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.wishMeter { display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 10px; }
+.wishTier { display: flex; flex-direction: column; font-size: 12px; font-weight: 800; color: #1d2633; line-height: 1.15; }
+.wishTier small { font-size: 10px; font-weight: 600; color: #8a95a2; }
+.wishBar { height: 8px; border-radius: 4px; background: #eef1f5; overflow: hidden; }
+.wishBar em { display: block; height: 100%; border-radius: 4px; background: var(--wt, #7d8ba0); transition: width .4s ease; }
+.wishNum { font-size: 11px; font-weight: 700; color: #4a5562; white-space: nowrap; }
+.wishMeter[data-tier=common] { --wt: #7d8ba0; } .wishMeter[data-tier=rare] { --wt: #d08a52; } .wishMeter[data-tier=standout] { --wt: #9aa7b4; }
+.wishMeter[data-tier=legend] { --wt: #e0b040; } .wishMeter[data-tier=icon] { --wt: linear-gradient(90deg, #ff2d95, #ffd32d, #2dffb4, #2d9bff, #b42dff); } .wishMeter[data-tier=goat] { --wt: linear-gradient(90deg, #b8871e, #fff1c0, #b8871e); }
+.wishH { margin: 4px 0 0; font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; color: #6a7684; }
+.wishDone { display: flex; flex-direction: column; gap: 4px; }
+.wishDoneRow { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #fff; border-radius: 9px; font-size: 13px; }
+.wishDoneRow > span { color: #ff4f8b; }
+.wishDoneRow small { flex: 1; color: #7a8593; font-size: 11.5px; }
+.wishDoneRow .linkBtn { height: 28px; padding: 0 12px; font-size: 12px; }
+@media (max-width: 760px) {
+  .wishMeter { grid-template-columns: 78px 1fr; }
+  .wishNum { grid-column: 2; white-space: normal; }
+}

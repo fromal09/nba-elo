@@ -273,7 +273,7 @@
 .modalFlip > .modalBack { visibility: hidden; }
 .modalFlip.flipped > .modalFace { visibility: hidden; }
 .modalFlip.flipped > .modalBack { visibility: visible; }
-.modalHint { display: flex; align-items: center; gap: 12px; color: #c3d4e6; font: 600 12.5px Inter, sans-serif; }
+.modalHint { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 12px; text-align: center; color: #c3d4e6; font: 600 12.5px Inter, sans-serif; }
 .modalHint button { height: 30px; padding: 0 14px; border: 0; border-radius: 15px; background: rgba(255,255,255,.14); color: #fff; font: inherit; cursor: pointer; }
 
 .seasonRank[data-long] b { font-size: 21px; }

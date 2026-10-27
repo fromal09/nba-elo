@@ -29,6 +29,7 @@ band = [level, label, champ] or null; honor = "potd" | "potg" | null
 
 Run after build_binders.py (it calls this at the end):  python3 scripts/build_packs.py
 """
+import hashlib
 import heapq, itertools, json, sys
 from pathlib import Path
 
@@ -81,6 +82,7 @@ def main():
     otd_n = itertools.count()
     last_day, recent, recent_teams = "", [], {}
     day_pool = {}     # the newest season's cards by date
+    who = {}          # player -> tier -> shard -> [row, ...]: where wish lists find a player's cards
     for f in files:
         d = json.loads(f.read_text(encoding="utf-8"))
         C, season = d["cols"], d["season"]
@@ -138,6 +140,9 @@ def main():
                 (OUT / name).write_text(json.dumps({"s": season, "teams": {c: teams.get(c, [c, None]) for c in used}, "rows": chunk},
                                                    ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
                 written.add(name)
+                base = name[len(t) + 1:-5]
+                for j, x in enumerate(chunk):
+                    who.setdefault(x[12], {}).setdefault(t, {}).setdefault(base, []).append(j)
                 index["tiers"].setdefault(t, []).append([name, len(chunk)])
                 index["total"] += len(chunk)
         print(f"  {season}", end="\r")
@@ -172,6 +177,15 @@ def main():
     for day, d in day_pool.items():
         name = f"days/{day}.json"
         (OUT / name).write_text(json.dumps(d, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        written.add(name)
+    # Each player's cards, one small file per player (the name's hash), for wish lists
+    (OUT / "who").mkdir(parents=True, exist_ok=True)
+    for n, tiers in who.items():
+        name = f"who/{hashlib.sha1(n.encode('utf-8')).hexdigest()[:12]}.json"
+        body = json.dumps(tiers, ensure_ascii=False, separators=(",", ":"))
+        f_ = OUT / name
+        if not f_.exists() or f_.read_text(encoding="utf-8") != body:   # unchanged files keep their date, so the sync skips them
+            f_.write_text(body, encoding="utf-8")
         written.add(name)
     # Shards from an older cut that this build didn't write
     for old in list(OUT.glob("*/*.json")) + list(OUT.glob("team/*/*.json")):

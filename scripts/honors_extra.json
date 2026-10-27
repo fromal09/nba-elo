@@ -1,4 +1,20 @@
 {
-  "_note": "Hand additions and fixes, by season and the site's player name. Codes: S All-Star, 1/2/3 All-League team, M MVP, A ABA (\"S1M\" = All-Star, All-NBA 1st, MVP). An empty code removes an entry. Add each season's All-NBA teams and MVP here until the dataset has them, then rerun build_binders.py.",
-  "2025-26": {}
+ "_note": "Hand additions and fixes, by season and the site's player name. Codes: S All-Star, 1/2/3 All-League team, M MVP, A ABA (\"S1M\" = All-Star, All-NBA 1st, MVP). An empty code removes an entry. Add each season's All-NBA teams and MVP here until the dataset has them, then rerun build_binders.py.",
+ "2025-26": {
+  "Shai Gilgeous-Alexander": "S1M",
+  "Victor Wembanyama": "S1",
+  "Cade Cunningham": "S1",
+  "Luka Dončić": "S1",
+  "Nikola Jokić": "S1",
+  "Jaylen Brown": "S2",
+  "Jalen Brunson": "S2",
+  "Kevin Durant": "S2",
+  "Kawhi Leonard": "S2",
+  "Donovan Mitchell": "S2",
+  "Tyrese Maxey": "S3",
+  "Jamal Murray": "S3",
+  "Jalen Johnson": "S3",
+  "Chet Holmgren": "S3",
+  "Jalen Duren": "S3"
+ }
 }

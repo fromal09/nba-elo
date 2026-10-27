@@ -513,7 +513,7 @@ function SeasonBackLoader({ card }) {
 }
 
 // Full size, flippable: tap the card (or the button, or F) to turn it over
-export function SpecialModal({ card, serial, onClose, locked }) {
+export function SpecialModal({ card, serial, onClose, locked, extra }) {
   const [flip, setFlip] = useState(false)
   const [k, setK] = useState(1)
   useEffect_(() => {
@@ -533,7 +533,7 @@ export function SpecialModal({ card, serial, onClose, locked }) {
           </div>
         </div>
       </div>
-      <div className={styles.modalHint} onClick={e => e.stopPropagation()}>{locked ? locked : 'Tap the card to flip · Esc to close'}
+      <div className={styles.modalHint} onClick={e => e.stopPropagation()}>{locked ? locked : 'Tap the card to flip · Esc to close'}{extra}
         <button type="button" onClick={onClose}>Close</button></div>
     </div>
   )

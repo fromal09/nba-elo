@@ -106,6 +106,10 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
     predReward: (day, kind = 'games') => api('predreward', undefined, `&day=${day}&kind=${kind}`).then(d => d.reward),
     claimPred: guard(async (day, ref, kind = 'games') => { const d = await api('claimpred', { day, ref, kind }); take(d); setPreds(d.predictions); loadCards(); setToast('Added to your binder.'); return d.predictions }),
     openPredict: () => (me ? onOpenPredict?.() : setAuth('signup')),
+    // Wish lists: three at a time; keeping a wished card fulfills it
+    wish: guard(async (name, season) => { const d = await api('wish', { name, season: season || null }); take(d); setToast(`${name}${season ? `, ${season},` : ''} is on your wish list.`); return d.wishlist }),
+    unwish: guard(async id => { const d = await api('unwish', { id }); take(d); return d.wishlist }),
+    loadWishes: user => api('wishes', undefined, user ? `&user=${encodeURIComponent(user)}` : ''),
   }), [me, cards, down, preds, loadCards, onOpenMine, onOpenStore, onOpenPredict])
 
   const closeQueue = () => { setQueue(null); loadCards(); refresh() }
@@ -292,6 +296,7 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
                   <span className={styles.back}><span className={styles.backMark} style={{ width: W * 0.4, height: W * 0.4, fontSize: W * 0.16 }}>FPR</span></span>
                   <span className={styles.frontSide}><CardFace card={c} shots={shots} w={W} live /></span>
                 </span>
+                {i < shown && c.wish && <span className={styles.wishTag}>♥ Wish list</span>}
                 {i < shown && <span className={styles.chip} data-tier={isSpecial(c) ? 'special' : c.tier}>{tierName(c)} · {cardPoints(c).points.toLocaleString()} pts</span>}
               </button>
             ))}

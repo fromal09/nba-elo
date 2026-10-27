@@ -29,8 +29,12 @@
 //   GET  standings   ?scope=week|season pick'em points, and where you rank
 //   GET  predreward  ?day=&kind=games|duels the cards you can choose from for a day you earned one
 //   POST claimpred   { day, ref, kind } keep that card
+//   GET  wishes      ?user= your wish list (or anyone's): each wish's progress and its meter per tier
+//   POST wish        { name, season? } wish for a player, or one season of his (three at a time)
+//   POST unwish      { id } take a wish off
 import { db, ensureSchema } from './_lib/db.js'
 import { USERNAME, hashPassword, checkPassword, startSession, endSession, currentUser } from './_lib/auth.js'
+import { loadWishes, applyWishes, resetMeters, tickMeters, wishView, addWish, removeWish, wishNames } from './_lib/wishes.js'
 import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS, SPECIAL_KINDS } from './_lib/packs.js'
 import { cardPoints } from './_lib/points.js'
 import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons } from './_lib/coins.js'
@@ -129,6 +133,7 @@ async function me(u) {
     coins: { balance: u.coins, ...(await earnings(sql, u.id, today)) },
     predict: await predSummary(sql, u.id, today),
     achievements: await achievements(sql, u.id),
+    wishes: (await wishNames(sql, u.id)).map(w => ({ id: w.id, name: w.name, season: w.season })),
   }
 }
 
@@ -189,13 +194,17 @@ async function makePacks(sql, u, origin, kinds, team, era) {
   const { set, openNoPity } = await takenRefs(sql, u)
   const out = []
   let packsAhead = openNoPity // open packs that will finish before this one
+  const wishes = await loadWishes(sql, u.id, origin).catch(e => { console.error('wishes', e); return [] })
+  const granted = []
   for (const kind of kinds) {
     const pity = u.since_big + packsAhead >= PITY_EVERY - 1
     const offers = await buildOffers(origin, kind, { taken: set, team, pity, era })
+    granted.push(...await applyWishes(origin, offers.slots, wishes, { taken: set, team }).catch(e => { console.error('wish swap', e); return [] }))
     offers.slots.forEach(s => s.cards.forEach(c => set.add(refOf(c))))
     out.push({ kind, team: team || null, pity: offers.pity, slots: offers.slots })
     packsAhead = pity ? 0 : packsAhead + 1
   }
+  if (granted.length) await resetMeters(sql, granted).catch(e => console.error('wish meters', e))
   return out
 }
 
@@ -263,6 +272,7 @@ async function pick(u, b, origin) {
     push(await tryChallenge(t, u.id, today, 'card', c, pts))
     if (done) push(await tryChallenge(t, u.id, today, 'pack'))
     if (row && !c.kind) push(await cardRewards(t, u.id, today, origin, c))
+    if (row && !c.kind) push(await tickMeters(t, u.id, origin, c))
     return { pack: np, cardId: row ? Number(row.id) : null, awards }
   })
   const [fresh] = await sql`select * from users where id = ${u.id}`
@@ -425,6 +435,11 @@ export default async function handler(req, res) {
         : { username: viewer.username, score: 0, cards: 0, players: 0, rank: null, of: n }
       return send(200, { leaders, binders: n, you })
     }
+    if (action === 'wishes' && q.user) {
+      const [o] = await sql`select * from users where username_key = ${String(q.user).toLowerCase()}`
+      if (!o) throw fail(404, 'No binder by that name.')
+      return send(200, await wishView(sql, o, origin))
+    }
     if (action === 'history') {
       const name = String(q.user || '').toLowerCase()
       const [o] = name ? await sql`select id from users where username_key = ${name}` : [await currentUser(req)]
@@ -495,6 +510,13 @@ export default async function handler(req, res) {
         where c.user_id = ${u.id} order by c.id desc`
       const ser = await serials(sql, u.id)
       return send(200, { awards: forged, cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at, pack: r.kind, serial: ser.get(Number(r.id)) })) })
+    }
+    if (action === 'wishes') return send(200, await wishView(sql, u, origin))
+    if (post && (action === 'wish' || action === 'unwish')) {
+      const b = await readBody(req)
+      if (action === 'wish') await addWish(sql, u, origin, b); else await removeWish(sql, u, b)
+      const [fresh] = await sql`select * from users where id = ${u.id}`
+      return send(200, { wishlist: await wishView(sql, u, origin), ...(await me(fresh)) })
     }
     if (post && action === 'star') {
       const b = await readBody(req), id = Number(b.id)
