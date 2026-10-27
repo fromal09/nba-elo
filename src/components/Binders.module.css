@@ -434,3 +434,31 @@
   .wishMeter { grid-template-columns: 78px 1fr; }
   .wishNum { grid-column: 2; white-space: normal; }
 }
+.wishMake { background: #fff; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 1px 2px rgba(16,32,56,.06); border: 1.5px dashed #ffb3cb; }
+.wishFind { position: relative; }
+.wishFind input { width: 100%; box-sizing: border-box; height: 40px; padding: 0 14px; border: 1px solid #dcd6c6; border-radius: 10px; font: inherit; font-size: 14px; background: #faf8f2; }
+.wishFind input:focus { outline: 2px solid #ff8fb5; border-color: transparent; background: #fff; }
+.wishHits { margin-top: 6px; display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; border: 1px solid #eee7d6; }
+.wishHits button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 12px; border: 0; border-top: 1px solid #f2ede2; background: #fff; font: inherit; text-align: left; cursor: pointer; }
+.wishHits button:first-child { border-top: 0; }
+.wishHits button:hover, .wishHits button:focus-visible { background: #fff0f5; }
+.wishHits b { font-size: 14px; } .wishHits small { font-size: 11.5px; color: #7a8593; }
+.wishPick { display: flex; flex-direction: column; gap: 10px; }
+.wishPickTop { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wishPickTop b { font-size: 16px; margin-right: auto; }
+.wishPickTop select { height: 32px; border: 1px solid #dcd6c6; border-radius: 8px; padding: 0 8px; font: 600 12.5px Inter, sans-serif; background: #fff; }
+.wishPickTop .linkBtn { height: 30px; padding: 0 12px; font-size: 12px; }
+.wishTiers { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+.wishTierBtn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 11px; border: 0; border-radius: 10px; cursor: pointer; text-align: left; font: inherit;
+  background: #f6f3ea; border-top: 3px solid var(--wt, #ff8fb5); }
+.wishTierBtn:hover:not(:disabled) { background: #fff0f5; }
+.wishTierBtn:disabled { opacity: .55; cursor: default; }
+.wishTierBtn b { font-size: 13.5px; }
+.wishTierBtn span { font-size: 12px; color: #4a5562; font-weight: 600; }
+.wishTierBtn small { font-size: 10.5px; color: #d6336c; font-weight: 800; }
+.wishTierBtn[data-tier=common] { --wt: #7d8ba0; } .wishTierBtn[data-tier=rare] { --wt: #d08a52; } .wishTierBtn[data-tier=standout] { --wt: #9aa7b4; }
+.wishTierBtn[data-tier=legend] { --wt: #e0b040; } .wishTierBtn[data-tier=icon] { --wt: #b42dff; } .wishTierBtn[data-tier=goat] { --wt: #b8871e; }
+.wishTierTag { display: inline-block; margin-right: 7px; padding: 1px 7px; border-radius: 8px; font-style: normal; font-size: 10.5px; font-weight: 800; vertical-align: 2px;
+  background: color-mix(in srgb, var(--wt, #ff8fb5) 22%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wt, #ff8fb5) 60%, #fff); }
+.wishTierTag[data-tier=common] { --wt: #7d8ba0; } .wishTierTag[data-tier=rare] { --wt: #d08a52; } .wishTierTag[data-tier=standout] { --wt: #9aa7b4; }
+.wishTierTag[data-tier=legend] { --wt: #e0b040; } .wishTierTag[data-tier=icon] { --wt: #b42dff; } .wishTierTag[data-tier=goat] { --wt: #b8871e; }

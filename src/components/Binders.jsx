@@ -3,6 +3,7 @@ import styles from './Binders.module.css'
 import { MiniCard, DuelCard, tierFor, TIERS, momentsFor } from './PlayerCard'
 import { Meter, CURRENT_TEAMS } from './Collector'
 import { PredictPages } from './Predictions'
+import { useIndex as usePlayerIndex, search as searchPlayers } from './PlayerSearch'
 import { Serial, SpecialFace, SpecialModal, isSpecial, specialTitle } from './SpecialCards'
 import { cardPoints, TIER_BASE } from '../../api/_lib/points.js'
 
@@ -326,7 +327,7 @@ export function WishBtn({ name, season, C, dark }) {
   const [busy, setBusy] = useState(false)
   if (!C || C.down || C.me === undefined) return null
   const ws = C.me?.wishes || []
-  const w = ws.find(x => x.name === name && (x.season || null) === (season || null))
+  const w = ws.find(x => x.name === name && (x.season || null) === (season || null) && !x.tier)
   const full = !w && ws.length >= 3
   const label = w ? '♥ On your wish list' : full ? '♡ Wish list full' : season ? `♡ Wish for his ${season}` : '♡ Wish for him'
   const title = w ? 'Tap to take this wish off' : full ? 'Three wishes at a time. Keeping a wished card fulfills it and frees the spot.'
@@ -1369,20 +1370,21 @@ function WishList({ user, mine, C, env, tools }) {
   const [d, setD] = useState(null)
   const key = (C?.me?.wishes || []).map(w => w.id).join() + '|' + (C?.me?.stats?.cards || 0)
   useEffect(() => { let live = true; C?.loadWishes(user).then(x => live && setD(x)).catch(() => live && setD({ wishes: [], fulfilled: [] })); return () => { live = false } }, [user, mine ? key : ''])
-  const again = async w => { const x = await C.wish(w.name, w.season); if (x) setD(x) }
+  const again = async w => { const x = await C.wish(w.name, w.season, w.tier); if (x) setD(x) }
   const drop = async w => { const x = await C.unwish(w.id); if (x) setD(x) }
   const ord = n => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`
   return <>
     <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Wish list</b><span>{d ? `${d.wishes.length} of ${d.max}` : ''}</span></div>{tools}</div>
     <div className={styles.wishBody}>
-      {mine && <p className={styles.line}>Wish for a player, or one season of his, from his career or season binder. Up to three at a time. In each pack slot with a card at a tier where a wish has cards you don’t own, {d?.chance ?? 15}% of the time one of them takes its place. Each wish also keeps a meter per tier: the cards you keep there without seeing it. When the meter fills, the next card offered at that tier is his. Keep one of his cards and the wish is fulfilled; wish again right away.</p>}
+      {mine && <p className={styles.line}>Wish for a player: any of his cards, one season’s, or one tier’s. Up to three at a time. In each pack slot with a card at a tier where a wish has cards you don’t own, {d?.chance ?? 15}% of the time one of them takes its place. Each wish also keeps a meter per tier: the cards you keep there without seeing it. When the meter fills, the next card offered at that tier is his. Keep one of his cards and the wish is fulfilled; wish again right away.</p>}
+      {mine && d && d.wishes.length < d.max && <WishMaker C={C} env={env} wishes={d.wishes} onDone={setD} />}
       {!d ? <p className={styles.light}>Loading…</p> : !d.wishes.length ? <div className={styles.emptySheet}><b>{mine ? 'No wishes yet' : 'No wishes right now'}</b>
-        <span>{mine ? 'Open any player’s career binder and tap ♡ Wish for him, or a season binder for one season.' : 'This collector isn’t wishing for anyone.'}</span></div>
+        <span>{mine ? 'Find a player above, or tap ♡ Wish in any career or season binder.' : 'This collector isn’t wishing for anyone.'}</span></div>
         : <div className={styles.wishList}>{d.wishes.map(w => {
           return (
             <div key={w.id} className={styles.wishItem}>
               <div className={styles.wishTop}>
-                <span className={styles.wishWho}><b>{w.name}</b><small>{w.season ? `${w.season} season` : 'Any season'} · you have {w.have.toLocaleString()} of {w.total.toLocaleString()} cards</small></span>
+                <span className={styles.wishWho}><b>{w.tier && <i className={styles.wishTierTag} data-tier={w.tier}>{WISH_TIER[w.tier]}</i>}{w.name}</b><small>{w.season ? `${w.season} season` : 'Any season'}{w.tier ? ` · ${WISH_TIER[w.tier]} cards only` : ''} · you have {w.have.toLocaleString()} of {w.total.toLocaleString()}</small></span>
                 {mine && <button type="button" className={styles.linkBtn} onClick={() => drop(w)}>Remove</button>}
               </div>
               <div className={styles.wishMeters}>
@@ -1401,11 +1403,65 @@ function WishList({ user, mine, C, env, tools }) {
         <h4 className={styles.wishH}>Fulfilled</h4>
         <div className={styles.wishDone}>{d.fulfilled.map(f => (
           <div key={f.id} className={styles.wishDoneRow}>
-            <span>♥</span><b>{f.name}</b><small>{f.season || 'any season'} · {new Date(f.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</small>
-            {mine && d.wishes.length < d.max && !d.wishes.some(w => w.name === f.name && (w.season || null) === (f.season || null)) && <button type="button" className={styles.linkBtn} onClick={() => again(f)}>Wish again</button>}
+            <span>♥</span><b>{f.tier ? `${WISH_TIER[f.tier]} ` : ''}{f.name}</b><small>{f.season || 'any season'} · {new Date(f.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</small>
+            {mine && d.wishes.length < d.max && !d.wishes.some(w => w.name === f.name && (w.season || null) === (f.season || null) && (w.tier || null) === (f.tier || null)) && <button type="button" className={styles.linkBtn} onClick={() => again(f)}>Wish again</button>}
           </div>
         ))}</div>
       </>}
     </div>
   </>
+}
+
+// Make a wish from the list: find a player, then his cards by tier (in all seasons or one), and wish for any or one tier
+function WishMaker({ C, env, wishes, onDone }) {
+  const [q, setQ] = useState('')
+  const [name, setName] = useState(null)
+  const [season, setSeason] = useState('')
+  const [cards, setCards] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const players = useMemo(() => env.players?.() || [], [env])
+  const idx = usePlayerIndex(players)
+  const hits = useMemo(() => (q.trim().length >= 2 ? searchPlayers(idx.list, q).slice(0, 8) : []), [q, idx])
+  useEffect(() => {
+    if (!name) return
+    let live = true; setCards(null)
+    C.wishCards(name, season || null).then(x => live && setCards(x)).catch(e => live && setCards({ error: e.message }))
+    return () => { live = false }
+  }, [name, season])
+  const has = (tier) => wishes.some(w => w.name === name && (w.season || null) === (season || null) && (w.tier || null) === (tier || null))
+  const make = async tier => { setBusy(true); const x = await C.wish(name, season || null, tier); setBusy(false); if (x) { onDone(x); setName(null); setQ(''); setSeason('') } }
+  const ord = n => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`
+  const METER = { common: 100, rare: 60, standout: 40, legend: 25, icon: 15, goat: 10 }
+  return (
+    <div className={styles.wishMake}>
+      <span className={styles.boxLab}>Make a wish · {3 - wishes.length} left</span>
+      {!name ? <div className={styles.wishFind}>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Find a player" aria-label="Find a player to wish for" />
+        {hits.length > 0 && <div className={styles.wishHits}>{hits.map(h => (
+          <button key={h.p.name} type="button" onClick={() => { setName(h.p.name); setSeason('') }}>
+            <b>{h.p.name}</b><small>{h.years}{h.teams.length ? ` · ${h.teams.slice(0, 4).join(', ')}${h.teams.length > 4 ? '…' : ''}` : ''}</small></button>))}</div>}
+      </div> : <div className={styles.wishPick}>
+        <div className={styles.wishPickTop}>
+          <b>{name}</b>
+          <select value={season} onChange={e => setSeason(e.target.value)} aria-label="Season">
+            <option value="">Any season</option>
+            {(cards?.seasons || []).map(x => <option key={x.s} value={x.s}>{x.s} · {x.n.toLocaleString()} cards</option>)}
+          </select>
+          <button type="button" className={styles.linkBtn} onClick={() => { setName(null); setCards(null) }}>Change</button>
+        </div>
+        {!cards ? <p className={styles.light}>Loading his cards…</p> : cards.error ? <p className={styles.light}>{cards.error}</p> : <div className={styles.wishTiers}>
+          {[{ tier: null, total: cards.total, have: cards.have }, ...cards.tiers].map(t => {
+            const all = t.have >= t.total, on = has(t.tier)
+            return (
+              <button key={t.tier || 'any'} type="button" className={styles.wishTierBtn} data-tier={t.tier || 'any'} disabled={busy || all || on} onClick={() => make(t.tier)}>
+                <b>{t.tier ? WISH_TIER[t.tier] : 'Any card'}</b>
+                <span>{t.total.toLocaleString()} card{t.total === 1 ? '' : 's'}{t.have ? ` · you have ${t.have.toLocaleString()}` : ''}</span>
+                <small>{on ? '♥ On your list' : all ? 'You have them all' : t.tier ? `♡ Wish · sure by your ${ord(METER[t.tier])} ${WISH_TIER[t.tier]}` : '♡ Wish for any tier'}</small>
+              </button>
+            )
+          })}
+        </div>}
+      </div>}
+    </div>
+  )
 }

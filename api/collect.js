@@ -30,11 +30,12 @@
 //   GET  predreward  ?day=&kind=games|duels the cards you can choose from for a day you earned one
 //   POST claimpred   { day, ref, kind } keep that card
 //   GET  wishes      ?user= your wish list (or anyone's): each wish's progress and its meter per tier
-//   POST wish        { name, season? } wish for a player, or one season of his (three at a time)
+//   GET  wishcards   ?name=&season= a player's cards by tier (and yours), and his seasons, for choosing a wish
+//   POST wish        { name, season?, tier? } wish for a player: any card, or one season's, or one tier's (three at a time)
 //   POST unwish      { id } take a wish off
 import { db, ensureSchema } from './_lib/db.js'
 import { USERNAME, hashPassword, checkPassword, startSession, endSession, currentUser } from './_lib/auth.js'
-import { loadWishes, applyWishes, resetMeters, tickMeters, wishView, addWish, removeWish, wishNames } from './_lib/wishes.js'
+import { loadWishes, applyWishes, resetMeters, tickMeters, wishView, addWish, removeWish, wishNames, wishCards } from './_lib/wishes.js'
 import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS, SPECIAL_KINDS } from './_lib/packs.js'
 import { cardPoints } from './_lib/points.js'
 import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons } from './_lib/coins.js'
@@ -133,7 +134,7 @@ async function me(u) {
     coins: { balance: u.coins, ...(await earnings(sql, u.id, today)) },
     predict: await predSummary(sql, u.id, today),
     achievements: await achievements(sql, u.id),
-    wishes: (await wishNames(sql, u.id)).map(w => ({ id: w.id, name: w.name, season: w.season })),
+    wishes: (await wishNames(sql, u.id)).map(w => ({ id: w.id, name: w.name, season: w.season, tier: w.tier || null })),
   }
 }
 
@@ -512,6 +513,7 @@ export default async function handler(req, res) {
       return send(200, { awards: forged, cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at, pack: r.kind, serial: ser.get(Number(r.id)) })) })
     }
     if (action === 'wishes') return send(200, await wishView(sql, u, origin))
+    if (action === 'wishcards') return send(200, await wishCards(sql, u, origin, q))
     if (post && (action === 'wish' || action === 'unwish')) {
       const b = await readBody(req)
       if (action === 'wish') await addWish(sql, u, origin, b); else await removeWish(sql, u, b)

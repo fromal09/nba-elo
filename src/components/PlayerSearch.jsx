@@ -10,7 +10,7 @@ const fold = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().repla
 const r0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
 const DAY = 864e5
 
-function useIndex(players) {
+export function useIndex(players) {
   return useMemo(() => {
     if (!players?.length) return { list: [], recent: '' }
     const newest = players.reduce((m, p) => (p.last_played > m ? p.last_played : m), '')
@@ -30,7 +30,7 @@ function useIndex(players) {
 }
 
 // Full-name start beats a word start beats anywhere in the name; then all-time peak Elo
-function search(list, q) {
+export function search(list, q) {
   const fq = fold(q.trim())
   if (!fq) return []
   const toks = fq.split(/\s+/)

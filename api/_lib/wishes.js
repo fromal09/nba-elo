@@ -1,4 +1,4 @@
-// Wish lists: players (or one player's season) a collector is after.
+// Wish lists: players a collector is after, any card of his or one tier of them, from any season or one.
 //
 //   Boost   when a pack slot has a card at a tier where a wish has cards you don't own, 15% of the time one of
 //           them takes that card's place. The tier never changes, so the pack's odds don't either: a wish
@@ -25,8 +25,11 @@ export async function ensureWishSchema(t) {
     id serial primary key, user_id int not null references users(id) on delete cascade,
     name text not null, season text, meter jsonb not null default '{}', granted int not null default 0,
     created_at timestamptz not null default now(), fulfilled_at timestamptz, fulfilled_ref text)`
-  // One open wish per player (or player-season); fulfilled ones stay as history
-  await t`create unique index if not exists wishes_open on wishes (user_id, name, coalesce(season, '')) where fulfilled_at is null`
+  // A wish can name one tier: "a Rare Jason Preston"
+  await t`alter table wishes add column if not exists tier text`
+  // One open wish per player, season and tier; fulfilled ones stay as history
+  await t`drop index if exists wishes_open`
+  await t`create unique index if not exists wishes_open2 on wishes (user_id, name, coalesce(season, ''), coalesce(tier, '')) where fulfilled_at is null`
 }
 
 // A player's cards in the pool: { tier: { "2015-16-0": [row, ...] } } (build_packs.py's who/ files)
@@ -48,8 +51,11 @@ function entries(who, tier, season) {
   }
   return out
 }
-const countAll = (who, season) => TIER_ORDER.reduce((s, t) => s + entries(who, t, season).length, 0)
+const tiersOf = w => (w.tier ? [w.tier] : TIER_ORDER)
+const countAll = (who, season, tier) => (tier ? [tier] : TIER_ORDER).reduce((s, t) => s + entries(who, t, season).length, 0)
 const seasonOk = (w, c) => !w.season || c.s === w.season
+const TIER_NAME = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' }
+export const wishLabel = w => `${w.tier ? `${TIER_NAME[w.tier]} ` : ''}${w.name}${w.season ? `, ${w.season}` : ''}`
 
 // Cards of a wish you own, by tier
 async function ownedByTier(sql, userId, w) {
@@ -66,7 +72,7 @@ export async function loadWishes(sql, userId, origin) {
     const who = await whoOf(origin, w.name)
     if (!who) continue
     const own = await ownedByTier(sql, userId, w)
-    const left = Object.fromEntries(TIER_ORDER.map(t => [t, entries(who, t, w.season).length - (own[t] || 0)]))
+    const left = Object.fromEntries(TIER_ORDER.map(t => [t, tiersOf(w).includes(t) ? entries(who, t, w.season).length - (own[t] || 0) : 0]))
     out.push({ id: w.id, name: w.name, season: w.season, meter: w.meter || {}, who, left })
   }
   return out
@@ -137,10 +143,11 @@ export async function tickMeters(t, userId, origin, card) {
   const ws = await t`select * from wishes where user_id = ${userId} and fulfilled_at is null`
   const done = []
   for (const w of ws) {
+    if (!tiersOf(w).includes(card.tier)) continue
     const mine = card.row?.n === w.name && seasonOk(w, card)
     if (mine) {
       await t`update wishes set fulfilled_at = now(), fulfilled_ref = ${refOf(card)} where id = ${w.id}`
-      done.push({ kind: 'wish', amount: 0, label: `Wish fulfilled: ${w.name}${w.season ? `, ${w.season}` : ''}` })
+      done.push({ kind: 'wish', amount: 0, label: `Wish fulfilled: ${wishLabel(w)}` })
       continue
     }
     const who = await whoOf(origin, w.name)
@@ -158,36 +165,51 @@ export async function tickMeters(t, userId, origin, card) {
 // The list as the binder shows it: progress, and each tier's meter where the wish has cards left
 export async function wishView(sql, user, origin) {
   const ws = await sql`select * from wishes where user_id = ${user.id} and fulfilled_at is null order by id`
-  const past = await sql`select w.id, w.name, w.season, w.fulfilled_at, c.card from wishes w left join cards c on c.user_id = w.user_id and c.ref = w.fulfilled_ref
+  const past = await sql`select w.id, w.name, w.season, w.tier, w.fulfilled_at, c.card from wishes w left join cards c on c.user_id = w.user_id and c.ref = w.fulfilled_ref
     where w.user_id = ${user.id} and w.fulfilled_at is not null order by w.fulfilled_at desc limit 6`
   const list = []
   for (const w of ws) {
     const who = await whoOf(origin, w.name)
     const own = await ownedByTier(sql, user.id, w)
-    const tiers = TIER_ORDER.map(t => {
+    const tiers = tiersOf(w).map(t => {
       const total = entries(who, t, w.season).length, have = own[t] || 0
       return total ? { tier: t, total, have, meter: Math.min(w.meter?.[t] || 0, WISH.meter[t]), need: WISH.meter[t] } : null
     }).filter(Boolean)
     const total = tiers.reduce((s, x) => s + x.total, 0), have = tiers.reduce((s, x) => s + x.have, 0)
-    list.push({ id: w.id, name: w.name, season: w.season, total, have, done: total > 0 && have >= total, granted: w.granted, tiers })
+    list.push({ id: w.id, name: w.name, season: w.season, tier: w.tier || null, total, have, done: total > 0 && have >= total, granted: w.granted, tiers })
   }
   return { wishes: list, max: WISH.max, chance: WISH.chance, meter: WISH.meter,
-    fulfilled: past.map(x => ({ id: x.id, name: x.name, season: x.season, at: x.fulfilled_at, card: x.card || null })) }
+    fulfilled: past.map(x => ({ id: x.id, name: x.name, season: x.season, tier: x.tier || null, at: x.fulfilled_at, card: x.card || null })) }
+}
+
+// A player's cards, for choosing a wish: how many at each tier (in one season or all), how many you have, his seasons
+export async function wishCards(sql, u, origin, q) {
+  const name = String(q.name || ''), season = q.season ? String(q.season) : null
+  const who = await whoOf(origin, name)
+  if (!who) throw fail(404, `${name} has no cards.`)
+  const own = u ? await ownedByTier(sql, u.id, { name, season }) : {}
+  const seasons = {}
+  for (const t of TIER_ORDER) for (const [base, rows] of Object.entries(who[t] || {})) { const s_ = base.slice(0, 7); seasons[s_] = (seasons[s_] || 0) + rows.length }
+  const tiers = TIER_ORDER.map(t => ({ tier: t, total: entries(who, t, season).length, have: own[t] || 0 })).filter(x => x.total)
+  return { name, season, tiers, total: tiers.reduce((a, x) => a + x.total, 0), have: tiers.reduce((a, x) => a + x.have, 0),
+    seasons: Object.entries(seasons).sort().map(([s_, n]) => ({ s: s_, n })) }
 }
 
 export async function addWish(sql, u, origin, b) {
-  const name = String(b.name || '').trim(), season = b.season ? String(b.season) : null
+  const name = String(b.name || '').trim(), season = b.season ? String(b.season) : null, tier = b.tier ? String(b.tier) : null
   if (!name) throw fail(400, 'Pick a player.')
   if (season && !/^\d{4}-\d{2}$/.test(season)) throw fail(400, 'That season isn’t right.')
+  if (tier && !TIER_ORDER.includes(tier)) throw fail(400, 'That tier isn’t right.')
   const who = await whoOf(origin, name)
-  if (!who || !countAll(who, season)) throw fail(404, season ? `${name} has no cards from ${season}.` : `${name} has no cards.`)
+  const what = wishLabel({ name, season, tier })
+  if (!who || !countAll(who, season, tier)) throw fail(404, `There are no ${what} cards.`)
   const [{ n }] = await sql`select count(*)::int as n from wishes where user_id = ${u.id} and fulfilled_at is null`
   if (n >= WISH.max) throw fail(409, `You have ${WISH.max} wishes already. Take one off first.`)
-  // Wishing for a whole player while you own every card he has, or a season you've filled, does nothing
+  // A wish for cards you already own every one of would do nothing
   const [{ have }] = await sql`select count(*)::int as have from cards where user_id = ${u.id} and card->'row'->>'n' = ${name}
-    and (${season}::text is null or card->>'s' = ${season}) and tier = any(${TIER_ORDER})`
-  if (have >= countAll(who, season)) throw fail(409, season ? `You have every ${name} card from ${season}.` : `You have every ${name} card.`)
-  await sql`insert into wishes (user_id, name, season) values (${u.id}, ${name}, ${season}) on conflict do nothing`
+    and (${season}::text is null or card->>'s' = ${season}) and tier = any(${tier ? [tier] : TIER_ORDER})`
+  if (have >= countAll(who, season, tier)) throw fail(409, `You have every ${what} card.`)
+  await sql`insert into wishes (user_id, name, season, tier) values (${u.id}, ${name}, ${season}, ${tier}) on conflict do nothing`
 }
 
 export async function removeWish(sql, u, b) {
@@ -195,4 +217,4 @@ export async function removeWish(sql, u, b) {
 }
 
 // Names only, for the Wish buttons across the site
-export const wishNames = (sql, userId) => sql`select id, name, season from wishes where user_id = ${userId} and fulfilled_at is null order by id`
+export const wishNames = (sql, userId) => sql`select id, name, season, tier from wishes where user_id = ${userId} and fulfilled_at is null order by id`

@@ -107,7 +107,9 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
     claimPred: guard(async (day, ref, kind = 'games') => { const d = await api('claimpred', { day, ref, kind }); take(d); setPreds(d.predictions); loadCards(); setToast('Added to your binder.'); return d.predictions }),
     openPredict: () => (me ? onOpenPredict?.() : setAuth('signup')),
     // Wish lists: three at a time; keeping a wished card fulfills it
-    wish: guard(async (name, season) => { const d = await api('wish', { name, season: season || null }); take(d); setToast(`${name}${season ? `, ${season},` : ''} is on your wish list.`); return d.wishlist }),
+    wish: guard(async (name, season, tier) => { const d = await api('wish', { name, season: season || null, tier: tier || null }); take(d)
+      setToast(`${tier ? `${TIER_NAME[tier]} ` : ''}${name}${season ? `, ${season},` : ''} is on your wish list.`); return d.wishlist }),
+    wishCards: (name, season) => api('wishcards', undefined, `&name=${encodeURIComponent(name)}${season ? `&season=${season}` : ''}`),
     unwish: guard(async id => { const d = await api('unwish', { id }); take(d); return d.wishlist }),
     loadWishes: user => api('wishes', undefined, user ? `&user=${encodeURIComponent(user)}` : ''),
   }), [me, cards, down, preds, loadCards, onOpenMine, onOpenStore, onOpenPredict])
