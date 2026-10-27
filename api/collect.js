@@ -36,6 +36,7 @@
 //   POST unwish      { id } take a wish off
 import { db, ensureSchema } from './_lib/db.js'
 import { USERNAME, hashPassword, checkPassword, startSession, endSession, currentUser } from './_lib/auth.js'
+import { upgradePoints } from './_lib/rescore.js'
 import { loadWishes, applyWishes, resetMeters, tickMeters, wishView, addWish, removeWish, wishNames, wishCards } from './_lib/wishes.js'
 import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS, SPECIAL_KINDS } from './_lib/packs.js'
 import { cardPoints } from './_lib/points.js'
@@ -387,6 +388,7 @@ export default async function handler(req, res) {
     const sql = db()
     const origin = process.env.DATA_ORIGIN || `${(req.headers['x-forwarded-proto'] || 'https').split(',')[0]}://${req.headers['x-forwarded-host'] || req.headers.host}`
     const post = req.method === 'POST'
+    await upgradePoints(sql, origin)   // once, after a points change: every card rescored
     if (action === 'me') {
       const u0 = await currentUser(req)
       const awards = u0 ? await visit(u0, origin) : []

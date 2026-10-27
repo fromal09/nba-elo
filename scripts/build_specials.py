@@ -71,6 +71,7 @@ def main():
     first, high, open_peaks, peaks = {}, {}, defaultdict(list), defaultdict(list)
     score, meets = defaultdict(float), defaultdict(int)
     fives = []
+    season_rank = {}  # season -> {"r": {player: final rank}, "champ": franchise}: Season card points (api/_lib/points.js)
     for f in files:
         d = load(f)
         season, games = d["season"], d["games"]
@@ -81,11 +82,15 @@ def main():
             if not g.get("post"):
                 meet[frozenset(g["teams"])] += 1
         season_best = {}  # player -> (post, card)
+        last_rank = {}    # player -> ((date, game), rank after his last game): a Season card's tier
         for g in games:
             for p in g["players"]:
                 if not played(p):
                     continue
                 n = p["n"]
+                rk = p.get("lrp") if p.get("lrp") is not None else p.get("lr")
+                if rk is not None and (n not in last_rank or (g["date"], g["id"]) > last_rank[n][0]):
+                    last_rank[n] = ((g["date"], g["id"]), rk)
                 first.setdefault(n, season)
                 # A Former Peak's run ends the first time he climbs past it
                 for pk in open_peaks[n]:
@@ -113,6 +118,9 @@ def main():
         for n, (_, c) in season_best.items():
             peaks[n].append(c)
             open_peaks[n] = [c]  # only the newest Peak can still be open
+        season_rank[season] = {"r": {n: v[1] for n, v in last_rank.items()},
+                               "champ": next((MERGE.get(t_, t_) for x in games if x.get("post") for t_ in x["teams"]
+                                              if (bnd.get((x["id"], t_)) or {}).get("champ") and x["pts"][x["teams"].index(t_)] > x["pts"][1 - x["teams"].index(t_)]), None)}
         # Starting Fives: each team's best day
         recs = {t: [x.get("w"), x.get("l")] for t, x in teams.items()}
         for t in teams:
@@ -139,7 +147,11 @@ def main():
                           "date": g["date"], "id": g["id"], "o": o, "on": om.get("name", o), "home": None if g.get("home") is None else g["home"] == t,
                           "won": g["pts"][i] > g["pts"][1 - i], "score": f"{g['pts'][i]}–{g['pts'][1 - i]}", "ot": g.get("ot") or "", "elo": round(v),
                           "players": [{"n": p["n"], "pos": p.get("pos"), "pre": round(p["pre"]), "post": round(p["post"]), "mp": p.get("mp"), "pts": p.get("pts"),
-                                       "trb": p.get("trb"), "ast": p.get("ast"), "gs": p.get("gs"), "st": p.get("st")} for p in five],
+                                       "trb": p.get("trb"), "ast": p.get("ast"), "stl": p.get("stl"), "blk": p.get("blk"), "tp": p.get("tp"),
+                                       "gs": p.get("gs"), "st": p.get("st"), "lr": p.get("lr"), "lrp": p.get("lrp"), "fx": p.get("fx"), "gp": p.get("gp"),
+                                       "honor": hon.get((g["id"], p["n"]))} for p in five],
+                          # what each player's card from that game is worth adds up to the Five's points (api/_lib/points.js)
+                          "band": (lambda b: {"level": b["level"]} if b else None)(bnd.get((g["id"], t))),
                           "tw": recs[t][0], "tl": recs[t][1], "together": len(tog), "togW": sum(1 for x in tog if won(x)),
                           "po": [sum(1 for x in po if won(x)), sum(1 for x in po if not won(x))] if po else None,
                           "champ": any((bnd.get((x["id"], t)) or {}).get("champ") and won(x) for x in po)})
@@ -242,6 +254,7 @@ def main():
     fv = defaultdict(dict)
     for c in fives:
         fv[c["fc"]][c["s"]] = [c["elo"], c["date"], c["o"], c["won"], c["score"], [p["n"] for p in c["players"]]]
+    (B / "seasonrank.json").write_text(json.dumps(season_rank, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     (B / "fives.json").write_text(json.dumps(fv, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"  Specials: {len(all_peaks):,} Peak cards ({len(peaks):,} players) · {len(rivals)} rivalries · {len(fives):,} Starting Fives            ")
 

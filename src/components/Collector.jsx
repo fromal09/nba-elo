@@ -214,8 +214,8 @@ const slotLabel = (pack, slot, lastNight) => {
   if (s.src === 'era') return s.odds === 'rarePlus' ? 'From this era · Rare or better' : 'From this era'
   return s.odds === 'legendPlus' ? 'From the vault · Legend or better' : s.odds === 'rarePlus' ? 'From the vault · Rare or better' : 'From the vault · any era'
 }
-// Why a card is worth what it is: "Legend ×12 · grade 8 · Player of the Game +25%"
-const pointsWhy = c => { const p = cardPoints(c); if (isSpecial(c) || c.kind === 'duel') return p.bonuses.map(([l]) => l).join(' · '); return [`${TIER_NAME[c.tier].replace('★ ', '')} ×${p.base}`, `grade ${p.grade}`, ...p.bonuses.map(([l, v]) => `${l} +${Math.round(v * 100)}%`)].join(' · ') }
+// Why a card is worth what it is: "Legend ×12 · game ×1.8 · Player of the Game +25%"
+const pointsWhy = c => { const p = cardPoints(c); if (isSpecial(c) || c.kind === 'duel') return p.bonuses.map(([l]) => l).join(' · '); return [`${TIER_NAME[c.tier].replace('★ ', '')} ×${p.base}`, `game ×${(p.perf || 1).toFixed(1)}`, ...p.bonuses.map(([l, v]) => `${l} +${Math.round(v * 100)}%`)].join(' · ') }
 export const tierName = c => (isSpecial(c) || c.kind === 'duel' ? specialLabel(c) : TIER_NAME[c.tier])
 export const cardName = c => (isSpecial(c) || c.kind === 'duel' ? specialTitle(c) : c.row.n)
 const line = c => (isSpecial(c) ? specialLine(c) : null) || [c.row?.pts != null && `${c.row.pts} pts`, c.row.trb && `${c.row.trb} reb`, c.row.ast && `${c.row.ast} ast`].filter(Boolean).join(' · ')

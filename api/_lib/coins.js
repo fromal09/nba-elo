@@ -1,3 +1,5 @@
+import { seasonDetails } from './rescore.js'
+import { cardPoints } from './points.js'
 // Coins: what collectors earn by playing and spend in the store. Every grant is a row in the coin ledger,
 // which is how daily caps and once-only rewards are enforced; users.coins is the running balance.
 import { poolJSON } from './packs.js'
@@ -129,9 +131,9 @@ export async function forgeSeasons(t, userId, day, origin, only = null) {
     if (!rosterCache.has(x.fc)) rosterCache.set(x.fc, dataJSON(origin, `binders/roster/${x.fc.replace('@', '_')}.json`))
     const games = (await rosterCache.get(x.fc))?.[x.s]?.find(([n]) => n === x.n)?.[1]
     if (!games || x.k < games) continue
-    const card = { kind: 'season', tier: 'season', s: x.s, t: x.fc, tn: x.tn, tc: x.tc, n: x.n, gp: games }
+    const card = { kind: 'season', tier: 'season', s: x.s, t: x.fc, tn: x.tn, tc: x.tc, n: x.n, gp: games, ...(await seasonDetails(origin, x.s, x.fc, x.n)) }
     const ref = `season|${x.s}|${x.fc}|${x.n}`
-    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, 'season', ${ref}, ${t.json(card)}, ${5 * games}, 'forged')
+    const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, 'season', ${ref}, ${t.json(card)}, ${cardPoints(card).points}, 'forged')
       on conflict (user_id, ref) do nothing returning id`
     if (row) out.push({ kind: 'season', amount: 0, label: `Season card forged: ${x.n}, ${x.s}` })
   }

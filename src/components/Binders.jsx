@@ -1025,10 +1025,14 @@ function PointsHelp() {
   return (
     <details className={styles.help}>
       <summary>How points work</summary>
-      <p><b>10 × tier × performance × design.</b> Tier: {Object.entries(TIER_BASE).map(([t, v]) => `${TIER_LABEL[t].replace('★ ', '')} ${v}`).join(' · ')}.
-        Performance: 1 + the card’s slab grade ÷ 10, from the game’s Game Score percentile (debuts graded against debuts), so up to ×2.
-        Design: Player of the Game +25%, Player of the Day +60%, playoffs +15%, Conference Finals +25%, Finals +40%, title clincher +75%,
-        stat-line insert +50%, debut +40%, career game +25%, career-high Elo +10%.</p>
+      <p><b>10 × tier × performance × (1 + bonuses).</b> Everything is priced by how rare it is. Tier: {Object.entries(TIER_BASE).map(([t, v]) => `${TIER_LABEL[t].replace('★ ', '')} ${v}`).join(' · ')}.
+        Performance: how rare the Game Score is, with no ceiling: ×1.5 for a top-5% game, ×2.2 for 1 in 1,000, ×3.5 for Wilt’s 100 (debuts against debuts).</p>
+      <p>Bonuses: Player of the Game +25%, Player of the Day +60%. Playoffs: first round +15%, second round +20%, Conference Finals +30%, Finals +45%, title clincher +100%.
+        The rarest stat line on the card: 40 points +30%, triple-double +40%, 25 rebounds +45%, 20-20 +60%, 50 points or 30 rebounds +80%, 20 assists or 10 blocks, steals or threes +120%,
+        60 points +150%, 70 points +250%, 80 points or a quadruple-double +400%, 100 points +800%. Debut +40%, career game +25%, career-high Elo +10%.</p>
+      <p>Special cards: Peak, the game’s card +50%. Duel of the Day, both cards +25%. Rivalry, 360 × its tier (GOAT 5,400, Rare 180) and up to +50% at the top of its tier.
+        Starting Five, the five players’ cards from that game added up, +40% for a title team. Season card, 80 × his final tier by the share of a season he played,
+        plus All-Star +25%, All-League +60/45/30%, MVP +100%, title +50%.</p>
     </details>
   )
 }
