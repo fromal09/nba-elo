@@ -2721,9 +2721,14 @@ function seasonSummary(sd, name, fc) {
   }
 }
 const summaries = new Map()
+// Honors from scripts/build_honors.py: "S1M" = All-Star, All-League 1st team, MVP; "A" = ABA
+let honorsP = null
+const binderHonors = () => (honorsP ||= getJSON('/data/explorer/binders/honors.json').catch(() => ({})))
+const parseHonors = c => (c ? { allStar: c.includes('S'), allNba: +(c.match(/[123]/)?.[0] || 0), mvp: c.includes('M'), aba: c.includes('A') } : null)
 export const binderSeasonSummary = (s, name, fc) => {
   const k = `${s}|${fc}|${name}`
-  if (!summaries.has(k)) summaries.set(k, loadSeason(s, s === NEWEST).then(sd => seasonSummary(sd, name, fc)))
+  if (!summaries.has(k)) summaries.set(k, Promise.all([loadSeason(s, s === NEWEST), binderHonors()])
+    .then(([sd, h]) => { const x = seasonSummary(sd, name, fc); if (x) x.honors = parseHonors(h?.[s]?.[name]); return x }))
   return summaries.get(k)
 }
 // A player's career Elo path up to a date (for a Peak card's climb), and the whole of it

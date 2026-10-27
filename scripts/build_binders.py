@@ -394,3 +394,5 @@ if __name__ == "__main__":
     build_packs()
     from build_specials import main as build_specials
     build_specials()
+    from build_honors import publish as build_honors   # All-Star, All-League and MVP for Season cards
+    build_honors()

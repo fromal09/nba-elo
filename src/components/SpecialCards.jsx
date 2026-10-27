@@ -120,6 +120,27 @@ export function PeakCard({ card, team, headshot, status = 'reigning', peakNo, of
 
 // ── Season ───────────────────────────────────────────────────────────────────
 // owned: a Set of game indexes (0-based, in game order) you own; full reveal when every game is owned
+// A Season card's foil is the tier of where he finished: his final Elo rank, on the same scale as game cards
+const SEASON_TIERS = [['goat', 1], ['icon', 5], ['legend', 20], ['standout', 50], ['rare', 125]]
+export const seasonTier = rank => (rank ? (SEASON_TIERS.find(([, top]) => rank <= top) || ['common'])[0] : 'common')
+const ORD = n => ['1st', '2nd', '3rd'][n - 1] || `${n}th`
+const lgName = (s, h) => (h?.aba ? 'All-ABA' : +s.s.slice(0, 4) < 1949 ? 'All-BAA' : 'All-NBA')
+// "All-Star · All-NBA 1st · MVP"
+export const honorList = s => { const h = s.honors; if (!h) return []
+  return [h.mvp && (h.aba ? 'ABA MVP' : 'MVP'), h.allNba && `${lgName(s, h)} ${ORD(h.allNba)}`, h.allStar && (h.aba ? 'ABA All-Star' : 'All-Star')].filter(Boolean) }
+// Laurel for an MVP season: two branches of leaves around the medal
+function Laurel({ size = 124 }) {
+  const c = size / 2, r = size / 2 - 8
+  const leaves = []
+  const leaf = (deg, k, side) => {
+    const t = deg * Math.PI / 180, x = c + r * Math.cos(t), y = c + r * Math.sin(t)
+    leaves.push(<ellipse key={k} cx={x} cy={y} rx="3.6" ry="8.5" transform={`rotate(${deg + side * 14} ${x} ${y})`} />)
+  }
+  for (let i = 0; i < 10; i++) { leaf(108 + i * 13, `l${i}`, 1); leaf(72 - i * 13, `r${i}`, -1) }
+  return <svg className={styles.laurel} width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+    {leaves}<path d={`M${c - 7},${c + r + 3} Q${c},${c + r - 3} ${c + 7},${c + r + 3}`} fill="none" stroke="#f5d77a" strokeWidth="2.4" strokeLinecap="round" /></svg>
+}
+
 export function SeasonCard({ s, owned, headshot, serial }) {
   const { first, last } = split(s.name)
   const ref = useRef(null)
@@ -132,17 +153,27 @@ export function SeasonCard({ s, owned, headshot, serial }) {
   const R = ridge(s.path, W, H, lo, hi)
   const best = s.best
   const po = s.po, champ = po?.champ
+  const tier = s.tier || seasonTier(s.rank)
+  const H_ = s.honors || {}, nba = H_.allNba || 0
   return (
-    <div className={styles.season} data-done={done ? '' : undefined} data-champ={champ ? '' : undefined} style={{ '--c': s.tc || '#173657' }}>
-      <div className={styles.seasonHead}><span>{champ ? 'Champions' : 'Season'}</span><small>{s.s} · {nick(s.tn)}</small></div>
+    <div className={styles.season} data-tier={tier} data-done={done ? '' : undefined} data-champ={champ ? '' : undefined}
+      data-allstar={H_.allStar ? '' : undefined} data-allnba={nba || undefined} data-mvp={H_.mvp ? '' : undefined} style={{ '--c': s.tc || '#173657' }}>
+      <div className={styles.seasonHead}><span>{H_.mvp ? 'MVP' : champ ? 'Champions' : 'Season'}</span><small>{s.s} · {nick(s.tn)}</small></div>
       {po && <div className={styles.seasonPo} data-champ={champ ? '' : undefined}>{champ ? <>★ {+s.s.slice(0, 4) + 1} NBA champions <b>{po.w}–{po.l}</b></>
         : <>Playoffs · {poResult(po)}{po.series.length > 1 && <b>· {po.w}–{po.l}</b>}</>}</div>}
       <div className={styles.seasonBody}>
         <div className={styles.seasonBg} />
+        <div className={styles.seasonFoil} />
+        {H_.allStar && <div className={styles.seasonStars} />}
+        {nba > 0 && <div className={styles.seasonPins} />}
+        {H_.mvp && <div className={styles.seasonRays} />}
         <div className={styles.seasonTop}>
+          {H_.mvp && <Laurel />}
           <Medal name={s.name} headshot={headshot} color={s.tc} size={86} cls={styles.seasonMedal} />
+          {nba > 0 && <span className={styles.nbaShield} data-team={nba} title={`${lgName(s, H_)} ${ORD(nba)} Team`}><small>{lgName(s, H_)}</small><b>{ORD(nba)}</b></span>}
+          {H_.allStar && <span className={styles.starBadge} title="All-Star">★<small>All-Star</small></span>}
           <div className={styles.seasonRec}><FitName max={44} min={26}>{`${s.w}–${s.l}`}</FitName><small>{nick(s.tn)}</small></div>
-          <div className={styles.seasonRank} data-long={s.rank >= 100 ? '' : undefined}><small>Final rank</small><b>{s.rank ? `#${s.rank}` : '—'}</b></div>
+          <div className={styles.seasonRank} data-long={s.rank >= 100 ? '' : undefined}><small>Final rank</small><b>{s.rank ? `#${s.rank}` : '—'}</b><em>{tier === 'goat' ? '★ GOAT' : tier}</em></div>
         </div>
         <div className={styles.seasonName}><small>{first}</small><b ref={ref}>{last}</b></div>
         <div className={styles.seasonChart}>
@@ -186,6 +217,7 @@ export function SeasonBack({ s }) {
     <div className={styles.back} style={{ '--c': s.tc || '#173657' }}>
       <div className={styles.backHead}><div><FitName>{baseName(s.name)}</FitName><small>{s.tn} · {s.s}</small></div>
         <span>{s.po?.champ ? '★ Champions' : `#${s.rank} final`}</span></div>
+      {honorList(s).length > 0 && <div className={styles.backHonors}>{honorList(s).map(x => <span key={x}>{x}</span>)}</div>}
       <section>
         <h4>Every game <em>{s.reg} regular season{s.po ? ` · ${s.po.w + s.po.l} playoffs` : ''}</em></h4>
         <div className={styles.gameTiles}>

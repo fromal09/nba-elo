@@ -278,3 +278,73 @@
 
 .seasonRank[data-long] b { font-size: 21px; }
 .seasonRank[data-long] { padding: 6px 8px; }
+
+/* ── Season tiers: the frame and foil follow the final rank, as on game cards ── */
+.seasonFoil { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.seasonRank em { margin-top: 3px; font-style: normal; font-size: 8px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; opacity: .85; }
+.season[data-tier=common] { background: linear-gradient(135deg, #3a4656, #8593a5 50%, #2f3a48); box-shadow: 0 0 0 1px rgba(200,210,222,.5), 0 14px 30px rgba(0,0,0,.5); }
+.season[data-tier=common] .seasonHead span { color: #cdd5de; }
+.season[data-tier=common] .seasonRank b, .season[data-tier=common] .seasonLine { color: #dfe6ee; stroke: #dfe6ee; }
+.season[data-tier=rare] { background: linear-gradient(135deg, #7a4a26, #f0b07a 45%, #8a5a32 60%, #d08a52); box-shadow: 0 0 0 1px rgba(255,200,160,.6), 0 14px 30px rgba(0,0,0,.5); }
+.season[data-tier=rare] .seasonHead span, .season[data-tier=rare] .seasonRank b { color: #f0b07a; }
+.season[data-tier=rare] .seasonLine { stroke: #f0b07a; }
+.season[data-tier=rare] .seasonFoil { background: linear-gradient(115deg, transparent 35%, rgba(255,190,140,.22) 48%, transparent 60%); background-size: 250% 250%; animation: seasonSweep 7s ease-in-out infinite; mix-blend-mode: screen; }
+.season[data-tier=standout] { background: linear-gradient(135deg, #3b444e 0%, #f7f9fb 16%, #6a7581 32%, #ffffff 48%, #545e69 64%, #e9eef3 80%, #444e58 100%); background-size: 200% 200%; animation: seasonChrome 4s ease-in-out infinite alternate; }
+.season[data-tier=standout] .seasonHead span, .season[data-tier=standout] .seasonRank b { color: #eef2f6; }
+.season[data-tier=standout] .seasonLine { stroke: #eef2f6; }
+.season[data-tier=standout] .seasonFoil { background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,.45) 48%, rgba(255,255,255,.8) 50%, rgba(255,255,255,.45) 52%, transparent 65%); background-size: 300% 100%; animation: seasonSweep 5s ease-in-out infinite; mix-blend-mode: soft-light; }
+/* legend keeps the gold the card launched with */
+.season[data-tier=legend] .seasonFoil { background: linear-gradient(115deg, transparent 30%, rgba(255,215,120,.28) 46%, rgba(255,240,190,.4) 50%, transparent 64%); background-size: 260% 260%; animation: seasonSweep 6s ease-in-out infinite; mix-blend-mode: screen; }
+.season[data-tier=icon] { background: linear-gradient(120deg, #ff2d95, #ffb52d 14%, #fff3b0 22%, #2dffb4 34%, #2d9bff 48%, #ffffff 56%, #b42dff 66%, #ff2d95 80%, #ffd32d 92%, #2dffb4);
+  background-size: 300% 300%; animation: seasonHolo 6s linear infinite; box-shadow: 0 0 0 1px rgba(255,255,255,.8), 0 0 30px rgba(255,200,120,.5), 0 14px 30px rgba(0,0,0,.5); }
+.season[data-tier=icon] .seasonHead span { background: linear-gradient(90deg, #ff7ac0, #ffe27a, #7affd0, #7ac4ff, #d27aff, #ff7ac0); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: seasonHolo 4s linear infinite; }
+.season[data-tier=icon] .seasonFoil { background: linear-gradient(115deg, transparent 28%, rgba(255,255,255,.16) 42%, rgba(255,140,220,.2) 48%, rgba(140,230,255,.2) 54%, rgba(255,240,160,.14) 60%, transparent 72%); background-size: 260% 260%; mix-blend-mode: screen; animation: seasonSweep 6s ease-in-out infinite; }
+.season[data-tier=goat] { background: linear-gradient(120deg, #1a1000, #f5d77a 18%, #1a1000 32%, #fff1c0 50%, #1a1000 66%, #f5d77a 82%, #1a1000); background-size: 300% 300%;
+  animation: seasonHolo 7s linear infinite, seasonGlow 2.6s ease-in-out infinite alternate; }
+.season[data-tier=goat] .seasonHead, .season[data-tier=goat] .seasonFoot { background: #050505; }
+.season[data-tier=goat] .seasonHead span { background: linear-gradient(90deg, #b8871e, #fff1c0, #f5d77a, #fff, #b8871e); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: seasonHolo 3s linear infinite; }
+.season[data-tier=goat] .seasonFoil { background:
+    radial-gradient(1.2px 1.2px at 12% 18%, #fff, transparent), radial-gradient(1.2px 1.2px at 70% 30%, #fff, transparent), radial-gradient(1px 1px at 40% 62%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 85% 75%, #fff, transparent), radial-gradient(1px 1px at 22% 85%, #fff, transparent),
+    linear-gradient(115deg, rgba(255,45,149,.0) 20%, rgba(255,211,45,.25) 35%, rgba(45,255,180,.22) 50%, rgba(45,155,255,.25) 65%, rgba(180,45,255,.0) 80%);
+  background-size: 90px 90px, 110px 110px, 70px 70px, 130px 130px, 80px 80px, 300% 300%; mix-blend-mode: screen; animation: seasonIce 9s linear infinite; }
+@keyframes seasonSweep { 0% { background-position: 120% 120% } 60%, 100% { background-position: -20% -20% } }
+@keyframes seasonChrome { to { background-position: 100% 100% } }
+@keyframes seasonHolo { to { background-position: 300% 50% } }
+@keyframes seasonGlow { from { box-shadow: 0 0 0 1px rgba(255,243,200,.8), 0 0 18px rgba(245,215,122,.35), 0 14px 30px rgba(0,0,0,.5) } to { box-shadow: 0 0 0 1px rgba(255,243,200,1), 0 0 44px rgba(245,215,122,.8), 0 14px 30px rgba(0,0,0,.5) } }
+@keyframes seasonIce { to { background-position: 90px 45px, -110px 55px, 35px -70px, -65px 130px, 80px -40px, 300% 50% } }
+
+/* ── Honors ── */
+/* All-Star: a field of stars over the team color, and a star pinned to the medal */
+.seasonStars { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .8;
+  background-image: radial-gradient(1.6px 1.6px at 10% 20%, #fff 50%, transparent), radial-gradient(1.2px 1.2px at 30% 60%, #fff 50%, transparent),
+    radial-gradient(2px 2px at 55% 15%, #fff7d6 50%, transparent), radial-gradient(1.2px 1.2px at 75% 45%, #fff 50%, transparent),
+    radial-gradient(1.8px 1.8px at 88% 80%, #fff7d6 50%, transparent), radial-gradient(1px 1px at 45% 85%, #fff 50%, transparent);
+  background-size: 120px 100px; animation: seasonTwinkle 2.4s ease-in-out infinite alternate; }
+@keyframes seasonTwinkle { from { opacity: .35 } to { opacity: .95 } }
+.starBadge { position: absolute; z-index: 3; left: 78px; top: 76px; width: 34px; height: 34px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 35% 30%, #fff3c4, #e7b93c 55%, #9a6d12); color: #3a2600; font-size: 17px; line-height: 1; box-shadow: 0 0 0 2px #0f1a28, 0 3px 8px rgba(0,0,0,.45); }
+.starBadge small { font-size: 5.5px; font-weight: 900; letter-spacing: .3px; text-transform: uppercase; margin-top: -1px; }
+/* All-NBA: a metal shield (1st gold, 2nd silver, 3rd bronze) and pinstripes in that metal */
+.seasonPins { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .14;
+  background: repeating-linear-gradient(90deg, var(--metal) 0 1px, transparent 1px 14px); }
+.season[data-allnba='1'] { --metal: #f5d77a; --metal2: #9a6d12; }
+.season[data-allnba='2'] { --metal: #eef2f6; --metal2: #6a7581; }
+.season[data-allnba='3'] { --metal: #f0b07a; --metal2: #7a4a26; }
+.nbaShield { position: absolute; z-index: 3; left: 4px; top: 74px; width: 34px; height: 38px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;
+  clip-path: polygon(50% 100%, 0 72%, 0 0, 100% 0, 100% 72%); background: linear-gradient(160deg, var(--metal), var(--metal2)); color: #14100a; padding-bottom: 6px; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
+.nbaShield small { font-size: 5.5px; font-weight: 900; letter-spacing: .3px; text-transform: uppercase; }
+.nbaShield b { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 16px; font-weight: 800; }
+/* MVP: light behind the medal, a laurel around it, the name in gold leaf */
+.seasonRays { position: absolute; z-index: 0; left: -64px; top: -64px; width: 250px; height: 250px; pointer-events: none; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgba(255,233,168,.32) 0 7deg, transparent 7deg 18deg); -webkit-mask: radial-gradient(circle, #000 20%, transparent 68%); mask: radial-gradient(circle, #000 20%, transparent 68%);
+  animation: seasonSpin 28s linear infinite; }
+@keyframes seasonSpin { to { transform: rotate(360deg) } }
+.laurel { position: absolute; z-index: 2; left: -5px; top: -5px; fill: #f5d77a; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+.season[data-mvp] .seasonName b { background: linear-gradient(100deg, #b8871e 10%, #fff1c0 35%, #f5d77a 50%, #fff7de 62%, #b8871e 90%); background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 2px 4px rgba(0,0,0,.45)); animation: seasonHolo 5s linear infinite; }
+.season[data-mvp] .seasonRank { background: linear-gradient(160deg, rgba(245,215,122,.35), rgba(0,0,0,.4)); box-shadow: inset 0 0 0 1px rgba(245,215,122,.6); }
+@media (prefers-reduced-motion: reduce) { .season, .season *, .seasonFoil, .seasonStars, .seasonRays { animation: none !important; } }
+.backHonors { display: flex; flex-wrap: wrap; gap: 4px; margin-top: -3px; }
+.backHonors span { height: 18px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: 9px; font-size: 9.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase;
+  background: linear-gradient(135deg, #9a6d12, #f4d27a 50%, #b8871e); color: #2a1c00; }

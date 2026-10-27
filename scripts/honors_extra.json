@@ -1,0 +1,4 @@
+{
+  "_note": "Hand additions and fixes, by season and the site's player name. Codes: S All-Star, 1/2/3 All-League team, M MVP, A ABA (\"S1M\" = All-Star, All-NBA 1st, MVP). An empty code removes an entry. Add each season's All-NBA teams and MVP here until the dataset has them, then rerun build_binders.py.",
+  "2025-26": {}
+}
