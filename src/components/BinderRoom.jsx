@@ -52,10 +52,17 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
   const C = useCollector()
   const [leaders, setLeaders] = useState(null)
   const meScore = C.me?.standing?.score
+  const [lbTry, setLbTry] = useState(0)
   useEffect(() => {
     if (C.down || C.me === undefined) return
-    fetch('/api/collect?action=leaders', { credentials: 'same-origin' }).then(r => r.json()).then(d => !d.error && setLeaders(d)).catch(() => {})
-  }, [C.down, C.me === undefined, meScore])
+    let live = true
+    const get = (n = 0) => fetch('/api/collect?action=leaders', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => r.json()).then(d => { if (d.error) throw new Error(d.error); return d })
+      .then(d => live && setLeaders(d))
+      .catch(e => { if (!live) return; if (n < 2) setTimeout(() => live && get(n + 1), 1500 * (n + 1)); else setLeaders(v => v && !v.failed ? v : { failed: String(e?.message || e) }) })
+    get()
+    return () => { live = false }
+  }, [C.down, C.me === undefined, meScore, lbTry])
   const [picks, setPicks] = useState(null)
   useEffect(() => { if (!C.down && C.me !== undefined) C.loadStandings?.('week').then(setPicks).catch(() => {}) }, [C.down, C.me === undefined])
   useEffect(() => { if (mineTick && C.me) setOpen({ kind: 'mine' }) }, [mineTick, !!C.me])
@@ -119,9 +126,11 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
         </div>}
       </section>}
 
-      {leaders && leaders.leaders.length > 0 && <section className={styles.section}>
-        <div className={styles.head}><h2>Top binders</h2><span>{leaders.binders.toLocaleString()} binder{leaders.binders === 1 ? '' : 's'} · ranked by binder score</span></div>
-        <div className={styles.board}>
+      {!C.down && C.me !== undefined && (!leaders || leaders.failed || leaders.leaders.length > 0) && <section className={styles.section}>
+        <div className={styles.head}><h2>Top binders</h2><span>{leaders?.leaders ? `${leaders.binders.toLocaleString()} binder${leaders.binders === 1 ? '' : 's'} · ranked by binder score` : ''}</span></div>
+        {!leaders ? <div className={`${styles.board} ${styles.boardWait}`}>{[0, 1, 2].map(i => <span key={i} />)}</div>
+        : leaders.failed ? <div className={`${styles.board} ${styles.boardFail}`}><span>The leaderboard didn’t load.</span><button type="button" onClick={() => { setLeaders(null); setLbTry(t => t + 1) }}>Try again</button></div>
+        : <div className={styles.board}>
           {leaders.leaders.slice(0, 10).map(l => (
             <button key={l.username} type="button" className={`${styles.boardRow} ${C.me?.user.username === l.username ? styles.boardYou : ''}`} onClick={() => setOpen({ kind: 'public', name: l.username })}>
               <b className={styles.boardRank} data-top={l.rank <= 3 ? l.rank : undefined}>{l.rank}</b>
@@ -135,7 +144,7 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
             <span className={styles.boardWho}><b>{leaders.you.username} (you)</b><small>{leaders.you.cards} cards · {leaders.you.players} players</small></span>
             <strong>{leaders.you.score.toLocaleString()}<small>pts</small></strong>
           </button>}
-        </div>
+        </div>}
       </section>}
 
       {picks && picks.leaders.length > 0 && <section className={styles.section}>

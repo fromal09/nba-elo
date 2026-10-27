@@ -116,3 +116,9 @@
 .storeBtn:hover { background: #0f1620; }
 .predictBtn { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: #1a5a3a; color: #fff; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; white-space: nowrap; }
 .predictBtn:hover { background: #134530; }
+
+.boardWait span { display: block; height: 50px; border-top: 1px solid #f0ece2; background: linear-gradient(90deg, #fff 0%, #f6f3ea 50%, #fff 100%); background-size: 200% 100%; animation: boardShimmer 1.2s linear infinite; }
+.boardWait span:first-child { border-top: 0; }
+@keyframes boardShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.boardFail { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; font-size: 14px; color: #4a5562; }
+.boardFail button { height: 32px; padding: 0 14px; border: 0; border-radius: 16px; background: #173657; color: #fff; font: 700 13px Inter, sans-serif; cursor: pointer; }

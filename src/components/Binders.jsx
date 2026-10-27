@@ -952,10 +952,11 @@ function ScoreHistory({ user, mine, tc }) {
     fetch(`/api/collect?action=history${mine ? '' : `&user=${encodeURIComponent(user)}`}`, { credentials: 'same-origin' })
       .then(r => r.json()).then(d => setH(d.history || [])).catch(() => setH([]))
   }, [user, mine])
-  if (!h || h.length < 2) return null
+  if (!h || !h.length) return null
+  const one = h.length === 1
   const W = 300, H = 74, P = 4
   const max = Math.max(...h.map(x => x.score)) || 1
-  const xy = (x, i) => [P + (i / (h.length - 1)) * (W - 2 * P), H - P - (x.score / max) * (H - 2 * P)]
+  const xy = (x, i) => [one ? W / 2 : P + (i / (h.length - 1)) * (W - 2 * P), H - P - (x.score / max) * (H - 2 * P)]
   const pts = h.map(xy)
   const line = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('')
   const cur = h[at ?? h.length - 1], prev = h[(at ?? h.length - 1) - 1]
@@ -969,6 +970,7 @@ function ScoreHistory({ user, mine, tc }) {
         <b>{n0(cur.score)}</b>{prev && <em className={cur.score >= prev.score ? styles.histUp : styles.histDown}>{cur.score >= prev.score ? '+' : '−'}{n0(Math.abs(cur.score - prev.score))}</em>}
         <span>No. {cur.rank} of {cur.of}{best < cur.rank ? ` · best No. ${best}` : ''}</span>
       </div>
+      {one ? <p className={styles.histNote}>Your first week. The chart adds a point every Monday.</p> : <>
       <svg viewBox={`0 0 ${W} ${H}`} className={styles.histChart} onMouseLeave={() => setAt(null)}>
         <path d={`${line}L${pts[pts.length - 1][0]},${H}L${pts[0][0]},${H}Z`} className={styles.histFill} />
         <path d={line} className={styles.histLine} />
@@ -977,7 +979,7 @@ function ScoreHistory({ user, mine, tc }) {
           <circle cx={x} cy={y} r={i === (at ?? h.length - 1) ? 3.6 : 2} className={styles.histDot} />
         </g>)}
       </svg>
-      <div className={styles.histAxis}><span>{wk(h[0].week)}</span><span>{wk(h[h.length - 1].week)}</span></div>
+      <div className={styles.histAxis}><span>{wk(h[0].week)}</span><span>{wk(h[h.length - 1].week)}</span></div></>}
     </div>
   )
 }

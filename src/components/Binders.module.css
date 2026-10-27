@@ -396,3 +396,5 @@
 .histLine { fill: none; stroke: var(--c, #173657); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .histDot { fill: var(--c, #173657); }
 .histAxis { display: flex; justify-content: space-between; font-size: 10px; color: #8a95a2; }
+
+.histNote { margin: 6px 0 0; font-size: 12px; color: #6b7783; }

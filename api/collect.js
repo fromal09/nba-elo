@@ -407,16 +407,23 @@ export default async function handler(req, res) {
     if (post && action === 'logout') { await endSession(res, req); return send(200, { user: null }) }
 
     if (action === 'leaders') {
-      const rows = await sql`select u.username, u.favorite_team, x.score, x.cards, x.players,
-          (select c.card from cards c where c.user_id = u.id order by c.points desc limit 1) as best
-        from (select user_id, sum(points)::int as score, count(*)::int as cards, count(distinct card->'row'->>'n')::int as players
-          from cards group by user_id) x join users u on u.id = x.user_id
-        order by x.score desc, x.cards desc, u.id limit 50`
+      // One pass over cards: totals, rank and count together; best card only for the rows returned
       const viewer = await currentUser(req)
-      let rank = 1, prev = null
-      const leaders = rows.map((r, i) => { if (prev !== r.score) { rank = i + 1; prev = r.score } return { rank, username: r.username, favoriteTeam: r.favorite_team, score: r.score, cards: r.cards, players: r.players, best: r.best } })
-      const [n] = await sql`select count(distinct user_id)::int as n from cards`
-      return send(200, { leaders, binders: n.n, you: viewer ? { username: viewer.username, ...(await standing(sql, viewer.id)) } : null })
+      const vid = viewer ? viewer.id : -1
+      const rows = await sql`with s as (select user_id, sum(points)::int as score, count(*)::int as cards,
+            count(distinct card->'row'->>'n')::int as players from cards group by user_id),
+          r as (select s.*, rank() over (order by score desc)::int as rk, count(*) over ()::int as n from s)
+        select r.*, u.username, u.favorite_team,
+          (select c.card from cards c where c.user_id = r.user_id order by c.points desc nulls last limit 1) as best
+        from r join users u on u.id = r.user_id
+        where r.rk <= 50 or r.user_id = ${vid}
+        order by r.score desc, r.cards desc, u.id`
+      const leaders = rows.filter(r => r.rk <= 50).slice(0, 50).map(r => ({ rank: r.rk, username: r.username, favoriteTeam: r.favorite_team, score: r.score, cards: r.cards, players: r.players, best: r.best }))
+      const mine = rows.find(r => r.user_id === vid)
+      const n = rows[0]?.n || 0
+      const you = !viewer ? null : mine ? { username: viewer.username, score: mine.score, cards: mine.cards, players: mine.players, rank: mine.score > 0 ? mine.rk : null, of: n }
+        : { username: viewer.username, score: 0, cards: 0, players: 0, rank: null, of: n }
+      return send(200, { leaders, binders: n, you })
     }
     if (action === 'history') {
       const name = String(q.user || '').toLowerCase()
