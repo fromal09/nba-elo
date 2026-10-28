@@ -62,7 +62,7 @@ let indexCache = null
 const shardCache = new Map()
 
 async function getJSON(origin, path) {
-  const r = await fetch(`${origin}/data/explorer/packs/${path}`, { signal: AbortSignal.timeout(10e3) }).catch(() => ({ ok: false, status: 'unreachable' }))
+  const r = await fetch(`${origin}/data/explorer/packs/${path}`, { signal: AbortSignal.timeout(25e3) }).catch(() => ({ ok: false, status: 'unreachable' }))
   if (!r.ok) throw Object.assign(new Error(`The card pool isn’t published yet (${path}: ${r.status}).`), { status: 503 })
   return r.json()
 }
@@ -174,8 +174,17 @@ export async function buildOffers(origin, kind, { taken, team, pity, era }) {
   const slots = []
   // Roll every card's shard first and download them together (one at a time, a cold server took many seconds)
   const srcTiers = src => (src === 'team' ? teamTiers : src === 'era' ? eraT : src === 'playoff' || src === 'finals' ? poT : src === 'vault' ? idx.tiers : null)
-  const pre = plan.map(([src, oddsKey]) => [0, 1, 2].map(() => (srcTiers(src) ? rollShard(srcTiers(src), ODDS[oddsKey]) : null)))
-  await Promise.all([...new Set(pre.flat().filter(Boolean).map(x => x[1]))].map(f => shard(origin, f).catch(() => null)))
+  // At most two shards per tier and source in a pack: a pack needs a handful of downloads, not fifteen
+  const picked = new Map()
+  const rollFew = (tiers, odds, src) => {
+    const r = rollShard(tiers, odds); if (!r) return null
+    const k = src + '|' + r[0], have = picked.get(k) || []
+    if (have.length < 2) { picked.set(k, [...have, r]); return r }
+    return have[randomInt(have.length)]
+  }
+  const pre = plan.map(([src, oddsKey]) => [0, 1, 2].map(() => (srcTiers(src) ? rollFew(srcTiers(src), ODDS[oddsKey], src) : null)))
+  const files = [...new Set(pre.flat().filter(Boolean).map(x => x[1]))]
+  for (let i = 0; i < files.length; i += 4) await Promise.all(files.slice(i, i + 4).map(f => shard(origin, f).catch(() => null)))
   for (const [si, [src, oddsKey]] of plan.entries()) {
     const odds = ODDS[oddsKey], cards = [], names = new Set() // three different players per slot
     for (let k = 0; k < 3; k++) {
