@@ -47,8 +47,12 @@ export function gradeFor(gs, pop = 'all') {
 let firstGame = () => null
 export const setFirstGameLookup = fn => { firstGame = fn }
 const seasonOf = d => (+d.slice(5, 7) >= 8 ? +d.slice(0, 4) : +d.slice(0, 4) - 1)
-const isRookieGame = (name, date) => { const f = firstGame(name); return !!f && !!date && seasonOf(f) === seasonOf(date) }
-const isDebutGame = (name, date) => { const f = firstGame(name); return !!f && f === date }
+// A player with no games in the ratings yet (tonight's debut, before the nightly update) has no first game on record:
+// his live row says so instead (gp = games before this one, 0; or no ratings match at all)
+// (pipeline rows count this game in gp, so there a debut is gp 1)
+const freshRow = row => !!row && ('espnName' in row ? row.unrated || row.gp === 0 : row.gp === 1)
+const isRookieGame = (name, date, row) => { const f = firstGame(name); return f ? !!date && seasonOf(f) === seasonOf(date) : freshRow(row) }
+const isDebutGame = (name, date, row) => { const f = firstGame(name); return f ? f === date : freshRow(row) }
 // Older cards show their age: vintage before 1980, light wear through 1999
 // Card designs follow the decade: Classic 1946–59, Groove 1960–79, Stripe 1980–89, Edge 1990–99,
 // Refractor 2000–19, then today's design. The tier foil, honors, playoff band, aging and score bar ride on top.
@@ -212,9 +216,9 @@ export function CardFront({ name, row, game, team, headshot }) {
   const d = row.post - row.pre
   const where = game.home === false ? '@' : 'vs'
   const moments = useMemo(() => momentsFor(row), [row])
-  const rookie = isRookieGame(name, game.date)
+  const rookie = isRookieGame(name, game.date, row)
   // One front per card: a career debut is a ticket stub, a statistical feat is a stat-line insert
-  const debut = isDebutGame(name, game.date)
+  const debut = isDebutGame(name, game.date, row)
   const feats = useMemo(() => (debut ? [] : featsFor(row)), [row, debut])
   const variant = debut ? 'debut' : feats.length ? 'stat' : 'std'
   const era = variant === 'std' ? eraOf(game.date) : null

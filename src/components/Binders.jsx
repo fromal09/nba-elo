@@ -3,6 +3,7 @@ import styles from './Binders.module.css'
 import { MiniCard, DuelCard, tierFor, TIERS, momentsFor } from './PlayerCard'
 import { Meter, CURRENT_TEAMS } from './Collector'
 import { PredictPages } from './Predictions'
+import FiveChallenge from './FiveChallenge'
 import { useIndex as usePlayerIndex, search as searchPlayers } from './PlayerSearch'
 import { Serial, SpecialFace, SpecialModal, isSpecial, specialTitle } from './SpecialCards'
 import { cardPoints, TIER_BASE } from '../../api/_lib/points.js'
@@ -1215,7 +1216,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   </>
   const nBadges = (src.achievements || []).filter(a => a.earned).length
   const specials = all.filter(e => e.special || e.duel)
-  const views = [['all', 'All'], ['wishes', mine ? `Wish list · ${(C?.me?.wishes || []).length}` : 'Wish list'], ...(mine ? [['predict', 'Predictions']] : []),
+  const views = [['all', 'All'], ['wishes', mine ? `Wish list · ${(C?.me?.wishes || []).length}` : 'Wish list'], ...(mine ? [['predict', 'Predictions'], ['five', 'Five challenge']] : []),
     ['starred', `Starred · ${starred.size}`], ['team', 'Franchises'], ['decade', 'Decades'], ['specials', `Specials · ${specials.length}`], ['sets', 'Sets'], ['badges', `Achievements · ${nBadges}`]]
   const tools = <Seg value={view} onChange={pickView} options={views} />
   const sortSel = (
@@ -1291,6 +1292,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
         </div>
       </div>
     )
+  } else if (view === 'five' && mine) {
+    right = <FiveChallenge env={env} tools={tools} />
   } else if (view === 'wishes') {
     right = <div className={styles.right}><WishList user={mine ? null : src.user.username} mine={mine} C={C} env={env} tools={tools} /></div>
   } else if (view === 'badges') {
@@ -1430,7 +1433,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       extra={!reveal.done && mine && <WishBtn name={reveal.card.n} season={reveal.card.s} C={C} dark />} />}
     <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right} dock={phone && me ? dock : null}
       summary={<span><b>{n0(st.score)} pts</b>{st.rank ? ` · No. ${st.rank}` : ''} · {all.length} cards</span>}
-      onKey={e => { if (P.open) return true; if (view === 'sets' || view === 'badges' || view === 'specials' || view === 'wishes' || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
+      onKey={e => { if (P.open) return true; if (view === 'sets' || view === 'badges' || view === 'specials' || view === 'wishes' || view === 'five' || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}
   </>
 }

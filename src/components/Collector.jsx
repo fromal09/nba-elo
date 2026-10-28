@@ -107,6 +107,8 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
     lock: guard(async (game, on = true) => { const d = await api('lock', { game, on }); take(d); setPreds(d.predictions); return d.predictions }),
     duelPick: guard(async (game, player) => { const d = await api('duelpick', { game, player }); take(d); setPreds(d.predictions); return d.predictions }),
     setLineup: guard(async (day, slot, card) => { const d = await api('lineup', { day, slot, card }); take(d); setPreds(d.predictions); return d.predictions }),
+    loadChallenge: () => api('challenge').then(d => d.challenge),
+    setChallenge: guard(async (level, ids) => { const d = await api('challengeset', { level, ids }); return d.challenge }),
     potdPick: guard(async (day, player, team) => { const d = await api('potdpick', { day, player, team }); take(d); setPreds(d.predictions); return d.predictions }),
     predDay: day => api('predday', undefined, `&day=${day}`).then(d => d.day),
     loadStandings: scope => api('standings', undefined, `&scope=${scope}`).then(d => d.standings),

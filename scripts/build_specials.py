@@ -20,6 +20,7 @@ Writes, under public/data/explorer/:
   binders/rivalries.json              the 125 rivalry cards, by rank (also added to binders/league.json as the "rivalries" set)
   binders/peaks.json                  {player: [[season, game id, elo, date, until], ...]}  every Peak, oldest first
   binders/fives.json                  {franchise: {season: [elo, date, opp, won, score, [five names]]}}
+  binders/fivedist.json               {franchise: {season: [every game's five's total pre-game Elo, sorted]}}: the weekly Five challenge ranks against these
 
 Run after build_packs.py (build_binders.py calls both):  python3 scripts/build_specials.py
 """
@@ -115,6 +116,7 @@ def main():
     first, high, open_peaks, peaks = {}, {}, defaultdict(list), defaultdict(list)
     score, meets = defaultdict(float), defaultdict(int)
     fives = []
+    five_dist = defaultdict(lambda: defaultdict(list))  # franchise -> season -> every game's five, total pre-game Elo
     league_size = {}  # season -> ranked players (the deepest league rank seen)
     season_cands = [] # (points, end Elo, season, franchise, player) for every player-season with a franchise
     hp = EXP / "binders" / "honors.json"   # published by build_honors.py, which build_binders.py runs first
@@ -194,6 +196,7 @@ def main():
                 if len(five) < 5:
                     continue
                 v = sum(p["pre"] for p in five) / 5
+                five_dist[MERGE.get(t, t)][season].append(round(v * 5))
                 if best is None or v > best[0]:
                     best = (v, g, five)
             if not best:
@@ -354,6 +357,8 @@ def main():
         fv[c["fc"]][c["s"]] = [c["elo"], c["date"], c["o"], c["won"], c["score"], [p["n"] for p in c["players"]]]
     (B / "seasonrank.json").write_text(json.dumps(season_rank, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     (B / "fives.json").write_text(json.dumps(fv, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    (B / "fivedist.json").write_text(json.dumps({fc: {s_: sorted(v) for s_, v in ss.items()} for fc, ss in five_dist.items()},
+                                                separators=(",", ":")), encoding="utf-8")
     print(f"  Specials: {len(all_peaks):,} Peak cards ({len(peaks):,} players) · {len(rivals)} rivalries · {len(fives):,} Starting Fives            ")
 
 

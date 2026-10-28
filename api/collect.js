@@ -28,6 +28,8 @@
 //   POST duelpick    { game, player } who posts the higher Game Score in the game's top player matchup
 //   POST lineup      { day, slot, card } put a player from your binder in a lineup slot (card: null empties it)
 //   GET  potw        ?day= that day's week: the Player of the Week race (top 20) or the settled card, and the pick'em race
+//   GET  challenge   this week's three Five challenges (easy, medium, hard), your lineups and their percentiles
+//   POST challengeset { level, ids } your five cards for a challenge (ids: [] clears it)
 //   POST potdpick    { day, player, team } your Player of the Day nomination (player: '' takes it back), until the first tipoff
 //   GET  standings   ?scope=week|season pick'em points, and where you rank
 //   GET  predreward  ?day=&kind=games|duels the cards you can choose from for a day you earned one
@@ -46,6 +48,7 @@ import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeS
 import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
 import { potwWeek, potdPick, settlePotw, predDay, settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
 import { achievements } from './_lib/achievements.js'
+import { challengeView, setChallenge, settleChallenges } from './_lib/challenge.js'
 import { slate } from './_lib/slate.js'
 
 const STREAK_EVERY = 7
@@ -431,7 +434,11 @@ export default async function handler(req, res) {
       // Picks on games that finished since the last visit: grade them (only touches ESPN when one is due)
       if (u0) awards.push(...(await settle(sql, u0.id, etDay(), { onlyStale: true, origin }).catch(e => { console.error('settle', e); return [] })))
       // Last week's Player of the Week card, once the week's data is in (tried every 10 minutes per instance until it is)
-      if (Date.now() - potwTried > 10 * 60e3) { potwTried = Date.now(); await settlePotw(sql, origin, etDay()).catch(e => console.error('potw', e)) }
+      if (Date.now() - potwTried > 10 * 60e3) {
+        potwTried = Date.now()
+        await settlePotw(sql, origin, etDay()).catch(e => console.error('potw', e))
+        await settleChallenges(sql, origin, etDay()).catch(e => console.error('challenge', e))
+      }
       if (u0) for (const c of await sql`select id, card from cards where user_id = ${u0.id} and tier = 'potw' and not coalesce((card->>'seen')::boolean, false)`) {
         awards.push({ kind: 'potw', amount: 0, label: `Player of the Week: you won the week of ${new Date(c.card.week + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}. Your ${c.card.n} card is in your binder` })
         await sql`update cards set card = card || '{"seen": true}'::jsonb where id = ${c.id}`
@@ -539,6 +546,10 @@ export default async function handler(req, res) {
       const view = await predView(sql, u, today, addDays(today, 1), origin)
       const [fresh] = await sql`select * from users where id = ${u.id}`
       return send(200, { predictions: view, ...(await me(fresh)), awards: [...awards, ...view.awards] })
+    }
+    if (action === 'challenge' || (post && action === 'challengeset')) {
+      if (post) await setChallenge(sql, u, origin, await readBody(req), etDay())
+      return send(200, { challenge: await challengeView(sql, u, origin, etDay()) })
     }
     if (action === 'predday') return send(200, { day: await predDay(sql, u, String(q.day || ''), origin) })
     if (action === 'predreward') return send(200, { reward: await rewardOptions(sql, u, origin, String(q.day || ''), q.kind === 'duels' ? 'duels' : 'games') })
