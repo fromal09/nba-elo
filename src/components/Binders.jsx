@@ -138,7 +138,7 @@ function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, pho
       <div className={styles.sheetBody}
         onTouchStart={ev => { touch.current = ev.touches[0].clientX }}
         onTouchEnd={ev => { if (touch.current == null) return; const dx = ev.changedTouches[0].clientX - touch.current; if (Math.abs(dx) > 50) S.go(dx < 0 ? 1 : -1); touch.current = null }}>
-        <div key={S.cur} className={`${styles.pockets} ${S.dir > 0 ? styles.turnNext : styles.turnPrev}`} style={{ '--cols': phone ? 2 : 3 }}>
+        <div key={S.cur} className={`${styles.pockets} ${S.dir > 0 ? styles.turnNext : styles.turnPrev}`} style={{ '--cols': phone && per < 9 ? 2 : 3 }}>
           {S.page.map(e => <Pocket key={e.key} e={e} name={name} env={env} onPull={onPull} pulled={pulled} album={album} />)}
           {Array.from({ length: per - S.page.length }, (_, i) => <div key={`x${i}`} className={`${styles.pocket} ${styles.pocketEmpty}`}><div className={styles.pocketBtn} /></div>)}
         </div>
@@ -157,7 +157,8 @@ function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, pho
 }
 
 // The book: overlay, cover, left page, rings, right page, divider tabs; one page on a phone
-export function Book({ tc, onClose, onKey, left, right, tabs, phone, summary, head, stack }) {
+// Phone: a compact head with a one-line summary that opens the left page as a drawer, the page of pockets, and a dock
+export function Book({ tc, onClose, onKey, left, right, tabs, phone, summary, head, stack, dock }) {
   useEffect(() => {
     const k = e => {
       if (onKey?.(e)) return
@@ -176,14 +177,17 @@ export function Book({ tc, onClose, onKey, left, right, tabs, phone, summary, he
           <div className={styles.phoneHead}>{head}</div>
           <div className={styles.stackBody}><div className={styles.stackLeft}>{left}</div>{right}</div>
         </> : phone ? <>
-          <div className={styles.phoneHead}>{head}</div>
-          {summary && <div className={styles.summary}>
-            <button type="button" className={styles.summaryBtn} aria-expanded={open} onClick={() => setOpen(o => !o)}>
-              {summary}<span className={styles.chev}>{open ? 'Hide' : 'Details'}</span>
-            </button>
-            {open && <div className={styles.summaryBody}>{left}</div>}
-          </div>}
+          <div className={styles.phoneHead}>{head}
+            {summary && <button type="button" className={styles.phoneSum} aria-expanded={open} onClick={() => setOpen(true)}>{summary}<span>Details ›</span></button>}
+          </div>
           {right}
+          {dock && <div className={styles.dock}>{dock}</div>}
+          {open && <div className={styles.drawerDim} onClick={() => setOpen(false)}>
+            <div className={styles.drawer} onClick={e => e.stopPropagation()} role="dialog" aria-label="Details">
+              <div className={styles.drawerHead}><span className={styles.grab} />{summary}<button type="button" onClick={() => setOpen(false)}>Done</button></div>
+              <div className={styles.drawerBody}>{left}</div>
+            </div>
+          </div>}
         </> : <>
           <div className={styles.left}>{head}{left}</div>
           <div className={styles.rings} aria-hidden="true"><i /><i /><i /></div>
@@ -343,7 +347,7 @@ export function WishBtn({ name, season, C, dark }) {
 
 export function SeasonBinder({ name, sd: startSd, env, onClose, onCareer }) {
   const phone = useIsPhone()
-  const per = phone ? 6 : 9
+  const per = 9 // a 3 × 3 sheet on every screen
   const [sd, setSd] = useState(startSd)
   const [loading, setLoading] = useState(false)
   const [order, setOrder] = useState('chrono')
@@ -613,7 +617,7 @@ export function CareerBinder({ name, env, onClose, onSeason }) {
 // ── F · A team's season: every game's Player of the Game ────────────────────
 export function TeamBinder({ team, sd: startSd, env, onClose, onFranchise }) {
   const phone = useIsPhone()
-  const per = phone ? 6 : 9
+  const per = 9 // a 3 × 3 sheet on every screen
   const [sd, setSd] = useState(startSd)
   const [loading, setLoading] = useState(false)
   const [order, setOrder] = useState('chrono')
@@ -910,7 +914,7 @@ export function leagueEntries(env, def, list) {
 
 export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
   const phone = useIsPhone()
-  const per = phone ? 6 : 9
+  const per = 9 // a 3 × 3 sheet on every screen
   const [data, setData] = useState(null)
   const [err, setErr] = useState(false)
   const [set, setSet] = useState(startSet || 'titles')
@@ -1052,7 +1056,7 @@ function PointsHelp() {
 
 export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onStore, startView }) {
   const phone = useIsPhone()
-  const per = phone ? 6 : 9
+  const per = 9 // a 3 × 3 sheet on every screen
   const C = env.collector
   const mine = !pub
   const [view, setView] = useState(startView || 'all')     // all | team | decade | starred | sets | predict | badges
@@ -1162,7 +1166,18 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       {onStore && <button type="button" className={styles.storeCta} onClick={onStore}>Store · {(me.coins?.balance ?? 0).toLocaleString()} Coins</button>}
     </div>
   )
-  const head = <>
+  const profileRow = mine ? <div className={styles.headRow}>
+      <select className={styles.favSel} value={fav || ''} onChange={e => C.saveProfile({ favoriteTeam: e.target.value || null })} aria-label="Favorite team">
+        <option value="">Favorite team…</option>
+        {CURRENT_TEAMS.map(code => <option key={code} value={code}>{env.teamInfo(code).name}</option>)}
+      </select>
+      <button type="button" className={styles.linkBtn} onClick={() => { C.signOut(); onClose() }}>Sign out</button>
+    </div> : null
+  const head = phone ? <div className={styles.mHead}>
+    <span className={styles.mAv}>{src.user.username[0].toUpperCase()}</span>
+    <span className={styles.mWho}><b>{src.user.username}</b><small>{mine ? 'My binder' : 'Binder'}{st.rank ? ` · No. ${st.rank} of ${st.of}` : ''}{fav ? ` · ${env.teamInfo(fav).name}` : ''}</small></span>
+    {me && <button type="button" className={styles.mCoin} onClick={onStore}>◎ {(me.coins?.balance ?? 0).toLocaleString()}</button>}
+  </div> : <>
     <div className={styles.kicker}>{mine ? 'My binder' : 'Binder'}{st.rank ? ` · No. ${st.rank} of ${st.of}` : ''}</div>
     <h2 className={styles.title} style={{ color: tc }}>{src.user.username}</h2>
     {mine ? <div className={styles.headRow}>
@@ -1172,9 +1187,10 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       </select>
       <button type="button" className={styles.linkBtn} onClick={() => { C.signOut(); onClose() }}>Sign out</button>
     </div> : <p className={styles.line}>{fav ? `${env.teamInfo(fav).name} fan · ` : ''}collecting since {fullDay(src.user.joined)}</p>}
-    {phone && packRow}
   </>
   const left = <>
+    {phone && profileRow}
+    {phone && packRow}
     <div className={styles.stats}>
       <div className={styles.statWide}><b className={styles.gold}>{n0(st.score)}</b><small>Binder score</small></div>
       <div><b>{st.rank ? `#${st.rank}` : '—'}</b><small>of {st.of || 0}</small></div>
@@ -1227,10 +1243,20 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       <Seg value={mode} onChange={v => { setMode(v); S.reset() }} options={[['cards', 'Cards'], ['checklist', 'Checklist']]} />
     </div>
   )
+  // Phone dock: the pack, Predictions, the Store and selling, always one tap away
+  const dock = me && <>
+    {open ? <button type="button" className={styles.dockHot} onClick={() => C.resume(open.id)}><b>🎁</b>Pack {open.picked}/{open.total}</button>
+      : !t.claimed ? <button type="button" className={styles.dockHot} onClick={() => C.claim()}><b>🎁</b>Open pack</button>
+      : !me.week.claimed ? <button type="button" onClick={() => C.openTeam()}><b>🎁</b>Team pack</button>
+      : <button type="button" disabled><b>🎁</b>Next pack</button>}
+    <button type="button" className={view === 'predict' ? styles.dockOn : ''} onClick={() => pickView(view === 'predict' ? 'all' : 'predict')}><b>🎯</b>{me.predict?.unclaimed ? 'Card to pick' : 'Predict'}</button>
+    {onStore && <button type="button" onClick={onStore}><b>◎</b>Store</button>}
+    <button type="button" className={sellMode ? styles.dockSell : ''} onClick={() => { if (view !== 'all' && view !== 'starred' && view !== 'team' && view !== 'decade') pickView('all'); setSellMode(v => !v); setSellAsk(null) }}><b>$</b>{sellMode ? 'Done' : 'Sell'}</button>
+  </>
   let right
   if (view === 'predict' && mine) {
     return <PredictPages env={env} phone={phone} tools={tools}>{p => <>
-      <Book tc={tc} phone={phone} onClose={onClose} head={head} left={p.left} right={p.right} summary={p.summary} />
+      <Book tc={tc} phone={phone} onClose={onClose} head={head} left={p.left} right={p.right} summary={p.summary} dock={phone && me ? dock : null} />
       {P.view}
     </>}</PredictPages>
   }
@@ -1364,10 +1390,13 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       </div>
     )
   } else {
-    const filters = <>{findBox}{sortSel}{mine && <button type="button" className={`${styles.chip} ${sellMode ? styles.chipSell : ''}`} onClick={() => { setSellMode(v => !v); setSellAsk(null) }}
-      title="Sell cards for 20% of their points in Coins">{sellMode ? 'Selling · done' : 'Sell cards'}</button>}{shelfChips}</>
+    const sellChip = mine && <button type="button" className={`${styles.chip} ${sellMode ? styles.chipSell : ''}`} onClick={() => { setSellMode(v => !v); setSellAsk(null) }}
+      title="Sell cards for 20% of their points in Coins">{sellMode ? 'Selling · done' : 'Sell cards'}</button>
+    // Phone: search and sort on one row (Sell lives in the dock), the franchise or decade chips on their own row
+    const filters = phone ? <>{findBox}{sortSel}</> : <>{findBox}{sortSel}{sellChip}{shelfChips}</>
+    const bar = phone ? <>{shelfChips && <div className={styles.chips}>{shelfChips}</div>}{shelfBar}</> : shelfBar
     right = list.length
-      ? <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone} tools={tools} filters={filters} bar={shelfBar}
+      ? <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone} tools={tools} filters={filters} bar={bar}
         title={cur ? cur.name : view === 'starred' ? 'Starred' : `Sheet ${S.cur + 1} of ${S.sheets}`}
         sub={`${list.length} card${list.length === 1 ? '' : 's'} · ${n0(list.reduce((a, e) => a + e.pts, 0))} pts${cur || view === 'starred' ? ` · sheet ${S.cur + 1} of ${S.sheets}` : ''}`} />
       : q ? <div className={styles.right}><div className={styles.sheetHead}><div className={styles.sheetTitle}><b>{cur ? cur.name : view === 'starred' ? 'Starred' : 'My binder'}</b></div>{tools}</div>
@@ -1399,7 +1428,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     {reveal && <SpecialModal card={reveal.card} onClose={() => setReveal(null)}
       locked={reveal.done ? null : `${reveal.k} of ${reveal.g} games · collect every one to forge his Season card`}
       extra={!reveal.done && mine && <WishBtn name={reveal.card.n} season={reveal.card.s} C={C} dark />} />}
-    <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right}
+    <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right} dock={phone && me ? dock : null}
       summary={<span><b>{n0(st.score)} pts</b>{st.rank ? ` · No. ${st.rank}` : ''} · {all.length} cards</span>}
       onKey={e => { if (P.open) return true; if (view === 'sets' || view === 'badges' || view === 'specials' || view === 'wishes' || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}

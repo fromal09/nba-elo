@@ -310,3 +310,10 @@
 .voided .sides { opacity: .55; }
 .sideOut { text-decoration: line-through; }
 .voidTag { color: #b3322a; font-weight: 800; }
+/* Phones: the three toggle groups on one sideways-scrolling row */
+@media (max-width: 760px) {
+  .tabRow { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -10px; padding: 0 10px; }
+  .tabRow::-webkit-scrollbar { display: none; }
+  .tabRow > * { flex: none; }
+  .tabRow > :last-child { margin-left: 0; }
+}
