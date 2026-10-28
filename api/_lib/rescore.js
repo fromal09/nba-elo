@@ -6,7 +6,7 @@ export const POINTS_VERSION = 'points2'   // change to rescore every card again 
 
 let cache = null
 async function dataJSON(origin, path) {
-  const r = await fetch(`${origin}/data/explorer/${path}`).catch(() => null)
+  const r = await fetch(`${origin}/data/explorer/${path}`, { signal: AbortSignal.timeout(10e3) }).catch(() => null)
   return r?.ok ? r.json() : null
 }
 async function seasonData(origin) {

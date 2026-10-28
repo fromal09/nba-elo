@@ -34,7 +34,7 @@ function parse(e, day) {
 
 const memo = new Map() // day -> { at, games }
 async function fetchDay(day) {
-  const r = await fetch(`${BASE}/scoreboard?dates=${day.replace(/-/g, '')}&limit=100`, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+  const r = await fetch(`${BASE}/scoreboard?dates=${day.replace(/-/g, '')}&limit=100`, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10e3) })
   if (!r.ok) throw new Error(`scoreboard ${r.status}`)
   const d = await r.json()
   return (d.events || []).map(e => parse(e, day)).filter(Boolean).sort((a, b) => a.tip.localeCompare(b.tip) || a.id.localeCompare(b.id))

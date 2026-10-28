@@ -69,7 +69,7 @@ export async function tryChallenge(t, userId, day, event, arg, extra) {
 let leagueCache = null
 const rosterCache = new Map()
 async function dataJSON(origin, path) {
-  const r = await fetch(`${origin}/data/explorer/${path}`).catch(() => null)
+  const r = await fetch(`${origin}/data/explorer/${path}`, { signal: AbortSignal.timeout(10e3) }).catch(() => null)
   return r?.ok ? r.json() : null
 }
 const MERGE = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }

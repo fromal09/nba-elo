@@ -389,7 +389,9 @@ export default async function handler(req, res) {
     const origin = process.env.DATA_ORIGIN || `${(req.headers['x-forwarded-proto'] || 'https').split(',')[0]}://${req.headers['x-forwarded-host'] || req.headers.host}`
     const post = req.method === 'POST'
     // Once after a points change, every card is rescored. Reads wait for it; packs, picks and purchases never do.
-    if (post) upgradePoints(sql, origin); else await upgradePoints(sql, origin)
+    // A read waits up to 5 seconds for it, then goes ahead (the rescore carries on)
+    const up = upgradePoints(sql, origin)
+    if (!post) await Promise.race([up, new Promise(r => setTimeout(r, 5e3))])
     if (action === 'me') {
       const u0 = await currentUser(req)
       const awards = u0 ? await visit(u0, origin) : []

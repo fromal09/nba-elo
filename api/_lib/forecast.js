@@ -8,7 +8,7 @@ import { buildForecaster, winChance, makeProjector } from '../../src/components/
 
 let cache = null // { at, origin, inputs }
 async function getJSON(url) {
-  const r = await fetch(url)
+  const r = await fetch(url, { signal: AbortSignal.timeout(10e3) })
   if (!r.ok) throw new Error(`${r.status} ${url}`)
   return r.json()
 }

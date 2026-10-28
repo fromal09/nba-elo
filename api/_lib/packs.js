@@ -62,7 +62,7 @@ let indexCache = null
 const shardCache = new Map()
 
 async function getJSON(origin, path) {
-  const r = await fetch(`${origin}/data/explorer/packs/${path}`).catch(() => ({ ok: false, status: 'unreachable' }))
+  const r = await fetch(`${origin}/data/explorer/packs/${path}`, { signal: AbortSignal.timeout(10e3) }).catch(() => ({ ok: false, status: 'unreachable' }))
   if (!r.ok) throw Object.assign(new Error(`The card pool isn’t published yet (${path}: ${r.status}).`), { status: 503 })
   return r.json()
 }
