@@ -111,26 +111,88 @@ async function dayFile(origin, day) {
 const hasGame = (file, day, home, away) => file.cards.some(c => c.date === day && c.t === home && c.o === away)
 const findRow = (file, day, team, opp, name) => file.cards.find(c => c.date === day && c.t === team && c.o === opp && norm(c.row.n) === norm(name))
 
+// ── ESPN box scores: Game Scores for finished games before the nightly build publishes the day ──
+const ESPN = process.env.ESPN_BASE || 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
+const ESPN_ABBR = { GS: 'GSW', NY: 'NYK', SA: 'SAS', NO: 'NOP', UTAH: 'UTA', WSH: 'WAS', PHX: 'PHO', CHA: 'CHO', BRK: 'BKN' }
+const boxes = new Map() // game id -> { at, gs: Map(team|norm name -> Game Score) | null }
+const pairOf = v => { const m = /^(\d+)-(\d+)$/.exec(v || ''); return m ? [+m[1], +m[2]] : [0, 0] }
+// Same formula and rounding as scripts/fetch_espn.py, so the score matches the card the nightly build makes
+const gmsc = p => Math.round((p.pts + 0.4 * p.fg - 0.7 * p.fga - 0.4 * (p.fta - p.ft) + 0.7 * p.orb + 0.3 * p.drb
+  + p.stl + 0.7 * p.ast + 0.7 * p.blk - 0.4 * p.pf - p.tov) * 10) / 10
+async function espnBox(id) {
+  const m = boxes.get(id)
+  if (m && (m.gs || Date.now() - m.at < 2 * 60e3)) return m.gs
+  let gs = null
+  try {
+    const r = await fetch(`${ESPN}/summary?event=${id}`, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10e3) })
+    if (!r.ok) throw new Error(`summary ${r.status}`)
+    const d = await r.json()
+    gs = new Map()
+    for (const grp of d.boxscore?.players || []) {
+      const team = ESPN_ABBR[grp.team?.abbreviation] || grp.team?.abbreviation
+      const st = grp.statistics?.[0]; if (!team || !st) continue
+      const keys = st.keys || [], col = k => keys.indexOf(k)
+      const KEY = { pts: 'points', orb: 'offensiveRebounds', drb: 'defensiveRebounds', ast: 'assists', stl: 'steals', blk: 'blocks', tov: 'turnovers', pf: 'fouls' }
+      for (const a of st.athletes || []) {
+        const v = a.stats || []
+        if (a.didNotPlay || !v.length) continue
+        const p = {}
+        for (const [f, k] of Object.entries(KEY)) p[f] = +(v[col(k)] ?? 0) || 0
+        ;[p.fg, p.fga] = pairOf(v[col('fieldGoalsMade-fieldGoalsAttempted')]);[p.ft, p.fta] = pairOf(v[col('freeThrowsMade-freeThrowsAttempted')])
+        const name = a.athlete?.displayName || a.athlete?.fullName
+        if (name) gs.set(`${team}|${norm(name)}`, gmsc(p))
+      }
+    }
+    if (!gs.size) gs = null
+  } catch (e) { console.error('box', id, e.message); gs = null }
+  boxes.set(id, { at: Date.now(), gs })
+  if (boxes.size > 200) boxes.delete(boxes.keys().next().value)
+  return gs
+}
+
+/**
+ * Game Scores for grading a day: the nightly day file once it's published, ESPN's box scores until then.
+ * has(game): that game's scores are in. gs(game, team, name): the Game Score; null = didn't play; undefined = not known yet.
+ * With only ESPN, a name missing from the box score stays unknown (it may be spelled differently) until the day file
+ * arrives, or for good two days on (then it counts as didn't play).
+ */
+async function gradeSource(origin, day, games) {
+  const file = origin ? await dayFile(origin, day) : null
+  const old = day <= addDays(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }), -2)
+  const box = new Map()
+  if (!file) await Promise.all(games.filter(g => g.state === 'post').map(async g => { const b = await espnBox(g.id); if (b) box.set(g.id, b) }))
+  return {
+    file,
+    has: g => g.state === 'post' && (file ? hasGame(file, day, g.home, g.away) : box.has(g.id)),
+    gs(g, team, name) {
+      const opp = g.home === team ? g.away : g.home
+      if (file) return findRow(file, day, team, opp, name)?.row.gs ?? null
+      const v = box.get(g.id)?.get(`${team}|${norm(name)}`)
+      return v ?? (old ? null : undefined)
+    },
+  }
+}
+
 // The Duel of the Day as a card for a binder
 function duelCard(d) {
   const side = c => ({ ...c, tier: tierOf(c.row.lrp ?? c.row.lr) })
   return { kind: 'duel', k: 'duel', tier: 'duel', s: d.s, id: d.id, date: d.date, score: d.score, a: side(d.a), b: side(d.b) }
 }
 
-// Each game's matchup result from the day's cards: { id: { winner | null (void), ag, bg } }
-function matchupResults(games, file, day) {
+// Each game's matchup result from its Game Scores: { id: { winner | null (void), ag, bg } }
+function matchupResults(games, src) {
   const out = {}
   for (const g of games) {
     const d = g.line?.duel
-    if (!d || g.state !== 'post' || !hasGame(file, day, g.home, g.away)) continue // not in the day's cards yet
-    const A = findRow(file, day, g.away, g.home, d.a), B = findRow(file, day, g.home, g.away, d.b)
-    const ag = A?.row.gs ?? null, bg = B?.row.gs ?? null
+    if (!d || !src.has(g)) continue // not graded yet
+    const ag = src.gs(g, g.away, d.a), bg = src.gs(g, g.home, d.b)
+    if (ag === undefined || bg === undefined) continue // a name the box score doesn't show yet: wait for the day file
     out[g.id] = { winner: ag == null || bg == null || ag === bg ? null : ag > bg ? d.a : d.b, ag, bg }
   }
   return out
 }
-async function gradeMatchups(sql, day, games, file) {
-  const res = matchupResults(games, file, day)
+async function gradeMatchups(sql, games, src) {
+  const res = matchupResults(games, src)
   for (const [id, r] of Object.entries(res)) {
     if (r.winner) await sql`update duel_picks set result = case when pick = ${r.winner} then 'win' else 'loss' end where game_id = ${id} and result is null`
     else await sql`update duel_picks set result = 'void' where game_id = ${id} and result is null`
@@ -162,8 +224,9 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
     if (!games.length) continue
     await gradeDay(sql, day)
     const byId = new Map(games.map(g => [g.id, g]))
-    const file = origin ? await dayFile(origin, day) : null
-    const results = file ? await gradeMatchups(sql, day, games, file) : {}
+    const src = await gradeSource(origin, day, games)
+    const file = src.file
+    const results = await gradeMatchups(sql, games, src)
     await sql.begin(async t => {
       const push = a => a && awards.push(a)
       const label = g => `${g.away} at ${g.home}`
@@ -209,12 +272,13 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
       }
       const withDuel = live.filter(g => g.line?.duel)
       const [dclosed] = await t`select 1 from duel_days where user_id = ${userId} and day = ${day}`
-      if (dps.length && file && games.every(isDone) && withDuel.every(g => results[g.id]) && dps.every(p => p.result) && !dclosed) {
+      duels: if (dps.length && games.every(isDone) && withDuel.every(g => results[g.id]) && dps.every(p => p.result) && !dclosed) {
         const total = withDuel.filter(g => results[g.id].winner).length
         const mine = dps.filter(p => results[p.game_id]?.winner)
         const correct = mine.filter(p => p.pick === results[p.game_id].winner).length
         let reward = total > 0 && correct === total ? 'duel' : correct * 2 > total ? 'rare' : null
         let claimed = null
+        if (reward === 'duel' && !file) break duels // the Duel of the Day card comes with the day file: close the day then
         if (reward === 'duel') {
           if (file.duel) {
             const c = duelCard(file.duel)
@@ -232,14 +296,11 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
       // The lineup
       const slots = await t`select * from lineups where user_id = ${userId} and day = ${day} order by slot`
       const [lclosed] = await t`select 1 from lineup_days where user_id = ${userId} and day = ${day}`
-      const inFile = s_ => { const g = byId.get(s_.game_id); return !g || g.state === 'off' || hasGame(file, day, g.home, g.away) }
-      if (slots.length && file && games.every(isDone) && !lclosed && slots.every(inFile)) {
+      const slotGs = s_ => { const g = byId.get(s_.game_id); return !g || g.state === 'off' ? null : src.has(g) ? src.gs(g, s_.team, s_.player) : undefined }
+      if (slots.length && games.every(isDone) && !lclosed && slots.every(s_ => slotGs(s_) !== undefined)) {
         let total = 0
         for (const s_ of slots) {
-          const g = byId.get(s_.game_id)
-          const opp = g ? (g.home === s_.team ? g.away : g.home) : null
-          const r = g && g.state !== 'off' ? findRow(file, day, s_.team, opp, s_.player) : null
-          const gs = r?.row.gs ?? 0 // didn't play: 0
+          const gs = slotGs(s_) ?? 0 // didn't play: 0
           total += lineupPts(gs, s_.mult ?? PRED.lineupMult[s_.tier] ?? 1)
           await t`update lineups set gs = ${gs} where user_id = ${userId} and day = ${day} and slot = ${s_.slot}`
         }
@@ -530,8 +591,7 @@ async function refresh(sql, origin, today) {
   for (const { day: d } of open) {
     const day = iso(d)
     const games = await slate(sql, day, { origin }).catch(() => [])
-    const file = origin && games.length ? await dayFile(origin, day) : null
-    if (file) await gradeMatchups(sql, day, games, file)
+    if (games.length) await gradeMatchups(sql, games, await gradeSource(origin, day, games))
   }
 }
 
@@ -588,8 +648,7 @@ export async function predDay(sql, u, day, origin) {
   const slots = await sql`select * from lineups where user_id = ${u.id} and day = ${day} order by slot`
   const [ld] = await sql`select total, coins from lineup_days where user_id = ${u.id} and day = ${day}`
   const done = games.length && games.every(g => g.state === 'post')
-  const file = done && origin ? await dayFile(origin, day).catch(() => null) : null
-  const mr = file ? matchupResults(games.map(g => ({ ...g, line: g.line })), file, day) : {}
+  const mr = done ? matchupResults(games, await gradeSource(origin, day, games).catch(() => ({ has: () => false }))) : {}
   return {
     day,
     games: games.map(g => {

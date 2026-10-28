@@ -9,9 +9,12 @@ name: Nightly Elo update
 
 on:
   schedule:
-    - cron: '30 6 * * *'    # ~2:30 a.m. ET: most nights' games are final
-    - cron: '30 9 * * *'    # ~5:30 a.m. ET: late West Coast finishes and ESPN stat corrections
-    - cron: '0 15 * * *'    # ~11 a.m. ET: catch-up if an earlier run failed
+    # GitHub queues scheduled runs on the hour and half hour for hours, so these sit on odd minutes.
+    # Matchups and lineups grade from ESPN box scores without this run; it makes the day's cards and ratings.
+    - cron: '7 5 * * *'     # ~1 a.m. ET: most nights' games are final
+    - cron: '13 7 * * *'    # ~3 a.m. ET: late West Coast finishes
+    - cron: '41 9 * * *'    # ~5:40 a.m. ET: ESPN stat corrections
+    - cron: '23 12 * * *'   # ~8:20 a.m. ET: catch-up if an earlier run was late or failed
   workflow_dispatch:
     inputs:
       since:
