@@ -42,7 +42,7 @@ import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER,
 import { cardPoints } from './_lib/points.js'
 import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons, warmRewards } from './_lib/coins.js'
 import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
-import { settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
+import { predDay, settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
 import { achievements } from './_lib/achievements.js'
 
 const STREAK_EVERY = 7
@@ -502,6 +502,7 @@ export default async function handler(req, res) {
       const [fresh] = await sql`select * from users where id = ${u.id}`
       return send(200, { predictions: view, ...(await me(fresh)), awards: [...awards, ...view.awards] })
     }
+    if (action === 'predday') return send(200, { day: await predDay(sql, u, String(q.day || ''), origin) })
     if (action === 'predreward') return send(200, { reward: await rewardOptions(sql, u, origin, String(q.day || ''), q.kind === 'duels' ? 'duels' : 'games') })
     if (post && action === 'claimpred') {
       const today = etDay()

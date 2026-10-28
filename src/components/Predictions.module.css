@@ -262,3 +262,24 @@
   .cardSel, .cand .tierX { margin-left: 36px; }
   .cand .claimBtn { margin-left: auto; }
 }
+
+/* History: tap a day for its picks */
+.histWrap { display: flex; flex-direction: column; }
+.histWrap .hist { cursor: pointer; }
+.histOpen { border-radius: 10px 10px 0 0; }
+.histChev { flex: none; color: #8a95a2; font-size: 12px; margin-left: 4px; }
+.dayBox { background: #fff; border-radius: 0 0 10px 10px; border-left: 4px solid #d5dbe2; border-top: 1px solid #eef1f5; padding: 6px 14px 12px; display: flex; flex-direction: column; }
+.dayBox h4 { margin: 10px 0 4px; font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; color: #6a7684; display: flex; gap: 8px; align-items: baseline; }
+.dayBox h4 small { letter-spacing: 0; text-transform: none; font-weight: 700; color: #1a7a4a; font-size: 11.5px; }
+.dayRow { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 34px; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid #f2ede2; font-size: 13px; }
+.dayRow:first-of-type { border-top: 0; }
+.dayTeams { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.dayTeams > span { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: #4a5562; white-space: nowrap; }
+.dayTeams small { color: #8a95a2; }
+.dayWon { color: #1d2633 !important; font-weight: 800 !important; }
+.dayPick { display: flex; flex-direction: column; min-width: 0; font-size: 12.5px; }
+.dayPick small { color: #7a8593; font-size: 11px; }
+.dayLock { margin-left: 6px; font-style: normal; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 8px; background: #fff1c0; color: #8a6414; }
+.dayMark { text-align: right; font-size: 15px; }
+.mWin { color: #1a7a4a; } .mLoss { color: #b42318; } .mVoid { color: #8a95a2; font-size: 11px; } .mWait { color: #c3c9d1; }
+@media (max-width: 600px) { .dayRow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 26px; gap: 6px; } }

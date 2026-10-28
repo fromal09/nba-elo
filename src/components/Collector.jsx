@@ -106,6 +106,7 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
     lock: guard(async (game, on = true) => { const d = await api('lock', { game, on }); take(d); setPreds(d.predictions); return d.predictions }),
     duelPick: guard(async (game, player) => { const d = await api('duelpick', { game, player }); take(d); setPreds(d.predictions); return d.predictions }),
     setLineup: guard(async (day, slot, card) => { const d = await api('lineup', { day, slot, card }); take(d); setPreds(d.predictions); return d.predictions }),
+    predDay: day => api('predday', undefined, `&day=${day}`).then(d => d.day),
     loadStandings: scope => api('standings', undefined, `&scope=${scope}`).then(d => d.standings),
     predReward: (day, kind = 'games') => api('predreward', undefined, `&day=${day}&kind=${kind}`).then(d => d.reward),
     claimPred: guard(async (day, ref, kind = 'games') => { const d = await api('claimpred', { day, ref, kind }); take(d); setPreds(d.predictions); loadCards(); setToast('Added to your binder.'); return d.predictions }),

@@ -225,9 +225,12 @@ function StandingsTab() {
 function HistoryRow({ h, env, onReward }) {
   const G = h.games, D = h.duels, L = h.lineup
   const perfect = G && G.correct === G.total
+  const [open, setOpen] = useState(false)
   const thumb = card => { const c = fromIndex(env, card, { key: card.date + card.kind }); return <span className={styles.histThumb}><Fit>{c.duel ? <DuelCard {...c.duel} /> : <MiniCard name={c.name} row={c.row} game={c.game} team={c.team} headshot={env.headshot(c.name)} />}</Fit></span> }
   return (
-    <div className={`${styles.hist} ${perfect ? styles.histPerfect : G?.reward ? styles.histWin : ''}`}>
+    <div className={styles.histWrap}>
+    <div className={`${styles.hist} ${perfect ? styles.histPerfect : G?.reward ? styles.histWin : ''} ${open ? styles.histOpen : ''}`}
+      role="button" tabIndex={0} aria-expanded={open} onClick={e => { if (!e.target.closest('button')) setOpen(o => !o) }} onKeyDown={e => { if (e.key === 'Enter') setOpen(o => !o) }}>
       <span className={styles.histDay}><b>{fmtDay(h.day, { month: 'short', day: 'numeric' })}</b><small>{fmtDay(h.day, { weekday: 'short' })}</small></span>
       <span className={styles.histParts}>
         <span className={styles.histPart}>
@@ -251,6 +254,61 @@ function HistoryRow({ h, env, onReward }) {
         {G?.claimed ? thumb(G.claimed.card) : G?.reward && <button type="button" className={styles.claimBtn} onClick={() => onReward(h.day, 'games')}>{G.reward === 'any' ? 'Choose any card' : 'Choose a card'}</button>}
         {D?.claimed ? thumb(D.claimed.card) : D?.reward && D.reward !== 'duel' && <button type="button" className={styles.claimBtn} onClick={() => onReward(h.day, 'duels')}>Matchup card</button>}
       </span>
+      <span className={styles.histChev}>{open ? '▴' : '▾'}</span>
+    </div>
+    {open && <DayDetail day={h.day} env={env} />}
+    </div>
+  )
+}
+
+// A day in full: each game and your pick, each matchup, the lineup
+const pctS = p => (p == null ? '' : `${Math.round(p * 100)}%`)
+function DayDetail({ day, env }) {
+  const C = env.collector
+  const [d, setD] = useState(null), [err, setErr] = useState(null)
+  useEffect(() => { C.predDay(day).then(setD).catch(e => setErr(e.message)) }, [day])
+  if (err) return <div className={styles.dayBox}><p className={styles.light}>{err}</p></div>
+  if (!d) return <div className={styles.dayBox}><p className={styles.light}>Loading the day…</p></div>
+  const mark = r => (r === 'win' ? <b className={styles.mWin}>✓</b> : r === 'loss' ? <b className={styles.mLoss}>✗</b> : r === 'void' ? <b className={styles.mVoid}>void</b> : <b className={styles.mWait}>•</b>)
+  return (
+    <div className={styles.dayBox}>
+      <h4>Games</h4>
+      {d.games.length ? d.games.map(g => {
+        const fin = g.state === 'post', mine = g.pick
+        const chance = mine ? (mine === g.home ? g.pHome : g.pHome == null ? null : 1 - g.pHome) : null
+        return (
+          <div key={g.id} className={styles.dayRow}>
+            <span className={styles.dayTeams}>
+              <span className={g.winner === g.away ? styles.dayWon : ''}><Logo t={g.away} size={18} />{g.away}{fin ? ` ${g.as}` : ''}</span>
+              <small>@</small>
+              <span className={g.winner === g.home ? styles.dayWon : ''}><Logo t={g.home} size={18} />{g.home}{fin ? ` ${g.hs}` : ''}</span>
+            </span>
+            <span className={styles.dayPick}>{mine ? <>Your pick <b>{mine}</b>{g.lock ? <em className={styles.dayLock}>Lock</em> : null}<small>{pctS(chance)} forecast{g.bonus ? ` · +${g.bonus} upset` : ''}</small></> : <small>No pick</small>}</span>
+            <span className={styles.dayMark}>{mine ? mark(g.result) : null}</span>
+          </div>
+        )
+      }) : <p className={styles.light}>No games.</p>}
+      {d.matchups.length > 0 && <>
+        <h4>Matchups</h4>
+        {d.matchups.map(m => (
+          <div key={m.id} className={styles.dayRow}>
+            <span className={styles.dayTeams}><span className={m.result && m.pick === m.a && m.result === 'win' ? styles.dayWon : ''}>{shortName(m.a)}</span><small>vs</small><span>{shortName(m.b)}</span></span>
+            <span className={styles.dayPick}>{m.pick ? <>Your pick <b>{shortName(m.pick)}</b></> : <small>No pick</small>}
+              <small>{m.ag != null && m.bg != null ? `Game Score ${m.ag.toFixed(1)}–${m.bg.toFixed(1)}` : m.state === 'post' ? 'graded with the morning data update' : 'not played yet'}</small></span>
+            <span className={styles.dayMark}>{m.pick ? mark(m.result) : null}</span>
+          </div>
+        ))}
+      </>}
+      {d.lineup.slots.length > 0 && <>
+        <h4>Lineup {d.lineup.graded ? <small>{d.lineup.graded.total} points · +{d.lineup.graded.coins} Coins</small> : null}</h4>
+        {d.lineup.slots.map(s => (
+          <div key={s.slot} className={styles.dayRow}>
+            <span className={styles.dayTeams}><span><Logo t={s.team} size={18} />{shortName(s.player)}</span></span>
+            <span className={styles.dayPick}><small>{s.tier ? `${s.tier[0].toUpperCase()}${s.tier.slice(1)} ×${+(s.mult || 1).toFixed(2)}` : ''}</small></span>
+            <span className={styles.dayMark}>{s.pts != null ? <b>{s.pts}</b> : <b className={styles.mWait}>•</b>}</span>
+          </div>
+        ))}
+      </>}
     </div>
   )
 }

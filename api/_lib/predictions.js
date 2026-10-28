@@ -578,3 +578,30 @@ export async function settlePickWeek(sql, origin, today) {
     }
   })
 }
+
+// ── One day in full, for History: every game and your pick, every matchup, your lineup ──
+export async function predDay(sql, u, day, origin) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw fail(400, 'Pick a day.')
+  const games = await sql`select * from pred_games where day = ${day} and state <> 'off' order by tip, id`
+  const picks = await sql`select game_id, pick, result, chance, bonus, lock from predictions where user_id = ${u.id} and day = ${day}`
+  const duels = await sql`select game_id, pick, result from duel_picks where user_id = ${u.id} and day = ${day}`
+  const slots = await sql`select * from lineups where user_id = ${u.id} and day = ${day} order by slot`
+  const [ld] = await sql`select total, coins from lineup_days where user_id = ${u.id} and day = ${day}`
+  const done = games.length && games.every(g => g.state === 'post')
+  const file = done && origin ? await dayFile(origin, day).catch(() => null) : null
+  const mr = file ? matchupResults(games.map(g => ({ ...g, line: g.line })), file, day) : {}
+  return {
+    day,
+    games: games.map(g => {
+      const p = picks.find(x => x.game_id === g.id)
+      return { id: g.id, tip: g.tip, home: g.home, away: g.away, state: g.state, hs: g.hs, as: g.as_, winner: g.winner,
+        pHome: g.line?.pHome ?? null, pick: p?.pick || null, result: p?.result || null, lock: !!p?.lock, chance: p?.chance ?? null, bonus: p?.bonus || 0 }
+    }),
+    matchups: games.filter(g => g.line?.duel).map(g => {
+      const d = g.line.duel, dp = duels.find(x => x.game_id === g.id), r = mr[g.id]
+      return { id: g.id, home: g.home, away: g.away, a: d.a, b: d.b, pick: dp?.pick || null, result: dp?.result || null, ag: r?.ag ?? null, bg: r?.bg ?? null, state: g.state }
+    }),
+    lineup: { slots: slots.map(x => ({ slot: x.slot, player: x.player, team: x.team, tier: x.tier, mult: x.mult ?? null, gs: x.gs,
+      pts: x.gs == null ? null : Math.round(lineupPts(x.gs, x.mult ?? PRED.lineupMult[x.tier] ?? 1) * 10) / 10 })), graded: ld ? { total: +ld.total, coins: ld.coins } : null },
+  }
+}
