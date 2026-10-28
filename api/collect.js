@@ -388,7 +388,8 @@ export default async function handler(req, res) {
     const sql = db()
     const origin = process.env.DATA_ORIGIN || `${(req.headers['x-forwarded-proto'] || 'https').split(',')[0]}://${req.headers['x-forwarded-host'] || req.headers.host}`
     const post = req.method === 'POST'
-    await upgradePoints(sql, origin)   // once, after a points change: every card rescored
+    // Once after a points change, every card is rescored. Reads wait for it; packs, picks and purchases never do.
+    if (post) upgradePoints(sql, origin); else await upgradePoints(sql, origin)
     if (action === 'me') {
       const u0 = await currentUser(req)
       const awards = u0 ? await visit(u0, origin) : []

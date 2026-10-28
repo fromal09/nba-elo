@@ -24,8 +24,12 @@ export const CURRENT_TEAMS = ['ATL', 'BOS', 'BKN', 'CHO', 'CHI', 'CLE', 'DAL', '
   'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
 
 async function api(action, body, query = '') {
-  const r = await fetch(`/api/collect?action=${action}${query}`, body === undefined ? { credentials: 'same-origin' }
-    : { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  // Never wait forever: a request the server hasn't answered in 30 seconds fails, and the button comes back
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 30e3)
+  const r = await fetch(`/api/collect?action=${action}${query}`, body === undefined ? { credentials: 'same-origin', signal: ctl.signal }
+    : { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal })
+    .catch(e => { throw new Error(e?.name === 'AbortError' ? 'That took too long. Check your binder before trying again: it may have gone through.' : 'Couldn’t reach the server. Try again.') })
+    .finally(() => clearTimeout(timer))
   let d = null
   try { d = await r.json() } catch { /* not JSON: the API isn't deployed */ }
   if (!r.ok || !d) throw new Error(d?.error || (r.status === 404 ? 'The collection isn’t live yet.' : 'Something went wrong. Try again.'))

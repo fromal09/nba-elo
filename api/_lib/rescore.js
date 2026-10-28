@@ -24,10 +24,13 @@ export async function seasonDetails(origin, s, fc, n) {
 
 // Rescore every card once: refresh Starting Fives from the published pool (they now carry each player's card details),
 // fill in Season cards' rank and honors, then recompute points for cards and sales
-let running = null
+// One run per warm instance; after a failure, wait 10 minutes before trying again (never on every request)
+let running = null, failedAt = 0, lastError = null
 export function upgradePoints(sql, origin) {
-  if (!running) running = run(sql, origin).catch(e => { console.error('rescore', e); running = null })
-  return running
+  if (!running && Date.now() - failedAt > 10 * 60e3) {
+    running = run(sql, origin).then(() => { lastError = null }).catch(e => { console.error('rescore', e); lastError = String(e?.message || e); failedAt = Date.now(); running = null })
+  }
+  return running || Promise.resolve()
 }
 async function run(sql, origin) {
   await sql`create table if not exists migrations (id text primary key, done_at timestamptz not null default now())`
@@ -47,7 +50,8 @@ async function run(sql, origin) {
 export async function pointsStatus(sql, origin) {
   await sql`create table if not exists migrations (id text primary key, done_at timestamptz not null default now())`
   const rows = await sql`select id, done_at from migrations order by done_at`
-  return { version: POINTS_VERSION, done: rows.map(r => ({ id: r.id, at: r.done_at })), seasonData: Object.keys((await seasonData(origin)).rank).length > 0 }
+  return { version: POINTS_VERSION, done: rows.map(r => ({ id: r.id, at: r.done_at })), seasonData: Object.keys((await seasonData(origin)).rank).length > 0,
+    lastError, failedAt: failedAt ? new Date(failedAt).toISOString() : null }
 }
 
 async function rescore(sql, origin, which, id) {
