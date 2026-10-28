@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import styles from './PlayerCard.module.css'
 import { Serial } from './SpecialCards'
 import './eraFonts.css'
+import { useCareerHistory } from '../history.js'
 
 // Rarity by where the player stood entering this game: his pre-game Elo rank among every
 // player in that season (same tier names as the Franchise Tenures cards)
@@ -496,7 +497,10 @@ const seasonPts = (sd, name) => {
  * and the two players' Elo through the season and across their careers on shared axes.
  * a, b as DuelCard, plus careerA / careerB (elo_history: [[date, elo], ...]); sd = the season's games
  */
-export function DuelModal({ kind, scope, a, b, date, matchup, sd, careerA, careerB, onClose, onBox }) {
+export function DuelModal({ kind, scope, a, b, date, matchup, sd, careerA: cA, careerB: cB, onClose, onBox }) {
+  useCareerHistory()
+  // Careers may arrive after the modal opens: getters read them on every draw
+  const careerA = typeof cA === 'function' ? cA() : cA, careerB = typeof cB === 'function' ? cB() : cB
   const [flipped, setFlipped] = useState(false)
   useEffect(() => {
     const k = e => { if (e.key === 'Escape') { e.stopImmediatePropagation(); onClose() } else if (e.key === 'f' || e.key === 'F') setFlipped(f => !f) }
@@ -634,6 +638,7 @@ function TeamLogo({ src, abbr, color }) {
  *        logo (url|null), headshot (url|null), career (elo.json player|null), peakRank, onProfile, onClose
  */
 export default function PlayerCard({ name, row, game, sd, team, logo, headshot, career, peakRank, bestRank, onProfile, onClose, onBinder, onCareer, serial }) {
+  useCareerHistory()   // the back charts his career
   const [flipped, setFlipped] = useState(false)
   const ref = useRef(null)
   const backNameRef = useRef(null)

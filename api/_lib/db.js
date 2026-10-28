@@ -19,10 +19,21 @@ export function db() {
   return sql
 }
 
+// Bump when the schema below changes: a cold start whose database already has this version skips the ~60 statements
+export const SCHEMA_VERSION = '2026-10-27b'
+
 export function ensureSchema() {
   if (!ready) {
     const s = db()
-    ready = s.begin(async t => {
+    ready = s`select v from schema_meta limit 1`.catch(() => []).then(([m]) => (m?.v === SCHEMA_VERSION ? null : migrate(s)))
+      .catch(e => { ready = null; throw e })
+  }
+  return ready
+}
+
+function migrate(s) {
+  {
+    return s.begin(async t => {
       await t`create table if not exists users (
         id serial primary key,
         username text not null,
@@ -110,7 +121,9 @@ export function ensureSchema() {
       await applyRenames(t)
       await t`create index if not exists packs_open on packs (user_id) where status = 'open'`
       await t`create index if not exists sessions_user on sessions (user_id)`
-    }).catch(e => { ready = null; throw e })
+      await t`create table if not exists schema_meta (v text not null)`
+      await t`delete from schema_meta`
+      await t`insert into schema_meta (v) values (${SCHEMA_VERSION})`
+    })
   }
-  return ready
 }

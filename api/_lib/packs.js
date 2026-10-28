@@ -121,12 +121,18 @@ function toCard(cols, r, teams, from) {
 }
 
 // One card from a set of shards ({tier: [[file, n], ...]}) at these odds, skipping cards in `taken`
-async function fromShards(origin, idx, tiers, odds, taken, from, avoid, rowOk) {
-  const avail = Object.fromEntries(Object.entries(odds).filter(([t]) => tiers[t]?.length))
+// A tier at these odds and a shard of it, rolled ahead so a pack's shards can download together
+function rollShard(tiers, odds) {
+  const avail = Object.fromEntries(Object.entries(odds).filter(([t]) => tiers?.[t]?.length))
+  const t = roll(avail); if (!t) return null
+  const list = tiers[t]
+  return [t, list[roll(Object.fromEntries(list.map(([, n], i) => [i, n])))][0]]
+}
+
+async function fromShards(origin, idx, tiers, odds, taken, from, avoid, rowOk, pre) {
   for (let tries = 0; tries < 12; tries++) {
-    const t = roll(avail); if (!t) return null
-    const list = tiers[t]
-    const file = list[roll(Object.fromEntries(list.map(([, n], i) => [i, n])))][0]
+    const r = tries === 0 && pre ? pre : rollShard(tiers, odds); if (!r) return null
+    const file = r[1]
     const sh = await shard(origin, file)
     const rows = rowOk ? sh.rows.filter(r => rowOk(r, idx.cols)) : sh.rows
     if (!rows.length) continue
@@ -166,18 +172,23 @@ export async function buildOffers(origin, kind, { taken, team, pity, era }) {
   if ((kind === 'team' || kind === 'storeteam') && !teamTiers) throw Object.assign(new Error('That team’s cards aren’t in the pool yet.'), { status: 400 })
   const seen = new Set(taken)
   const slots = []
-  for (const [src, oddsKey] of plan) {
+  // Roll every card's shard first and download them together (one at a time, a cold server took many seconds)
+  const srcTiers = src => (src === 'team' ? teamTiers : src === 'era' ? eraT : src === 'playoff' || src === 'finals' ? poT : src === 'vault' ? idx.tiers : null)
+  const pre = plan.map(([src, oddsKey]) => [0, 1, 2].map(() => (srcTiers(src) ? rollShard(srcTiers(src), ODDS[oddsKey]) : null)))
+  await Promise.all([...new Set(pre.flat().filter(Boolean).map(x => x[1]))].map(f => shard(origin, f).catch(() => null)))
+  for (const [si, [src, oddsKey]] of plan.entries()) {
     const odds = ODDS[oddsKey], cards = [], names = new Set() // three different players per slot
     for (let k = 0; k < 3; k++) {
       let c = null
+      const p0 = pre[si][k]
       if (src === 'recent') c = fromRecent(idx, odds, seen, names)
-      if (!c && src === 'team') c = await fromShards(origin, idx, teamTiers, odds, seen, 'team', names)
-      if (!c && src === 'era') c = await fromShards(origin, idx, eraT, odds, seen, 'era', names)
-      if (!c && src === 'playoff') c = await fromShards(origin, idx, poT, odds, seen, 'playoff', names, isPlayoff)
-      if (!c && src === 'finals') c = await fromShards(origin, idx, poT, odds, seen, 'playoff', names, isFinals)
+      if (!c && src === 'team') c = await fromShards(origin, idx, teamTiers, odds, seen, 'team', names, null, p0)
+      if (!c && src === 'era') c = await fromShards(origin, idx, eraT, odds, seen, 'era', names, null, p0)
+      if (!c && src === 'playoff') c = await fromShards(origin, idx, poT, odds, seen, 'playoff', names, isPlayoff, p0)
+      if (!c && src === 'finals') c = await fromShards(origin, idx, poT, odds, seen, 'playoff', names, isFinals, p0)
         || await fromShards(origin, idx, poT, odds, seen, 'playoff', names, isPlayoff)
       // Last night or the team ran out of new cards at these odds: widen to the vault
-      if (!c) c = await fromShards(origin, idx, idx.tiers, odds, seen, 'vault', names)
+      if (!c) c = await fromShards(origin, idx, idx.tiers, odds, seen, 'vault', names, null, src === 'vault' ? p0 : null)
       if (!c) continue
       seen.add(refOf(c)); names.add(c.row.n); cards.push(c)
     }

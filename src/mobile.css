@@ -85,3 +85,7 @@
 @media (hover: none), (pointer: coarse) {
   [data-still] *, [data-still] *::before, [data-still] *::after { animation: none !important; transition: none !important; }
 }
+/* Desktop too: thumbnail cards hold still until the pointer is on them (a binder page can hold dozens of foils) */
+@media (hover: hover) and (pointer: fine) {
+  [data-still]:not(:hover) *, [data-still]:not(:hover) *::before, [data-still]:not(:hover) *::after { animation-play-state: paused !important; }
+}

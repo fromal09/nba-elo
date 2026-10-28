@@ -20,7 +20,7 @@ import Nav from './components/Nav'
 import FanSidedHeader from './components/FanSidedHeader'
 import Homepage from './components/Homepage'
 import styles from './App.module.css'
-import { loadHistory } from './history.js'
+import { registerPlayers, ensureHistory, onHistory } from './history.js'
 import { buildRatings } from './components/live.js'
 import { useLivePlayers } from './components/liveFeed.js'
 
@@ -71,10 +71,18 @@ export default function App() {
       .then(r => { if (!r.ok) throw new Error('Failed to load data'); return r.json() })
       .then(d => {
         setData(d); setLoading(false)
-        loadHistory(d.players).then(() => setHistReady(true)).catch(() => setHistError(true))
+        registerPlayers(d.players)
       })
       .catch(e => { setError(e.message); setLoading(false) })
   }, [])
+  // Career histories load only for what needs them: these pages, a player's profile (anything else asks for them itself)
+  const wantHistory = NEEDS_HISTORY.has(view) || !!selectedPlayer
+  useEffect(() => {
+    if (!data) return
+    const h = wantHistory ? ensureHistory() : null
+    h?.then(() => setHistReady(true)).catch(() => setHistError(true))
+  }, [data, wantHistory])
+  useEffect(() => onHistory(() => setHistReady(true)), [])
   const waiting = NEEDS_HISTORY.has(view) && !histReady
   // Live layer: today's finals and games in progress move every player's Elo, rank and history on
   // every page that reads players.json. Season Explorer keeps the nightly ratings (its scoreboard

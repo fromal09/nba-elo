@@ -571,6 +571,7 @@ export default async function handler(req, res) {
   } catch (e) {
     const status = e.status || 500
     if (status === 500) console.error(e)
-    return send(status, { error: status === 500 ? 'Something went wrong. Try again.' : e.message })
+    // A 500 carries a short reason too, so a failure can be read from the browser's network panel
+    return send(status, status === 500 ? { error: 'Something went wrong. Try again.', detail: String(e?.message || e).slice(0, 300) } : { error: e.message })
   }
 }

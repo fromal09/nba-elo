@@ -37,3 +37,33 @@ export function loadHistory(players) {
 
 // Resolves once histories are in (null before loadHistory has been called)
 export const historyReady = () => ready
+
+// The full history is big (every game of every career), so nothing loads it until something needs it:
+// pages that chart careers, a player's profile, a card's back or a career binder. registerPlayers keeps the
+// players array to fill in; ensureHistory starts the load (once) and returns the same promise every time.
+let registered = null
+const waiters = new Set()
+export function registerPlayers(players) {
+  registered = players
+  if (ready) ensureHistory()
+}
+export function ensureHistory() {
+  if (!registered) return null
+  const p = loadHistory(registered)
+  p.then(() => waiters.forEach(f => f())).catch(() => {})
+  return p
+}
+// Call back when histories arrive (for components that redraw then)
+export function onHistory(f) { waiters.add(f); return () => waiters.delete(f) }
+
+// Hook for components that draw careers: starts the load when mounted (when `on`), redraws when it lands
+import { useEffect, useState } from 'react'
+export function useCareerHistory(on = true) {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (!on) return
+    let live = true
+    ensureHistory()?.then(() => live && tick(t => t + 1)).catch(() => {})
+    return () => { live = false }
+  }, [on])
+}

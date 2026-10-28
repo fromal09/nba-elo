@@ -1,4 +1,4 @@
-import { historyReady } from '../history.js'
+import { historyReady, useCareerHistory } from '../history.js'
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
@@ -2631,7 +2631,7 @@ function DuelView({ kind, scope, an, bn, g, sd, shots, onClose, onBox }) {
     return { A: mk(a), B: mk(b), matchup: `${tCode(away)} ${pt(away) ?? ''} @ ${tCode(home)} ${pt(home) ?? ''}`.replace(/\s+/g, ' ').trim() }
   })
   return <DuelModal kind={kind} scope={scope} a={A} b={B} date={g.date} matchup={matchup} sd={sd}
-    careerA={CAREER.byName[an]?.elo_history} careerB={CAREER.byName[bn]?.elo_history} onClose={onClose} onBox={onBox} />
+    careerA={() => CAREER.byName[an]?.elo_history} careerB={() => CAREER.byName[bn]?.elo_history} onClose={onClose} onBox={onBox} />
 }
 
 // ── Binders (components in Binders.jsx) ─────────────────────────────────────
@@ -2746,9 +2746,9 @@ export const binderHistory = () => historyReady()
 // Opens one binder and keeps a back stack, so closing a binder opened from another returns to it
 export function BinderHost({ start, shots, onClose, onProfile }) {
   const [stack, setStack] = useState([start])
-  const [, setTick] = useState(0)
-  useEffect(() => { historyReady()?.then(() => setTick(1)).catch(() => {}) }, [])
   const top = stack[stack.length - 1]
+  // Career and season binders list his seasons from his career history; other binders don't need it
+  useCareerHistory(['career', 'season', 'team'].includes(top.kind))
   const push = b => setStack(st => [...st, b])
   const back = () => (stack.length > 1 ? setStack(st => st.slice(0, -1)) : onClose())
   const collector = useCollector()
