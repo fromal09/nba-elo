@@ -84,8 +84,9 @@ function shard(origin, file) {
 const tierOf = rank => (rank == null ? 'common' : rank <= 1 ? 'goat' : rank <= 5 ? 'icon' : rank <= 20 ? 'legend' : rank <= 50 ? 'standout' : rank <= 125 ? 'rare' : 'common')
 // A card's identity. Special cards: duel (Duel of the Day), peak, rival (Rivalry), five (Starting Five), season (forged Season card)
 export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}`
-  : c.kind === 'five' ? `five|${c.s}|${c.t}` : c.kind === 'season' ? `season|${c.s}|${c.t}|${c.n}` : `${c.s}|${c.id}|${c.row.n}`)
-export const SPECIAL_KINDS = new Set(['duel', 'peak', 'rival', 'five', 'season'])
+  : c.kind === 'five' ? `five|${c.s}|${c.t}` : c.kind === 'season' ? `season|${c.s}|${c.t}|${c.n}` : c.kind === 'potw' ? `potw|${c.week}`
+    : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
+export const SPECIAL_KINDS = new Set(['duel', 'peak', 'rival', 'five', 'season', 'potw'])
 
 // About one pack in 15 swaps the last slot's first offer for a special card: a Peak, a Starting Five or a Rivalry
 export const SPECIAL_EVERY = Number(process.env.SPECIAL_EVERY) || 15

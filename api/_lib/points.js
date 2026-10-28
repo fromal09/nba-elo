@@ -110,7 +110,15 @@ export const DUEL_MULT = 1.25
  *    five    the five players' cards from that game added up, plus 40% for a title team
  *    season  10 × 8 × his final tier's base × games / 82 (up to ×1.25 with playoffs), plus All-Star 25%,
  *            All-League 60/45/30%, MVP 100%, title 50% */
+// Player of the Week: one per week, to the pick'em winner (numbered when a tie shares it)
+export const POTW_POINTS = 2500
 export function cardPoints(card) {
+  if (card?.kind === 'potw') return { points: POTW_POINTS, base: 0, grade: 0, bonuses: [['Player of the Week', 0]] }
+  // Ruby: the Player of the Day card you called, at twice its points
+  if (card?.ruby) {
+    const p = cardPoints({ ...card, ruby: undefined })
+    return { ...p, points: p.points * 2, bonuses: [...p.bonuses, ['Ruby · called it', 1]] }
+  }
   if (card?.kind === 'peak') {
     const p = cardPoints({ ...card, kind: undefined, tier: card.tier || rankTier(card.row) })
     return { ...p, points: Math.round(p.points * 1.5), bonuses: [...p.bonuses, ['Peak', 0.5]] }

@@ -287,3 +287,21 @@
 
 .histTools { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .histBtn { height: 26px; padding: 0 12px; border: 1px solid #c9d2dc; border-radius: 13px; background: #fff; font: inherit; font-size: 11.5px; font-weight: 700; color: #173657; cursor: pointer; }
+
+/* Predict the Player of the Day */
+.potdMine { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: #fff; border: 1px solid #e6e0d0; box-shadow: inset 4px 0 0 #ff2a4a; }
+.potdMine > .potdWho { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.potdMine b { font-size: 16px; color: #1c2733; }
+.potdMine small { font-size: 11.5px; color: #6a7684; }
+.potdMine em { font-style: normal; font-size: 12px; font-weight: 800; color: #9a1a30; }
+.potdMine[data-r=win] { background: linear-gradient(90deg, #2a0710, #4a0b19); border-color: #ff2a4a; }
+.potdMine[data-r=win] b, .potdMine[data-r=win] em { color: #ffd1d9; } .potdMine[data-r=win] small { color: #ff9cad; }
+.potdMine[data-r=loss] { box-shadow: inset 4px 0 0 #8a95a2; } .potdMine[data-r=loss] em { color: #6a7684; }
+.potdWin { display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 12px; background: #0c0204; color: #ffd1d9; }
+.potdWin > span:last-child { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.potdWin small { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 800; color: #ff6b82; }
+.potdWin b { font-family: Georgia, serif; font-size: 20px; color: #fff; }
+.potdWin span span { font-size: 12px; color: #ffb3c1; }
+.potdWin em { font-style: normal; font-size: 11.5px; font-weight: 800; color: #ff4d6a; }
+.potdThumb { position: relative; flex: none; width: 74px; aspect-ratio: 340 / 476; }
+.potdThumb > div { inset: 0 !important; }

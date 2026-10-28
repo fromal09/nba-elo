@@ -11,6 +11,8 @@ import { binderSeasonSummary, binderCareerPath, binderPeaks, binderHistory, bind
  *                each cleared by owning that game's card. Fully revealed at 100%.
  *   RivalryCard  two players' career head-to-head in Game Score duels (random pull).
  *   FiveCard     a team's best single-day five: the five highest pre-game Elo players who played that day (random pull).
+ *   PotwCard     Player of the Week: the NBA's best player of a week, a numbered gold superfractor for that week's
+ *                pick'em winner (k of n when a tie shares it). The back names the winner(s) and their week of picks.
  *   Serial       the "#k of n" tab: your copy's order among everyone who owns the card.
  */
 
@@ -397,21 +399,80 @@ export function FiveBack({ f, b }) {
 }
 
 // ── Serial number tab: bottom-right, clear of the flip button ────────────────
+// ── Player of the Week ───────────────────────────────────────────────────────
+const SHORT_MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const md = d => `${SHORT_MO[+d.slice(5, 7) - 1]} ${+d.slice(8, 10)}`
+export const weekSpan = c => (c.week.slice(5, 7) === c.end.slice(5, 7) ? `${md(c.week)}–${+c.end.slice(8, 10)}` : `${md(c.week)} – ${md(c.end)}`) + `, ${c.end.slice(0, 4)}`
+const sg1 = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1)
+
+export function PotwCard({ card: c, headshot }) {
+  const [bad, setBad] = useState(false)
+  const { first, last } = split(c.n)
+  return (
+    <div className={styles.potw} style={{ '--c': c.tc || '#173657' }}>
+      <div className={styles.potwSwirl} />
+      <div className={styles.potwGlass} />
+      <div className={styles.potwBadge}>PLAYER OF THE WEEK</div>
+      <div className={styles.potwShot}>{headshot && !bad ? <img src={headshot} alt={baseName(c.n)} onError={() => setBad(true)} /> : <b>{initials(c.n)}</b>}</div>
+      <div className={styles.potwName}><small>{first !== last ? first : ''}</small><FitName max={40} min={22}>{last}</FitName></div>
+      <div className={styles.potwWeek}>{nick(c.tn).toUpperCase()} · {weekSpan(c).replace(/, \d{4}$/, '').toUpperCase()} · {c.gp} GAMES · {c.w}–{c.gp - c.w}</div>
+      <div className={styles.potwStats}>
+        <div><b>{f1(c.pts)}</b><small>PPG</small></div><div><b>{f1(c.trb)}</b><small>RPG</small></div>
+        <div><b>{f1(c.ast)}</b><small>APG</small></div><div><b>{f1(c.gs)}</b><small>GmSc</small></div>
+      </div>
+      <div className={styles.potwNo}>— {c.k || 1} / {c.of || 1} —</div>
+    </div>
+  )
+}
+
+export function PotwBack({ card: c }) {
+  const W = c.winners || []
+  return (
+    <div className={styles.back} style={{ '--c': '#9a6d12' }}>
+      <div className={styles.backHead}><div><FitName>{baseName(c.n)}</FitName><small>Player of the Week · {weekSpan(c)}</small></div><span>{c.k || 1}/{c.of || 1}</span></div>
+      <section>
+        <h4>Won by <em>{W.length > 1 ? `a ${W.length}-way tie for No. 1` : 'the week’s No. 1'} of {c.entrants || W.length} in pick’em</em></h4>
+        {W.map((w, i) => (
+          <div key={w.username} className={styles.potwWin} data-me={i + 1 === c.k ? '' : undefined}>
+            <span><b>{w.username}{W.length > 1 ? <i> · copy {i + 1} of {W.length}</i> : null}</b>
+              <small>Picks {w.picks[0]}–{w.picks[1]} · matchups {w.matchups[0]}–{w.matchups[1]}{w.locks ? ` · ${w.locks} lock${w.locks === 1 ? '' : 's'}` : ''}{w.potd?.[0] ? ` · PotD ${w.potd[0]}` : ''} · {sg1(w.over)} vs the forecast</small></span>
+            <strong>{w.score}<small>pts</small></strong>
+          </div>
+        ))}
+      </section>
+      <section>
+        <h4>His week <em>{c.gp} games · Elo {r0(c.elo[0])} → {r0(c.elo[1])}</em></h4>
+        {(c.games || []).map(g => (
+          <div key={g.date} className={styles.backRow}>
+            <span>{md(g.date)} {g.home === false ? '@' : 'vs'} {g.o} · {g.won ? 'W' : 'L'} {g.score}</span>
+            <span>{g.pts} pts · {g.trb} reb · {g.ast} ast</span><b>{f1(g.gs)}</b>
+          </div>
+        ))}
+      </section>
+      <section>
+        <p className={styles.backNote}>The week’s best by the Player of the Day measure added up: Game Score plus a sixth of the Elo gained, every game ({f1(c.score)}). One card a week, only for the pick’em winner.</p>
+      </section>
+      <div className={styles.backFoot}><span>Player of the Week</span><span>{c.k || 1} of {c.of || 1}</span></div>
+    </div>
+  )
+}
+
 export function Serial({ k, n, flip, inline, pocket }) {
   return <span className={styles.serial} data-flip={flip ? '' : undefined} data-inline={inline ? '' : undefined} data-pocket={pocket ? '' : undefined} title={`Copy ${k} of ${n} in collectors’ binders`}><b>#{k}</b><i>/</i>{n}</span>
 }
 
 // ── Any special card, anywhere: binder pockets, pack openings, showcases ─────
 
-export const SPECIAL = new Set(['peak', 'rival', 'five', 'season'])
+export const SPECIAL = new Set(['peak', 'rival', 'five', 'season', 'potw'])
 export const isSpecial = c => SPECIAL.has(c?.kind)
-const KIND_NAME = { peak: 'Peak', rival: 'Rivalry', five: 'Starting Five', season: 'Season card', duel: 'Duel of the Day' }
+const KIND_NAME = { peak: 'Peak', rival: 'Rivalry', five: 'Starting Five', season: 'Season card', duel: 'Duel of the Day', potw: 'Player of the Week' }
 export const specialTitle = c => (c.kind === 'peak' ? `${baseName(c.row.n)} · ${c.until ? 'Former Peak' : 'Peak'}` : c.kind === 'rival' ? `${split(c.a).last} vs. ${split(c.b).last}`
-  : c.kind === 'five' ? `${c.s} ${nick(c.tn)} · Starting Five` : c.kind === 'season' ? `${baseName(c.n)} · ${c.s} Season` : c.kind === 'duel' ? `${baseName(c.a.row.n)} · Duel of the Day` : '')
+  : c.kind === 'five' ? `${c.s} ${nick(c.tn)} · Starting Five` : c.kind === 'season' ? `${baseName(c.n)} · ${c.s} Season` : c.kind === 'duel' ? `${baseName(c.a.row.n)} · Duel of the Day`
+  : c.kind === 'potw' ? `${baseName(c.n)} · Player of the Week` : '')
 export const specialLabel = c => (c.kind === 'rival' ? `Rivalry · ${TIER_LABEL[c.tier] || ''}` : KIND_NAME[c.kind] || '')
 export const specialLine = c => (c.kind === 'peak' ? `Career-high Elo ${r0(c.row.post)} · ${ap(c.date)} ${c.home === false ? '@' : 'vs'} ${c.o}`
   : c.kind === 'rival' ? `${c.w}–${c.l} in ${c.w + c.l + (c.t || 0)} duels · No. ${c.rank} all-time` : c.kind === 'five' ? `Five Elo ${r0(c.elo)} · ${ap(c.date)} vs ${c.o} · ${c.won ? 'W' : 'L'} ${c.score}`
-    : c.kind === 'season' ? `${c.gp} games with the ${nick(c.tn)}` : '')
+    : c.kind === 'season' ? `${c.gp} games with the ${nick(c.tn)}` : c.kind === 'potw' ? `Week of ${weekSpan(c)} · ${c.k || 1} of ${c.of || 1}` : '')
 
 // Shared, cached lookups for Peak cards
 let peaksP = null, shotsP = null
@@ -466,6 +527,7 @@ function SpecialFaceIn({ card, owned, serial }) {
   if (card.kind === 'rival') return <RivalryCard r={card} shotA={shotOf(shots, card.a)} shotB={shotOf(shots, card.b)} serial={serial} />
   if (card.kind === 'five') return <FiveCard f={card} shots={Object.fromEntries(card.players.map(p => [p.n, shotOf(shots, p.n)]))} serial={serial} />
   if (card.kind === 'season') return <SeasonFront card={card} owned={owned} serial={serial} />
+  if (card.kind === 'potw') return <PotwCard card={card} headshot={shotOf(shots, card.n)} />
   return null
 }
 // Tagged for "Save card image" (right-click)
@@ -512,6 +574,7 @@ function SpecialBack({ card }) {
   if (card.kind === 'rival') return <RivalryBack r={card} />
   if (card.kind === 'five') return <FiveBack f={card} b={{ lines: card.players, together: card.together, tw: card.togW, tl: card.together - card.togW, po: card.po || [0, 0], champ: card.champ }} />
   if (card.kind === 'season') return <SeasonBackLoader card={card} />
+  if (card.kind === 'potw') return <PotwBack card={card} />
   return null
 }
 function SeasonBackLoader({ card }) {

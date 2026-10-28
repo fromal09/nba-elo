@@ -138,13 +138,23 @@ export default function MyPredictions({ day }) {
   })
   const lTotal = slots.reduce((a, x) => a + (x.pts || 0), 0)
 
-  const nothing = !gPicked && !mPicked && !slots.length
+  // ── Player of the Day ──
+  // While games are on: your nominee's Game Score, and the night's Game Score leader so far (the Player of the Day
+  // also counts Elo gained, so the leader is a guide until the day's cards decide it)
+  const P = d.potd || {}
+  const liveRows = (feed?.games || []).filter(g => g.state !== 'pre').flatMap(g => Object.entries(g.box || {}).flatMap(([t, rows]) => rows.map(r => ({ name: r.name, team: t, gs: gmsc(r) }))))
+  const leader = liveRows.sort((a, b) => b.gs - a.gs)[0] || null
+  const nomGs = P.pick ? (liveRows.find(r => norm(r.name) === norm(P.pick.player))?.gs ?? null) : null
+  const anyStarted = d.games.some(g => stateOf(g, L.find(g)) !== 'pre')
+  const pTone = P.pick?.result === 'win' ? 'win' : P.pick?.result === 'loss' ? 'loss' : !P.pick ? 'none' : !anyStarted ? 'wait' : leader && norm(leader.name) === norm(P.pick.player) ? 'up' : 'even'
+  const nothing = !gPicked && !mPicked && !slots.length && !P.pick
   const isFuture = day > etToday()
   return (
     <div className={styles.wrap}>
       <div className={styles.summary}>
         <div><small>Games</small><b>{gRight}–{gWrong}</b><span>{gPicked} of {games.length} picked{gUp ? ` · ${gUp} leading` : ''}</span></div>
         <div><small>Matchups</small><b>{mRight} right</b><span>{mPicked} of {matchups.length} picked</span></div>
+        <div><small>PotD</small><b>{P.pick ? shortName(P.pick.player) : '—'}</b><span>{P.pick?.result === 'win' ? 'Called it' : P.pick?.result === 'loss' ? 'Missed' : P.pick ? (nomGs != null ? `${f1(nomGs)} GmSc so far` : 'Not started') : 'No pick'}</span></div>
         <div><small>Lineup</small><b>{d.lineup.graded ? d.lineup.graded.total : lTotal.toFixed(1)} <i>pts</i></b><span>{d.lineup.graded ? `+${d.lineup.graded.coins} Coins` : slots.some(x => x.st === 'in') ? 'live' : `${slots.length} of 5 set`}</span></div>
         {(day >= etToday() || day === addDays(etToday(), -1)) && <button type="button" className={styles.cta} onClick={() => C.openPredict()}>{day >= etToday() && d.games.some(g => g.state === 'pre') ? 'Make or change picks' : 'Open Predictions'}</button>}
       </div>
@@ -187,6 +197,21 @@ export default function MyPredictions({ day }) {
               <span className={styles.res}>{m.pick && line}</span>
             </div>
           ))}
+        </div>
+      </section>}
+
+      {(P.pick || P.winner || leader) && d.games.length > 0 && <section className={styles.sec}>
+        <h3>Player of the Day <span>Game Score + Elo gained ÷ 6</span></h3>
+        <div className={styles.list}>
+          <div className={styles.row} data-tone={pTone}>
+            <span className={styles.teams}>{P.pick ? <span><Logo t={P.pick.team} />{baseName(P.pick.player)}{nomGs != null && <b>{f1(nomGs)}</b>}</span> : <span className={styles.muted}>No pick</span>}</span>
+            <span className={styles.mid}>
+              <small>{P.winner ? 'Final' : anyStarted ? 'In progress' : P.lock ? `Picks lock at ${tipTime(P.lock)}` : ''}</small>
+              <span>{P.winner ? <>Player of the Day <b>{baseName(P.winner.name)}</b><small> · {f1(P.winner.gs)} GmSc</small></>
+                : leader ? <>Game Score leader <b>{shortName(leader.name)}</b><small> · {f1(leader.gs)}</small></> : 'Not started'}</span>
+            </span>
+            <span className={styles.res}>{P.pick?.result === 'win' ? 'Called it · ruby card' : P.pick?.result === 'loss' ? 'Missed' : P.pick ? (P.winner ? 'Grading…' : anyStarted ? (pTone === 'up' ? 'Leading' : 'In progress') : 'Not started') : ''}</span>
+          </div>
         </div>
       </section>}
 

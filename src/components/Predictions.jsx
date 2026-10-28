@@ -193,6 +193,54 @@ function LineupTab({ day, dayWord, lu, env, busy, onSet, slots, R }) {
   </>
 }
 
+// ── Predict the Player of the Day ────────────────────────────────────────────
+const fold = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+function PotdTab({ dayWord, p, env, busy, onPick, R }) {
+  const [q, setQ] = useState('')
+  const [more, setMore] = useState(false)
+  const pick = p.pick
+  const list = p.candidates.filter(c => !q || fold(c.name).includes(fold(q)) || c.team.toLowerCase() === q.toLowerCase())
+  const shown = q || more ? list : list.slice(0, 30)
+  const W = p.winner
+  const thumb = W && (() => { const e = fromIndex(env, W.ruby ? { ...W.card, ruby: true } : W.card, { key: 'potd' }); return <span className={styles.potdThumb}><Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit></span> })()
+  return <>
+    <div className={styles.goal}>
+      <span><b>{pick ? `Your pick: ${baseName(pick.player)}` : 'No pick yet'}</b>{p.lock ? ` · ${p.open ? `locks at ${tipTime(p.lock)}, the first tipoff` : 'locked at the first tipoff'}` : ''}</span>
+      <span className={styles.goalText}>Who will be the Player of the Day {dayWord}? It’s the night’s best Game Score plus a sixth of the Elo gained, across every game. Call it and you get that card in ruby, at twice its points, plus {R.potd} Coins and {R.potdStand} pick’em points. One pick a day; change it until the first game tips off.</span>
+    </div>
+    {pick && <div className={styles.potdMine} data-r={pick.result || (p.open ? 'open' : 'live')}>
+      <Logo t={pick.team} size={34} />
+      <span className={styles.potdWho}><b>{baseName(pick.player)}</b><small>{teamName(pick.team)}</small></span>
+      <em>{pick.result === 'win' ? '✓ Called it · the ruby card is in your binder' : pick.result === 'loss' ? '✗ Not this time' : p.open ? 'Your nomination' : W ? 'Grading…' : 'In progress'}</em>
+      {p.open && <button type="button" className={styles.ghostSm} disabled={busy} onClick={() => onPick(null)}>Remove</button>}
+    </div>}
+    {W && <div className={styles.potdWin}>
+      {thumb}
+      <span><small>Player of the Day</small><b>{baseName(W.name)}</b><span>{teamName(W.team)} · {W.pts} pts · {W.trb} reb · {W.ast} ast · {W.gs?.toFixed(1)} Game Score</span>
+        {W.ruby && <em>Yours in ruby</em>}</span>
+    </div>}
+    {p.open && p.candidates.length > 0 && <>
+      <div className={styles.candHead}><span className={styles.boxLab}>Players {dayWord} · by Elo</span>
+        <input className={styles.search} value={q} onChange={e => setQ(e.target.value)} placeholder="Find a player or team" aria-label="Find a player" /></div>
+      <div className={styles.cands}>
+        {shown.map(c => {
+          const on = pick && fold(pick.player) === fold(c.name)
+          return (
+            <div key={c.name + c.team} className={styles.cand}>
+              <Logo t={c.team} size={26} />
+              <span className={styles.candText}><b>{baseName(c.name)}</b>
+                <small>{c.team} {c.home ? 'vs' : '@'} {c.opp} · {tipTime(c.tip)} · {n0(c.elo)} Elo{c.mp ? ` · ${c.mp} min` : ''}{c.status ? ` · ${c.status}` : ''}</small></span>
+              <button type="button" className={styles.claimBtn} disabled={busy || on} onClick={() => onPick(c)}>{on ? 'Your pick' : pick ? 'Switch' : 'Nominate'}</button>
+            </div>
+          )
+        })}
+      </div>
+      {!q && !more && list.length > 30 && <button type="button" className={styles.histBtn} onClick={() => setMore(true)}>Show all {list.length} players</button>}
+    </>}
+    {!p.open && !pick && !W && <div className={styles.empty}><b>No pick {dayWord}</b><span>Player of the Day picks close at the day’s first tipoff.</span></div>}
+  </>
+}
+
 // ── Standings ────────────────────────────────────────────────────────────────
 function StandingsTab() {
   const C = useCollector()
@@ -204,7 +252,7 @@ function StandingsTab() {
     <div key={x.username + (you ? '-you' : '')} className={`${styles.stRow} ${C.me?.user.username === x.username ? styles.stYou : ''}`}>
       <b className={styles.stRank} data-top={x.rank <= 3 ? x.rank : undefined}>{x.rank}</b>
       <span className={styles.stWho}><b>{x.username}{you ? ' (you)' : ''}</b>
-        <small>Picks {x.picks[0]}–{x.picks[1]} · matchups {x.matchups[0]}–{x.matchups[1]}{x.locks ? ` · ${x.locks} lock${x.locks === 1 ? '' : 's'}` : ''} · {sgn(x.over)} vs forecast</small></span>
+        <small>Picks {x.picks[0]}–{x.picks[1]} · matchups {x.matchups[0]}–{x.matchups[1]}{x.locks ? ` · ${x.locks} lock${x.locks === 1 ? '' : 's'}` : ''}{x.potd?.[0] ? ` · PotD ${x.potd[0]}` : ''} · {sgn(x.over)} vs forecast</small></span>
       <strong>{x.score}<small>pts</small></strong>
     </div>
   )
@@ -213,7 +261,7 @@ function StandingsTab() {
       <Seg value={scope} onChange={setScope} options={[['week', 'This week'], ['season', 'Season']]} />
       {s && <span className={styles.light}>{s.entrants} collector{s.entrants === 1 ? '' : 's'}{s.payouts ? ` · top 10 win ${s.payouts.top10} Coins, top 50 win ${s.payouts.top50}, paid Monday` : ''}</span>}
     </div>
-    <p className={styles.light}>1 point for each correct pick, 1 for each correct matchup, 1 more for a correct lock. Ties go to whoever beat the forecast by more.</p>
+    <p className={styles.light}>1 point for each correct pick, 1 for each correct matchup, 1 more for a correct lock, 2 for a correct Player of the Day. Ties go to whoever beat the forecast by more. The week’s No. 1 also gets that week’s Player of the Week card; a tie for No. 1 shares it, numbered.</p>
     {!s ? <p className={styles.light}>Loading…</p> : s.leaders.length ? <div className={styles.stList}>
       {s.leaders.map(x => row(x))}
       {s.you && s.you.rank > 25 && row(s.you, true)}
@@ -245,6 +293,10 @@ function HistoryRow({ h, env, onReward, all }) {
           <small>Matchups</small>
           {D ? <><b>{D.correct} of {D.total}</b><small>{D.reward === 'duel' ? 'Duel of the Day card won' : D.reward ? 'card earned' : `${Math.max(0, need(D.total) - D.correct)} short`}</small></>
             : h.dopen ? <small>{h.dopen.picked} picked · graded when the games are final</small> : <small>—</small>}
+        </span>
+        <span className={styles.histPart}>
+          <small>PotD</small>
+          {h.potd ? <><b>{shortName(h.potd.player)}</b><small>{h.potd.result === 'win' ? '✓ called it · ruby card' : h.potd.result === 'loss' ? '✗ missed' : h.day >= etToday() ? 'not decided yet' : 'graded when the day’s cards are in'}</small></> : <small>—</small>}
         </span>
         <span className={styles.histPart}>
           <small>Lineup</small>
@@ -299,6 +351,14 @@ function DayDetail({ day, env }) {
             <span className={styles.dayMark}>{m.pick ? mark(m.result) : null}</span>
           </div>
         ))}
+      </>}
+      {(d.potd?.pick || d.potd?.winner) && <>
+        <h4>Player of the Day</h4>
+        <div className={styles.dayRow}>
+          <span className={styles.dayTeams}>{d.potd.pick ? <span><Logo t={d.potd.pick.team} size={18} />{shortName(d.potd.pick.player)}</span> : <small>No pick</small>}</span>
+          <span className={styles.dayPick}>{d.potd.winner ? <small>Player of the Day: <b>{shortName(d.potd.winner.name)}</b> · {d.potd.winner.gs?.toFixed(1)} Game Score</small> : <small>{d.games.every(g => g.state === 'post') ? 'graded when the day’s cards are in' : 'not decided yet'}</small>}</span>
+          <span className={styles.dayMark}>{d.potd.pick ? mark(d.potd.pick.result) : null}</span>
+        </div>
       </>}
       {d.lineup.slots.length > 0 && <>
         <h4>Lineup {d.lineup.graded ? <small>{d.lineup.graded.total} points · +{d.lineup.graded.coins} Coins</small> : null}</h4>
@@ -444,7 +504,8 @@ export function PredictPages({ env, phone, tools, children }) {
     <div className={styles.stats}>
       <div><b>{s.claimed}</b><small>Cards won</small></div>
       <div><b>{s.duels.cards}</b><small>Duel cards</small></div>
-      <div className={styles.statWide} style={{ gridColumn: 'span 3' }}><b className={styles.goldC}><Coin size={16} /> {n0(s.coins)}</b><small>Coins from predictions</small></div>
+      <div><b>{s.potd ? `${s.potd.w}–${s.potd.l}` : '—'}</b><small>PotD</small></div>
+      <div className={styles.statWide} style={{ gridColumn: 'span 2' }}><b className={styles.goldC}><Coin size={16} /> {n0(s.coins)}</b><small>Coins from predictions</small></div>
     </div>
     {unclaimed.length > 0 && <button type="button" className={styles.claimBig} onClick={() => setReward(unclaimed[0])}>
       {unclaimed.length === 1 ? `Choose your card from ${fmtDay(unclaimed[0].day, { month: 'short', day: 'numeric' })}` : `${unclaimed.length} cards to choose`}</button>}
@@ -460,6 +521,8 @@ export function PredictPages({ env, phone, tools, children }) {
       <div><b>More than half the matchups</b><span>a Rare or Common</span></div>
       <div><b>Every matchup</b><span>the Duel of the Day card</span></div>
       <div><b>Lineup</b><span>Game Score × card multiplier, 1 Coin a point, up to {R.lineupMax}</span></div>
+      <div><b>Player of the Day called</b><span>+{R.potd} · that card in ruby</span></div>
+      <div><b>No. 1 in the weekly standings</b><span>the Player of the Week card</span></div>
     </div>
     <details className={styles.help}>
       <summary>How it works</summary>
@@ -476,8 +539,8 @@ export function PredictPages({ env, phone, tools, children }) {
   </>
 
   // Three toggles: what to pick (games, matchups, lineup), which day, and the record (standings, history)
-  const picking = ['games', 'matchups', 'lineup'].includes(tab)
-  const sub_ = <Seg value={picking ? tab : ''} onChange={setTab} options={[['games', 'Games'], ['matchups', 'Matchups'], ['lineup', 'Lineup']]} />
+  const picking = ['games', 'matchups', 'lineup', 'potd'].includes(tab)
+  const sub_ = <Seg value={picking ? tab : ''} onChange={setTab} options={[['games', 'Games'], ['matchups', 'Matchups'], ['lineup', 'Lineup'], ['potd', 'PotD']]} />
   const dayTabs = <Seg value={picking ? di : ''} onChange={v => { setDi(v); if (!picking) setTab('games') }} options={[['-1', 'Yesterday'], ['0', 'Today'], ['1', 'Tomorrow']]} />
   const recTabs = <Seg value={picking ? '' : tab} onChange={setTab} options={[['standings', 'Standings'], ['history', 'History']]} />
   const games = slate.games
@@ -509,7 +572,9 @@ export function PredictPages({ env, phone, tools, children }) {
           text={`Who posts the higher Game Score in each game’s top player matchup? Get ${need(m.length)} right to choose a Rare or Common from the day. Get all ${m.length} for the Duel of the Day card.`} />
         <div className={styles.games}>{m.map(g => <MatchupRow key={g.id} g={g} busy={busy === `d${g.id}`} onPick={(g_, p) => g_.duel.pick !== p && run(`d${g_.id}`, () => C.duelPick(g_.id, p))} />)}</div>
       </> : <div className={styles.empty}><b>Matchups aren’t set yet</b><span>They come from the Elo forecast and appear before tipoff.</span></div>
-    } else body = <LineupTab day={slate.day} dayWord={dayWord} lu={slate.lineup} env={envX} slots={R.slots} R={R} busy={!!busy} onSet={(day, slot, card) => run('lineup', () => C.setLineup(day, slot, card))} />
+    } else if (tab === 'potd') body = <PotdTab dayWord={dayWord} env={envX} R={R} busy={busy === 'potd'} p={slate.potd || { pick: null, open: false, candidates: [], winner: null }}
+      onPick={c => run('potd', () => C.potdPick(slate.day, c ? c.name : '', c ? c.team : ''))} />
+    else body = <LineupTab day={slate.day} dayWord={dayWord} lu={slate.lineup} env={envX} slots={R.slots} R={R} busy={!!busy} onSet={(day, slot, card) => run('lineup', () => C.setLineup(day, slot, card))} />
   }
   const right = (
     <div className={styles.right}>

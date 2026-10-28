@@ -172,6 +172,36 @@ const fmtDay = d => `${AP_MONTHS[+d.slice(5, 7) - 1]} ${+d.slice(8, 10)}, ${d.sl
  * Used by the full card and, scaled down, by the season binder.
  * game: { date, home, oppAbbr, oppLogo, oppColor, won, score, ot, playoff (label or null) }
  */
+// Ruby: the Player of the Day card you called in Predictions. Near-black with glowing red veins and a neon ruby edge.
+export function RubyFront({ name, row, game, team, headshot }) {
+  const [bad, setBad] = useState(false)
+  const lastRef = useRef(null)
+  const [first, ...rest] = baseName(name).split(' ')
+  const last = rest.join(' ') || first
+  const [us, them] = (game.score || '').split('–')
+  useLayoutEffect(() => {
+    const el = lastRef.current; if (!el) return
+    const fit = () => { let s = 46; el.style.fontSize = s + 'px'; while (el.scrollWidth > el.clientWidth + 1 && s > 20) el.style.fontSize = --s + 'px' }
+    fit(); document.fonts?.ready.then(fit)
+  }, [name])
+  return (
+    <div className={`${styles.frame} ${styles.ruby}`} data-front="ruby">
+      <div className={styles.rbVeins} /><div className={styles.rbCracks} />
+      <div className={styles.rbPhoto}>{headshot && !bad ? <img src={headshot} alt={baseName(name)} onError={() => setBad(true)} /> : <span>{first[0]}{last[0]}</span>}</div>
+      <div className={styles.rbShade} />
+      <div className={styles.rbCalled}>CALLED IT</div>
+      <div className={styles.rbName}><small>{first !== last ? first : ''}</small><b ref={lastRef}>{last}</b></div>
+      <div className={styles.rbMeta}>PLAYER OF THE DAY · {fmtDay(game.date)} {game.home === false ? '@' : 'vs'} {game.oppAbbr}</div>
+      <div className={styles.rbScore}><span>{team?.abbr} {us}</span><em>Final{game.ot ? `/${game.ot}` : ''}</em><span>{game.oppAbbr} {them}</span></div>
+      <div className={styles.rbStats}>
+        <div><b>{row.pts ?? '—'}</b><small>PTS</small></div><div><b>{row.trb ?? '—'}</b><small>REB</small></div>
+        <div><b>{row.ast ?? '—'}</b><small>AST</small></div><div><b>{row.gs == null ? '—' : row.gs.toFixed(1)}</b><small>GmSc</small></div>
+      </div>
+      <div className={styles.rbEdge} />
+    </div>
+  )
+}
+
 export function CardFront({ name, row, game, team, headshot }) {
   const [imgBad, setImgBad] = useState(false)
   const lastRef = useRef(null)
@@ -594,6 +624,7 @@ function cardAttrs(row, game) {
     'data-cg': m.career ? '' : undefined,
     'data-ms': m.stamps.some(x => x.up) ? '' : undefined,
     'data-age': ageOf(game.date),
+    'data-ruby': game.ruby ? '' : undefined,
   }
 }
 
@@ -615,7 +646,7 @@ export function SlabLabel({ row, game, kind, className }) {
 export function MiniCard({ name, row, game, team, headshot, slab }) {
   const card = (
     <div className={`${styles.card} ${styles.miniCard}`} {...cardAttrs(row, game)} style={{ '--tc': team?.color || '#173657' }} data-card-shot={`${baseName(name)} ${game?.date || ''}`}>
-      <div className={`${styles.face} ${styles.front}`}><CardFront name={name} row={row} game={game} team={team} headshot={headshot} /></div>
+      <div className={`${styles.face} ${styles.front}`}>{game?.ruby ? <RubyFront name={name} row={row} game={game} team={team} headshot={headshot} /> : <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />}</div>
     </div>
   )
   if (!slab) return card
@@ -696,7 +727,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
           <div className={styles.tilt}><div className={styles.flip} onClick={e => { if (!e.target.closest('button')) setFlipped(f => !f) }}>
             {/* ── Front ── */}
             <div className={`${styles.face} ${styles.front}`} data-card-shot={`${baseName(name)} ${game.date}`}>
-              <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />
+              {game.ruby ? <RubyFront name={name} row={row} game={game} team={team} headshot={headshot} /> : <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />}
               {serial && <Serial k={serial[0]} n={serial[1]} flip />}
               <FlipBtn />
             </div>
@@ -709,7 +740,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
                     <div ref={backNameRef} className={styles.backName}>{baseName(name)}</div>
                     <div className={styles.backSub}>{team?.name} · {sd.season}</div>
                   </div>
-                  <span className={styles.tierTag}>{tier.label}</span>
+                  <span className={styles.tierTag}>{game.ruby ? `Ruby ${tier.label}` : tier.label}</span>
                 </div>
 
                 <section>

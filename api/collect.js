@@ -27,6 +27,7 @@
 //   POST lock        { game, on } make that pick your Lock of the Day (movable until its game tips off)
 //   POST duelpick    { game, player } who posts the higher Game Score in the game's top player matchup
 //   POST lineup      { day, slot, card } put a player from your binder in a lineup slot (card: null empties it)
+//   POST potdpick    { day, player, team } your Player of the Day nomination (player: '' takes it back), until the first tipoff
 //   GET  standings   ?scope=week|season pick'em points, and where you rank
 //   GET  predreward  ?day=&kind=games|duels the cards you can choose from for a day you earned one
 //   POST claimpred   { day, ref, kind } keep that card
@@ -42,7 +43,7 @@ import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER,
 import { cardPoints } from './_lib/points.js'
 import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons, warmRewards } from './_lib/coins.js'
 import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
-import { predDay, settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
+import { potdPick, settlePotw, predDay, settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
 import { achievements } from './_lib/achievements.js'
 import { slate } from './_lib/slate.js'
 
@@ -66,6 +67,7 @@ async function readBody(req) {
 // data update publishes them), so its "last night" cards really are last night's. Until then the pack day is still
 // yesterday. Nights without games don't wait, and by noon Eastern the new pack opens whatever the data says.
 let ORIGIN = null
+let potwTried = 0
 let packDayMemo = { day: null, v: null, at: 0 }
 const etHour = () => +new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23' }).format(new Date())
 async function packDay() {
@@ -371,7 +373,8 @@ async function sell(u, origin, b) {
   const sql = db(), today = etDay(), id = Number(b.id)
   const [c] = await sql`select * from cards where id = ${id} and user_id = ${u.id}`
   if (!c) throw fail(404, 'That card isn’t in your binder.')
-  if (SPECIAL_KINDS.has(c.tier)) throw fail(409, 'Special cards (Duels, Peaks, Rivalries, Starting Fives, Season cards) can’t be sold.')
+  if (SPECIAL_KINDS.has(c.tier)) throw fail(409, 'Special cards (Duels, Peaks, Rivalries, Starting Fives, Season cards, Player of the Week) can’t be sold.')
+  if (c.card?.ruby) throw fail(409, 'Ruby cards can’t be sold.')
   if (u.starred.map(Number).includes(id)) throw fail(409, 'Un-star the card first. Starred and showcase cards can’t be sold.')
   const hours = (Date.now() - new Date(c.pulled_at).getTime()) / 36e5
   if (hours < RATES.sellCooldownHours) throw fail(409, `You can sell this card in ${Math.ceil(RATES.sellCooldownHours - hours)} hour${Math.ceil(RATES.sellCooldownHours - hours) === 1 ? '' : 's'}. New cards wait a day.`)
@@ -426,6 +429,12 @@ export default async function handler(req, res) {
       const awards = u0 ? await visit(u0, origin) : []
       // Picks on games that finished since the last visit: grade them (only touches ESPN when one is due)
       if (u0) awards.push(...(await settle(sql, u0.id, etDay(), { onlyStale: true, origin }).catch(e => { console.error('settle', e); return [] })))
+      // Last week's Player of the Week card, once the week's data is in (tried every 10 minutes per instance until it is)
+      if (Date.now() - potwTried > 10 * 60e3) { potwTried = Date.now(); await settlePotw(sql, origin, etDay()).catch(e => console.error('potw', e)) }
+      if (u0) for (const c of await sql`select id, card from cards where user_id = ${u0.id} and tier = 'potw' and not coalesce((card->>'seen')::boolean, false)`) {
+        awards.push({ kind: 'potw', amount: 0, label: `Player of the Week: you won the week of ${new Date(c.card.week + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}. Your ${c.card.n} card is in your binder` })
+        await sql`update cards set card = card || '{"seen": true}'::jsonb where id = ${c.id}`
+      }
       const u1 = u0 && (await sql`select * from users where id = ${u0.id}`)[0]
       return send(200, { ...(await me(u1)), awards, lastNight: await recentDate(origin).catch(() => null) })
     }
@@ -516,13 +525,14 @@ export default async function handler(req, res) {
     if (post && action === 'buycard') return send(200, await buyCard(u, origin, await readBody(req)))
     if (post && action === 'sell') return send(200, await sell(u, origin, await readBody(req)))
     if (post && action === 'buyback') return send(200, await buyback(u, origin, await readBody(req)))
-    if (action === 'predictions' || (post && ['predict', 'lock', 'duelpick', 'lineup'].includes(action))) {
+    if (action === 'predictions' || (post && ['predict', 'lock', 'duelpick', 'lineup', 'potdpick'].includes(action))) {
       const today = etDay()
       const b = post ? await readBody(req) : null
       const awards = action === 'predict' ? await predict(sql, u, b, today, origin) : []
       if (action === 'lock') await setLock(sql, u, b, today, origin)
       if (action === 'duelpick') await duelPick(sql, u, b, today, origin)
       if (action === 'lineup') await setLineup(sql, u, b, origin, today)
+      if (action === 'potdpick') await potdPick(sql, u, b, today, origin)
       const view = await predView(sql, u, today, addDays(today, 1), origin)
       const [fresh] = await sql`select * from users where id = ${u.id}`
       return send(200, { predictions: view, ...(await me(fresh)), awards: [...awards, ...view.awards] })

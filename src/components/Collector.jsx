@@ -20,7 +20,7 @@ export const useCollector = () => useContext(Ctx) || { me: null, owned: new Set(
 
 export const TIER_NAME = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' }
 export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}`
-  : c.kind === 'five' ? `five|${c.s}|${c.t}` : c.kind === 'season' ? `season|${c.s}|${c.t}|${c.n}` : `${c.s}|${c.id}|${c.row.n}`)
+  : c.kind === 'five' ? `five|${c.s}|${c.t}` : c.kind === 'season' ? `season|${c.s}|${c.t}|${c.n}` : c.kind === 'potw' ? `potw|${c.week}` : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
 export const CURRENT_TEAMS = ['ATL', 'BOS', 'BKN', 'CHO', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN',
   'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
 
@@ -107,6 +107,7 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
     lock: guard(async (game, on = true) => { const d = await api('lock', { game, on }); take(d); setPreds(d.predictions); return d.predictions }),
     duelPick: guard(async (game, player) => { const d = await api('duelpick', { game, player }); take(d); setPreds(d.predictions); return d.predictions }),
     setLineup: guard(async (day, slot, card) => { const d = await api('lineup', { day, slot, card }); take(d); setPreds(d.predictions); return d.predictions }),
+    potdPick: guard(async (day, player, team) => { const d = await api('potdpick', { day, player, team }); take(d); setPreds(d.predictions); return d.predictions }),
     predDay: day => api('predday', undefined, `&day=${day}`).then(d => d.day),
     loadStandings: scope => api('standings', undefined, `&scope=${scope}`).then(d => d.standings),
     predReward: (day, kind = 'games') => api('predreward', undefined, `&day=${day}&kind=${kind}`).then(d => d.reward),
@@ -222,7 +223,7 @@ const slotLabel = (pack, slot, lastNight) => {
 }
 // Why a card is worth what it is: "Legend ×12 · game ×1.8 · Player of the Game +25%"
 const pointsWhy = c => { const p = cardPoints(c); if (isSpecial(c) || c.kind === 'duel') return p.bonuses.map(([l]) => l).join(' · '); return [`${TIER_NAME[c.tier].replace('★ ', '')} ×${p.base}`, `game ×${(p.perf || 1).toFixed(1)}`, ...p.bonuses.map(([l, v]) => `${l} +${Math.round(v * 100)}%`)].join(' · ') }
-export const tierName = c => (isSpecial(c) || c.kind === 'duel' ? specialLabel(c) : TIER_NAME[c.tier])
+export const tierName = c => (isSpecial(c) || c.kind === 'duel' ? specialLabel(c) : `${c.ruby ? 'Ruby ' : ''}${TIER_NAME[c.tier]}`)
 export const cardName = c => (isSpecial(c) || c.kind === 'duel' ? specialTitle(c) : c.row.n)
 const line = c => (isSpecial(c) ? specialLine(c) : null) || [c.row?.pts != null && `${c.row.pts} pts`, c.row.trb && `${c.row.trb} reb`, c.row.ast && `${c.row.ast} ast`].filter(Boolean).join(' · ')
 

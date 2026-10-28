@@ -2788,10 +2788,10 @@ export function BinderHost({ start, shots, onClose, onProfile }) {
     loadSeason: label => loadSeason(label, label === NEWEST), withTeams, teamInfo, champion, careerSeasons, nightScore, getJSON, slug: rivalSlug, dayDuels: seasonDuels,
     franchiseOf: t => MERGE_FRANCHISE[t] || t,
     cardGameInfo, headshot: n => shots?.[norm(n)]?.headshot,
-    renderCard: ({ name, g, sd, serial, onClose: close }) => {
+    renderCard: ({ name, g, sd, serial, ruby, onClose: close }) => {
       const row = g.players.find(p => p.n === name)
       if (!row) return null
-      const { info, team } = withTeams(sd, () => ({ info: cardGameInfo(g, row.t, sd, row), team: teamInfo(row.t) }))
+      const { info, team } = withTeams(sd, () => ({ info: { ...cardGameInfo(g, row.t, sd, row), ruby: !!ruby }, team: teamInfo(row.t) }))
       return <SeasonCard name={name} g={g} sd={sd} shots={shots} info={info} team={team} serial={serial} onProfile={onProfile} onClose={close}
         onCareer={top.kind !== 'career' ? () => { close(); push({ kind: 'career', name }) } : undefined} />
     },

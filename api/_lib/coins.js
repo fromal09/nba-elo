@@ -136,9 +136,9 @@ export async function cardRewards(t, userId, day, origin, card) {
 export async function forgeSeasons(t, userId, day, origin, only = null) {
   const rows = only
     ? await t`select card->>'s' as s, card->>'t' as t, card->'row'->>'n' as n, count(*)::int as k, max(card->>'tn') as tn, max(card->>'tc') as tc from cards
-        where user_id = ${userId} and card->>'s' = ${only.s} and card->'row'->>'n' = ${only.n} and card->>'kind' is null group by 1, 2, 3`
+        where user_id = ${userId} and card->>'s' = ${only.s} and card->'row'->>'n' = ${only.n} and card->>'kind' is null and card->>'ruby' is null group by 1, 2, 3`
     : await t`select card->>'s' as s, card->>'t' as t, card->'row'->>'n' as n, count(*)::int as k, max(card->>'tn') as tn, max(card->>'tc') as tc from cards
-        where user_id = ${userId} and card->>'kind' is null group by 1, 2, 3 having count(*) >= 2`
+        where user_id = ${userId} and card->>'kind' is null and card->>'ruby' is null group by 1, 2, 3 having count(*) >= 2`
   const by = new Map()
   for (const r of rows) {
     const fc = MERGE[r.t] || r.t, key = `${r.s}|${fc}|${r.n}`

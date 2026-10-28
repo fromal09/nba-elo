@@ -282,8 +282,9 @@ function SmallCard({ e, name, env, onPull, title, line, sub }) {
 }
 
 // Any card's identity, as the server's refOf
-export const cardRef = c => (c.kind === 'duel' ? `duel|${c.date}` : isSpecial(c) ? specialRef(c) : `${c.s}|${c.id}|${c.row.n}`)
-const specialRef = c => (c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}` : c.kind === 'five' ? `five|${c.s}|${c.t}` : `season|${c.s}|${c.t}|${c.n}`)
+export const cardRef = c => (c.kind === 'duel' ? `duel|${c.date}` : isSpecial(c) ? specialRef(c) : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
+const specialRef = c => (c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}` : c.kind === 'five' ? `five|${c.s}|${c.t}`
+  : c.kind === 'potw' ? `potw|${c.week}` : `season|${c.s}|${c.t}|${c.n}`)
 
 // A Duel of the Day card from a binder (kind 'duel': the day's two players) in the shape a pocket needs
 export function duelEntry(env, c, extra = {}) {
@@ -298,8 +299,8 @@ export function fromIndex(env, c, extra = {}) {
   if (isSpecial(c)) return { key: specialRef(c), special: c, name: c.row?.n || c.n || c.a || '', season: c.s, id: c.id, date: c.date, tier: c.kind, gs: 0, ...extra }
   const team = env.teamInfo(c.t, c.tn, c.tc), opp = env.teamInfo(c.o, c.on, c.oc)
   return {
-    key: `${c.s}|${c.id}|${c.row.n}`, name: c.row.n, row: c.row, post: !!c.band, season: c.s, id: c.id, tier: tierOfRow(c.row),
-    team, game: { date: c.date, home: c.home, oppAbbr: opp.abbr, oppLogo: opp.logo, oppColor: opp.color, won: c.won, score: c.score, ot: c.ot, band: c.band, honor: c.honor },
+    key: `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`, name: c.row.n, row: c.row, post: !!c.band, season: c.s, id: c.id, tier: tierOfRow(c.row), ruby: !!c.ruby,
+    team, game: { date: c.date, home: c.home, oppAbbr: opp.abbr, oppLogo: opp.logo, oppColor: opp.color, won: c.won, score: c.score, ot: c.ot, band: c.band, honor: c.honor, ruby: !!c.ruby },
     ...extra,
   }
 }
@@ -309,7 +310,7 @@ export function usePull(env, sd, owner) {
   const [pulled, setPulled] = useState(null) // { key, name, g, sd, duel }
   const pull = e => {
     if (e.special) { setPulled({ key: e.key, special: e.special, serial: e.serial }); return }
-    const set = (g, s) => setPulled({ key: e.key, name: e.name || owner, g, sd: s, serial: e.serial, duel: e.duel ? { kind: e.duel.kind, an: e.duel.a.name, bn: e.duel.b.name } : null })
+    const set = (g, s) => setPulled({ key: e.key, name: e.name || owner, g, sd: s, serial: e.serial, ruby: !!e.ruby, duel: e.duel ? { kind: e.duel.kind, an: e.duel.a.name, bn: e.duel.b.name } : null })
     if (e.g && sd) { set(e.g, sd); return }
     env.loadSeason(e.season).then(s => {
       const g = s.games.find(x => x.id === e.id)
@@ -321,7 +322,7 @@ export function usePull(env, sd, owner) {
     ? <SpecialModal card={pulled.special} serial={pulled.serial && <Serial k={pulled.serial[0]} n={pulled.serial[1]} inline />} onClose={close} />
     : pulled.duel
     ? env.renderDuel({ ...pulled.duel, scope: 'day', g: pulled.g, sd: pulled.sd, onClose: close })
-    : env.renderCard({ name: pulled.name, g: pulled.g, sd: pulled.sd, serial: pulled.serial, onClose: close })}</div>
+    : env.renderCard({ name: pulled.name, g: pulled.g, sd: pulled.sd, serial: pulled.serial, ruby: pulled.ruby, onClose: close })}</div>
   return { pulled: pulled?.key, pull, view, open: !!pulled }
 }
 
@@ -967,7 +968,7 @@ export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
 
 // ── A personal binder: yours, or anyone's (read-only) from the leaderboard ──
 // Shelves by franchise and decade, player checklists for every team-season, Starred, the showcase, points
-const TIER_RANK = { ...Object.fromEntries(TIER_IDS.map((t, i) => [t, i])), duel: TIER_IDS.length }
+const TIER_RANK = { potw: -1, ...Object.fromEntries(TIER_IDS.map((t, i) => [t, i])), duel: TIER_IDS.length, peak: TIER_IDS.length, rival: TIER_IDS.length, five: TIER_IDS.length, season: TIER_IDS.length }
 const MERGE_ABA = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
 const decadeOf = s => `${s.slice(0, 3)}0s`
 const n0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
@@ -1092,7 +1093,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       ...(mine ? { onPin: e => C.star(e.cardId, !e.pinned), onShow: e => C.showcase(e.cardId, !e.shown) } : {}),
     })
   }), [src?.cards, env, [...starred].join(), showIds.join(), mine])
-  const cardsOnly = useMemo(() => all.filter(e => e.tier !== 'duel' && !e.special), [all])
+  const cardsOnly = useMemo(() => all.filter(e => e.tier !== 'duel' && !e.special && !e.ruby), [all]) // ruby cards don't double up the checklists
   const owned = useMemo(() => new Set(cardsOnly.map(e => `${e.s}|${e.id}|${e.name}`)), [cardsOnly])
   // Players you have, by franchise, by team-season and by season
   const have = useMemo(() => {
@@ -1124,8 +1125,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     if (nq) l = l.filter(e => fold(e.name).includes(nq) || (e.duel && fold(e.duel.b?.name).includes(nq)))
     if (sellMode) l = l.map(e => {
       const hrs = 24 - (Date.now() - Date.parse(e.pulledAt)) / 36e5
-      const block = e.tier === 'duel' || e.special ? 'Special cards can’t be sold.' : e.pinned ? 'Starred cards can’t be sold. Un-star it first.' : hrs > 0 ? `Sellable in ${Math.ceil(hrs)} hour${Math.ceil(hrs) === 1 ? '' : 's'}` : null
-      return { ...e, sellMode: true, sellPrice: Math.max(1, Math.round(e.pts * 0.2)), sellBlock: block, sellShort: e.tier === 'duel' || e.special ? 'Keeper' : e.pinned ? 'Starred' : `In ${Math.ceil(hrs)}h`,
+      const block = e.tier === 'duel' || e.special ? 'Special cards can’t be sold.' : e.ruby ? 'Ruby cards can’t be sold.' : e.pinned ? 'Starred cards can’t be sold. Un-star it first.' : hrs > 0 ? `Sellable in ${Math.ceil(hrs)} hour${Math.ceil(hrs) === 1 ? '' : 's'}` : null
+      return { ...e, sellMode: true, sellPrice: Math.max(1, Math.round(e.pts * 0.2)), sellBlock: block, sellShort: e.tier === 'duel' || e.special || e.ruby ? 'Keeper' : e.pinned ? 'Starred' : `In ${Math.ceil(hrs)}h`,
         onSell: x => setSellAsk(x) }
     })
     if (order === 'tier') l = [...l].sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier] || b.gs - a.gs)
@@ -1235,6 +1236,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   }
   if (view === 'specials') {
     const groups = [
+      ['potw', 'Player of the Week', 'One a week, to the week’s pick’em winner: the NBA’s best player that week, numbered. No other way to get one.'],
+      ['ruby', 'Ruby Players of the Day', 'Called the night’s Player of the Day in Predictions: that card in ruby, at twice its points.'],
       ['season', 'Season cards', 'Forged by owning every game of a player’s season with a team. Track them on the franchise checklists.'],
       ['peak', 'Peaks', 'A player’s career highs after his rookie year: the reigning Peak and every Former Peak. Random pulls.'],
       ['rival', 'Rivalries', 'The 125 greatest head-to-head rivalries. Random pulls.'],
@@ -1246,7 +1249,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
         <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Specials</b><span>{specials.length} card{specials.length === 1 ? '' : 's'}</span></div>{tools}</div>
         <div className={styles.achBody}>
           {groups.map(([k, title, desc]) => {
-            const list = specials.filter(e => (k === 'duel' ? !!e.duel : e.special?.kind === k))
+            const list = k === 'ruby' ? all.filter(e => e.ruby) : specials.filter(e => (k === 'duel' ? !!e.duel : e.special?.kind === k))
             const total = k === 'rival' ? league?.sets?.rivalries?.length : k === 'five' && fives ? Object.values(fives).reduce((a, x) => a + Object.keys(x).length, 0) : null
             return (
               <section key={k} className={styles.spSection}>

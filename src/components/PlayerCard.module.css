@@ -625,3 +625,36 @@
 .frame[data-era=refractor] .strip { background: #0d0f14; border-top: 2px solid #c7ced6 !important; }
 .frame[data-era=refractor] .strip b { font-family: 'Oswald', sans-serif; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .rWin::after { animation: none; } }
+
+/* ── Ruby (a called Player of the Day) ── */
+.card[data-ruby] .front { background: #0c0204; padding: 0; }
+.miniCard[data-ruby] { filter: drop-shadow(0 0 12px rgba(255,42,74,.55)); }
+.ruby { background: #0c0204; border-radius: 16px; font-family: 'Inter', sans-serif; }
+.rbVeins { position: absolute; inset: 0; background:
+  radial-gradient(ellipse 60% 8% at 30% 20%, rgba(255,40,70,.9), transparent 70%),
+  radial-gradient(ellipse 50% 6% at 70% 55%, rgba(255,60,40,.85), transparent 70%),
+  radial-gradient(ellipse 70% 5% at 40% 80%, rgba(255,30,90,.8), transparent 70%),
+  radial-gradient(ellipse 30% 4% at 80% 30%, rgba(255,90,60,.8), transparent 70%),
+  radial-gradient(circle at 50% 40%, #3a0611, #0c0204 70%); filter: blur(1px); animation: rbPulse 3.2s ease-in-out infinite; }
+@keyframes rbPulse { 50% { opacity: .55; } }
+.rbCracks { position: absolute; inset: 0; opacity: .7; filter: drop-shadow(0 0 4px #ff2a4a); background:
+  linear-gradient(28deg, transparent 49.6%, #ff3a5c 49.8%, transparent 50.2%),
+  linear-gradient(152deg, transparent 49.6%, #ff5a3a 49.8%, transparent 50.2%),
+  linear-gradient(80deg, transparent 72.6%, #ff2a6a 72.8%, transparent 73.2%); }
+.rbPhoto { position: absolute; left: 14px; right: 14px; top: 14px; height: 286px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; border-radius: 10px; }
+.rbPhoto img { height: 92%; width: auto; filter: drop-shadow(0 0 14px rgba(255,42,74,.65)); -webkit-mask-image: linear-gradient(180deg, #000 80%, transparent); mask-image: linear-gradient(180deg, #000 80%, transparent); }
+.rbPhoto span { position: absolute; inset: 0 0 90px; display: flex; align-items: center; justify-content: center; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 130px; letter-spacing: -4px; color: #ffe1e6; text-shadow: 0 0 22px #ff2a4a, 0 0 2px #fff; }
+.rbShade { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 52%, rgba(12,2,4,.94) 66%); }
+.rbCalled { position: absolute; z-index: 3; top: 20px; left: 20px; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 18px; letter-spacing: 2px; color: #ff4d6a; text-shadow: 0 0 10px #ff2a4a; }
+.rbName { position: absolute; z-index: 2; left: 22px; right: 22px; top: 222px; }
+.rbName small { display: block; font-weight: 800; letter-spacing: 3px; font-size: 12px; color: rgba(255,255,255,.85); text-transform: uppercase; min-height: 14px; }
+.rbName b { display: block; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 46px; line-height: .9; color: #fff; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-shadow: 0 0 16px rgba(255,40,70,.8); }
+.rbMeta { position: absolute; z-index: 2; left: 22px; right: 22px; top: 316px; font-size: 10.5px; letter-spacing: 1.3px; font-weight: 700; color: #ff9cad; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rbScore { position: absolute; z-index: 2; left: 14px; right: 14px; top: 340px; height: 34px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px;
+  font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 21px; background: #1a0307; color: #ffd1d9; box-shadow: 0 0 0 1px #ff2a4a, 0 0 14px rgba(255,42,74,.6); }
+.rbScore em { font-style: normal; font-family: 'Inter', sans-serif; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; }
+.rbStats { position: absolute; z-index: 2; left: 16px; right: 16px; top: 386px; display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; color: #fff; }
+.rbStats b { display: block; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 26px; line-height: 1; color: #ff8095; text-shadow: 0 0 10px rgba(255,40,70,.7); }
+.rbStats small { font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase; font-weight: 700; opacity: .75; }
+.rbEdge { position: absolute; inset: 0; border-radius: 16px; box-shadow: inset 0 0 0 2px #ff2a4a, inset 0 0 26px rgba(255,42,74,.6); pointer-events: none; z-index: 4; }
+@media (prefers-reduced-motion: reduce) { .rbVeins { animation: none; } }
