@@ -113,12 +113,13 @@ export default function MyPredictions({ day }) {
     const lg = L.find(g), st = stateOf(g, lg)
     const ag = m.ag ?? L.gsOf(lg, m.away, m.a) ?? null, bg = m.bg ?? L.gsOf(lg, m.home, m.b) ?? null
     let tone = 'none', line = m.pick ? '' : 'No pick'
-    if (m.pick) {
+    if (m.void) { tone = 'none'; line = `Void · ${(m.out || []).map(baseName).join(' and ')} ruled out` }
+    else if (m.pick) {
       const mineA = m.pick === m.a
       const my = mineA ? ag : bg, op = mineA ? bg : ag
       if (m.result === 'win') { tone = 'win'; line = 'Won' }
       else if (m.result === 'loss') { tone = 'loss'; line = 'Lost' }
-      else if (m.result === 'void') { tone = 'none'; line = 'Void · a player sat or they tied' }
+      else if (m.result === 'void' || m.void) { tone = 'none'; line = m.void ? `Void · ${(m.out || []).map(baseName).join(' and ')} ruled out` : 'Void · a player sat or they tied' }
       else if (st === 'pre') { tone = 'wait'; line = 'Not started' }
       else if (my == null || op == null) { tone = 'even'; line = st === 'post' ? 'Grading…' : 'In progress' }
       else { const x = my - op; tone = x > 0 ? (st === 'post' ? 'win' : 'up') : x < 0 ? (st === 'post' ? 'loss' : 'down') : 'even'; line = `${x > 0 ? 'Ahead' : x < 0 ? 'Behind' : 'Even'}${x ? ` by ${f1(Math.abs(x))}` : ''}${st === 'post' ? ' · grading' : ''}` }
@@ -194,7 +195,7 @@ export default function MyPredictions({ day }) {
                 <small className={st === 'in' ? styles.liveTxt : ''}>{st === 'in' && <i className={styles.dot} />}{statusText(d.games.find(x => x.id === m.id) || m, lg)} · {m.away} at {m.home}</small>
                 {m.pick ? <span>Your pick <b>{shortName(m.pick)}</b></span> : <span className={styles.muted}>No pick</span>}
               </span>
-              <span className={styles.res}>{m.pick && line}</span>
+              <span className={styles.res}>{(m.pick || m.void) && line}</span>
             </div>
           ))}
         </div>

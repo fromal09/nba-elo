@@ -44,8 +44,10 @@ const best = side => [...side.rows].filter(r => !r.out).sort((a, b) => b.elo - a
 /**
  * For each game ({ id, day, home, away }): { pHome, duel: { a, b, ae, be } }, as the Scoreboard shows it.
  * duel.a is the away side's top player, duel.b the home side's.
+ * keep: { gameId: duel } matchups already published. A published matchup never changes to other players: if either of
+ * its players is ruled out before tipoff, it's void ({ ...duel, void: 'injury', out: [names] }) and can't be picked.
  */
-export async function forecast(origin, games) {
+export async function forecast(origin, games, keep = {}) {
   if (!games.length) return {}
   const { f, proj } = await model(origin, games[0].day)
   const out = {}
@@ -54,7 +56,14 @@ export async function forecast(origin, games) {
       const fg = f.game(g.home, g.away, g.day)
       const pHome = Math.round((proj ? proj.win(proj.margin(fg)) : fg.pHome) * 1000) / 1000
       const a = best(fg.away), b = best(fg.home)
-      out[g.id] = { pHome, duel: a && b ? { a: a.name, b: b.name, ae: Math.round(a.elo), be: Math.round(b.elo) } : null }
+      const k = keep[g.id]
+      let duel = a && b ? { a: a.name, b: b.name, ae: Math.round(a.elo), be: Math.round(b.elo) } : null
+      if (k?.void) duel = k
+      else if (k?.a && k?.b) {
+        const outs = [[k.a, fg.away], [k.b, fg.home]].filter(([n, side]) => side.rows.some(r => r.name === n && r.out)).map(([n]) => n)
+        duel = outs.length ? { ...k, void: 'injury', out: outs } : k
+      }
+      out[g.id] = { pHome, duel }
     } catch { /* a team the forecaster doesn't know: no forecast for this game */ }
   }
   return out

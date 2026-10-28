@@ -305,3 +305,8 @@
 .potdWin em { font-style: normal; font-size: 11.5px; font-weight: 800; color: #ff4d6a; }
 .potdThumb { position: relative; flex: none; width: 74px; aspect-ratio: 340 / 476; }
 .potdThumb > div { inset: 0 !important; }
+
+/* A matchup voided by injury */
+.voided .sides { opacity: .55; }
+.sideOut { text-decoration: line-through; }
+.voidTag { color: #b3322a; font-weight: 800; }

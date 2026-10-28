@@ -53,7 +53,10 @@ export async function slate(sql, day, { fresh = false, origin = null } = {}) {
   if (games) {
     // The Elo forecast for games that haven't tipped off (finished games keep the one they had)
     const ahead = games.filter(g => Date.parse(g.tip) > Date.now())
-    const fc = origin && ahead.length ? await forecast(origin, ahead).catch(e => { console.error('forecast', e.message); return {} }) : {}
+    // Matchups already published stay as they are (or go void if a player is ruled out)
+    const kept = ahead.length ? await sql`select id, line from pred_games where id = any(${ahead.map(g => g.id)})`.catch(() => []) : []
+    const keep = Object.fromEntries(kept.filter(r => r.line?.duel).map(r => [r.id, r.line.duel]))
+    const fc = origin && ahead.length ? await forecast(origin, ahead, keep).catch(e => { console.error('forecast', e.message); return {} }) : {}
     for (const g of games) g.line = fc[g.id] ? { ...fc[g.id], src: 'elo' } : null
     for (const g of games) {
       // The forecast updates until tipoff, then stays as it was when picks locked
@@ -64,6 +67,9 @@ export async function slate(sql, day, { fresh = false, origin = null } = {}) {
           line = case when pred_games.tip > now() and excluded.line is not null then excluded.line else coalesce(pred_games.line, excluded.line) end`
     }
     const ids = games.map(g => g.id)
+    // A matchup voided by injury: every pick on it is void now
+    const voided = games.filter(g => g.line?.duel?.void && Date.parse(g.tip) > Date.now()).map(g => g.id)
+    if (voided.length) await sql`update duel_picks set result = 'void' where game_id = any(${voided}) and result is null`
     // A game ESPN no longer lists on this day (moved): take it off the slate
     await sql`update pred_games set state = 'off' where day = ${day} and not (id = any(${ids}))`
     await gradeDay(sql, day)

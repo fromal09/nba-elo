@@ -90,13 +90,15 @@ function Goal({ items, total, text }) {
 }
 
 // ── Matchups ─────────────────────────────────────────────────────────────────
+// Out before tipoff: the matchup is void for everyone (it never switches to another player)
+const outText = d => `${(d.out || []).map(n => baseName(n)).join(' and ') || 'A player'} ruled out`
 function MatchupRow({ g, onPick, busy }) {
   const d = g.duel
   const side = (name, team, elo) => {
     const mine = d.pick === name
     const info = binderTeamInfo(team) || {}
     return (
-      <button type="button" className={`${styles.side} ${mine ? styles.mine : ''}`} style={{ '--c': info.color || '#173657' }} disabled={!g.open || busy}
+      <button type="button" className={`${styles.side} ${mine ? styles.mine : ''} ${d.void && (d.out || []).includes(name) ? styles.sideOut : ''}`} style={{ '--c': info.color || '#173657' }} disabled={!g.open || busy || !!d.void}
         onClick={() => onPick(g, name)} aria-pressed={mine} aria-label={`Pick ${name}`}>
         <Logo t={team} size={28} />
         <span className={styles.sideText}><b>{baseName(name)}</b><small>{nick(team)} · {n0(elo)} Elo</small></span>
@@ -105,10 +107,10 @@ function MatchupRow({ g, onPick, busy }) {
     )
   }
   return (
-    <div className={`${styles.game} ${!g.open ? styles.locked : ''}`}>
+    <div className={`${styles.game} ${!g.open ? styles.locked : ''} ${d.void ? styles.voided : ''}`}>
       <div className={styles.gameTop}>
         <span className={styles.status} data-state={g.state}>{statusOf(g)} · {g.away} at {g.home}</span>
-        <span className={styles.crowd}>{d.result === 'void' ? 'No contest (a player sat)' : d.result ? (d.result === 'win' ? 'Called it · +10' : 'Missed') : g.state === 'post' ? 'Grading…' : !g.open ? 'In progress' : 'Higher Game Score?'}</span>
+        <span className={styles.crowd}>{d.void ? <b className={styles.voidTag}>Void · {outText(d)}</b> : d.result === 'void' ? 'No contest (a player sat)' : d.result ? (d.result === 'win' ? 'Called it · +10' : 'Missed') : g.state === 'post' ? 'Grading…' : !g.open ? 'In progress' : 'Higher Game Score?'}</span>
       </div>
       <div className={styles.sides}>
         {side(d.a, g.away, d.ae)}
@@ -347,7 +349,7 @@ function DayDetail({ day, env }) {
           <div key={m.id} className={styles.dayRow}>
             <span className={styles.dayTeams}><span className={m.result && m.pick === m.a && m.result === 'win' ? styles.dayWon : ''}>{shortName(m.a)}</span><small>vs</small><span>{shortName(m.b)}</span></span>
             <span className={styles.dayPick}>{m.pick ? <>Your pick <b>{shortName(m.pick)}</b></> : <small>No pick</small>}
-              <small>{m.ag != null && m.bg != null ? `Game Score ${m.ag.toFixed(1)}–${m.bg.toFixed(1)}` : m.state === 'post' ? 'grading…' : m.state === 'in' ? 'in progress' : 'not played yet'}</small></span>
+              <small>{m.void ? `void · ${outText(m)}` : m.ag != null && m.bg != null ? `Game Score ${m.ag.toFixed(1)}–${m.bg.toFixed(1)}` : m.state === 'post' ? 'grading…' : m.state === 'in' ? 'in progress' : 'not played yet'}</small></span>
             <span className={styles.dayMark}>{m.pick ? mark(m.result) : null}</span>
           </div>
         ))}
@@ -529,7 +531,7 @@ export function PredictPages({ env, phone, tools, children }) {
       <p>Pick a winner in each of the day’s games, any time before it tips off. You can change a pick until that game starts; then it locks. You can also pick from the game cards on the Scoreboard.
         The underdog is the team the site’s Elo forecast (the one on the Scoreboard) gives under 50% when the game tips off; calling one pays (50% − its chance) × 200 Coins, from {R.upsetMin} to {R.upsetMax}.</p>
       <p>Make one pick a day your Lock of the Day. If it’s right, its Coins double, upset bonus included. If it’s wrong, you lose the Coins you earned for that day’s picks. You can move the lock until its game tips off.</p>
-      <p>Matchups are each game’s top player matchup, each side’s highest-Elo healthy player: pick who posts the higher Game Score. A matchup is void if either player sits or they tie. Matchups and lineups are graded from the box scores once the day’s games are final.</p>
+      <p>Matchups are each game’s top player matchup, each side’s highest-Elo healthy player when it’s set: pick who posts the higher Game Score. Once set, a matchup never changes. If either player is ruled out before tipoff, doesn’t play, or they tie, it’s void for everyone and doesn’t count toward the day. Matchups and lineups are graded from the box scores once the day’s games are final.</p>
       <p>A day closes when its last game is final. Games you didn’t pick count as misses. Standings: 1 point per correct pick or matchup, 1 more for a correct lock; the week’s top 10 win {R.weeklyTop10} Coins and the top 50 win {R.weeklyTop50}, paid Monday.</p>
     </details>
     {s.teams.length > 0 && <>
@@ -567,9 +569,10 @@ export function PredictPages({ env, phone, tools, children }) {
       </>
     } else if (tab === 'matchups') {
       const m = games.filter(g => g.duel)
+      const live_ = m.filter(g => !g.duel.void), nv = m.length - live_.length
       body = m.length ? <>
-        <Goal items={m.map(g => ({ id: g.id, pick: g.duel.pick, open: g.open, r: g.duel.result }))} total={m.length}
-          text={`Who posts the higher Game Score in each game’s top player matchup? Get ${need(m.length)} right to choose a Rare or Common from the day. Get all ${m.length} for the Duel of the Day card.`} />
+        <Goal items={live_.map(g => ({ id: g.id, pick: g.duel.pick, open: g.open, r: g.duel.result }))} total={live_.length}
+          text={`Who posts the higher Game Score in each game’s top player matchup? Get ${need(live_.length)} right to choose a Rare or Common from the day. Get all ${live_.length} for the Duel of the Day card.${nv ? ` ${nv} matchup${nv === 1 ? ' is' : 's are'} void (a player ruled out) and ${nv === 1 ? 'doesn’t' : 'don’t'} count.` : ''}`} />
         <div className={styles.games}>{m.map(g => <MatchupRow key={g.id} g={g} busy={busy === `d${g.id}`} onPick={(g_, p) => g_.duel.pick !== p && run(`d${g_.id}`, () => C.duelPick(g_.id, p))} />)}</div>
       </> : <div className={styles.empty}><b>Matchups aren’t set yet</b><span>They come from the Elo forecast and appear before tipoff.</span></div>
     } else if (tab === 'potd') body = <PotdTab dayWord={dayWord} env={envX} R={R} busy={busy === 'potd'} p={slate.potd || { pick: null, open: false, candidates: [], winner: null }}
@@ -640,7 +643,8 @@ export function PickBar({ day, home, away, state, tip }) {
       </span>
       {g.pick && (g.lock ? <button type="button" className={`${styles.barStar} ${styles.barStarOn}`} disabled={busy} onClick={() => run(() => C.lock(g.id, false))} title="Your Lock of the Day: tap to take it off">★</button>
         : !lockFixed && <button type="button" className={styles.barStar} disabled={busy} onClick={() => run(() => C.lock(g.id, true))} title="Make this your Lock of the Day: double Coins if right">☆</button>)}
-      {d && <span className={styles.barRow}>
+      {d?.void && <span className={styles.barSub}>Matchup void · {outText(d)}</span>}
+      {d && !d.void && <span className={styles.barRow}>
         <span className={styles.barLab}>Higher GmSc</span>
         <span className={styles.barBtns}>
           {[[d.a, g.away], [d.b, g.home]].map(([n, t]) => btn(n, d.pick === n, shortName(n), null, () => d.pick !== n && run(() => C.duelPick(g.id, n)), binderTeamInfo(t)?.color))}

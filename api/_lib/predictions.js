@@ -148,7 +148,8 @@ async function espnBox(id) {
       const KEY = { pts: 'points', orb: 'offensiveRebounds', drb: 'defensiveRebounds', ast: 'assists', stl: 'steals', blk: 'blocks', tov: 'turnovers', pf: 'fouls' }
       for (const a of st.athletes || []) {
         const v = a.stats || []
-        if (a.didNotPlay || !v.length) continue
+        // Listed but didn't play (a scratch, DNP): no Game Score, so his matchup is void
+        if (a.didNotPlay || !v.length) { const nm = a.athlete?.displayName || a.athlete?.fullName; if (nm) gs.set(`${team}|${norm(nm)}`, null); continue }
         const p = {}
         for (const [f, k] of Object.entries(KEY)) p[f] = +(v[col(k)] ?? 0) || 0
         ;[p.fg, p.fga] = pairOf(v[col('fieldGoalsMade-fieldGoalsAttempted')]);[p.ft, p.fta] = pairOf(v[col('freeThrowsMade-freeThrowsAttempted')])
@@ -201,17 +202,19 @@ function matchupResults(games, src) {
   const out = {}
   for (const g of games) {
     const d = g.line?.duel
+    if (d?.void) { out[g.id] = { winner: null, ag: null, bg: null, void: d.void, a: d.a, b: d.b }; continue } // ruled out before tipoff
     if (!d || !src.has(g)) continue // not graded yet
     const ag = src.gs(g, g.away, d.a), bg = src.gs(g, g.home, d.b)
     if (ag === undefined || bg === undefined) continue // a name the box score doesn't show yet: wait for the day file
-    out[g.id] = { winner: ag == null || bg == null || ag === bg ? null : ag > bg ? d.a : d.b, ag, bg }
+    out[g.id] = { winner: ag == null || bg == null || ag === bg ? null : ag > bg ? d.a : d.b, ag, bg, a: d.a, b: d.b }
   }
   return out
 }
 async function gradeMatchups(sql, games, src) {
   const res = matchupResults(games, src)
   for (const [id, r] of Object.entries(res)) {
-    if (r.winner) await sql`update duel_picks set result = case when pick = ${r.winner} then 'win' else 'loss' end where game_id = ${id} and result is null`
+    // A pick on anyone outside the matchup (it never changes once published, but just in case) is void, not a loss
+    if (r.winner) await sql`update duel_picks set result = case when pick = ${r.winner} then 'win' when pick = any(${[r.a, r.b]}) then 'loss' else 'void' end where game_id = ${id} and result is null`
     else await sql`update duel_picks set result = 'void' where game_id = ${id} and result is null`
   }
   return res
@@ -580,6 +583,7 @@ export async function duelPick(sql, u, b, today, origin) {
   const { g, day } = await openGame(sql, origin, id, today)
   const d = g.line?.duel
   if (!d) throw fail(409, 'That game has no matchup yet.')
+  if (d.void) throw fail(409, `That matchup is void: ${(d.out || []).join(' and ') || 'a player'} ruled out.`)
   if (player !== d.a && player !== d.b) throw fail(400, 'Pick one of the two players.')
   await sql`insert into duel_picks (user_id, game_id, day, pick) values (${u.id}, ${id}, ${day}, ${player})
     on conflict (user_id, game_id) do update set pick = excluded.pick, made_at = now() where duel_picks.result is null`
@@ -845,7 +849,8 @@ export async function predDay(sql, u, day, origin) {
     }),
     matchups: games.filter(g => g.line?.duel).map(g => {
       const d = g.line.duel, dp = duels.find(x => x.game_id === g.id), r = mr[g.id]
-      return { id: g.id, home: g.home, away: g.away, a: d.a, b: d.b, pick: dp?.pick || null, result: dp?.result || null, ag: r?.ag ?? null, bg: r?.bg ?? null, state: g.state }
+      return { id: g.id, home: g.home, away: g.away, a: d.a, b: d.b, pick: dp?.pick || null, result: dp?.result || null, ag: r?.ag ?? null, bg: r?.bg ?? null, state: g.state,
+        void: d.void || null, out: d.out || null }
     }),
     lineup: { slots: slots.map(x => ({ slot: x.slot, player: x.player, team: x.team, tier: x.tier, mult: x.mult ?? null, gs: x.gs,
       pts: x.gs == null ? null : Math.round(lineupPts(x.gs, x.mult ?? PRED.lineupMult[x.tier] ?? 1) * 10) / 10 })), graded: ld ? { total: +ld.total, coins: ld.coins } : null },
