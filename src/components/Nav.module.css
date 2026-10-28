@@ -20,6 +20,7 @@
 }
 
 .homeBtn {
+  text-decoration: none;
   background: none;
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 6px;
@@ -52,6 +53,8 @@
 .nav::-webkit-scrollbar { display: none; }
 
 .navBtn {
+  text-decoration: none;
+  display: inline-block;
   background: none;
   border: none;
   color: #6896bd;
@@ -79,6 +82,15 @@
   white-space: nowrap;
 }
 
+/* Elo Exploration's pages: a second, lighter row under the bar */
+.sub { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; padding: 6px 24px; background: #1f4268; border-bottom: 1px solid rgba(255,255,255,0.08);
+  position: sticky; top: 52px; z-index: 99; }
+.sub::-webkit-scrollbar { display: none; }
+.subBtn { text-decoration: none; color: #a9c4e0; font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; font-weight: 500; padding: 5px 11px;
+  border-radius: 14px; white-space: nowrap; transition: all .15s; }
+.subBtn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.subBtn.active { background: #fff; color: #173657; font-weight: 700; }
+
 /* Phones: brand row on top, tabs on their own full-width scrolling row */
 @media (max-width: 760px) {
   .header { flex-wrap: wrap; height: auto; padding: 8px 12px 0; gap: 6px 10px; }
@@ -89,6 +101,9 @@
             mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 20px), transparent); }
   .navBtn { font-size: 13px; padding: 8px 12px; }
   .homeBtn { padding: 6px 10px; }
+  .sub { position: static; padding: 6px 10px; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 18px), transparent);
+            mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 18px), transparent); }
+  .subBtn { font-size: 13px; padding: 7px 12px; }
 }
 
 .liveDot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #ff5a4e; margin-right: 6px; vertical-align: 1px; animation: navPulse 1.6s ease-in-out infinite; }

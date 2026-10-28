@@ -44,9 +44,10 @@ import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeS
 import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
 import { predDay, settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
 import { achievements } from './_lib/achievements.js'
+import { slate } from './_lib/slate.js'
 
 const STREAK_EVERY = 7
-// Packs reset at midnight Eastern, with the NBA's day; team packs reset Monday
+// The NBA's day is Eastern; team packs reset Monday. The daily pack follows packDay() below
 const etDay = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
 const addDays = (day, n) => new Date(Date.parse(day + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10)
 const weekStart = day => addDays(day, -((new Date(day + 'T12:00:00Z').getUTCDay() + 6) % 7))
@@ -59,6 +60,28 @@ async function readBody(req) {
   const chunks = []
   for await (const c of req) chunks.push(c)
   try { return JSON.parse(Buffer.concat(chunks).toString() || '{}') } catch { return {} }
+}
+
+// The daily pack's day. A new day's pack waits until last night's games are all final and in the card pool (the nightly
+// data update publishes them), so its "last night" cards really are last night's. Until then the pack day is still
+// yesterday. Nights without games don't wait, and by noon Eastern the new pack opens whatever the data says.
+let ORIGIN = null
+let packDayMemo = { day: null, v: null, at: 0 }
+const etHour = () => +new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23' }).format(new Date())
+async function packDay() {
+  const today = etDay()
+  if (packDayMemo.day === today && (packDayMemo.v === today || Date.now() - packDayMemo.at < 60e3)) return packDayMemo.v
+  let v = today
+  const y = addDays(today, -1)
+  if (etHour() < 12 && ORIGIN) {
+    const rd = await recentDate(ORIGIN, 2 * 60e3).catch(() => null)
+    if (!rd || rd < y) {
+      const games = await slate(db(), y).catch(() => null)
+      if (!games || games.some(g => g.state !== 'off')) v = y
+    }
+  }
+  packDayMemo = { day: today, v, at: Date.now() }
+  return v
 }
 
 // The streak as it stands today: it continues if the last claim was yesterday or today
@@ -110,8 +133,9 @@ async function me(u) {
   if (!u) return { user: null }
   const sql = db()
   const today = etDay(), week = weekStart(today)
-  const claimed = iso(u.last_claim) === today
-  const streak = streakNow(u, today)
+  const pday = await packDay()
+  const claimed = iso(u.last_claim) === pday
+  const streak = streakNow(u, pday)
   const next = claimed ? streak : streak + 1
   const tierRows = await sql`select tier, count(*)::int as n from cards where user_id = ${u.id} group by tier`
   const best = await sql`select id, card from cards where user_id = ${u.id}
@@ -124,7 +148,8 @@ async function me(u) {
     user: { username: u.username, favoriteTeam: u.favorite_team, joined: iso(u.created_at), starred: u.starred.map(Number), showcaseIds: u.showcase.map(Number),
       showcase: u.showcase.map(Number).map(id => show.find(c => Number(c.id) === id)).filter(Boolean).map(c => ({ id: Number(c.id), card: c.card })) },
     // untilBonus: daily packs to open (today's included) until the next streak bonus
-    today: { day: today, claimed, streak, every: STREAK_EVERY, bonusToday: !claimed && next % STREAK_EVERY === 0,
+    // waiting: today's pack is held until last night's games are in the data (claimed is yesterday's pack then)
+    today: { day: pday, waiting: pday !== today, claimed, streak, every: STREAK_EVERY, bonusToday: !claimed && next % STREAK_EVERY === 0,
       untilBonus: claimed ? STREAK_EVERY - (streak % STREAK_EVERY) : ((STREAK_EVERY - (next % STREAK_EVERY)) % STREAK_EVERY) + 1 },
     week: { start: week, next: addDays(week, 7), claimed: !!teamClaim },
     // Packs finished since the last Legend-or-better pick; the pack that reaches the limit guarantees one
@@ -213,8 +238,8 @@ async function makePacks(sql, u, origin, kinds, team, era) {
 
 async function claimDaily(u, origin) {
   const sql = db()
-  const today = etDay()
-  if (iso(u.last_claim) === today) throw fail(409, 'Today’s pack is already open. A new one arrives at midnight Eastern.')
+  const today = await packDay()
+  if (iso(u.last_claim) === today) throw fail(409, today !== etDay() ? 'Your next pack opens once last night’s games are final and in the data.' : 'Today’s pack is already open. The next one arrives after tonight’s games are final.')
   const next = streakNow(u, today) + 1
   const built = await makePacks(sql, u, origin, ['daily', ...(next % STREAK_EVERY === 0 ? ['streak'] : [])])
   const packs = await sql.begin(async t => {
@@ -390,7 +415,7 @@ export default async function handler(req, res) {
   try {
     await ensureSchema()
     const sql = db()
-    const origin = process.env.DATA_ORIGIN || `${(req.headers['x-forwarded-proto'] || 'https').split(',')[0]}://${req.headers['x-forwarded-host'] || req.headers.host}`
+    const origin = ORIGIN = process.env.DATA_ORIGIN || `${(req.headers['x-forwarded-proto'] || 'https').split(',')[0]}://${req.headers['x-forwarded-host'] || req.headers.host}`
     const post = req.method === 'POST'
     // Once after a points change, every card is rescored. Reads wait for it; packs, picks and purchases never do.
     // A read waits up to 5 seconds for it, then goes ahead (the rescore carries on)

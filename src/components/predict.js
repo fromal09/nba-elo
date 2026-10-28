@@ -127,9 +127,20 @@ export function makeProjector(sc, sched) {
     const [oh, dh] = rate(h), [ov, dv] = rate(v)
     const total = oh + dv + ov + dh - 2 * lg + sc.total_b2b * (b2b(h, day) + b2b(v, day))
     const m = fg.margin ?? margin(fg)
-    return [Math.round(total / 2 + m / 2), Math.round(total / 2 - m / 2)]
+    return untie(total / 2 + m / 2, total / 2 - m / 2, m)
   }
   return { margin, score, sigma, home: c0, win: m => normCdf(m / sigma), strength: (t, rating) => cElo * rating + cNet * net(t) }
+}
+// Rounded projected scores, never a tie: when both round to the same number, the side the margin favors gets the
+// point (its score rounds up, or the other's down, whichever is nearer the unrounded value). lean: the margin's sign
+// breaks an exact tie; with no lean, the home side.
+export function untie(h, a, lean = h - a) {
+  let H = Math.round(h), A = Math.round(a)
+  if (H !== A) return [H, A]
+  const homeFav = lean > 0 || (lean === 0 && h >= a)
+  if (homeFav) Math.abs(H + 1 - h) <= Math.abs(A - 1 - a) ? H++ : A--
+  else Math.abs(A + 1 - a) <= Math.abs(H - 1 - h) ? A++ : H--
+  return [H, A]
 }
 export const normCdf = x => {
   const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2)

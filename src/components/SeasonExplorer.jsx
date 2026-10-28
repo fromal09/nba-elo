@@ -3,12 +3,14 @@ import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
 import PlayerCard, { MiniCard, DuelCard, DuelModal, tierFor, momentsFor, setFirstGameLookup } from './PlayerCard'
-import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder, CollectionBinder, PublicBinder } from './Binders'
+import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder, CollectionBinder, PublicBinder, usePull, fromIndex } from './Binders'
 import { useCollector } from './Collector'
 import { StoreBook } from './Store'
 import { PickBar, usePredSlate } from './Predictions'
 import predStyles from './Predictions.module.css'
-import { buildForecaster, blendWeight, norm, WP, winChance, makeProjector, normCdf } from './predict'
+import MyPredictions, { LineupStrip, useMyDay } from './MyPredictions'
+import { hrefFor, linkTo } from '../nav.js'
+import { buildForecaster, blendWeight, norm, WP, winChance, makeProjector, normCdf, untie } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
 import { watchDay, useLiveFeeds, computeLive, gameKey, liveDaysAfter } from './liveFeed.js'
 import { simulateOdds } from './odds.js'
@@ -55,7 +57,9 @@ function liveFinal(fg, live, ptsHome, ptsAway) {
   const s = Array.isArray(fg) ? fg : PROJECT?.(fg)
   if (!s || !live?.period) return null
   const r = shareLeft(live)
-  return [Math.round(ptsHome + s[0] * r), Math.round(ptsAway + s[1] * r)]
+  const h = ptsHome + s[0] * r, a = ptsAway + s[1] * r
+  // Never a tied final: the side ahead on the unrounded projection, else the pre-game favorite, gets the point
+  return untie(h, a, h - a || s[0] - s[1])
 }
 // Home team's win chance during a game: the current lead plus the pre-game projected margin for the
 // time left, with the spread of outcomes shrinking as the clock runs (sigma × √share left)
@@ -331,17 +335,21 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
   const [rotation, setRotation] = useState(null) // recent minutes per player
   const [best, setBest] = useState({})           // best rank among active players, per player
   const [careers, setCareers] = useState({})     // career bests through the latest data, for live career moments
-  // 'standings' | 'today'; App owns it so the games view can live at /scoreboard
-  const view = mode === 'today' ? 'today' : 'standings'
+  // 'standings' | 'today' | 'picks'; App owns it, so each tab has its own address under /scoreboard
+  const view = mode === 'today' ? 'today' : mode === 'picks' ? 'picks' : 'standings'
   const setView = v => onMode?.(v)
   const [day, setDay] = useState(() => {
     const q = new URLSearchParams(window.location.search).get('date')
     return q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : etToday()
   })
-  // Keep the address shareable: /scoreboard for today, /scoreboard?date=YYYY-MM-DD for any other day
+  // Keep the address shareable: /scoreboard (today) or ?date=YYYY-MM-DD; ?tab=standings | picks for the other tabs
   useEffect(() => {
-    if (view !== 'today') return
-    const url = day === etToday() ? '/scoreboard' : `/scoreboard?date=${day}`
+    const q = new URLSearchParams()
+    if (view === 'standings') q.set('tab', 'standings')
+    if (view === 'picks') q.set('tab', 'picks')
+    if (view !== 'standings' && day !== etToday()) q.set('date', day)
+    const url = `/scoreboard${q.toString() ? `?${q}` : ''}`
+    if (window.location.pathname.replace(/\/+$/, '') !== '/scoreboard') return
     if (window.location.pathname + window.location.search !== url) window.history.replaceState(null, '', url)
   }, [view, day])
   const goDay = d => { setDay(d); setView('today'); window.scrollTo({ top: 0 }) }
@@ -535,10 +543,12 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     <div className={styles.page}>
       <div className={styles.hero}>
         <div>
-          <div className={styles.kicker}>Season Explorer</div>
+          <div className={styles.kicker}>Scoreboard</div>
           <div className={styles.viewTabs} role="tablist">
-            <button role="tab" aria-selected={view === 'standings'} className={view === 'standings' ? styles.viewOn : ''} onClick={() => setView('standings')}>Standings</button>
-            <button role="tab" aria-selected={view === 'today'} className={view === 'today' ? styles.viewOn : ''} onClick={() => setView('today')}>Games by day</button>
+            {[['today', 'Games by day', 'scoreboard'], ['standings', 'Standings', 'explorer'], ['picks', 'My Predictions', 'mypicks']].map(([v, label, nv]) => (
+              <a key={v} role="tab" aria-selected={view === v} className={view === v ? styles.viewOn : ''}
+                {...linkTo(hrefFor(nv), () => setView(v))}>{label}</a>
+            ))}
           </div>
           {view === 'standings' ? <>
             <h1 className={styles.title}>{s.season} <span>{league} season</span></h1>
@@ -548,7 +558,8 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
             </p>
           </> : <>
             <h1 className={styles.title}>{fmtDate(day, { weekday: 'long', month: 'long', day: 'numeric' })} <span>{day.slice(0, 4)}</span></h1>
-            <p className={styles.sub}>Every game of the day with live Elo, the night's top performers, biggest movers and biggest upsets. Click a game for its box score.</p>
+            <p className={styles.sub}>{view === 'picks' ? 'Your picks for the day: every game, every player matchup and your lineup, live while the games are on.'
+              : 'Every game of the day with live Elo, the night\'s top performers, biggest movers and biggest upsets. Click a game for its box score.'}</p>
           </>}
         </div>
         {view === 'standings' ? (
@@ -587,7 +598,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           {live.fetched && <span className={styles.muted}>Updated {new Date(live.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
         </div>
       )}
-      {view === 'today' ? (
+      {view === 'picks' ? <MyPredictions day={day} /> : view === 'today' ? (
         <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} />
       ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (
         <OddsView odds={odds} teams={teams} sd={sdL} fc={fc} />
@@ -1092,7 +1103,7 @@ function ProjBox({ x, shots }) {
 }
 
 // ── Box score ────────────────────────────────────────────────────────────────
-function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel }) {
+function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel, lineup }) {
   const collector = useCollector() // a ✓ by each player whose card from this game is in your binder
   const [focus, setFocus] = useState(null)
   const [side, setSide] = useState(team) // which team's table shows; starts on the team you came from
@@ -1198,7 +1209,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel
         </div>
         <TeamBox key={side} t={side} rows={P.filter(p => p.t === side)} P={P} N={N} has={has} avail={avail} shots={shots}
           focus={focus} setFocus={setFocus} onCard={onCard} stat={stat} setStat={setStat}
-          owns={n => !!collector.me && collector.owned.has(`${sd?.season}|${game.id}|${n}`)} />
+          owns={n => !!collector.me && collector.owned.has(`${sd?.season}|${game.id}|${n}`)} lineup={lineup} />
 
         <DuelGrid P={P} focus={focus} setFocus={setFocus} shots={shots} game={game} sd={sd} pinPair={pinPair} />
       </div>
@@ -1361,7 +1372,7 @@ function DuelTrack({ w, xw, n }) {
   )
 }
 
-function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, stat, setStat, owns }) {
+function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, stat, setStat, owns, lineup }) {
   const n = N - 1
   const starters = has?.has('st') && rows.some(p => p.st)
   const sorted = [...rows].sort((a, b) => (starters ? b.st - a.st : 0) || (b.mp || 0) - (a.mp || 0) || (b.pts || 0) - (a.pts || 0))
@@ -1414,17 +1425,19 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
         <span>{shortName(x.b.n)}</span><em className={up ? styles.up : styles.down}>{sgn(x.c.delta)}</em></span>
     : <span className={styles.muted}>—</span>
 
+  const mineSlot = p => lineup?.get(norm(p.n))
   const row = p => {
     const d = p.post - p.pre, e = ext[p.n]
     const rec = r => (r ? `${fmtW(r[0])}–${fmtW(r[1])}` : '—')
     return (
-      <tr key={p.n} className={`${focus === p.n ? styles.focus : ''} ${p.potd ? styles.rowPotd : p.potg ? styles.rowPotg : ''}`} onMouseEnter={() => setFocus(p.n)} onMouseLeave={() => setFocus(null)}>
+      <tr key={p.n} className={`${focus === p.n ? styles.focus : ''} ${p.potd ? styles.rowPotd : p.potg ? styles.rowPotg : ''} ${mineSlot(p) ? styles.rowMine : ''}`} onMouseEnter={() => setFocus(p.n)} onMouseLeave={() => setFocus(null)}>
         <td className={styles.sticky}>
           <span className={styles.pl}>
             <Headshot name={p.n} shots={shots} color={tColor(t)} />
             <span><span className={styles.pNameRow}><button className={styles.pName} onClick={() => onCard(p.n)} title="Open player card">{wide ? p.n : shortName(p.n)}</button>
               {owns?.(p.n) && <span className={styles.ownTick} title="This card is in your binder">✓</span>}<MomentMarks p={p} /></span>
-              <small>{[stat === 'box' && F.mp && p.mp != null ? `${p.mp} min` : null, p.pos, p.potd ? 'Player of the Day' : p.potg ? 'Player of the Game' : null].filter(Boolean).join(' · ')}</small></span>
+              <small>{[stat === 'box' && F.mp && p.mp != null ? `${p.mp} min` : null, p.pos, p.potd ? 'Player of the Day' : p.potg ? 'Player of the Game' : null].filter(Boolean).join(' · ')}</small>
+              {mineSlot(p) && <small className={styles.mineTag}>In your lineup · {p.gs.toFixed(1)} GmSc{(mineSlot(p).mult || 1) !== 1 ? ` × ${+(mineSlot(p).mult).toFixed(2)} = ${(p.gs > 0 ? p.gs * mineSlot(p).mult : p.gs).toFixed(1)} pts` : ''}</small>}</span>
           </span>
         </td>
         <td className={styles.rankCell}><RankCell p={p} /></td>
@@ -2086,6 +2099,9 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
     setBox({ id: x.g.id, team: p?.t || x.g.teams[0], pin: [x.a, x.b] })
   }
   const predLive = usePredSlate(day) // today and tomorrow: pick bars under the cards
+  // Your lineup for the day: a strip above the cards, and its players marked in the box scores
+  const { d: myDay } = useMyDay(day)
+  const lineup = useMemo(() => new Map((myDay?.lineup?.slots || []).map(s => [norm(s.player), s])), [myDay])
   const cards = useMemo(() => {
     const order = { in: 0, pre: 1, post: 2 }
     const list = [
@@ -2177,7 +2193,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
               <div className={styles.sideLab}>{label}<span>{shortName(x.a.n)} over {shortName(x.b.n)}{kind === 'slayer' ? ` · ${Math.max(1, Math.round(x.wc * 100))}%` : ''}</span></div>
               <button type="button" className={styles.sideMini} onClick={() => setDuelPick({ kind, scope: 'day', an: x.a.n, bn: x.b.n, id: x.g.id })} aria-label={`${label}: ${x.a.n} over ${x.b.n}, open card`}>
                 <span className={styles.sideScale} data-still="">
-                  <DuelCard kind={kind} scope="day" date={x.g.date}
+                  <DuelCard kind={kind} scope="day" date={x.g.date} live={!!x.g.live && x.g.live.state !== 'post'}
                     a={{ name: x.a.n, row: x.a, color: tColor(x.a.t), team: tShort(x.a.t), abbr: tCode(x.a.t), headshot: shots?.[norm(x.a.n)]?.headshot }}
                     b={{ name: x.b.n, row: x.b, color: tColor(x.b.t), team: tShort(x.b.t), abbr: tCode(x.b.t), headshot: shots?.[norm(x.b.n)]?.headshot }} />
                 </span>
@@ -2303,6 +2319,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
         : feedErr && !cards.length ? <div className={styles.empty}>Couldn't load the scoreboard: {feedErr}</div>
         : !cards.length ? <div className={styles.empty}>No games on {fmtDate(day, { weekday: 'long', month: 'long', day: 'numeric' })}.</div>
         : <div className={styles.dayLayout}><div className={styles.dayMain}>
+          <LineupStrip d={myDay} games={scored} />
           <div className={styles.gGrid}>
             {cards.map(c => {
               const home = c.g ? (c.g.home || c.g.teams[1]) : c.x.home, away = c.g ? c.g.teams.find(t => t !== home) : c.x.away
@@ -2328,7 +2345,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
         </div>}
 
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
-      {boxView && <BoxScore key={box.id} team={box.team} game={boxView} has={boxGame.live ? FULL_STATS : sd?.has} shots={shots} sd={daySd} pinPair={box.pin}
+      {boxView && <BoxScore key={box.id} team={box.team} game={boxView} has={boxGame.live ? FULL_STATS : sd?.has} shots={shots} sd={daySd} pinPair={box.pin} lineup={lineup}
         onCard={n => setCard({ id: box.id, name: n })} onClose={() => setBox(null)}
         onDuel={(kind, an, bn) => setDuelPick({ kind, scope: 'game', an, bn, id: box.id, fromBox: true })} />}
       {duelPick && (g => g && <DuelView kind={duelPick.kind} scope={duelPick.scope} an={duelPick.an} bn={duelPick.bn} g={g} sd={daySd} shots={shots}
@@ -2603,7 +2620,7 @@ function cardGameInfo(g, t, sd, p) {
   const i = g.teams.indexOf(t), o = g.teams[1 - i]
   return {
     id: g.id, date: g.date, home: g.home == null ? null : g.home === t, oppAbbr: tCode(o), oppLogo: logoUrl(o), oppColor: tColor(o),
-    won: g.pts[i] > g.pts[1 - i], score: `${g.pts[i]}–${g.pts[1 - i]}`, ot: g.ot || '',
+    won: g.pts[i] > g.pts[1 - i], score: `${g.pts[i]}–${g.pts[1 - i]}`, ot: g.ot || '', live: !!g.live && g.live.state !== 'post',
     band: g.post ? postBand(sd, g, t) : null, honor: p?.potd ? 'potd' : p?.potg ? 'potg' : null, players: g.players,
   }
 }
@@ -2631,7 +2648,7 @@ function DuelView({ kind, scope, an, bn, g, sd, shots, onClose, onBox }) {
     return { A: mk(a), B: mk(b), matchup: `${tCode(away)} ${pt(away) ?? ''} @ ${tCode(home)} ${pt(home) ?? ''}`.replace(/\s+/g, ' ').trim() }
   })
   return <DuelModal kind={kind} scope={scope} a={A} b={B} date={g.date} matchup={matchup} sd={sd}
-    careerA={() => CAREER.byName[an]?.elo_history} careerB={() => CAREER.byName[bn]?.elo_history} onClose={onClose} onBox={onBox} />
+    careerA={() => CAREER.byName[an]?.elo_history} careerB={() => CAREER.byName[bn]?.elo_history} onClose={onClose} onBox={onBox} live={!!g.live && g.live.state !== 'post'} />
 }
 
 // ── Binders (components in Binders.jsx) ─────────────────────────────────────
@@ -2744,6 +2761,19 @@ export const binderPeaks = () => getJSON('/data/explorer/binders/peaks.json')
 export const binderHistory = () => historyReady()
 
 // Opens one binder and keeps a back stack, so closing a binder opened from another returns to it
+// One card on its own (from a leaderboard row): opens it full size, and closes with it
+function CardOnly({ card, env, onClose }) {
+  const P = usePull(env, null)
+  const seen = useRef(false)
+  useEffect(() => {
+    P.pull(fromIndex(env, card, { key: 'only' }))
+    const t = setTimeout(() => { if (!seen.current) onClose() }, 20e3) // its season never loaded
+    return () => clearTimeout(t)
+  }, [])
+  useEffect(() => { if (P.open) seen.current = true; else if (seen.current) onClose() }, [P.open])
+  return P.view || <div className={styles.cardWait}>Opening the card…</div>
+}
+
 export function BinderHost({ start, shots, onClose, onProfile }) {
   const [stack, setStack] = useState([start])
   const top = stack[stack.length - 1]
@@ -2777,6 +2807,7 @@ export function BinderHost({ start, shots, onClose, onProfile }) {
   if (top.kind === 'store') return <StoreBook key={stack.length} env={env} onClose={back} onMine={() => push({ kind: 'mine', sell: true })} />
   if (top.kind === 'public') return <PublicBinder key={stack.length} name={top.name} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} />
   if (top.kind === 'mine') return <CollectionBinder key={stack.length} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} startSell={!!top.sell} onStore={() => push({ kind: 'store' })} />
+  if (top.kind === 'card') return <CardOnly card={top.card} env={env} onClose={back} />
   if (top.kind === 'league') return <LeagueBinder key={stack.length} set={top.set} env={env} onClose={back} onCareer={n => push({ kind: 'career', name: n })} />
   return null
 }

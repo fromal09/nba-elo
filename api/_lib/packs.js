@@ -67,8 +67,8 @@ async function getJSON(origin, path) {
   return r.json()
 }
 
-export async function poolIndex(origin) {
-  if (!indexCache || Date.now() - indexCache.at > 10 * 60e3) indexCache = { at: Date.now(), data: await getJSON(origin, 'index.json') }
+export async function poolIndex(origin, maxAge = 10 * 60e3) {
+  if (!indexCache || Date.now() - indexCache.at > maxAge) indexCache = { at: Date.now(), data: await getJSON(origin, 'index.json') }
   return indexCache.data
 }
 
@@ -215,4 +215,4 @@ export async function buildOffers(origin, kind, { taken, team, pity, era }) {
 
 export const teamCodes = async origin => Object.keys((await poolIndex(origin)).teams || {})
 export { toCard, getJSON as poolJSON, tierOf }
-export const recentDate = async origin => (await poolIndex(origin)).recent?.date || null
+export const recentDate = async (origin, maxAge) => (await poolIndex(origin, maxAge)).recent?.date || null

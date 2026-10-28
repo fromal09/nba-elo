@@ -219,7 +219,7 @@ export function CardFront({ name, row, game, team, headshot }) {
         </>}
         {era && (() => {
           const tn = splitTeam(team?.name), when = `${fmtDay(game.date)} ${where} ${game.oppAbbr}`
-          const result = game.score ? `${game.won ? 'W' : 'L'} ${game.score}` : ''
+          const result = game.live ? `In progress ${game.score || ''}`.trim() : game.score ? `${game.won ? 'W' : 'L'} ${game.score}` : ''
           // The photo window carries the tier foil (and honor rays) in every era
           const win = cls => (
             <div className={cls}>
@@ -232,7 +232,7 @@ export function CardFront({ name, row, game, team, headshot }) {
               <div className={styles.cWin}>{win(styles.eraWin)}{rank != null && <span className={styles.cNo}>No. {rank}</span>}</div>
               <div className={styles.cPlate}>
                 <span className={styles.cName}><i>{first}</i><b ref={lastRef}>{last}</b></span>
-                <span className={styles.cMeta}><span>{tn.city || tn.nick}</span><span>{fmtDay(game.date)}</span><em className={game.won ? styles.cWon : ''}>{result}</em></span>
+                <span className={styles.cMeta}><span>{tn.city || tn.nick}</span><span>{fmtDay(game.date)}</span><em className={game.won && !game.live ? styles.cWon : ''}>{result}</em></span>
               </div>
             </>}
             {era === 'groove' && <>
@@ -250,7 +250,7 @@ export function CardFront({ name, row, game, team, headshot }) {
               {win(styles.eWin)}
               <div className={styles.ePlate}>
                 <div className={styles.eName}><b ref={lastRef}>{last}</b>{rank != null && <span>#{rank}</span>}</div>
-                <div className={styles.eMeta}><span>{tn.nick} · {fmtDay(game.date)}</span><em className={game.won ? styles.eWon : styles.eLost}>{result}</em></div>
+                <div className={styles.eMeta}><span>{tn.nick} · {fmtDay(game.date)}</span><em className={game.live ? '' : game.won ? styles.eWon : styles.eLost}>{result}</em></div>
               </div>
             </>}
             {era === 'refractor' && <div className={styles.rFrame}>
@@ -319,10 +319,10 @@ export function CardFront({ name, row, game, team, headshot }) {
         </div>}
       </div>
       {/* Final score bar: green-lit for a win, charcoal with a red rule for a loss; the winner reads bright */}
-      {game.score && <div className={`${styles.scoreBar} ${game.won ? styles.barW : styles.barL}`}>
-        <span className={game.won ? styles.barHi : styles.barLo}>{team?.abbr} {us}{rookie && <span className={styles.rc} title="Rookie season">RC</span>}</span>
-        <em>Final{game.ot ? `/${game.ot}` : ''}</em>
-        <span className={game.won ? styles.barLo : styles.barHi}>{game.oppAbbr} {them}</span>
+      {game.score && <div className={`${styles.scoreBar} ${game.live ? styles.barLive : game.won ? styles.barW : styles.barL}`}>
+        <span className={game.live || game.won ? styles.barHi : styles.barLo}>{team?.abbr} {us}{rookie && <span className={styles.rc} title="Rookie season">RC</span>}</span>
+        <em>{game.live ? 'In progress' : `Final${game.ot ? `/${game.ot}` : ''}`}</em>
+        <span className={game.live || !game.won ? styles.barHi : styles.barLo}>{game.oppAbbr} {them}</span>
       </div>}
       <div className={styles.strip}>
         <div className={styles.stripStats}>
@@ -393,27 +393,28 @@ function useFit(ref, max, min, dep) {
   }, [dep, max, min])
 }
 
-export function DuelCard({ kind, scope, a, b, date }) {
+// live: the game is still being played, so nobody has won the duel yet
+export function DuelCard({ kind, scope, a, b, date, live }) {
   const title = duelTitle(kind, scope)
   const wc = duelChance(a, b)
   const A = splitName(a.name), B = splitName(b.name)
   const ra = useRef(null), rb = useRef(null)
   useFit(ra, 42, 20, a.name); useFit(rb, 30, 14, b.name)
   return (
-    <div className={styles.duel} data-scope={scope} data-kind={kind}>
+    <div className={styles.duel} data-scope={scope} data-kind={kind} data-card-shot={`${duelTitle(kind, scope)} ${baseName(a.name)} ${baseName(b.name)} ${date || ''}`}>
       <div className={styles.duelHead} data-long={title.length > 20 ? '' : undefined}>{title}</div>
       <div className={styles.duelBody}>
         <div className={styles.duelTop} style={{ '--c': a.color }}><span className={styles.duelWater}>{a.abbr}</span></div>
         <div className={styles.duelBot} style={{ '--c': b.color }}><span className={styles.duelWater}>{b.abbr}</span></div>
         <Medal x={a} cls={styles.duelMedA} />
         <Medal x={b} cls={styles.duelMedB} />
-        <div className={styles.duelAGs}><span>Winner</span><b>{f1(a.row.gs)}</b><small>Game Score</small></div>
+        <div className={styles.duelAGs}><span>{live ? 'In progress' : 'Winner'}</span><b>{f1(a.row.gs)}</b><small>Game Score</small></div>
         <div className={styles.duelA}><small>{A.first}</small><b ref={ra}>{A.last}</b><em>{a.team} · Elo {r0(a.row.pre)}</em></div>
         <div className={styles.duelChip}>
           {kind === 'slayer' ? <><b>{Math.max(1, Math.round(wc * 100))}%</b><small>Pre-game duel chance</small></>
             : <><b>{f1(a.row.gs)}–{f1(b.row.gs)}</b><small>Game Score</small></>}
         </div>
-        <div className={styles.duelB}><small>{kind === 'slayer' ? 'Beat' : 'Over'} {B.first !== B.last ? B.first : ''}</small><b ref={rb}>{B.last}</b><em>{f1(b.row.gs)} GmSc · {b.team} · {r0(b.row.pre)}</em></div>
+        <div className={styles.duelB}><small>{live ? 'vs' : kind === 'slayer' ? 'Beat' : 'Over'} {B.first !== B.last ? B.first : ''}</small><b ref={rb}>{B.last}</b><em>{f1(b.row.gs)} GmSc · {b.team} · {r0(b.row.pre)}</em></div>
         <div className={styles.duelFoot}><span>{fmtDay(date)}</span><span>{kind === 'slayer' ? `Elo gap ${r0(b.row.pre - a.row.pre)}` : `${Math.round(wc * 100)}% pre-game`}</span></div>
       </div>
     </div>
@@ -497,8 +498,8 @@ const seasonPts = (sd, name) => {
  * and the two players' Elo through the season and across their careers on shared axes.
  * a, b as DuelCard, plus careerA / careerB (elo_history: [[date, elo], ...]); sd = the season's games
  */
-export function DuelModal({ kind, scope, a, b, date, matchup, sd, careerA: cA, careerB: cB, onClose, onBox }) {
-  useCareerHistory()
+export function DuelModal({ kind, scope, a, b, date, matchup, sd, careerA: cA, careerB: cB, onClose, onBox, live }) {
+  const hv = useCareerHistory()
   // Careers may arrive after the modal opens: getters read them on every draw
   const careerA = typeof cA === 'function' ? cA() : cA, careerB = typeof cB === 'function' ? cB() : cB
   const [flipped, setFlipped] = useState(false)
@@ -523,7 +524,7 @@ export function DuelModal({ kind, scope, a, b, date, matchup, sd, careerA: cA, c
       { pts: pts(careerA, a.name), color: a.color, label: lastOf(a.name) },
       { pts: pts(careerB, b.name), color: b.color, label: lastOf(b.name) },
     ]
-  }, [careerA, careerB, a.name, b.name])
+  }, [careerA, careerB, a.name, b.name, hv])
   const yr = t => new Date(t * 864e5).getUTCFullYear()
   const mo = t => new Date(t * 864e5).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' })
   const line = (x, won) => {
@@ -543,7 +544,7 @@ export function DuelModal({ kind, scope, a, b, date, matchup, sd, careerA: cA, c
         <div className={`${styles.card} ${flipped ? styles.flipped : ''}`} style={{ '--tc': scope === 'day' ? '#9a7316' : '#0b5f9e' }}>
           <div className={styles.tilt}><div className={styles.flip} onClick={e => { if (!e.target.closest('button')) setFlipped(f => !f) }}>
             <div className={`${styles.face} ${styles.front} ${styles.duelFace}`}>
-              <Scaled><DuelCard kind={kind} scope={scope} a={a} b={b} date={date} /></Scaled>
+              <Scaled><DuelCard kind={kind} scope={scope} a={a} b={b} date={date} live={live} /></Scaled>
               <FlipButton onFlip={() => setFlipped(f => !f)} />
             </div>
             <div className={`${styles.face} ${styles.back}`}>
@@ -556,10 +557,10 @@ export function DuelModal({ kind, scope, a, b, date, matchup, sd, careerA: cA, c
                   <span className={styles.tierTag}>{kind === 'slayer' ? `${Math.max(1, Math.round(wc * 100))}%` : 'H2H'}</span>
                 </div>
                 <section>
-                  <h4>This game <span>{kind === 'slayer' ? 'least likely duel win' : 'two stars, both playing well'}</span></h4>
+                  <h4>This game <span>{live ? 'in progress' : kind === 'slayer' ? 'least likely duel win' : 'two stars, both playing well'}</span></h4>
                   <div className={styles.dTable}>
                     <div className={`${styles.dRow} ${styles.dHead}`}><span /><small>PTS</small><small>REB</small><small>AST</small><small>GmSc</small><small>Elo Δ</small></div>
-                    {line(a, true)}{line(b, false)}
+                    {line(a, !live)}{line(b, false)}
                   </div>
                   <p className={styles.dNote}>Pre-game: Elo {r0(a.row.pre)} vs {r0(b.row.pre)} · {Math.max(1, Math.round(wc * 100))}% duel win chance</p>
                 </section>
@@ -613,7 +614,7 @@ export function SlabLabel({ row, game, kind, className }) {
 // slab: a label (e.g. 'Career game') puts the card in a graded slab, drawn in the same 340 × 476 box
 export function MiniCard({ name, row, game, team, headshot, slab }) {
   const card = (
-    <div className={`${styles.card} ${styles.miniCard}`} {...cardAttrs(row, game)} style={{ '--tc': team?.color || '#173657' }}>
+    <div className={`${styles.card} ${styles.miniCard}`} {...cardAttrs(row, game)} style={{ '--tc': team?.color || '#173657' }} data-card-shot={`${baseName(name)} ${game?.date || ''}`}>
       <div className={`${styles.face} ${styles.front}`}><CardFront name={name} row={row} game={game} team={team} headshot={headshot} /></div>
     </div>
   )
@@ -638,7 +639,7 @@ function TeamLogo({ src, abbr, color }) {
  *        logo (url|null), headshot (url|null), career (elo.json player|null), peakRank, onProfile, onClose
  */
 export default function PlayerCard({ name, row, game, sd, team, logo, headshot, career, peakRank, bestRank, onProfile, onClose, onBinder, onCareer, serial }) {
-  useCareerHistory()   // the back charts his career
+  const hv = useCareerHistory()   // the back charts his career (the version re-runs the memos when it lands)
   const [flipped, setFlipped] = useState(false)
   const ref = useRef(null)
   const backNameRef = useRef(null)
@@ -646,7 +647,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
   const season = useMemo(() => seasonLine(sd, name, game.id), [sd, name, game.id])
   const avgElo = useMemo(() => {
     const h = career?.elo_history; return h?.length ? h.reduce((s, e) => s + e[1], 0) / h.length : null
-  }, [career])
+  }, [career, hv])
   // Career Elo path: 1,500 debut, then every game; this game = the entry on this game's date
   const careerPath = useMemo(() => {
     const h = career?.elo_history; if (!h?.length) return null
@@ -655,7 +656,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
     const gi = h.findIndex(e => e[0] === game.date)
     const yr = d => d.slice(0, 4)
     return { path, peakAt: path.indexOf(peak), at: gi >= 0 ? gi + 1 : 0, ends: [yr(h[0][0]), yr(h[h.length - 1][0])] }
-  }, [career, game.date])
+  }, [career, game.date, hv])
   const color = team?.color || '#173657'
   const d = row.post - row.pre
 
@@ -694,14 +695,14 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
           style={{ '--tc': color }} onPointerMove={tilt} onPointerLeave={untilt}>
           <div className={styles.tilt}><div className={styles.flip} onClick={e => { if (!e.target.closest('button')) setFlipped(f => !f) }}>
             {/* ── Front ── */}
-            <div className={`${styles.face} ${styles.front}`}>
+            <div className={`${styles.face} ${styles.front}`} data-card-shot={`${baseName(name)} ${game.date}`}>
               <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />
               {serial && <Serial k={serial[0]} n={serial[1]} flip />}
               <FlipBtn />
             </div>
 
             {/* ── Back ── */}
-            <div className={`${styles.face} ${styles.back}`}>
+            <div className={`${styles.face} ${styles.back}`} data-card-shot={`${baseName(name)} ${game.date} back`}>
               <div className={styles.backIn}>
                 <div className={styles.backHead}>
                   <div>

@@ -454,7 +454,9 @@ export async function setLineup(sql, u, b, origin, today) {
 // ── Everything the Predictions page shows ────────────────────────────────────
 export async function predView(sql, u, today, tomorrow, origin) {
   const awards = await settle(sql, u.id, today, { origin }).catch(e => { console.error('settle', e); return [] })
-  const slates = await Promise.all([today, tomorrow].map(d => slate(sql, d, { origin }).catch(() => [])))
+  const yesterday = addDays(today, -1)
+  // [today, tomorrow, yesterday]: the client's slates are today and tomorrow; yesterday comes as `prev`
+  const slates = await Promise.all([today, tomorrow, yesterday].map(d => slate(sql, d, { origin }).catch(() => [])))
   const ids = slates.flat().map(g => g.id)
   const mine = await sql`select game_id, pick, result, bonus, lock from predictions where user_id = ${u.id} and game_id = any(${ids})`
   const mineD = await sql`select game_id, pick, result from duel_picks where user_id = ${u.id} and game_id = any(${ids})`
@@ -467,10 +469,11 @@ export async function predView(sql, u, today, tomorrow, origin) {
       upset: { [g.home]: upsetBonus(dogChance(g, g.home)), [g.away]: upsetBonus(dogChance(g, g.away)) },
       duel: g.line?.duel ? { ...g.line.duel, pick: dp?.pick || null, result: dp?.result || null } : null }
   }
-  const view = await Promise.all([today, tomorrow].map(async (day, i) => {
+  const all = await Promise.all([today, tomorrow, yesterday].map(async (day, i) => {
     const games = slates[i].filter(g => g.state !== 'off').map(decorate)
     return { day, games, lineup: await lineupView(sql, u, origin, day, slates[i]).catch(e => { console.error('lineup', e); return { slots: [], candidates: [], graded: null } }) }
   }))
+  const view = all.slice(0, 2), prev = all[2]
   const picks = await sql`select p.game_id, p.pick, p.result, p.chance, p.bonus, p.lock, p.day, g.tip from predictions p join pred_games g on g.id = p.game_id where p.user_id = ${u.id}`
   const duels = await sql`select game_id, pick, result, day from duel_picks where user_id = ${u.id}`
   const days = await sql`select * from pred_days where user_id = ${u.id} order by day desc`
@@ -487,9 +490,11 @@ export async function predView(sql, u, today, tomorrow, origin) {
   for (const r of duels) { const h = at(r.day); h.dopen = h.dopen || { picked: 0 }; h.dopen.picked++ }
   for (const d of duelDays) at(d.day).duels = { total: d.total, picked: d.picked, correct: d.correct, reward: d.reward, claimed: d.claimed_ref ? { ref: d.claimed_ref, card: d.claimed_card } : null }
   for (const d of lineDays) at(d.day).lineup = { total: d.total, coins: d.coins }
+  // Lineups set but not scored yet still make a day
+  for (const r of await sql`select distinct day from lineups where user_id = ${u.id}`) { const h = at(r.day); if (!h.lineup) h.lopen = true }
   const history = [...H.values()].sort((a, b) => b.day.localeCompare(a.day))
   return {
-    awards, slates: view, history,
+    awards, slates: view, prev, history,
     stats: stats({ picks: picks.map(r => ({ ...r, tip: Date.parse(r.tip) })), days, duels, duelDays, lineDays: lineDays.map(d => ({ ...d, total: +d.total })), coins: c.n }),
     rates: PRED,
   }

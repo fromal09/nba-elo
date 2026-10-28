@@ -452,7 +452,7 @@ function SeasonFront({ card, owned, serial }) {
   return <SeasonCard s={s} owned={idx && idx.size < s.tiles.length ? idx : undefined} headshot={shotOf(shots, card.n)} serial={serial} />
 }
 
-export function SpecialFace({ card, owned, serial }) {
+function SpecialFaceIn({ card, owned, serial }) {
   const peaks = usePeaks()
   const shots = useShots()
   useHistoryTick()
@@ -467,6 +467,11 @@ export function SpecialFace({ card, owned, serial }) {
   if (card.kind === 'five') return <FiveCard f={card} shots={Object.fromEntries(card.players.map(p => [p.n, shotOf(shots, p.n)]))} serial={serial} />
   if (card.kind === 'season') return <SeasonFront card={card} owned={owned} serial={serial} />
   return null
+}
+// Tagged for "Save card image" (right-click)
+export function SpecialFace(props) {
+  const c = props.card
+  return <div style={{ display: 'contents' }} data-card-shot={`${specialTitle(c)} ${c.row?.n || c.n || c.a || ''} ${c.s || c.date || ''}`}><SpecialFaceIn {...props} /></div>
 }
 
 // The back of a Peak card: this game's line and every Peak of his career, this one marked

@@ -28,7 +28,7 @@ const shortName = n => { const [f, ...r] = baseName(n).split(' '); return r.leng
 const teamName = t => binderTeamInfo(t)?.name || t
 const nick = t => { const n = teamName(t); return /Trail Blazers$/.test(n) ? 'Trail Blazers' : n.split(' ').pop() }
 const Logo = ({ t, size = 34 }) => <span className={styles.logo} style={{ width: size, height: size }}>{binderLogo(t) ? <img src={binderLogo(t)} alt="" style={{ width: size, height: size }} /> : <b>{t}</b>}</span>
-const statusOf = g => (g.state === 'pre' ? (g.open ? tipTime(g.tip) : 'Locked') : g.state === 'post' ? 'Final' : g.detail || 'Live')
+const statusOf = g => (g.state === 'pre' ? (g.open ? tipTime(g.tip) : 'In progress') : g.state === 'post' ? 'Final' : g.detail ? `In progress · ${g.detail}` : 'In progress')
 
 // ── Games ────────────────────────────────────────────────────────────────────
 function Side({ g, team, env, onPick, busy }) {
@@ -59,7 +59,7 @@ function GameRow({ g, env, onPick, onLock, busy, lockFixed }) {
   return (
     <div className={`${styles.game} ${!g.open ? styles.locked : ''} ${g.lock ? styles.isLock : ''}`}>
       <div className={styles.gameTop}>
-        <span className={styles.status} data-state={g.state}>{!g.open && g.state !== 'post' ? '🔒 ' : ''}{statusOf(g)}</span>
+        <span className={styles.status} data-state={g.state}>{statusOf(g)}</span>
         <span className={styles.gameTools}>
           {g.crowd && <span className={styles.crowd} title={`${g.crowd.n} collector${g.crowd.n === 1 ? '' : 's'} picked this game`}>
             <i style={{ width: `${(1 - g.crowd.home) * 100}%` }} />{pct(1 - g.crowd.home)} {g.away} · {pct(g.crowd.home)} {g.home}</span>}
@@ -107,8 +107,8 @@ function MatchupRow({ g, onPick, busy }) {
   return (
     <div className={`${styles.game} ${!g.open ? styles.locked : ''}`}>
       <div className={styles.gameTop}>
-        <span className={styles.status} data-state={g.state}>{!g.open && g.state !== 'post' ? '🔒 ' : ''}{statusOf(g)} · {g.away} at {g.home}</span>
-        <span className={styles.crowd}>{d.result === 'void' ? 'No contest (a player sat)' : d.result ? (d.result === 'win' ? 'Called it · +10' : 'Missed') : g.state === 'post' ? 'Graded with the morning update' : 'Higher Game Score?'}</span>
+        <span className={styles.status} data-state={g.state}>{statusOf(g)} · {g.away} at {g.home}</span>
+        <span className={styles.crowd}>{d.result === 'void' ? 'No contest (a player sat)' : d.result ? (d.result === 'win' ? 'Called it · +10' : 'Missed') : g.state === 'post' ? 'Grading…' : !g.open ? 'In progress' : 'Higher Game Score?'}</span>
       </div>
       <div className={styles.sides}>
         {side(d.a, g.away, d.ae)}
@@ -128,7 +128,7 @@ function TierX({ tier, mult }) {
   return <span className={styles.tierX} data-tier={tier}>{TIER_NAME[tier] || tier} <b>{xFmt(mult)}</b></span>
 }
 
-function LineupTab({ day, lu, env, busy, onSet, slots, R }) {
+function LineupTab({ day, dayWord, lu, env, busy, onSet, slots, R }) {
   const [q, setQ] = useState('')
   const [pickCard, setPickCard] = useState({}) // player name → chosen card id
   const taken = new Set(lu.slots.map(s => s.player))
@@ -139,7 +139,7 @@ function LineupTab({ day, lu, env, busy, onSet, slots, R }) {
   return <>
     <div className={styles.goal}>
       <span><b>{lu.slots.length} of {slots} slots filled</b>{lu.graded ? ` · ${lu.graded.total} points · +${lu.graded.coins} Coins` : ''}</span>
-      <span className={styles.goalText}>Put five cards from your binder in your lineup, of players who play {day === env.today ? 'today' : 'tomorrow'}. Each scores its player’s Game Score times the card’s multiplier: 1 Coin a point, up to {R.lineupMax}. Each slot locks when that player’s game tips off. Scored with the morning data update.</span>
+      <span className={styles.goalText}>Put five cards from your binder in your lineup, of players who play {dayWord}. Each scores its player’s Game Score times the card’s multiplier: 1 Coin a point, up to {R.lineupMax}. Each slot locks when that player’s game tips off and scores once every game of the day is final.</span>
     </div>
     <div className={styles.multRow}>
       {MULT_TIERS.map(t => <span key={t} className={styles.multCell} data-tier={t}><b>{xFmt(M[t] || 1)}</b><small>{TIER_NAME[t]}{Rest[t] ? ` · ${Rest[t]}-day rest` : ''}</small></span>)}
@@ -157,14 +157,14 @@ function LineupTab({ day, lu, env, busy, onSet, slots, R }) {
             <small>{s.team} {s.home ? 'vs' : '@'} {s.opp || '—'}{s.tip && s.open ? ` · ${tipTime(s.tip)}` : ''}</small>
             {s.gs != null ? <strong>{s.pts.toFixed(1)} <small>pts</small>{s.mult > 1 && s.gs > 0 && <em className={styles.slotRaw}>{s.gs.toFixed(1)} GmSc</em>}</strong>
               : s.open ? <button type="button" className={styles.ghostSm} disabled={busy} onClick={() => onSet(day, i, null)}>Remove</button>
-                : <span className={styles.slotLock}>🔒 Locked</span>}
+                : <span className={styles.slotLock}>In progress</span>}
           </div>
         )
       })}
     </div>
     {lu.graded && <p className={styles.light}>Total {total.toFixed(1)} points.</p>}
     {lu.candidates.length > 0 && <>
-      <div className={styles.candHead}><span className={styles.boxLab}>Your players {day === env.today ? 'today' : 'tomorrow'} · {lu.candidates.length}</span>
+      <div className={styles.candHead}><span className={styles.boxLab}>Your players {dayWord} · {lu.candidates.length}</span>
         <input className={styles.search} value={q} onChange={e => setQ(e.target.value)} placeholder="Find a player or team" aria-label="Find a player" /></div>
       <div className={styles.cands}>
         {list.map(c => {
@@ -183,13 +183,13 @@ function LineupTab({ day, lu, env, busy, onSet, slots, R }) {
                   </select>
                 : <TierX tier={chosen.tier} mult={chosen.mult} />}
               <button type="button" className={styles.claimBtn} disabled={busy || inIt || !c.open || free == null || !!chosen.resting} onClick={() => onSet(day, free, chosen.cardId)}>
-                {inIt ? 'In lineup' : !c.open ? 'Locked' : chosen.resting ? 'Resting' : free == null ? 'Full' : 'Add'}</button>
+                {inIt ? 'In lineup' : !c.open ? 'In progress' : chosen.resting ? 'Resting' : free == null ? 'Full' : 'Add'}</button>
             </div>
           )
         })}
       </div>
     </>}
-    {!lu.candidates.length && !lu.slots.length && <div className={styles.empty}><b>None of your players play {day === env.today ? 'today' : 'tomorrow'}</b><span>Game cards of current players count, from any season. Open packs to find some.</span></div>}
+    {!lu.candidates.length && !lu.slots.length && <div className={styles.empty}><b>{dayWord === 'yesterday' ? 'No lineup yesterday' : `None of your players play ${dayWord}`}</b><span>Game cards of current players count, from any season. Open packs to find some.</span></div>}
   </>
 }
 
@@ -222,10 +222,11 @@ function StandingsTab() {
 }
 
 // ── History ──────────────────────────────────────────────────────────────────
-function HistoryRow({ h, env, onReward }) {
+function HistoryRow({ h, env, onReward, all }) {
   const G = h.games, D = h.duels, L = h.lineup
   const perfect = G && G.correct === G.total
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!!all)
+  useEffect(() => setOpen(!!all), [all])
   const thumb = card => { const c = fromIndex(env, card, { key: card.date + card.kind }); return <span className={styles.histThumb}><Fit>{c.duel ? <DuelCard {...c.duel} /> : <MiniCard name={c.name} row={c.row} game={c.game} team={c.team} headshot={env.headshot(c.name)} />}</Fit></span> }
   return (
     <div className={styles.histWrap}>
@@ -243,11 +244,11 @@ function HistoryRow({ h, env, onReward }) {
         <span className={styles.histPart}>
           <small>Matchups</small>
           {D ? <><b>{D.correct} of {D.total}</b><small>{D.reward === 'duel' ? 'Duel of the Day card won' : D.reward ? 'card earned' : `${Math.max(0, need(D.total) - D.correct)} short`}</small></>
-            : h.dopen ? <small>{h.dopen.picked} picked · graded in the morning</small> : <small>—</small>}
+            : h.dopen ? <small>{h.dopen.picked} picked · graded when the games are final</small> : <small>—</small>}
         </span>
         <span className={styles.histPart}>
           <small>Lineup</small>
-          {L ? <><b>{Number(L.total).toFixed(1)}</b><small>+{L.coins} Coins</small></> : <small>—</small>}
+          {L ? <><b>{Number(L.total).toFixed(1)}</b><small>+{L.coins} Coins</small></> : h.lopen ? <small>set · scored when the games are final</small> : <small>—</small>}
         </span>
       </span>
       <span className={styles.histRewards}>
@@ -294,7 +295,7 @@ function DayDetail({ day, env }) {
           <div key={m.id} className={styles.dayRow}>
             <span className={styles.dayTeams}><span className={m.result && m.pick === m.a && m.result === 'win' ? styles.dayWon : ''}>{shortName(m.a)}</span><small>vs</small><span>{shortName(m.b)}</span></span>
             <span className={styles.dayPick}>{m.pick ? <>Your pick <b>{shortName(m.pick)}</b></> : <small>No pick</small>}
-              <small>{m.ag != null && m.bg != null ? `Game Score ${m.ag.toFixed(1)}–${m.bg.toFixed(1)}` : m.state === 'post' ? 'graded with the morning data update' : 'not played yet'}</small></span>
+              <small>{m.ag != null && m.bg != null ? `Game Score ${m.ag.toFixed(1)}–${m.bg.toFixed(1)}` : m.state === 'post' ? 'grading…' : m.state === 'in' ? 'in progress' : 'not played yet'}</small></span>
             <span className={styles.dayMark}>{m.pick ? mark(m.result) : null}</span>
           </div>
         ))}
@@ -395,11 +396,12 @@ export function PredictPages({ env, phone, tools, children }) {
   const d = C.preds
   const [err, setErr] = useState(null)
   const [tab, setTab] = useState('games')
-  const [di, setDi] = useState(0) // today or tomorrow
+  const [di, setDi] = useState('0') // '-1' yesterday, '0' today (the default), '1' tomorrow
   const [busy, setBusy] = useState(null)
   const [reward, setReward] = useState(null) // { day, kind }
+  const [allOpen, setAllOpen] = useState(false) // History: every day expanded
   useEffect(() => {
-    C.loadPredictions().then(x => { if (x?.slates && !x.slates[0].games.some(g => g.open) && x.slates[1].games.length) setDi(1) }).catch(e => setErr(e.message))
+    C.loadPredictions().catch(e => setErr(e.message))
     const t = setInterval(() => C.loadPredictions().catch(() => {}), 60e3)
     return () => clearInterval(t)
   }, [])
@@ -410,7 +412,8 @@ export function PredictPages({ env, phone, tools, children }) {
   })
   const s = d.stats, R = d.rates, F = s.forecast
   const run = async (key, fn) => { setBusy(key); try { await fn() } finally { setBusy(null) } }
-  const slate = d.slates[di]
+  const slate = di === '-1' ? (d.prev || { day: '', games: [], lineup: { slots: [], candidates: [], graded: null } }) : d.slates[+di]
+  const dayWord = di === '-1' ? 'yesterday' : di === '0' ? 'today' : 'tomorrow'
   const lockGame = slate.games.find(g => g.lock)
   const lockFixed = lockGame && !lockGame.open
   const unclaimed = d.history.flatMap(h => [h.games?.reward && !h.games.claimed && { day: h.day, kind: 'games' }, h.duels?.reward && h.duels.reward !== 'duel' && !h.duels.claimed && { day: h.day, kind: 'duels' }]).filter(Boolean)
@@ -463,7 +466,7 @@ export function PredictPages({ env, phone, tools, children }) {
       <p>Pick a winner in each of the day’s games, any time before it tips off. You can change a pick until that game starts; then it locks. You can also pick from the game cards on the Scoreboard.
         The underdog is the team the site’s Elo forecast (the one on the Scoreboard) gives under 50% when the game tips off; calling one pays (50% − its chance) × 200 Coins, from {R.upsetMin} to {R.upsetMax}.</p>
       <p>Make one pick a day your Lock of the Day. If it’s right, its Coins double, upset bonus included. If it’s wrong, you lose the Coins you earned for that day’s picks. You can move the lock until its game tips off.</p>
-      <p>Matchups are each game’s top player matchup, each side’s highest-Elo healthy player: pick who posts the higher Game Score. A matchup is void if either player sits or they tie. Matchups and lineups are graded with the morning data update.</p>
+      <p>Matchups are each game’s top player matchup, each side’s highest-Elo healthy player: pick who posts the higher Game Score. A matchup is void if either player sits or they tie. Matchups and lineups are graded from the box scores once the day’s games are final.</p>
       <p>A day closes when its last game is final. Games you didn’t pick count as misses. Standings: 1 point per correct pick or matchup, 1 more for a correct lock; the week’s top 10 win {R.weeklyTop10} Coins and the top 50 win {R.weeklyTop50}, paid Monday.</p>
     </details>
     {s.teams.length > 0 && <>
@@ -472,18 +475,25 @@ export function PredictPages({ env, phone, tools, children }) {
     </>}
   </>
 
-  const sub_ = <Seg value={tab} onChange={setTab} options={[['games', 'Games'], ['matchups', 'Matchups'], ['lineup', 'Lineup'], ['standings', 'Standings'], ['history', 'History']]} />
-  const dayTabs = ['games', 'matchups', 'lineup'].includes(tab) && <Seg value={String(di)} onChange={v => setDi(+v)} options={[['0', 'Today'], ['1', 'Tomorrow']]} />
+  // Three toggles: what to pick (games, matchups, lineup), which day, and the record (standings, history)
+  const picking = ['games', 'matchups', 'lineup'].includes(tab)
+  const sub_ = <Seg value={picking ? tab : ''} onChange={setTab} options={[['games', 'Games'], ['matchups', 'Matchups'], ['lineup', 'Lineup']]} />
+  const dayTabs = <Seg value={picking ? di : ''} onChange={v => { setDi(v); if (!picking) setTab('games') }} options={[['-1', 'Yesterday'], ['0', 'Today'], ['1', 'Tomorrow']]} />
+  const recTabs = <Seg value={picking ? '' : tab} onChange={setTab} options={[['standings', 'Standings'], ['history', 'History']]} />
   const games = slate.games
   let body, title, sub
   if (tab === 'standings') { title = 'Pick’em standings'; sub = 'picks, matchups and locks'; body = <StandingsTab /> }
   else if (tab === 'history') {
     title = 'Your days'; sub = `${s.days} day${s.days === 1 ? '' : 's'} closed · ${s.rewards} earned a card`
-    body = d.history.length ? <div className={styles.histList}>{d.history.map(h => <HistoryRow key={h.day} h={h} env={env} onReward={(day, kind) => setReward({ day, kind })} />)}</div>
+    body = d.history.length ? <>
+      <div className={styles.histTools}><span className={styles.light}>{d.history.length} day{d.history.length === 1 ? '' : 's'} played · tap a day for every pick</span>
+        <button type="button" className={styles.histBtn} onClick={() => setAllOpen(v => !v)}>{allOpen ? 'Collapse all' : 'Show every pick'}</button></div>
+      <div className={styles.histList}>{d.history.map(h => <HistoryRow key={h.day} h={h} env={env} all={allOpen} onReward={(day, kind) => setReward({ day, kind })} />)}</div>
+    </>
       : <div className={styles.empty}><b>No days played yet</b><span>Make your picks for today’s games. Your record, streaks and rewards show up here.</span></div>
   } else {
     title = fmtDay(slate.day); sub = `${games.length} game${games.length === 1 ? '' : 's'} · times in your time zone`
-    if (!games.length) body = <div className={styles.empty}><b>No games {di === 0 ? 'today' : 'tomorrow'}</b><span>{di === 0 && d.slates[1].games.length ? 'Tomorrow’s slate is open.' : 'Check back when the schedule resumes.'}</span></div>
+    if (!games.length) body = <div className={styles.empty}><b>No games {dayWord}</b><span>{di === '0' && d.slates[1].games.length ? 'Tomorrow’s slate is open.' : di === '-1' ? 'Nothing to look back on.' : 'Check back when the schedule resumes.'}</span></div>
     else if (tab === 'games') {
       const k = need(games.length)
       body = <>
@@ -499,12 +509,12 @@ export function PredictPages({ env, phone, tools, children }) {
           text={`Who posts the higher Game Score in each game’s top player matchup? Get ${need(m.length)} right to choose a Rare or Common from the day. Get all ${m.length} for the Duel of the Day card.`} />
         <div className={styles.games}>{m.map(g => <MatchupRow key={g.id} g={g} busy={busy === `d${g.id}`} onPick={(g_, p) => g_.duel.pick !== p && run(`d${g_.id}`, () => C.duelPick(g_.id, p))} />)}</div>
       </> : <div className={styles.empty}><b>Matchups aren’t set yet</b><span>They come from the Elo forecast and appear before tipoff.</span></div>
-    } else body = <LineupTab day={slate.day} lu={slate.lineup} env={envX} slots={R.slots} R={R} busy={!!busy} onSet={(day, slot, card) => run('lineup', () => C.setLineup(day, slot, card))} />
+    } else body = <LineupTab day={slate.day} dayWord={dayWord} lu={slate.lineup} env={envX} slots={R.slots} R={R} busy={!!busy} onSet={(day, slot, card) => run('lineup', () => C.setLineup(day, slot, card))} />
   }
   const right = (
     <div className={styles.right}>
       <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>{title}</b><span>{sub}</span></div>{tools}</div>
-      <div className={styles.dayRow}>{sub_}{dayTabs}</div>
+      <div className={styles.tabRow}>{sub_}{dayTabs}{recTabs}</div>
       <div className={styles.body}>{body}</div>
     </div>
   )
@@ -549,11 +559,11 @@ export function PickBar({ day, home, away, state, tip }) {
   )
   if (!g.open) {
     if (!g.pick && !d?.pick) return null
-    const res = g.result === 'win' ? `✓ +${(15 + (g.bonus || 0)) * (g.lock ? 2 : 1)} Coins` : g.result === 'loss' ? '✗ Missed' : '🔒 Locked'
+    const res = g.result === 'win' ? `✓ +${(15 + (g.bonus || 0)) * (g.lock ? 2 : 1)} Coins` : g.result === 'loss' ? '✗ Missed' : 'In progress'
     return <div className={`${styles.bar} ${g.result === 'win' ? styles.barWin : g.result === 'loss' ? styles.barLoss : ''}`}>
       {g.pick && <><span className={styles.barLab}>{g.lock ? '★ Lock' : 'Your pick'}</span><b className={styles.barPick}><span className={styles.barLogo}>{binderLogo(g.pick) && <img src={binderLogo(g.pick)} alt="" />}</span>{nick(g.pick)}</b>
         <span className={styles.barRes}>{res}</span></>}
-      {d?.pick && <span className={styles.barSub}>Matchup: <b>{shortName(d.pick)}</b> {d.result === 'win' ? '✓' : d.result === 'loss' ? '✗' : d.result === 'void' ? '(void)' : '· graded in the morning'}</span>}
+      {d?.pick && <span className={styles.barSub}>Matchup: <b>{shortName(d.pick)}</b> {d.result === 'win' ? '✓' : d.result === 'loss' ? '✗' : d.result === 'void' ? '(void)' : '· in progress'}</span>}
     </div>
   }
   return (

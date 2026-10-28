@@ -462,3 +462,24 @@
   background: color-mix(in srgb, var(--wt, #ff8fb5) 22%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wt, #ff8fb5) 60%, #fff); }
 .wishTierTag[data-tier=common] { --wt: #7d8ba0; } .wishTierTag[data-tier=rare] { --wt: #d08a52; } .wishTierTag[data-tier=standout] { --wt: #9aa7b4; }
 .wishTierTag[data-tier=legend] { --wt: #e0b040; } .wishTierTag[data-tier=icon] { --wt: #b42dff; } .wishTierTag[data-tier=goat] { --wt: #b8871e; }
+
+/* Find a player in a binder */
+.findBox { position: relative; display: inline-flex; align-items: center; }
+.findBox input { height: 26px; width: 132px; border: 1px solid #d5cfbf; border-radius: 13px; background: #fff; font: inherit; font-size: 11.5px; color: #1c2733; padding: 0 22px 0 10px; }
+.findBox input:focus { outline: 2px solid #173657; outline-offset: 0; border-color: #173657; }
+.findBox input::-webkit-search-cancel-button { display: none; }
+.findBox button { position: absolute; right: 4px; width: 18px; height: 18px; border: 0; border-radius: 50%; background: #dde4ec; color: #173657; font-size: 13px; line-height: 1; cursor: pointer; padding: 0; }
+
+/* "Are you sure you want to sell?" */
+.askOverlay { position: fixed; inset: 0; z-index: 1300; background: rgba(6, 14, 26, .62); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.ask { display: flex; gap: 18px; align-items: center; width: min(460px, 100%); background: #fbf8f1; border-radius: 16px; padding: 18px; box-shadow: 0 24px 60px rgba(0,0,0,.4); }
+.askCard { flex: none; width: 120px; position: relative; aspect-ratio: 340 / 476; }
+.askCard .fit { inset: 0; }
+.askText { display: flex; flex-direction: column; gap: 7px; font-size: 13px; color: #3b4652; line-height: 1.45; min-width: 0; }
+.askText > b { font-family: Georgia, serif; font-size: 19px; color: #1c2733; }
+.askBtns { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.askNo, .askYes { height: 36px; padding: 0 14px; border-radius: 18px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.askNo { border: 1px solid #c9d2dc; background: #fff; color: #173657; }
+.askYes { border: 0; background: #b3322a; color: #fff; }
+.askNo:disabled, .askYes:disabled { opacity: .6; cursor: default; }
+@media (max-width: 480px) { .ask { flex-direction: column; text-align: center; } .askBtns { justify-content: center; } .findBox input { width: 112px; } }

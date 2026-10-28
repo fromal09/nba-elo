@@ -163,7 +163,8 @@
 .beatUp b { color: #1a7a4a; }
 .beatDown b { color: #a83232; }
 
-.dayRow { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: -2px; }
+.tabRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: -2px; }
+.tabRow > :last-child { margin-left: auto; }
 
 /* Lineup */
 .lineup { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
@@ -283,3 +284,6 @@
 .dayMark { text-align: right; font-size: 15px; }
 .mWin { color: #1a7a4a; } .mLoss { color: #b42318; } .mVoid { color: #8a95a2; font-size: 11px; } .mWait { color: #c3c9d1; }
 @media (max-width: 600px) { .dayRow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 26px; gap: 6px; } }
+
+.histTools { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.histBtn { height: 26px; padding: 0 12px; border: 1px solid #c9d2dc; border-radius: 13px; background: #fff; font: inherit; font-size: 11.5px; font-weight: 700; color: #173657; cursor: pointer; }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import styles from './BinderRoom.module.css'
 import { MiniCard, DuelCard } from './PlayerCard'
 import { LEAGUE_SETS, leagueEntries, AnyFace, cardRef } from './Binders'
@@ -44,13 +44,15 @@ function Cover({ def, list, env, onOpen, owned }) {
 const shortDate = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 const ago = t => { const m = Math.max(1, Math.round((Date.now() - Date.parse(t)) / 60e3)); return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} hr ago` }
 
-export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTick, predictTick }) {
+export default function BinderRoom({ players, onSelectPlayer, start }) {
   const [index, setIndex] = useState(null)
   const [league, setLeague] = useState(null)
   const [err, setErr] = useState(false)
   const [shots, setShots] = useState({})
   const [best, setBest] = useState(null)
-  const [open, setOpen] = useState(null) // the binder to open: { kind, ... }
+  // The binder open on top of the room: { kind, ..., n }. n is new on every open, so a new request restarts the host
+  const [open, setOpenRaw] = useState(null)
+  const setOpen = b => setOpenRaw(b ? { ...b, n: Date.now() + Math.random() } : null)
   const [past, setPast] = useState(false)
   const C = useCollector()
   const [leaders, setLeaders] = useState(null)
@@ -73,9 +75,19 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
   }, [C.down, C.me === undefined, meScore])
   const [picks, setPicks] = useState(null)
   useEffect(() => { if (!C.down && C.me !== undefined) C.loadStandings?.('week').then(setPicks).catch(() => {}) }, [C.down, C.me === undefined])
-  useEffect(() => { if (mineTick && C.me) setOpen({ kind: 'mine' }) }, [mineTick, !!C.me])
-  useEffect(() => { if (storeTick && C.me) setOpen({ kind: 'store' }) }, [storeTick, !!C.me])
-  useEffect(() => { if (predictTick && C.me) setOpen({ kind: 'predict' }) }, [predictTick, !!C.me])
+  // Asked from elsewhere (the account bar, a /binders?open= link): open my binder, the store or Predictions once signed in
+  const used = useRef(null)
+  useEffect(() => {
+    if (!start || used.current === start.n || C.me === undefined) return
+    used.current = start.n
+    if (C.me) setOpen({ kind: start.kind }); else C.openAuth('login')
+  }, [start?.n, C.me === undefined, !!C.me])
+  // The address names the open page of yours, so it can be shared or opened in a new tab
+  useEffect(() => {
+    if (window.location.pathname.replace(/\/+$/, '') !== '/binders') return
+    const url = open && ['mine', 'store', 'predict'].includes(open.kind) ? `/binders?open=${open.kind}` : '/binders'
+    if (window.location.pathname + window.location.search !== url) window.history.replaceState(null, '', url)
+  }, [open?.kind, open?.n])
   useEffect(() => {
     binderJSON('/data/explorer/index.json').then(setIndex).catch(() => {})
     binderJSON('/data/explorer/binders/league.json').then(setLeague).catch(() => setErr(true))
@@ -159,7 +171,7 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
           <div className={styles.head}><h2>Top cards in binders</h2><span>by points</span></div>
           <div className={styles.board}>
             {tops.top.map((x, i) => (
-              <button key={i} type="button" className={styles.boardRow} onClick={() => setOpen({ kind: 'public', name: x.first })}>
+              <button key={i} type="button" className={styles.boardRow} onClick={() => setOpen({ kind: 'card', card: x.card })} title="Open the card">
                 <b className={styles.boardRank} data-top={i < 3 ? i + 1 : undefined}>{i + 1}</b>
                 <span className={styles.cardThumb}><CardFace card={x.card} shots={shots} w={34} /></span>
                 <span className={styles.boardWho}><b>{cardName(x.card)}</b><small>{tierName(x.card)}{x.card.date ? ` · ${shortDate(x.card.date)}` : x.card.s ? ` · ${x.card.s}` : ''} · {x.owners > 1 ? `${x.first} + ${x.owners - 1} more` : x.first}</small></span>
@@ -172,7 +184,7 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
           <div className={styles.head}><h2>Top pulls, last 24 hours</h2></div>
           {tops.recent.length ? <div className={styles.board}>
             {tops.recent.map((x, i) => (
-              <button key={i} type="button" className={styles.boardRow} onClick={() => setOpen({ kind: 'public', name: x.username })}>
+              <button key={i} type="button" className={styles.boardRow} onClick={() => setOpen({ kind: 'card', card: x.card })} title="Open the card">
                 <span className={styles.cardThumb}><CardFace card={x.card} shots={shots} w={34} /></span>
                 <span className={styles.boardWho}><b>{cardName(x.card)}</b><small>{tierName(x.card)} · {x.forged ? 'forged by' : 'pulled by'} {x.username} · {ago(x.at)}</small></span>
                 <strong>{x.points.toLocaleString()}<small>pts</small></strong>
@@ -250,7 +262,7 @@ export default function BinderRoom({ players, onSelectPlayer, mineTick, storeTic
         </div>
       </section>
 
-      {open && <BinderHost start={open} shots={shots} onClose={() => setOpen(null)}
+      {open && <BinderHost key={open.n} start={open} shots={shots} onClose={() => setOpen(null)}
         onProfile={n => { const p = players?.find(x => x.name === n); setOpen(null); if (p) onSelectPlayer?.(p) }} />}
     </div>
   )

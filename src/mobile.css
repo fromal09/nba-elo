@@ -7,6 +7,8 @@
 
   /* Homepage */
   [data-m=home-explore] { padding: 28px 16px 36px !important; }
+  [data-m=elo-head] { padding: 24px 16px 0 !important; }
+  [data-m=elo-head] h1 { font-size: 24px !important; }
   [data-m=home-grid] { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
   [data-m=home-grid] > * { padding: 16px 14px !important; min-width: 0; }
 

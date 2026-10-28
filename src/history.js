@@ -58,12 +58,14 @@ export function onHistory(f) { waiters.add(f); return () => waiters.delete(f) }
 
 // Hook for components that draw careers: starts the load when mounted (when `on`), redraws when it lands
 import { useEffect, useState } from 'react'
+// Returns a version that changes when they land: histories fill players in place, so memos keyed on a player need it
 export function useCareerHistory(on = true) {
-  const [, tick] = useState(0)
+  const [v, tick] = useState(0)
   useEffect(() => {
     if (!on) return
     let live = true
     ensureHistory()?.then(() => live && tick(t => t + 1)).catch(() => {})
     return () => { live = false }
   }, [on])
+  return v
 }

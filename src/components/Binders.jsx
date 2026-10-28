@@ -18,6 +18,10 @@ import { cardPoints, TIER_BASE } from '../../api/_lib/points.js'
 
 const TIER_IDS = TIERS.map(t => t.id)
 const TIER_LABEL = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' }
+const SORT_KEY = 'fpr.binderSort'
+const fold = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+// Sort key for a player's name: last name first ("James LeBron")
+const lastFirst = n => { const b = fold(n).replace(/\s*\(.*\)$/, '').replace(/ (jr|sr|ii|iii|iv)\.?$/, ''); const i = b.lastIndexOf(' '); return i < 0 ? b : `${b.slice(i + 1)} ${b.slice(0, i)}` }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const r0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
 const sgn = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1)
@@ -1055,9 +1059,13 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const [mode, setMode] = useState('cards')   // cards | checklist, on the franchise and decade shelves
   const [season, setSeason] = useState(null)  // a season within the shelf
   const [openRow, setOpenRow] = useState(null) // the team-season whose roster is open in the checklist
-  const [order, setOrder] = useState('new')
+  // The sort you chose last time, on this device
+  const [order, setOrderRaw] = useState(() => { try { return localStorage.getItem(SORT_KEY) || 'new' } catch { return 'new' } })
+  const setOrder = v => { setOrderRaw(v); try { localStorage.setItem(SORT_KEY, v) } catch {} }
+  const [q, setQ] = useState('') // find a player in this binder
   const [sellMode, setSellMode] = useState(!!startSell && !pub)
-  const [confirmId, setConfirmId] = useState(null)
+  const [sellAsk, setSellAsk] = useState(null) // the card waiting on "Are you sure you want to sell?"
+  const [selling, setSelling] = useState(false)
   const [league, setLeague] = useState(null)
   const [check, setCheck] = useState(null)
   const [rosters, setRosters] = useState({})
@@ -1112,20 +1120,20 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const list = useMemo(() => {
     let l = view === 'starred' ? all.filter(e => e.pinned).map(e => ({ ...e, showMode: mine })) : cur ? all.filter(e => (view === 'team' ? e.fc : e.decade) === cur.id) : all
     if (season && cur) l = l.filter(e => e.s === season)
+    const nq = fold(q)
+    if (nq) l = l.filter(e => fold(e.name).includes(nq) || (e.duel && fold(e.duel.b?.name).includes(nq)))
     if (sellMode) l = l.map(e => {
       const hrs = 24 - (Date.now() - Date.parse(e.pulledAt)) / 36e5
       const block = e.tier === 'duel' || e.special ? 'Special cards can’t be sold.' : e.pinned ? 'Starred cards can’t be sold. Un-star it first.' : hrs > 0 ? `Sellable in ${Math.ceil(hrs)} hour${Math.ceil(hrs) === 1 ? '' : 's'}` : null
-      return { ...e, sellMode: true, sellPrice: Math.max(1, Math.round(e.pts * 0.2)), sellBlock: block, sellShort: e.tier === 'duel' || e.special ? 'Keeper' : e.pinned ? 'Starred' : `In ${Math.ceil(hrs)}h`, sellConfirm: confirmId === e.cardId,
-        onSell: async x => {
-          if (['legend', 'icon', 'goat'].includes(x.tier) && confirmId !== x.cardId) { setConfirmId(x.cardId); return }
-          setConfirmId(null); await C.sell(x.cardId, true)
-        } }
+      return { ...e, sellMode: true, sellPrice: Math.max(1, Math.round(e.pts * 0.2)), sellBlock: block, sellShort: e.tier === 'duel' || e.special ? 'Keeper' : e.pinned ? 'Starred' : `In ${Math.ceil(hrs)}h`,
+        onSell: x => setSellAsk(x) }
     })
     if (order === 'tier') l = [...l].sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier] || b.gs - a.gs)
     else if (order === 'points') l = [...l].sort((a, b) => b.pts - a.pts)
     else if (order === 'chrono') l = [...l].sort((a, b) => a.date.localeCompare(b.date))
+    else if (order === 'name') l = [...l].sort((a, b) => lastFirst(a.name).localeCompare(lastFirst(b.name)) || a.date.localeCompare(b.date))
     return l
-  }, [all, view, cur, order, season, mine, sellMode, confirmId])
+  }, [all, view, cur, order, season, mine, sellMode, q])
   const S = useSheets(list, per)
   // Open a franchise's roster file when its checklist is shown
   useEffect(() => {
@@ -1190,13 +1198,19 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   </>
   const nBadges = (src.achievements || []).filter(a => a.earned).length
   const specials = all.filter(e => e.special || e.duel)
-  const views = [['all', 'All'], ['team', 'Franchises'], ['decade', 'Decades'], ['starred', `Starred · ${starred.size}`], ['sets', 'Sets'],
-    ['specials', `Specials · ${specials.length}`], ['wishes', mine ? `Wish list · ${(C?.me?.wishes || []).length}` : 'Wish list'], ...(mine ? [['predict', 'Predictions']] : []), ['badges', `Achievements · ${nBadges}`]]
+  const views = [['all', 'All'], ['wishes', mine ? `Wish list · ${(C?.me?.wishes || []).length}` : 'Wish list'], ...(mine ? [['predict', 'Predictions']] : []),
+    ['starred', `Starred · ${starred.size}`], ['team', 'Franchises'], ['decade', 'Decades'], ['specials', `Specials · ${specials.length}`], ['sets', 'Sets'], ['badges', `Achievements · ${nBadges}`]]
   const tools = <Seg value={view} onChange={pickView} options={views} />
   const sortSel = (
     <select className={styles.sortSel} value={order} onChange={e => { setOrder(e.target.value); S.reset() }} aria-label="Sort">
-      <option value="new">Newest pulls</option><option value="points">Most points</option><option value="tier">Rarest first</option><option value="chrono">By game date</option>
+      <option value="new">Newest pulls</option><option value="points">Most points</option><option value="tier">Rarest first</option><option value="chrono">By game date</option><option value="name">Player A–Z (last name)</option>
     </select>
+  )
+  const findBox = (
+    <span className={styles.findBox}>
+      <input type="search" value={q} onChange={e => { setQ(e.target.value); S.reset() }} placeholder="Find a player" aria-label="Find a player in this binder" />
+      {q && <button type="button" onClick={() => { setQ(''); S.reset() }} aria-label="Clear">×</button>}
+    </span>
   )
   const shelfChips = cur && groups[view].map(g => (
     <button key={g.id} type="button" className={`${styles.chip} ${g.id === cur.id ? styles.chipOn : ''}`} onClick={() => { setGroup(g.id); setSeason(null); setOpenRow(null); S.reset() }}>
@@ -1347,16 +1361,38 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       </div>
     )
   } else {
-    const filters = <>{sortSel}{mine && <button type="button" className={`${styles.chip} ${sellMode ? styles.chipSell : ''}`} onClick={() => { setSellMode(v => !v); setConfirmId(null) }}
+    const filters = <>{findBox}{sortSel}{mine && <button type="button" className={`${styles.chip} ${sellMode ? styles.chipSell : ''}`} onClick={() => { setSellMode(v => !v); setSellAsk(null) }}
       title="Sell cards for 20% of their points in Coins">{sellMode ? 'Selling · done' : 'Sell cards'}</button>}{shelfChips}</>
     right = list.length
       ? <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone} tools={tools} filters={filters} bar={shelfBar}
         title={cur ? cur.name : view === 'starred' ? 'Starred' : `Sheet ${S.cur + 1} of ${S.sheets}`}
         sub={`${list.length} card${list.length === 1 ? '' : 's'} · ${n0(list.reduce((a, e) => a + e.pts, 0))} pts${cur || view === 'starred' ? ` · sheet ${S.cur + 1} of ${S.sheets}` : ''}`} />
+      : q ? <div className={styles.right}><div className={styles.sheetHead}><div className={styles.sheetTitle}><b>{cur ? cur.name : view === 'starred' ? 'Starred' : 'My binder'}</b></div>{tools}</div>
+        <div className={`${styles.chips} ${styles.filters}`}>{findBox}</div>
+        <div className={styles.emptySheet}><b>No “{q}” cards here</b><span>Try another name, or clear the search.</span></div></div>
       : <div className={styles.right}><div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Starred</b></div>{tools}</div>
         <div className={styles.emptySheet}><b>Nothing starred yet</b><span>{mine ? 'Tap ☆ under any card to put it in your Starred binder. Star as many as you like, then tap Showcase on up to three to feature them.' : 'No starred cards in this binder.'}</span></div></div>
   }
+  const doSell = async () => {
+    const x = sellAsk
+    setSelling(true)
+    try { await C.sell(x.cardId, true) } finally { setSelling(false); setSellAsk(null) }
+  }
   return <>
+    {sellAsk && <div className={styles.askOverlay} onClick={() => !selling && setSellAsk(null)}>
+      <div className={styles.ask} role="alertdialog" aria-modal="true" aria-labelledby="sell-ask" onClick={e => e.stopPropagation()}>
+        <span className={styles.askCard}><Fit><AnyFace e={sellAsk} env={env} /></Fit></span>
+        <div className={styles.askText}>
+          <b id="sell-ask">Are you sure you want to sell?</b>
+          <span>{sellAsk.label} · {TIER_LABEL[sellAsk.tier] || sellAsk.tier} · {n0(sellAsk.pts)} pts</span>
+          <span>You get <b>{n0(sellAsk.sellPrice)} Coins</b>. You can buy it back at that price from the store for 24 hours.</span>
+          <div className={styles.askBtns}>
+            <button type="button" className={styles.askNo} onClick={() => setSellAsk(null)} disabled={selling} autoFocus>Keep it</button>
+            <button type="button" className={styles.askYes} onClick={doSell} disabled={selling}>{selling ? 'Selling…' : `Sell for ${n0(sellAsk.sellPrice)} Coins`}</button>
+          </div>
+        </div>
+      </div>
+    </div>}
     {reveal && <SpecialModal card={reveal.card} onClose={() => setReveal(null)}
       locked={reveal.done ? null : `${reveal.k} of ${reveal.g} games · collect every one to forge his Season card`}
       extra={!reveal.done && mine && <WishBtn name={reveal.card.n} season={reveal.card.s} C={C} dark />} />}

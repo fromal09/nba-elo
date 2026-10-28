@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { hrefFor, linkTo } from '../nav.js'
 import styles from './Collector.module.css'
 import { MiniCard, DuelCard } from './PlayerCard'
 import { SpecialFace, isSpecial, specialTitle, specialLabel, specialLine } from './SpecialCards'
@@ -343,7 +344,7 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
                 <button type="button" className={styles.ghost} onClick={onClose}>Done</button>
               </>}
           </div>
-          {!more && (kind === 'daily' || kind === 'streak') && <div className={styles.hintLine}>Next pack at midnight Eastern{me?.today ? ` · ${me.today.untilBonus} more day${me.today.untilBonus === 1 ? '' : 's'} to a streak bonus` : ''}</div>}
+          {!more && (kind === 'daily' || kind === 'streak') && <div className={styles.hintLine}>Next pack once tonight’s games are final and in the data{me?.today ? ` · ${me.today.untilBonus} more day${me.today.untilBonus === 1 ? '' : 's'} to a streak bonus` : ''}</div>}
         </>}
       </div>
     </div>
@@ -395,7 +396,7 @@ function TeamPicker({ me, onClose, onPick, store }) {
 // ── Header controls ──────────────────────────────────────────────────────────
 // The nav: Sign in, or the pack waiting (or half-picked) and your name
 export function AccountBar({ onMine, compact }) {
-  const { me, down, openAuth, claim, resume, openStore } = useCollector()
+  const { me, down, openAuth, claim, resume, openStore, openMine } = useCollector()
   if (me === undefined || down) return null
   if (!me) return (
     <div className={styles.bar}>
@@ -411,8 +412,8 @@ export function AccountBar({ onMine, compact }) {
         : !t.claimed
           ? <button type="button" className={`${styles.packBtn} ${styles.packReady}`} onClick={claim}><Gift />{t.bonusToday ? 'Open 2 packs' : compact ? 'Open pack' : 'Open today’s pack'}</button>
           : <span className={styles.streak} title={`${t.untilBonus} more day${t.untilBonus === 1 ? '' : 's'} to a bonus pack`}><Flame />{t.streak}<small>day{t.streak === 1 ? '' : 's'}</small></span>}
-      <button type="button" className={styles.coinChip} onClick={openStore} title="Coins · open the store"><Coin />{(me.coins?.balance ?? 0).toLocaleString()}</button>
-      <button type="button" className={styles.user} onClick={onMine} title="My binder"><span>{me.user.username[0].toUpperCase()}</span>{!compact && me.user.username}</button>
+      <a className={styles.coinChip} {...linkTo(hrefFor('binders', { open: 'store' }), openStore)} title="Coins · open the store"><Coin />{(me.coins?.balance ?? 0).toLocaleString()}</a>
+      <a className={styles.user} {...linkTo(hrefFor('binders', { open: 'mine' }), () => (onMine ? onMine() : openMine()))} title="My binder"><span>{me.user.username[0].toUpperCase()}</span>{!compact && me.user.username}</a>
     </div>
   )
 }

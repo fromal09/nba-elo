@@ -19,7 +19,10 @@ import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
 import FanSidedHeader from './components/FanSidedHeader'
 import Homepage from './components/Homepage'
+import EloExploration from './components/EloExploration'
 import styles from './App.module.css'
+import { viewFromUrl, hrefFor, TITLES } from './nav.js'
+import { installCardSave } from './cardSave.js'
 import { registerPlayers, ensureHistory, onHistory } from './history.js'
 import { buildRatings } from './components/live.js'
 import { useLivePlayers } from './components/liveFeed.js'
@@ -32,33 +35,27 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
-  // /scoreboard and /timemachine have their own URLs; every other view lives at /
-  const PATHS = { scoreboard: '/scoreboard', timemachine: '/timemachine', binders: '/binders' }
-  const viewFromPath = () => {
-    const p = window.location.pathname.replace(/\/+$/, '')
-    return Object.keys(PATHS).find(v => PATHS[v] === p) || 'home'
-  }
-  const [view, setView] = useState(viewFromPath)
-  const [mineTick, setMineTick] = useState(0) // asks the Binders page to open My binder
-  const openMine = () => { setView('binders'); setMineTick(t => t + 1) }
-  const [storeTick, setStoreTick] = useState(0) // ... or the store
-  const openStore = () => { setView('binders'); setStoreTick(t => t + 1) }
-  const [predictTick, setPredictTick] = useState(0) // ... or Predictions
-  const openPredict = () => { setView('binders'); setPredictTick(t => t + 1) }
+  // Every view has a URL (src/nav.js), so menu items open in new tabs and Back works
+  const [view, setView] = useState(viewFromUrl)
+  // A binder to open on the Binders page: { kind: mine | store | predict, n } (n changes on every request)
+  const [binderStart, setBinderStart] = useState(() => {
+    const o = new URLSearchParams(window.location.search).get('open')
+    return viewFromUrl() === 'binders' && ['mine', 'store', 'predict'].includes(o) ? { kind: o, n: 1 } : null
+  })
+  const openBinder = kind => { setView('binders'); setBinderStart({ kind, n: Date.now() }) }
+  const openMine = () => openBinder('mine')
+  const openStore = () => openBinder('store')
+  const openPredict = () => openBinder('predict')
 
   useEffect(() => {
-    const path = PATHS[view] || '/'
-    if (window.location.pathname.replace(/\/+$/, '') !== path.replace(/\/+$/, '')) {
-      window.history.pushState(null, '', path)
-    }
-    document.title = view === 'scoreboard' ? 'NBA Scoreboard · FPR' : view === 'timemachine' ? 'Time Machine · FPR' : view === 'binders' ? 'Binders · FPR' : 'NBA Floor Performance Rankings'
+    if (viewFromUrl() !== view) window.history.pushState(null, '', hrefFor(view))
+    document.title = view === 'home' ? 'NBA Floor Performance Rankings' : `${TITLES[view] || 'NBA'} · FPR`
   }, [view])
 
+  useEffect(() => installCardSave(), []) // right-click a card: Save card image
+
   useEffect(() => {
-    const onPop = () => setView(v => {
-      const next = viewFromPath()
-      return PATHS[next] ? next : PATHS[v] ? 'explorer' : v
-    })
+    const onPop = () => setView(viewFromUrl())
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
@@ -116,9 +113,10 @@ export default function App() {
     <div className={styles.app}>
       <FanSidedHeader />
       {view !== 'home' && (
-        <Nav meta={data} live={live} view={view} setView={setView} players={players} onSelectPlayer={setSelectedPlayer} onMine={openMine} />
+        <Nav meta={data} live={live} view={view} setView={setView} players={players} onSelectPlayer={setSelectedPlayer} onMine={openMine} onStore={openStore} />
       )}
       {view === 'home' && <Homepage data={{ ...data, players }} setView={setView} onSelectPlayer={setSelectedPlayer} onMine={openMine} />}
+      {view === 'elo' && <EloExploration data={{ ...data, players }} setView={setView} />}
       {waiting && (
         <div className={styles.splash} style={{ minHeight: '50vh' }}>
           <div className={styles.splashInner}>
@@ -160,13 +158,13 @@ export default function App() {
       {view === 'daily' && !waiting && (
         <Daily players={players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {(view === 'explorer' || view === 'scoreboard') && (
+      {(view === 'explorer' || view === 'scoreboard' || view === 'mypicks') && (
         <SeasonExplorer players={data.players} onSelectPlayer={setSelectedPlayer}
-          mode={view === 'scoreboard' ? 'today' : 'standings'}
-          onMode={m => setView(m === 'today' ? 'scoreboard' : 'explorer')} />
+          mode={view === 'scoreboard' ? 'today' : view === 'mypicks' ? 'picks' : 'standings'}
+          onMode={m => setView(m === 'today' ? 'scoreboard' : m === 'picks' ? 'mypicks' : 'explorer')} />
       )}
       {view === 'timemachine' && <TimeMachine />}
-      {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} mineTick={mineTick} storeTick={storeTick} predictTick={predictTick} />}
+      {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} start={binderStart} />}
       {view === 'methodology' && <Methodology />}
 
       {selectedPlayer && !histReady && (
@@ -188,10 +186,11 @@ export default function App() {
 
 
 // Coins for exploring: each part of the site, once a day (the server caps it)
+const EXPLORE = new Set(['scoreboard', 'explorer', 'timemachine', 'mystery', 'rankings', 'historical', 'h2h', 'games', 'daily', 'seasons', 'franchise', 'bestx', 'tenures', 'teams'])
 function ExploreCoins({ view, profile }) {
   const C = useCollector()
   const signedIn = !!C.me
-  useEffect(() => { if (signedIn && view !== 'home' && view !== 'binders') C.explore(view === 'explorer' ? 'explorer' : view) }, [view, signedIn])
+  useEffect(() => { if (signedIn && EXPLORE.has(view)) C.explore(view) }, [view, signedIn])
   useEffect(() => { if (signedIn && profile) C.explore('profile') }, [profile, signedIn])
   return null
 }

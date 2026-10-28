@@ -365,9 +365,9 @@
 
 /* ── View switch (Standings / Games by day) ── */
 .viewTabs { display: inline-flex; gap: 2px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 20px; padding: 3px; margin: 2px 0 12px; }
-.viewTabs button { border: 0; background: transparent; color: #b9cde2; font-size: 12.5px; font-weight: 700; padding: 6px 14px; border-radius: 16px; }
-.viewTabs button:hover { color: #fff; }
-.viewTabs button.viewOn { background: #fff; color: #173657; }
+.viewTabs button, .viewTabs a { text-decoration: none; cursor: pointer; border: 0; background: transparent; color: #b9cde2; font-size: 12.5px; font-weight: 700; padding: 6px 14px; border-radius: 16px; }
+.viewTabs button:hover, .viewTabs a:hover { color: #fff; }
+.viewTabs button.viewOn, .viewTabs a.viewOn { background: #fff; color: #173657; }
 .dayNav { display: flex; align-items: center; gap: 6px; }
 .dayNav button { border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.1); color: #fff; height: 38px; min-width: 38px; border-radius: 6px; font-size: 20px; line-height: 1; padding: 0 10px; }
 .dayNav button:hover { background: rgba(255,255,255,.18); }
@@ -853,3 +853,10 @@
 
 /* A card you own, in a box score */
 .ownTick { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 5px; border-radius: 50%; background: #1a7a4a; color: #fff; font-size: 9px; font-weight: 900; vertical-align: 1px; flex: none; }
+
+.cardWait { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; background: rgba(6, 14, 26, .6); color: #fff; font-size: 14px; }
+
+/* Your lineup's players in a box score */
+.box tr.rowMine td { background: #fff8e6; }
+.box tr.rowMine td.sticky { background: #fff8e6; box-shadow: inset 4px 0 0 #e7a920, 1px 0 0 #eef0f3; }
+.mineTag { display: block; color: #9a6d12 !important; font-weight: 800; }

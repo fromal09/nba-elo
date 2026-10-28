@@ -1,6 +1,7 @@
 import PlayerSearch from './PlayerSearch'
 import { AccountBar } from './Collector'
 import { CURRENT_SEASON_YEAR } from '../season'
+import { hrefFor, linkTo } from '../nav.js'
 
 export default function Homepage({ data, setView, onSelectPlayer, onMine }) {
   const active = data.players
@@ -10,118 +11,39 @@ export default function Homepage({ data, setView, onSelectPlayer, onMine }) {
 
   const fmt = n => Math.round(n).toLocaleString()
 
+  const nActive = data.players.filter(p => p.is_fpr_eligible).length
   const cards = [
     {
       icon: '🏅',
       title: 'Current Rankings',
       desc: 'Active players ranked by Floor Performance Rating. Filter by team, sort by Elo.',
-      meta: `${data.players.filter(p => p.is_fpr_eligible).length} active players`,
+      meta: `${nActive} active players`,
       view: 'rankings',
       color: '#e8f0e0', iconColor: '#2d5a1a',
     },
     {
       icon: '🗓️',
-      title: 'Season Explorer',
-      desc: 'Every season since 1946-47, BAA and ABA included: schedules, box scores with pre- and post-game Elo, the Duel Grid, and roster Elo progressions.',
-      meta: `1946–${CURRENT_SEASON_YEAR + 1} · game by game`,
-      view: 'explorer',
+      title: 'Scoreboard',
+      desc: 'Every game by day with live Elo, box scores and projections; standings, playoff odds and award races; and your predictions, live.',
+      meta: `Games by day · Standings · My Predictions`,
+      view: 'scoreboard',
       color: '#e6ecf5', iconColor: '#173657',
     },
     {
-      icon: '⏳',
-      title: 'Time Machine',
-      desc: 'Build a league from any team-seasons in history, play an 82-game season and the playoffs, and open a box score for every game.',
-      meta: 'Era-adjusted · shareable leagues',
-      view: 'timemachine',
+      icon: '📒',
+      title: 'Binders',
+      desc: 'Every game on record is a card. Open a free pack every day, predict games, and collect careers, franchises and league sets.',
+      meta: 'Packs · Predictions · Store · Leaderboards',
+      view: 'binders',
       color: '#f5efe0', iconColor: '#8a6414',
     },
     {
       icon: '📊',
-      title: 'Historical Elo Snapshots',
-      desc: 'All-time rankings sorted by peak Elo, plus rankings on any day in league history. Covers 1946 to present.',
-      meta: `${data.total_players.toLocaleString()} career profiles`,
-      view: 'historical',
+      title: 'Elo Exploration',
+      desc: 'Historical snapshots, the Time Machine, Game Explorer, Head-to-Head, franchise histories, season by season and the methodology.',
+      meta: `${data.total_players.toLocaleString()} career profiles · 1946–${CURRENT_SEASON_YEAR + 1}`,
+      view: 'elo',
       color: '#e0eaf8', iconColor: '#1a3a6e',
-    },
-    {
-      icon: '🎮',
-      title: 'Game Explorer',
-      desc: 'Browse every NBA game by Elo Strength Rating. Heat-mapped rosters show how talent was distributed.',
-      meta: 'Strength-sorted · Date picker · Roster heatmap',
-      view: 'games',
-      color: '#f0f0f0', iconColor: '#3a2a1a',
-    },
-    {
-      icon: '🔢',
-      title: 'Best Through X',
-      desc: 'The Elo leader at each career game milestone — who had the highest rating through exactly N games played.',
-      meta: 'Live leaderboard · #1, #2, #3 at every milestone',
-      view: 'bestx',
-      color: '#e8f0f5', iconColor: '#0a3a5a',
-    },
-    {
-      icon: '🕵️',
-      title: 'Mystery Player',
-      desc: 'Guess the player from their Elo career chart. Three rounds, each revealing more clues.',
-      meta: 'Filter by franchise · era · career length',
-      view: 'mystery',
-      color: '#f0e8f5', iconColor: '#3a0a5a',
-    },
-    {
-      icon: '📈',
-      title: 'Franchise Tenures',
-      desc: 'Scatterplot of avg Elo vs games played for any franchise. Identifies all-time Elo Legends.',
-      meta: 'Legend Score · avgElo⁰⋅⁶ × GP⁰⋅⁴',
-      view: 'tenures',
-      color: '#e8f0e8', iconColor: '#173657',
-    },
-    {
-      icon: '🐐',
-      title: "Who's Been Here?",
-      desc: 'Pick a franchise and an Elo threshold — see every player who reached that level and when.',
-      meta: 'All historical franchise names · date ranges',
-      view: 'franchise',
-      color: '#faf0dc', iconColor: '#7a4f0a',
-    },
-    {
-      icon: '⚔️',
-      title: 'Head-to-Head',
-      desc: 'Compare any two players across Elo history, career stats, and shared game performance.',
-      meta: 'Pairwise records from shared games',
-      view: 'h2h',
-      color: '#ede8f8', iconColor: '#4a2a8a',
-    },
-    {
-      icon: '🏀',
-      title: 'Team Breakdown',
-      desc: 'Pick any current NBA team and see every player\'s current Elo and FPR rank.',
-      meta: '30 teams · current rosters',
-      view: 'teams',
-      color: '#e0f0ee', iconColor: '#0a5a52',
-    },
-    {
-      icon: '📅',
-      title: 'Season by Season',
-      desc: 'Top five players by Elo at the close of every season from 1946–47 to present.',
-      meta: `1946–${CURRENT_SEASON_YEAR + 1} · complete record`,
-      view: 'seasons',
-      color: '#faeee0', iconColor: '#7a3a0a',
-    },
-    {
-      icon: '📆',
-      title: 'Daily Changes',
-      desc: 'Most recent day\'s Elo delta and FPR rank change for every player who appeared.',
-      meta: 'Updated after every game',
-      view: 'daily',
-      color: '#f8e8e8', iconColor: '#7a1a1a',
-    },
-    {
-      icon: '📐',
-      title: 'Methodology',
-      desc: 'Full technical documentation covering K-factors, era adjustments, Elo calibration, and FPR eligibility.',
-      meta: 'Open and transparent',
-      view: 'methodology',
-      color: '#e8e8e8', iconColor: '#2a2a2a',
     },
   ]
 
@@ -190,12 +112,11 @@ export default function Homepage({ data, setView, onSelectPlayer, onMine }) {
           })}
 
           <div style={{ height: 1, background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent)', margin: '12px 0' }} />
-          <button
-            onClick={() => setView('rankings')}
-            style={{ background: 'none', border: 'none', color: '#6896bd', fontSize: 13, cursor: 'pointer', letterSpacing: '0.5px' }}
+          <a {...linkTo(hrefFor('rankings'), () => setView('rankings'))}
+            style={{ background: 'none', border: 'none', color: '#6896bd', fontSize: 13, cursor: 'pointer', letterSpacing: '0.5px', textDecoration: 'none' }}
           >
             View full rankings →
-          </button>
+          </a>
         </div>
       </div>
 
@@ -205,44 +126,48 @@ export default function Homepage({ data, setView, onSelectPlayer, onMine }) {
           Explore the platform
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }} data-m="home-grid">
-          {cards.map(card => (
-            <div
-              key={card.view}
-              onClick={() => setView(card.view)}
-              style={{
-                background: '#fff',
-                border: '0.5px solid #e0e0e0',
-                borderRadius: 14, padding: 24,
-                cursor: 'pointer', transition: 'all 0.2s',
-                position: 'relative',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor = '#173657'
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = '0 8px 24px rgba(26,46,26,0.1)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = '#e0e0e0'
-                e.currentTarget.style.transform = 'none'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              <div style={{
-                width: 36, height: 36, borderRadius: 8,
-                background: card.color, display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-                marginBottom: 14, fontSize: 18,
-              }}>
-                {card.icon}
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>{card.title}</div>
-              <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5, marginBottom: 12 }}>{card.desc}</div>
-              <div style={{ fontSize: 12, color: '#173657', fontWeight: 500 }}>{card.meta}</div>
-              <div style={{ position: 'absolute', top: 20, right: 20, color: '#ccc', fontSize: 16 }}>→</div>
-            </div>
-          ))}
+          {cards.map(card => <FeatureCard key={card.view} card={card} href={hrefFor(card.view)} onGo={() => setView(card.view)} />)}
         </div>
       </div>
     </div>
+  )
+}
+
+// One feature box: a link, so it opens in a new tab with a right-click or Cmd/Ctrl-click
+export function FeatureCard({ card, href, onGo }) {
+  return (
+    <a {...linkTo(href, onGo)}
+      style={{
+        display: 'block', textDecoration: 'none', color: 'inherit',
+        background: '#fff',
+        border: '0.5px solid #e0e0e0',
+        borderRadius: 14, padding: 24,
+        cursor: 'pointer', transition: 'all 0.2s',
+        position: 'relative',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = '#173657'
+        e.currentTarget.style.transform = 'translateY(-2px)'
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(26,46,26,0.1)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = '#e0e0e0'
+        e.currentTarget.style.transform = 'none'
+        e.currentTarget.style.boxShadow = 'none'
+      }}
+    >
+      <div style={{
+        width: 36, height: 36, borderRadius: 8,
+        background: card.color, display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        marginBottom: 14, fontSize: 18,
+      }}>
+        {card.icon}
+      </div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>{card.title}</div>
+      <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5, marginBottom: 12 }}>{card.desc}</div>
+      <div style={{ fontSize: 12, color: '#173657', fontWeight: 500 }}>{card.meta}</div>
+      <div style={{ position: 'absolute', top: 20, right: 20, color: '#ccc', fontSize: 16 }}>→</div>
+    </a>
   )
 }

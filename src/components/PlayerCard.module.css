@@ -411,6 +411,8 @@
 .barW em { color: #c8f5dc; }
 .barL { background: #1c2530; border-top: 2px solid #d64545; }
 .barL em { color: #ff9a9a; }
+.barLive { background: #1c2b3e; border-top: 2px solid #e7c160; }
+.barLive em { color: #f3d98c; }
 .barHi { opacity: 1; display: inline-flex; align-items: center; }
 .barLo { opacity: .55; display: inline-flex; align-items: center; }
 .scoreBar .rc { margin-left: 8px; width: 18px; height: 21px; font-size: 7.5px; padding-top: 3px; }
