@@ -25,7 +25,7 @@ export const ELO_SUBS = [
 ]
 const SUB_IDS = new Set(ELO_SUBS.map(s => s.view))
 // The Scoreboard's three tabs: games by day, standings (the season explorer), my predictions
-export const SCOREBOARD_VIEWS = ['scoreboard', 'explorer', 'mypicks']
+export const SCOREBOARD_VIEWS = ['scoreboard', 'explorer', 'mypicks', 'potw']
 const KNOWN = new Set(['home', 'rankings', 'elo', 'binders', ...SCOREBOARD_VIEWS, ...SUB_IDS])
 
 // Which top-level section a view sits under
@@ -36,6 +36,7 @@ export function hrefFor(view, opts = {}) {
   if (view === 'scoreboard') return '/scoreboard'
   if (view === 'explorer') return '/scoreboard?tab=standings'
   if (view === 'mypicks') return '/scoreboard?tab=picks'
+  if (view === 'potw') return '/scoreboard?tab=potw'
   if (view === 'timemachine') return '/timemachine'
   if (view === 'binders') return opts.open ? `/binders?open=${opts.open}` : '/binders'
   return `/?view=${view}`
@@ -44,7 +45,7 @@ export function hrefFor(view, opts = {}) {
 export function viewFromUrl() {
   const p = window.location.pathname.replace(/\/+$/, '')
   const q = new URLSearchParams(window.location.search)
-  if (p === '/scoreboard') return q.get('tab') === 'standings' ? 'explorer' : q.get('tab') === 'picks' ? 'mypicks' : 'scoreboard'
+  if (p === '/scoreboard') return q.get('tab') === 'standings' ? 'explorer' : q.get('tab') === 'picks' ? 'mypicks' : q.get('tab') === 'potw' ? 'potw' : 'scoreboard'
   if (p === '/timemachine') return 'timemachine'
   if (p === '/binders') return 'binders'
   const v = q.get('view')
@@ -62,5 +63,5 @@ export const linkTo = (href, go) => ({
   },
 })
 
-export const TITLES = { scoreboard: 'Scoreboard', explorer: 'Standings', mypicks: 'My Predictions', binders: 'Binders', rankings: 'Current Rankings', elo: 'Elo Exploration',
+export const TITLES = { scoreboard: 'Scoreboard', explorer: 'Standings', mypicks: 'My Predictions', potw: 'Player of the Week', binders: 'Binders', rankings: 'Current Rankings', elo: 'Elo Exploration',
   ...Object.fromEntries(ELO_SUBS.map(s => [s.view, s.label])) }

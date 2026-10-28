@@ -9,6 +9,7 @@ import { StoreBook } from './Store'
 import { PickBar, usePredSlate } from './Predictions'
 import predStyles from './Predictions.module.css'
 import MyPredictions, { LineupStrip, useMyDay } from './MyPredictions'
+import PlayerOfWeek from './PlayerOfWeek'
 import { hrefFor, linkTo } from '../nav.js'
 import { buildForecaster, blendWeight, norm, WP, winChance, makeProjector, normCdf, untie } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
@@ -110,6 +111,7 @@ const shortName = n => { const b = n.replace(/\s*\(.*\)$/, ''); const i = b.inde
 const pct = (m, a) => (a ? `${m}-${a}` : '0-0')
 const etToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 const addDays = (day, k) => { const d = new Date(day + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + k); return d.toISOString().slice(0, 10) }
+const weekOf = day => addDays(day, -((new Date(day + 'T12:00:00Z').getUTCDay() + 6) % 7)) // the Monday of its week
 const seasonFor = day => { const y = +day.slice(0, 4), sy = +day.slice(5, 7) >= 9 ? y : y - 1; return `${sy}-${String(sy + 1).slice(-2)}` }
 const FULL_STATS = new Set(['st', 'pos', 'mp', 'tp', 'tpa', 'orb', 'drb', 'stl', 'blk', 'tov', 'pf', 'pm'])
 const tipTime = iso => (iso ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '')
@@ -336,7 +338,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
   const [best, setBest] = useState({})           // best rank among active players, per player
   const [careers, setCareers] = useState({})     // career bests through the latest data, for live career moments
   // 'standings' | 'today' | 'picks'; App owns it, so each tab has its own address under /scoreboard
-  const view = mode === 'today' ? 'today' : mode === 'picks' ? 'picks' : 'standings'
+  const view = mode === 'today' ? 'today' : mode === 'picks' ? 'picks' : mode === 'potw' ? 'potw' : 'standings'
   const setView = v => onMode?.(v)
   const [day, setDay] = useState(() => {
     const q = new URLSearchParams(window.location.search).get('date')
@@ -347,6 +349,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     const q = new URLSearchParams()
     if (view === 'standings') q.set('tab', 'standings')
     if (view === 'picks') q.set('tab', 'picks')
+    if (view === 'potw') q.set('tab', 'potw')
     if (view !== 'standings' && day !== etToday()) q.set('date', day)
     const url = `/scoreboard${q.toString() ? `?${q}` : ''}`
     if (window.location.pathname.replace(/\/+$/, '') !== '/scoreboard') return
@@ -545,7 +548,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
         <div>
           <div className={styles.kicker}>Scoreboard</div>
           <div className={styles.viewTabs} role="tablist">
-            {[['today', 'Games by day', 'scoreboard'], ['standings', 'Standings', 'explorer'], ['picks', 'My Predictions', 'mypicks']].map(([v, label, nv]) => (
+            {[['today', 'Games by day', 'scoreboard'], ['standings', 'Standings', 'explorer'], ['picks', 'My Predictions', 'mypicks'], ['potw', 'PotW', 'potw']].map(([v, label, nv]) => (
               <a key={v} role="tab" aria-selected={view === v} className={view === v ? styles.viewOn : ''}
                 {...linkTo(hrefFor(nv), () => setView(v))}>{label}</a>
             ))}
@@ -557,8 +560,10 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
               Pick a team for its schedule, box scores with pre- and post-game Elo, and every player's Elo path.
             </p>
           </> : <>
-            <h1 className={styles.title}>{fmtDate(day, { weekday: 'long', month: 'long', day: 'numeric' })} <span>{day.slice(0, 4)}</span></h1>
-            <p className={styles.sub}>{view === 'picks' ? 'Your picks for the day: every game, every player matchup and your lineup, live while the games are on.'
+            {view === 'potw' ? <h1 className={styles.title}>Week of {fmtDate(weekOf(day), { month: 'long', day: 'numeric' })} <span>{day.slice(0, 4)}</span></h1>
+              : <h1 className={styles.title}>{fmtDate(day, { weekday: 'long', month: 'long', day: 'numeric' })} <span>{day.slice(0, 4)}</span></h1>}
+            <p className={styles.sub}>{view === 'potw' ? 'Player of the Week: the week’s best by the Player of the Day measure added up (Game Score plus a sixth of the Elo gained, every game; two games to qualify). The week’s pick’em winner gets his card.'
+              : view === 'picks' ? 'Your picks for the day: every game, every player matchup and your lineup, live while the games are on.'
               : 'Every game of the day with live Elo, the night\'s top performers, biggest movers and biggest upsets. Click a game for its box score.'}</p>
           </>}
         </div>
@@ -571,10 +576,10 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           </label>
         ) : (
           <div className={styles.dayNav}>
-            <button onClick={() => setDay(d => addDays(d, -1))} aria-label="Previous day">‹</button>
+            <button onClick={() => setDay(d => addDays(d, view === 'potw' ? -7 : -1))} aria-label={view === 'potw' ? 'Previous week' : 'Previous day'}>‹</button>
             <input type="date" value={day} onChange={e => e.target.value && setDay(e.target.value)} />
-            <button onClick={() => setDay(d => addDays(d, 1))} aria-label="Next day">›</button>
-            {day !== etToday() && <button className={styles.todayBtn} onClick={() => setDay(etToday())}>Today</button>}
+            <button onClick={() => setDay(d => addDays(d, view === 'potw' ? 7 : 1))} aria-label={view === 'potw' ? 'Next week' : 'Next day'}>›</button>
+            {(view === 'potw' ? weekOf(day) !== weekOf(etToday()) : day !== etToday()) && <button className={styles.todayBtn} onClick={() => setDay(etToday())}>{view === 'potw' ? 'This week' : 'Today'}</button>}
           </div>
         )}
       </div>
@@ -598,7 +603,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           {live.fetched && <span className={styles.muted}>Updated {new Date(live.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
         </div>
       )}
-      {view === 'picks' ? <MyPredictions day={day} /> : view === 'today' ? (
+      {view === 'potw' ? <PlayerOfWeek day={day} onSelect={selectPlayer} /> : view === 'picks' ? <MyPredictions day={day} /> : view === 'today' ? (
         <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} />
       ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (
         <OddsView odds={odds} teams={teams} sd={sdL} fc={fc} />

@@ -734,35 +734,63 @@ export async function potdPick(sql, u, b, today, origin) {
 // The NBA's best player of a Monday–Sunday week: the Player of the Day measure (Game Score + Elo gained ÷ 6), added
 // up over his games, two or more. From the week's day files, so it waits for Sunday's to be published.
 const r1 = v => Math.round(v * 10) / 10
-export async function weekStar(origin, week) {
+// Every player's week so far, best first: the Player of the Day measure added up (two games to qualify)
+async function weekRows(origin, week) {
   const by = new Map()
+  let through = null
   for (let i = 0; i < 7; i++) {
     const day = addDays(week, i)
     const f = await dayFile(origin, day)
+    if (f?.cards.length) through = day
     for (const c of f?.cards || []) {
       const r = c.row
       if (c.date !== day || r.gs == null || !((r.mp || 0) > 0 || r.mp == null)) continue
-      const x = by.get(r.n) || { games: [] }
+      const x = by.get(r.n) || { n: r.n, games: [] }
       x.games.push(c); by.set(r.n, x)
     }
   }
-  let best = null
-  for (const [n, x] of by) {
-    if (x.games.length < 2) continue
-    x.score = x.games.reduce((a, c) => a + (c.row.gs || 0) + ((c.row.post - c.row.pre) || 0) / 6, 0)
-    if (!best || x.score > best.score) best = { n, ...x }
-  }
-  if (!best) return null
-  const G = best.games.sort((a, b) => a.date.localeCompare(b.date)), last = G[G.length - 1]
+  const rows = [...by.values()].map(x => ({ ...x, score: x.games.reduce((a, c) => a + (c.row.gs || 0) + ((c.row.post - c.row.pre) || 0) / 6, 0) }))
+    .sort((a, b) => (b.games.length >= 2) - (a.games.length >= 2) || b.score - a.score)
+  return { rows, through }
+}
+// One player's week as the card (and the table) shows it
+function weekLine(x, week) {
+  const G = x.games.sort((a, b) => a.date.localeCompare(b.date)), last = G[G.length - 1]
   const sum = k => G.reduce((a, c) => a + (c.row[k] || 0), 0)
   const top = [...G].sort((a, b) => (b.row.gs || 0) - (a.row.gs || 0))[0]
   return {
-    kind: 'potw', tier: 'potw', week, end: addDays(week, 6), s: last.s, n: best.n, t: last.t, tn: last.tn, tc: last.tc, pos: last.row.pos,
+    kind: 'potw', tier: 'potw', week, end: addDays(week, 6), s: last.s, n: x.n, t: last.t, tn: last.tn, tc: last.tc, pos: last.row.pos,
     gp: G.length, w: G.filter(c => c.won).length, pts: r1(sum('pts') / G.length), trb: r1(sum('trb') / G.length), ast: r1(sum('ast') / G.length),
-    gs: r1(sum('gs') / G.length), score: r1(best.score), elo: [r1(G[0].row.pre), r1(last.row.post)], lrp: last.row.lrp ?? null,
+    gs: r1(sum('gs') / G.length), score: r1(x.score), elo: [r1(G[0].row.pre), r1(last.row.post)], lrp: last.row.lrp ?? null,
     games: G.map(c => ({ date: c.date, o: c.o, home: c.home, won: c.won, score: c.score, pts: c.row.pts, trb: c.row.trb, ast: c.row.ast, gs: c.row.gs, d: r1(c.row.post - c.row.pre) })),
     best: { date: top.date, o: top.o, pts: top.row.pts, gs: top.row.gs },
   }
+}
+export async function weekStar(origin, week) {
+  const { rows } = await weekRows(origin, week)
+  const best = rows.find(x => x.games.length >= 2)
+  return best ? weekLine(best, week) : null
+}
+
+// The Scoreboard's PotW tab: a week's top 20 so far (the frontrunner first), the pick'em race, and the card once settled
+const boards = new Map()
+export async function potwWeek(sql, origin, day) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw fail(400, 'Pick a day.')
+  const week = weekStart(day), end = addDays(week, 6)
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  const [done] = await sql`select card, winners from potw_weeks where week = ${week}`
+  const m = boards.get(week)
+  let board = m && Date.now() - m.at < 10 * 60e3 ? m.data : null
+  if (!board) {
+    const { rows, through } = await weekRows(origin, week)
+    board = { through, top: rows.slice(0, 20).map(x => ({ ...weekLine(x, week), games: undefined, qualified: x.games.length >= 2 })),
+      leader: rows[0]?.games.length >= 2 ? weekLine(rows[0], week) : null }
+    boards.set(week, { at: Date.now(), data: board })
+    if (boards.size > 20) boards.delete(boards.keys().next().value)
+  }
+  const race = week <= today ? (await rank(sql, week, end, 5)).map((r, i) => ({ rank: i + 1, username: r.username, score: r.score, picks: [r.w, r.n - r.w], matchups: [r.dw, r.dn - r.dw], over: Math.round(r.over * 10) / 10 })) : []
+  return { week, end, complete: today > end, settled: done?.card ? { card: { ...done.card, k: 1 }, winners: done.card.winners || [] } : null,
+    through: board.through, leader: done?.card || board.leader, top: board.top, race }
 }
 
 // Monday on: the week's pick'em winner gets the card; a tie shares it, numbered (1/3, 2/3, 3/3)

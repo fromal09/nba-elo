@@ -27,6 +27,7 @@
 //   POST lock        { game, on } make that pick your Lock of the Day (movable until its game tips off)
 //   POST duelpick    { game, player } who posts the higher Game Score in the game's top player matchup
 //   POST lineup      { day, slot, card } put a player from your binder in a lineup slot (card: null empties it)
+//   GET  potw        ?day= that day's week: the Player of the Week race (top 20) or the settled card, and the pick'em race
 //   POST potdpick    { day, player, team } your Player of the Day nomination (player: '' takes it back), until the first tipoff
 //   GET  standings   ?scope=week|season pick'em points, and where you rank
 //   GET  predreward  ?day=&kind=games|duels the cards you can choose from for a day you earned one
@@ -43,7 +44,7 @@ import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER,
 import { cardPoints } from './_lib/points.js'
 import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons, warmRewards } from './_lib/coins.js'
 import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
-import { potdPick, settlePotw, predDay, settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
+import { potwWeek, potdPick, settlePotw, predDay, settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
 import { achievements } from './_lib/achievements.js'
 import { slate } from './_lib/slate.js'
 
@@ -481,6 +482,8 @@ export default async function handler(req, res) {
       return send(200, { leaders, binders: n, you })
     }
     if (action === 'status') return send(200, { points: await pointsStatus(sql, origin) })
+    // Player of the Week for any day's week: the top 20 so far, the pick'em race, and the card once the week is settled
+    if (action === 'potw') return send(200, await potwWeek(sql, origin, String(q.day || '')))
     if (action === 'topcards') {
       // The most valuable cards anyone holds (one row a card, with how many binders have it), and the best pulls of the last day
       const top = await sql`select c.ref, max(c.points)::int as points, count(distinct c.user_id)::int as owners,

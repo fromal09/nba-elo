@@ -405,7 +405,8 @@ const md = d => `${SHORT_MO[+d.slice(5, 7) - 1]} ${+d.slice(8, 10)}`
 export const weekSpan = c => (c.week.slice(5, 7) === c.end.slice(5, 7) ? `${md(c.week)}–${+c.end.slice(8, 10)}` : `${md(c.week)} – ${md(c.end)}`) + `, ${c.end.slice(0, 4)}`
 const sg1 = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1)
 
-export function PotwCard({ card: c, headshot }) {
+// label: in place of the numbering (the frontrunner preview on the Scoreboard)
+export function PotwCard({ card: c, headshot, label }) {
   const [bad, setBad] = useState(false)
   const { first, last } = split(c.n)
   return (
@@ -420,7 +421,7 @@ export function PotwCard({ card: c, headshot }) {
         <div><b>{f1(c.pts)}</b><small>PPG</small></div><div><b>{f1(c.trb)}</b><small>RPG</small></div>
         <div><b>{f1(c.ast)}</b><small>APG</small></div><div><b>{f1(c.gs)}</b><small>GmSc</small></div>
       </div>
-      <div className={styles.potwNo}>— {c.k || 1} / {c.of || 1} —</div>
+      <div className={styles.potwNo}>{label || `— ${c.k || 1} / ${c.of || 1} —`}</div>
     </div>
   )
 }
@@ -513,7 +514,7 @@ function SeasonFront({ card, owned, serial }) {
   return <SeasonCard s={s} owned={idx && idx.size < s.tiles.length ? idx : undefined} headshot={shotOf(shots, card.n)} serial={serial} />
 }
 
-function SpecialFaceIn({ card, owned, serial }) {
+function SpecialFaceIn({ card, owned, serial, label }) {
   const peaks = usePeaks()
   const shots = useShots()
   useHistoryTick()
@@ -527,7 +528,7 @@ function SpecialFaceIn({ card, owned, serial }) {
   if (card.kind === 'rival') return <RivalryCard r={card} shotA={shotOf(shots, card.a)} shotB={shotOf(shots, card.b)} serial={serial} />
   if (card.kind === 'five') return <FiveCard f={card} shots={Object.fromEntries(card.players.map(p => [p.n, shotOf(shots, p.n)]))} serial={serial} />
   if (card.kind === 'season') return <SeasonFront card={card} owned={owned} serial={serial} />
-  if (card.kind === 'potw') return <PotwCard card={card} headshot={shotOf(shots, card.n)} />
+  if (card.kind === 'potw') return <PotwCard card={card} headshot={shotOf(shots, card.n)} label={label} />
   return null
 }
 // Tagged for "Save card image" (right-click)

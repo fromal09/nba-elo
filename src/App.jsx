@@ -158,10 +158,10 @@ export default function App() {
       {view === 'daily' && !waiting && (
         <Daily players={players} onSelectPlayer={setSelectedPlayer} />
       )}
-      {(view === 'explorer' || view === 'scoreboard' || view === 'mypicks') && (
+      {(view === 'explorer' || view === 'scoreboard' || view === 'mypicks' || view === 'potw') && (
         <SeasonExplorer players={data.players} onSelectPlayer={setSelectedPlayer}
-          mode={view === 'scoreboard' ? 'today' : view === 'mypicks' ? 'picks' : 'standings'}
-          onMode={m => setView(m === 'today' ? 'scoreboard' : m === 'picks' ? 'mypicks' : 'explorer')} />
+          mode={view === 'scoreboard' ? 'today' : view === 'mypicks' ? 'picks' : view === 'potw' ? 'potw' : 'standings'}
+          onMode={m => setView(m === 'today' ? 'scoreboard' : m === 'picks' ? 'mypicks' : m === 'potw' ? 'potw' : 'explorer')} />
       )}
       {view === 'timemachine' && <TimeMachine />}
       {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} start={binderStart} />}

@@ -6,6 +6,7 @@
 
 /* ── Hero ── */
 .hero { background: #173657; color: #fff; padding: 32px max(20px, calc((100% - 1240px) / 2)); display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.hero > div:first-child { min-width: 0; max-width: 100%; }
 .kicker { font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: #6896bd; margin-bottom: 6px; font-weight: 600; }
 .title { font-size: 34px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.1; }
 .title span { color: #6896bd; font-weight: 700; }
@@ -364,8 +365,8 @@
 @media (max-width: 700px) { .teamSwitch { margin: 0 8px 10px; } .teamSwitch button span { display: none; } }
 
 /* ── View switch (Standings / Games by day) ── */
-.viewTabs { display: inline-flex; gap: 2px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 20px; padding: 3px; margin: 2px 0 12px; }
-.viewTabs button, .viewTabs a { text-decoration: none; cursor: pointer; border: 0; background: transparent; color: #b9cde2; font-size: 12.5px; font-weight: 700; padding: 6px 14px; border-radius: 16px; }
+.viewTabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; display: inline-flex; gap: 2px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 20px; padding: 3px; margin: 2px 0 12px; }
+.viewTabs button, .viewTabs a { white-space: nowrap; flex: none; text-decoration: none; cursor: pointer; border: 0; background: transparent; color: #b9cde2; font-size: 12.5px; font-weight: 700; padding: 6px 14px; border-radius: 16px; }
 .viewTabs button:hover, .viewTabs a:hover { color: #fff; }
 .viewTabs button.viewOn, .viewTabs a.viewOn { background: #fff; color: #173657; }
 .dayNav { display: flex; align-items: center; gap: 6px; }
