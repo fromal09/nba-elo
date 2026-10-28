@@ -36,11 +36,11 @@
 //   POST unwish      { id } take a wish off
 import { db, ensureSchema } from './_lib/db.js'
 import { USERNAME, hashPassword, checkPassword, startSession, endSession, currentUser } from './_lib/auth.js'
-import { upgradePoints, pointsStatus } from './_lib/rescore.js'
-import { loadWishes, applyWishes, resetMeters, tickMeters, wishView, addWish, removeWish, wishNames, wishCards } from './_lib/wishes.js'
+import { upgradePoints, pointsStatus, seasonDetails } from './_lib/rescore.js'
+import { loadWishes, applyWishes, resetMeters, tickMeters, wishView, addWish, removeWish, wishNames, wishCards, warmWishes } from './_lib/wishes.js'
 import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS, SPECIAL_KINDS } from './_lib/packs.js'
 import { cardPoints } from './_lib/points.js'
-import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons } from './_lib/coins.js'
+import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons, warmRewards } from './_lib/coins.js'
 import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
 import { settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
 import { achievements } from './_lib/achievements.js'
@@ -250,6 +250,10 @@ async function pick(u, b, origin) {
   const sql = db()
   const today = etDay()
   const packId = Number(b.pack), slot = Number(b.slot), choice = Number(b.choice)
+  // Everything the pick will read from the data files, fetched before the transaction holds the database
+  const [peek] = await sql`select slots from packs where id = ${packId} and user_id = ${u.id}`
+  const chosen = peek?.slots?.[slot]?.cards?.[choice]
+  await Promise.all([warmRewards(origin, chosen), warmWishes(sql, u.id, origin), seasonDetails(origin, '', '', '')]).catch(() => {})
   const result = await sql.begin(async t => {
     const [p] = await t`select * from packs where id = ${packId} and user_id = ${u.id} for update`
     if (!p) throw fail(404, 'That pack isn’t yours.')

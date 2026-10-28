@@ -137,6 +137,12 @@ export async function resetMeters(sql, granted) {
 }
 
 // After keeping a card: every wish with cards left at that tier moves its meter on, unless the card was its own
+// Before the transaction: the who/ files of a collector's open wishes
+export async function warmWishes(sql, userId, origin) {
+  const ws = await sql`select name from wishes where user_id = ${userId} and fulfilled_at is null`
+  await Promise.all(ws.map(w => whoOf(origin, w.name)))
+}
+
 // Returns the wishes the card fulfilled, as awards to celebrate.
 export async function tickMeters(t, userId, origin, card) {
   if (!card || card.kind || !TIER_ORDER.includes(card.tier)) return []

@@ -343,6 +343,10 @@ def main():
         league["sets"]["lineups"] = top_fives
         league["sets"]["seasons"] = seasons_set
         lp.write_text(json.dumps(league, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        # What the server needs from the league sets when a card is kept: each game-card set's refs (a few KB, not the whole file)
+        refs = {k: [f"{c['s']}|{c['id']}|{c['row']['n']}" for c in v] for k, v in league["sets"].items()
+                if v and isinstance(v, list) and all(isinstance(c, dict) and c.get("row") and c.get("id") for c in v)}
+        (B / "setrefs.json").write_text(json.dumps(refs, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     (B / "peaks.json").write_text(json.dumps({n: [[c["s"], c["id"], round(c["row"]["post"]), c["date"], c["until"]] for c in lst] for n, lst in peaks.items()},
                                              ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     fv = defaultdict(dict)

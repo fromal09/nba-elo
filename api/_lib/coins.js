@@ -74,6 +74,27 @@ async function dataJSON(origin, path) {
 }
 const MERGE = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
 
+// Download what keeping this card will read (its team's roster, the league sets) before the database transaction
+// opens, so the transaction never waits on the network
+export async function warmRewards(origin, card) {
+  if (!card || card.kind) return
+  const fc = MERGE[card.t] || card.t
+  if (!rosterCache.has(fc)) rosterCache.set(fc, dataJSON(origin, `binders/roster/${fc.replace('@', '_')}.json`))
+  await Promise.all([setRefs(origin), rosterCache.get(fc)])
+}
+// Each league set's card refs (binders/setrefs.json; the full league.json before that file existed)
+async function setRefs(origin) {
+  if (!leagueCache || Date.now() - leagueCache.at > 10 * 60e3) {
+    let data = await dataJSON(origin, 'binders/setrefs.json')
+    if (!data) {
+      const full = await dataJSON(origin, 'binders/league.json')
+      data = Object.fromEntries(Object.entries(full?.sets || {}).filter(([, l]) => l?.every?.(c => c?.row && c.id)).map(([k, l]) => [k, l.map(c => `${c.s}|${c.id}|${c.row.n}`)]))
+    }
+    leagueCache = { at: Date.now(), data }
+  }
+  return leagueCache.data || {}
+}
+
 export async function cardRewards(t, userId, day, origin, card) {
   const out = []
   // Team-season checklist: every player who played for the franchise that season
@@ -93,12 +114,10 @@ export async function cardRewards(t, userId, day, origin, card) {
   // Season card: every game of his season with this franchise
   out.push(...(await forgeSeasons(t, userId, day, origin, { s: card.s, fc, n: card.row.n })))
   // League sets: 100 Coins at every 10% of a set
-  if (!leagueCache || Date.now() - leagueCache.at > 10 * 60e3) leagueCache = { at: Date.now(), data: await dataJSON(origin, 'binders/league.json') }
-  const sets = leagueCache.data?.sets || {}
+  const sets = await setRefs(origin)
   const ref = `${card.s}|${card.id}|${card.row.n}`
-  for (const [id, list] of Object.entries(sets)) {
-    if (id === 'slayers' || id === 'duels' || id === 'rivalries' || id === 'lineups' || id === 'seasons' || !list.some(c => `${c.s}|${c.id}|${c.row.n}` === ref)) continue
-    const refs = list.map(c => `${c.s}|${c.id}|${c.row.n}`)
+  for (const [id, refs] of Object.entries(sets)) {
+    if (id === 'slayers' || id === 'duels' || !refs.includes(ref)) continue
     const [x] = await t`select count(*)::int as n from cards where user_id = ${userId} and ref = any(${refs})`
     const steps = Math.floor((x.n / refs.length) * 10)
     for (let k = 1; k <= steps; k++) {
