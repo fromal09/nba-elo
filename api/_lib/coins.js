@@ -109,6 +109,8 @@ export async function cardRewards(t, userId, day, origin, card) {
       const amount = Math.max(100, Math.min(500, roster.length * 20))
       const a = await grant(t, userId, day, 'checklist', amount, { ref: `${fc}|${card.s}`, label: `Completed the ${card.s} ${card.tn} checklist` })
       if (a) out.push(a)
+      const c = await awardSet(t, userId, day, fc, card.s, roster)
+      if (c) out.push(c)
     }
   }
   // Season card: every game of his season with this franchise
@@ -124,6 +126,43 @@ export async function cardRewards(t, userId, day, origin, card) {
       const a = await grant(t, userId, day, 'set', RATES.setStep, { ref: `${id}|${k}`, label: `${k * 10}% of a league set` })
       if (a) out.push(a)
     }
+  }
+  return out
+}
+
+/**
+ * Complete Set card (kind 'set'): one of every player on a franchise's roster that season. The roster is whoever has a
+ * card for that team-season when you finish it; a player added later (the season in progress) doesn't take it back.
+ * k: your order among collectors who've completed this set. Returns the award to celebrate, or null if you have it.
+ */
+export async function awardSet(t, userId, day, fc, s, roster) {
+  const ref = `set|${fc}|${s}`
+  const [has] = await t`select 1 from cards where user_id = ${userId} and ref = ${ref}`
+  if (has) return null
+  const codes = [fc, ...Object.keys(MERGE).filter(k => MERGE[k] === fc)]
+  const [team] = await t`select max(card->>'tn') as tn, max(card->>'tc') as tc from cards where user_id = ${userId} and card->>'s' = ${s}
+    and card->>'t' = any(${codes}) and card->>'kind' is null`
+  const [{ n }] = await t`select count(*)::int as n from cards where ref = ${ref}`
+  const [u] = await t`select username from users where id = ${userId}`
+  const card = { kind: 'set', tier: 'set', fc, t: fc, s, tn: team?.tn || fc, tc: team?.tc || null, size: roster.length,
+    players: roster.map(([name, games]) => [name, games]), k: n + 1, at: day, by: u?.username || null }
+  const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, 'set', ${ref}, ${t.json(card)}, ${cardPoints(card).points}, 'set')
+    on conflict (user_id, ref) do nothing returning id`
+  return row ? { kind: 'setcard', amount: 0, label: `Complete Set: every ${s} ${card.tn} player. Your set card is in your binder` } : null
+}
+
+// Collectors who finished a checklist before Complete Set cards existed (their checklist Coins are in the ledger): the card
+export async function backfillSets(sql, userId, origin, day) {
+  const due = await sql`select l.ref from coin_ledger l where l.user_id = ${userId} and l.kind = 'checklist'
+    and not exists (select 1 from cards c where c.user_id = ${userId} and c.ref = 'set|' || l.ref)`
+  const out = []
+  for (const { ref } of due) {
+    const [fc, s] = ref.split('|')
+    if (!rosterCache.has(fc)) rosterCache.set(fc, dataJSON(origin, `binders/roster/${fc.replace('@', '_')}.json`))
+    const roster = (await rosterCache.get(fc))?.[s]
+    if (!roster?.length) continue
+    const a = await sql.begin(t => awardSet(t, userId, day, fc, s, roster))
+    if (a) out.push(a)
   }
   return out
 }

@@ -1,6 +1,6 @@
 import { useState, useRef, useLayoutEffect, useMemo, useEffect as useEffect_ } from 'react'
 import styles from './SpecialCards.module.css'
-import { binderSeasonSummary, binderCareerPath, binderPeaks, binderHistory, binderHeadshots } from './SeasonExplorer'
+import { binderSeasonSummary, binderCareerPath, binderPeaks, binderHistory, binderHeadshots, binderLogo } from './SeasonExplorer'
 
 /*
  * Special cards, each drawn at 340 × 476 like MiniCard and DuelCard:
@@ -13,6 +13,9 @@ import { binderSeasonSummary, binderCareerPath, binderPeaks, binderHistory, bind
  *   FiveCard     a team's best single-day five: the five highest pre-game Elo players who played that day (random pull).
  *   PotwCard     Player of the Week: the NBA's best player of a week, a numbered gold superfractor for that week's
  *                pick'em winner (k of n when a tie shares it). The back names the winner(s) and their week of picks.
+ *   SetCard      Complete Set: one of every player on a team-season's roster. A team-color refractor (turning prism lines,
+ *                a color-shifting holo layer, a light sweep), chrome count, the roster on a ticker; #k = your order among
+ *                collectors who finished it. The back is the checklist.
  *   Serial       the "#k of n" tab: your copy's order among everyone who owns the card.
  */
 
@@ -458,22 +461,56 @@ export function PotwBack({ card: c }) {
   )
 }
 
+const ordS = n => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`
+const lastName = n => { const p = baseName(n).split(' '); return (/^(Jr\.?|Sr\.?|II|III|IV)$/.test(p[p.length - 1]) && p.length > 2 ? p[p.length - 2] : p[p.length - 1]).toUpperCase() }
+const seasonNick = c => nick(c.tn)
+export function SetCard({ card: c }) {
+  const [bad, setBad] = useState(false)
+  const logo = binderLogo(c.fc)
+  const names = (c.players || []).map(([n]) => lastName(n)).join(' · ')
+  return (
+    <div className={styles.set} style={{ '--c': c.tc || '#173657' }}>
+      <div className={styles.setPrizm} /><div className={styles.setShards}><i /><i /><i /><i /><i /></div><div className={styles.setHolo} />
+      <div className={styles.setLogo}>{logo && !bad ? <img src={logo} alt="" onError={() => setBad(true)} /> : <b>{c.fc.split('@')[0]}</b>}</div>
+      <div className={styles.setBig}>{c.size}/{c.size}</div>
+      <div className={styles.setOf}>COMPLETE SET</div>
+      <div className={styles.setName}><FitName max={40} min={24}>{`${c.s} ${seasonNick(c)}`}</FitName></div>
+      <div className={styles.setTicker}><span>{names} · {names}</span></div>
+      <div className={styles.setFoot}><span>#{c.k || 1} TO COMPLETE</span><span>{c.at ? ap(c.at).toUpperCase() : ''}</span></div>
+      <div className={styles.setShine} />
+    </div>
+  )
+}
+export function SetBack({ card: c }) {
+  const P = c.players || []
+  return (
+    <div className={`${styles.back} ${styles.setBack}`} style={{ '--c': c.tc || '#173657' }}>
+      <div className={styles.backHead}><div><FitName>{`${c.s} ${c.tn}`}</FitName><small>Every player on the roster · games played</small></div><span>{c.size}/{c.size}</span></div>
+      <div className={styles.setList} data-long={P.length > 30 ? '' : undefined}>
+        {P.map(([n, g]) => <div key={n} className={styles.setRow}><b>✓</b><span>{baseName(n)}</span><em>{g} GP</em></div>)}
+      </div>
+      <div className={styles.backFoot}><span>{c.by ? `Completed by ${c.by}` : 'Completed'}{c.at ? ` · ${ap(c.at)}` : ''}</span><span>{ordS(c.k || 1)} to complete</span></div>
+    </div>
+  )
+}
+
 export function Serial({ k, n, flip, inline, pocket }) {
   return <span className={styles.serial} data-flip={flip ? '' : undefined} data-inline={inline ? '' : undefined} data-pocket={pocket ? '' : undefined} title={`Copy ${k} of ${n} in collectors’ binders`}><b>#{k}</b><i>/</i>{n}</span>
 }
 
 // ── Any special card, anywhere: binder pockets, pack openings, showcases ─────
 
-export const SPECIAL = new Set(['peak', 'rival', 'five', 'season', 'potw'])
+export const SPECIAL = new Set(['peak', 'rival', 'five', 'season', 'potw', 'set'])
 export const isSpecial = c => SPECIAL.has(c?.kind)
-const KIND_NAME = { peak: 'Peak', rival: 'Rivalry', five: 'Starting Five', season: 'Season card', duel: 'Duel of the Day', potw: 'Player of the Week' }
+const KIND_NAME = { peak: 'Peak', rival: 'Rivalry', five: 'Starting Five', season: 'Season card', duel: 'Duel of the Day', potw: 'Player of the Week', set: 'Complete Set' }
 export const specialTitle = c => (c.kind === 'peak' ? `${baseName(c.row.n)} · ${c.until ? 'Former Peak' : 'Peak'}` : c.kind === 'rival' ? `${split(c.a).last} vs. ${split(c.b).last}`
   : c.kind === 'five' ? `${c.s} ${nick(c.tn)} · Starting Five` : c.kind === 'season' ? `${baseName(c.n)} · ${c.s} Season` : c.kind === 'duel' ? `${baseName(c.a.row.n)} · Duel of the Day`
-  : c.kind === 'potw' ? `${baseName(c.n)} · Player of the Week` : '')
+  : c.kind === 'potw' ? `${baseName(c.n)} · Player of the Week` : c.kind === 'set' ? `${c.s} ${nick(c.tn)} · Complete Set` : '')
 export const specialLabel = c => (c.kind === 'rival' ? `Rivalry · ${TIER_LABEL[c.tier] || ''}` : KIND_NAME[c.kind] || '')
 export const specialLine = c => (c.kind === 'peak' ? `Career-high Elo ${r0(c.row.post)} · ${ap(c.date)} ${c.home === false ? '@' : 'vs'} ${c.o}`
   : c.kind === 'rival' ? `${c.w}–${c.l} in ${c.w + c.l + (c.t || 0)} duels · No. ${c.rank} all-time` : c.kind === 'five' ? `Five Elo ${r0(c.elo)} · ${ap(c.date)} vs ${c.o} · ${c.won ? 'W' : 'L'} ${c.score}`
-    : c.kind === 'season' ? `${c.gp} games with the ${nick(c.tn)}` : c.kind === 'potw' ? `Week of ${weekSpan(c)} · ${c.k || 1} of ${c.of || 1}` : '')
+    : c.kind === 'season' ? `${c.gp} games with the ${nick(c.tn)}` : c.kind === 'potw' ? `Week of ${weekSpan(c)} · ${c.k || 1} of ${c.of || 1}`
+    : c.kind === 'set' ? `All ${c.size} players · #${c.k || 1} to complete` : '')
 
 // Shared, cached lookups for Peak cards
 let peaksP = null, shotsP = null
@@ -529,12 +566,13 @@ function SpecialFaceIn({ card, owned, serial, label }) {
   if (card.kind === 'five') return <FiveCard f={card} shots={Object.fromEntries(card.players.map(p => [p.n, shotOf(shots, p.n)]))} serial={serial} />
   if (card.kind === 'season') return <SeasonFront card={card} owned={owned} serial={serial} />
   if (card.kind === 'potw') return <PotwCard card={card} headshot={shotOf(shots, card.n)} label={label} />
+  if (card.kind === 'set') return <SetCard card={card} />
   return null
 }
 // Tagged for "Save card image" (right-click)
 export function SpecialFace(props) {
   const c = props.card
-  return <div style={{ display: 'contents' }} data-card-shot={`${specialTitle(c)} ${c.row?.n || c.n || c.a || ''} ${c.s || c.date || ''}`}><SpecialFaceIn {...props} /></div>
+  return <div style={{ display: 'contents' }} data-card-shot={c.kind === 'set' ? `${c.s} ${c.tn} complete set` : `${specialTitle(c)} ${c.row?.n || c.n || c.a || ''} ${c.s || c.date || ''}`}><SpecialFaceIn {...props} /></div>
 }
 
 // The back of a Peak card: this game's line and every Peak of his career, this one marked
@@ -576,6 +614,7 @@ function SpecialBack({ card }) {
   if (card.kind === 'five') return <FiveBack f={card} b={{ lines: card.players, together: card.together, tw: card.togW, tl: card.together - card.togW, po: card.po || [0, 0], champ: card.champ }} />
   if (card.kind === 'season') return <SeasonBackLoader card={card} />
   if (card.kind === 'potw') return <PotwBack card={card} />
+  if (card.kind === 'set') return <SetBack card={card} />
   return null
 }
 function SeasonBackLoader({ card }) {

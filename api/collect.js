@@ -44,7 +44,7 @@ import { upgradePoints, pointsStatus, seasonDetails } from './_lib/rescore.js'
 import { loadWishes, applyWishes, resetMeters, tickMeters, wishView, addWish, removeWish, wishNames, wishCards, warmWishes } from './_lib/wishes.js'
 import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS, SPECIAL_KINDS } from './_lib/packs.js'
 import { cardPoints } from './_lib/points.js'
-import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons, warmRewards } from './_lib/coins.js'
+import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons, warmRewards, backfillSets } from './_lib/coins.js'
 import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
 import { potwWeek, potdPick, settlePotw, predDay, settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
 import { achievements } from './_lib/achievements.js'
@@ -377,7 +377,7 @@ async function sell(u, origin, b) {
   const sql = db(), today = etDay(), id = Number(b.id)
   const [c] = await sql`select * from cards where id = ${id} and user_id = ${u.id}`
   if (!c) throw fail(404, 'That card isn’t in your binder.')
-  if (SPECIAL_KINDS.has(c.tier)) throw fail(409, 'Special cards (Duels, Peaks, Rivalries, Starting Fives, Season cards, Player of the Week) can’t be sold.')
+  if (SPECIAL_KINDS.has(c.tier)) throw fail(409, 'Special cards (Duels, Peaks, Rivalries, Starting Fives, Season cards, Player of the Week, Complete Sets) can’t be sold.')
   if (c.card?.ruby) throw fail(409, 'Ruby cards can’t be sold.')
   if (u.starred.map(Number).includes(id)) throw fail(409, 'Un-star the card first. Starred and showcase cards can’t be sold.')
   const hours = (Date.now() - new Date(c.pulled_at).getTime()) / 36e5
@@ -439,6 +439,8 @@ export default async function handler(req, res) {
         await settlePotw(sql, origin, etDay()).catch(e => console.error('potw', e))
         await settleChallenges(sql, origin, etDay()).catch(e => console.error('challenge', e))
       }
+      // Complete Set cards for checklists finished before the cards existed
+      if (u0) awards.push(...(await backfillSets(sql, u0.id, origin, etDay()).catch(e => { console.error('sets', e); return [] })))
       if (u0) for (const c of await sql`select id, card from cards where user_id = ${u0.id} and tier = 'potw' and not coalesce((card->>'seen')::boolean, false)`) {
         awards.push({ kind: 'potw', amount: 0, label: `Player of the Week: you won the week of ${new Date(c.card.week + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}. Your ${c.card.n} card is in your binder` })
         await sql`update cards set card = card || '{"seen": true}'::jsonb where id = ${c.id}`

@@ -289,7 +289,7 @@ function SmallCard({ e, name, env, onPull, title, line, sub }) {
 // Any card's identity, as the server's refOf
 export const cardRef = c => (c.kind === 'duel' ? `duel|${c.date}` : isSpecial(c) ? specialRef(c) : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
 const specialRef = c => (c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}` : c.kind === 'five' ? `five|${c.s}|${c.t}`
-  : c.kind === 'potw' ? `potw|${c.week}` : `season|${c.s}|${c.t}|${c.n}`)
+  : c.kind === 'potw' ? `potw|${c.week}` : c.kind === 'set' ? `set|${c.fc}|${c.s}` : `season|${c.s}|${c.t}|${c.n}`)
 
 // A Duel of the Day card from a binder (kind 'duel': the day's two players) in the shape a pocket needs
 export function duelEntry(env, c, extra = {}) {
@@ -301,7 +301,7 @@ export function duelEntry(env, c, extra = {}) {
 // A card from a pipeline index (career / franchise files) in the shape a pocket needs
 export function fromIndex(env, c, extra = {}) {
   if (c.kind === 'duel') return duelEntry(env, c, extra)
-  if (isSpecial(c)) return { key: specialRef(c), special: c, name: c.row?.n || c.n || c.a || '', season: c.s, id: c.id, date: c.date, tier: c.kind, gs: 0, ...extra }
+  if (isSpecial(c)) return { key: specialRef(c), special: c, name: c.kind === 'set' ? c.tn : c.row?.n || c.n || c.a || '', season: c.s, id: c.id, date: c.date, tier: c.kind, gs: 0, ...extra }
   const team = env.teamInfo(c.t, c.tn, c.tc), opp = env.teamInfo(c.o, c.on, c.oc)
   return {
     key: `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`, name: c.row.n, row: c.row, post: !!c.band, season: c.s, id: c.id, tier: tierOfRow(c.row), ruby: !!c.ruby,
@@ -973,7 +973,7 @@ export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
 
 // ── A personal binder: yours, or anyone's (read-only) from the leaderboard ──
 // Shelves by franchise and decade, player checklists for every team-season, Starred, the showcase, points
-const TIER_RANK = { potw: -1, ...Object.fromEntries(TIER_IDS.map((t, i) => [t, i])), duel: TIER_IDS.length, peak: TIER_IDS.length, rival: TIER_IDS.length, five: TIER_IDS.length, season: TIER_IDS.length }
+const TIER_RANK = { set: -2, potw: -1, ...Object.fromEntries(TIER_IDS.map((t, i) => [t, i])), duel: TIER_IDS.length, peak: TIER_IDS.length, rival: TIER_IDS.length, five: TIER_IDS.length, season: TIER_IDS.length }
 const MERGE_ABA = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
 const decadeOf = s => `${s.slice(0, 3)}0s`
 const n0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
@@ -1263,6 +1263,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   }
   if (view === 'specials') {
     const groups = [
+      ['set', 'Complete Sets', 'Collect one card of every player on a team’s roster for a season: the set’s refractor, numbered by your order among collectors who finished it.'],
       ['potw', 'Player of the Week', 'One a week, to the week’s pick’em winner: the NBA’s best player that week, numbered. No other way to get one.'],
       ['ruby', 'Ruby Players of the Day', 'Called the night’s Player of the Day in Predictions: that card in ruby, at twice its points.'],
       ['season', 'Season cards', 'Forged by owning every game of a player’s season with a team. Track them on the franchise checklists.'],

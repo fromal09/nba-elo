@@ -112,8 +112,11 @@ export const DUEL_MULT = 1.25
  *            All-League 60/45/30%, MVP 100%, title 50% */
 // Player of the Week: one per week, to the pick'em winner (numbered when a tie shares it)
 export const POTW_POINTS = 2500
+// Complete Set: one of every player on a team-season's roster, 100 points a player
+export const SET_POINTS_PER = 100
 export function cardPoints(card) {
   if (card?.kind === 'potw') return { points: POTW_POINTS, base: 0, grade: 0, bonuses: [['Player of the Week', 0]] }
+  if (card?.kind === 'set') return { points: SET_POINTS_PER * (card.size || 0), base: 0, grade: 0, bonuses: [['Complete Set', 0]] }
   // Ruby: the Player of the Day card you called, at twice its points
   if (card?.ruby) {
     const p = cardPoints({ ...card, ruby: undefined })

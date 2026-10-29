@@ -417,3 +417,47 @@
 .potwWin strong { flex: none; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 22px; color: #8a6414; }
 .potwWin strong small { font-size: 10px; margin-left: 2px; color: #8a6414; }
 .potwWin[data-me] { background: linear-gradient(90deg, rgba(231,193,96,.22), transparent); margin: 0 -6px; padding: 5px 6px; border-radius: 6px; }
+
+/* ── Complete Set: a team-color refractor ── */
+.set { position: relative; width: 340px; height: 476px; border-radius: 16px; overflow: hidden; isolation: isolate; font-family: 'Inter', sans-serif; color: #fff;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 72%, #fff), var(--c) 52%, color-mix(in srgb, var(--c) 38%, #000));
+  box-shadow: 0 0 0 2px #e8eef4, 0 0 0 5px #9aa6b2, 0 0 0 7px #e8eef4, 0 14px 40px rgba(0,0,0,.6); }
+.setPrizm { position: absolute; inset: -20%; background: repeating-conic-gradient(from 10deg at 60% 30%, rgba(255,255,255,0) 0 7deg, rgba(255,255,255,.16) 7deg 9deg,
+  rgba(255,240,170,.16) 9deg 12deg, rgba(255,255,255,0) 12deg 18deg); animation: setSpin 40s linear infinite; }
+.setShards i { position: absolute; top: -10%; height: 120%; background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,.35), rgba(255,255,255,0)); mix-blend-mode: overlay; }
+.setShards i:nth-child(1) { left: 8%; width: 60px; transform: rotate(18deg); } .setShards i:nth-child(2) { left: 30%; width: 90px; transform: rotate(-24deg); }
+.setShards i:nth-child(3) { left: 55%; width: 40px; transform: rotate(12deg); } .setShards i:nth-child(4) { left: 72%; width: 120px; transform: rotate(-8deg); }
+.setShards i:nth-child(5) { left: 92%; width: 50px; transform: rotate(30deg); }
+.setHolo { position: absolute; inset: 0; background: linear-gradient(120deg, rgba(255,0,150,.25), rgba(0,240,255,.22), rgba(255,250,0,.22), rgba(150,80,255,.25));
+  mix-blend-mode: color-dodge; opacity: .7; animation: setHue 6s linear infinite; }
+.setShine { position: absolute; inset: 0; z-index: 5; pointer-events: none; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.55) 47%, rgba(255,255,255,0) 56%);
+  background-size: 250% 100%; animation: setSweep 3.6s ease-in-out infinite; mix-blend-mode: overlay; }
+.setLogo { position: absolute; top: 26px; left: 50%; width: 120px; height: 120px; margin-left: -60px; border-radius: 50%; background: #fff; display: grid; place-items: center; z-index: 2;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 30%, #fff), 0 0 0 9px #fff, 0 0 40px rgba(255,255,255,.6); }
+.setLogo img { width: 84px; height: 84px; object-fit: contain; }
+.setLogo b { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 40px; color: var(--c); }
+.setBig { position: absolute; left: 0; right: 0; top: 170px; z-index: 2; text-align: center; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic;
+  font-size: 96px; line-height: .8; letter-spacing: -2px; padding-right: 6px;
+  background: linear-gradient(180deg, #ffffff 0%, #dfe7ef 40%, #7d8a97 50%, #f4f8fb 62%, #b7c3cf 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 4px 0 rgba(0,0,0,.45)); }
+.setOf { position: absolute; left: 0; right: 0; top: 252px; z-index: 2; text-align: center; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: 4px;
+  text-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.setName { position: absolute; left: 14px; right: 14px; top: 286px; z-index: 2; display: flex; justify-content: center; }
+.setName b { display: block; max-width: 100%; text-align: center; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; text-transform: uppercase;
+  line-height: .95; white-space: nowrap; overflow: hidden; padding-right: 4px; text-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.setTicker { position: absolute; left: 0; right: 0; bottom: 44px; height: 26px; z-index: 2; background: rgba(0,0,0,.45); overflow: hidden; white-space: nowrap;
+  font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 13px; line-height: 26px; letter-spacing: 2px; color: #fff3c4; }
+.setTicker span { display: inline-block; animation: setTick 40s linear infinite; }
+.setFoot { position: absolute; left: 14px; right: 14px; bottom: 12px; z-index: 2; display: flex; justify-content: space-between; font-family: 'Barlow Condensed', 'Inter', sans-serif;
+  font-weight: 800; font-size: 13px; letter-spacing: 2px; text-shadow: 0 1px 3px rgba(0,0,0,.4); }
+@keyframes setSpin { to { transform: rotate(360deg); } }
+@keyframes setHue { to { filter: hue-rotate(360deg); } }
+@keyframes setSweep { 0% { background-position: 130% 0; } 60%, 100% { background-position: -30% 0; } }
+@keyframes setTick { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .setPrizm, .setHolo, .setShine, .setTicker span { animation: none; } }
+.setBack { display: flex; flex-direction: column; }
+.setList { flex: 1; min-height: 0; columns: 2; column-gap: 10px; padding-top: 8px; overflow: hidden; }
+.setRow { display: flex; gap: 5px; align-items: baseline; font-size: 10.5px; line-height: 1.55; break-inside: avoid; }
+.setRow b { color: #2a8a4a; font-size: 10px; } .setRow span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.setRow em { font-style: normal; color: #8a95a2; font-size: 9.5px; }
+.setList[data-long] .setRow { font-size: 9px; line-height: 1.4; } .setList[data-long] .setRow em { font-size: 8.5px; }
