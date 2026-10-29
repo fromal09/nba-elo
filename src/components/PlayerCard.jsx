@@ -673,7 +673,7 @@ function TeamLogo({ src, abbr, color }) {
  * props: name, row (this game's box-score row), game, sd (season data), team (info: name, color, code),
  *        logo (url|null), headshot (url|null), career (elo.json player|null), peakRank, onProfile, onClose
  */
-export default function PlayerCard({ name, row, game, sd, team, logo, headshot, career, peakRank, bestRank, onProfile, onClose, onBinder, onCareer, serial }) {
+export default function PlayerCard({ name, row, game, sd, team, logo, headshot, photo, career, peakRank, bestRank, onProfile, onClose, onBinder, onCareer, serial }) {
   const hv = useCareerHistory()   // the back charts his career (the version re-runs the memos when it lands)
   const [flipped, setFlipped] = useState(false)
   const ref = useRef(null)
@@ -727,6 +727,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
       <div className={styles.stage} onClick={e => e.stopPropagation()}>
         {momentsFor(row).career && <SlabLabel row={row} game={game} kind="Career game" className={styles.slabTop} />}
         <div ref={ref} className={`${styles.card} ${flipped ? styles.flipped : ''}`} {...cardAttrs(row, game)}
+          title={photo?.src === 'wiki' ? `Photo: ${photo.credit || 'Wikimedia Commons'}${photo.license ? ` · ${photo.license}` : ''} · via Wikimedia Commons` : undefined}
           style={{ '--tc': color }} onPointerMove={tilt} onPointerLeave={untilt}>
           <div className={styles.tilt}><div className={styles.flip} onClick={e => { if (!e.target.closest('button')) setFlipped(f => !f) }}>
             {/* ── Front ── */}

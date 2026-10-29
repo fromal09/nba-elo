@@ -6,12 +6,15 @@
 //   hard    one franchise in one season
 // A lineup scores its total Elo: the pre-game Elo on its cards added up. Up to five cards, so a short lineup (all the cards
 // you have) can play, at a disadvantage. A real five is a game's five highest pre-game Elo players who played for that team
-// (the Starting Five measure), totaled; every game counts. Percentile: the share of real fives below yours. Coins, paid once the week is over: the level's top payout × your percentile; beat every real five and it
-// doubles. Cards cost nothing to use, stay sellable, and can sit in more than one lineup. One card per player per lineup.
+// (the Starting Five measure), totaled; every game counts. Percentile: the share of real fives below yours.
+// Coins, paid once the week is over: a few for each card you played (5 / 10 / 20 by level), plus the level's top payout ×
+// your percentile; beat every real five and that part doubles. Cards cost nothing to use, stay sellable, and can sit in more than one lineup. One card per player per lineup.
 import { ERAS } from './packs.js'
 import { grant } from './coins.js'
 
 export const CHALLENGE = { easy: 150, medium: 300, hard: 600 }
+// Coins for playing, per card in the lineup, whatever the percentile (a full five: 25 / 50 / 100)
+export const PER_CARD = { easy: 5, medium: 10, hard: 20 }
 export const LEVELS = ['easy', 'medium', 'hard']
 const MERGE = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
 const fail = (status, message) => Object.assign(new Error(message), { status })
@@ -102,7 +105,8 @@ function pctOf(P, five) {
   let eq = lo; while (eq < P.n && P.all[eq] === five) eq++
   return Math.round(((lo + (eq - lo) / 2) / P.n) * 1000) / 10
 }
-const coinsFor = (lv, pct, five, P) => Math.round(CHALLENGE[lv] * (pct || 0) / 100) * (P.best != null && five > P.best ? 2 : 1)
+// Coins for a lineup: per card played, plus the percentile payout (doubled for beating every real five)
+const coinsFor = (lv, pct, five, P, cards) => PER_CARD[lv] * cards + Math.round(CHALLENGE[lv] * (pct || 0) / 100) * (P.best != null && five > P.best ? 2 : 1)
 
 export async function challengeView(sql, u, origin, today) {
   const week = weekStart(today)
@@ -114,9 +118,9 @@ export async function challengeView(sql, u, origin, today) {
     const sp = spec[lv], P = await pool(origin, lv, sp)
     const e = mine.find(x => x.level === lv)
     const pct = e ? pctOf(P, e.five) : null
-    levels.push({ level: lv, max: CHALLENGE[lv], spec: { ...sp, era: sp.era ? ERAS.find(x => x.id === sp.era) : null },
+    levels.push({ level: lv, max: CHALLENGE[lv], perCard: PER_CARD[lv], spec: { ...sp, era: sp.era ? ERAS.find(x => x.id === sp.era) : null },
       pool: { n: P.n, best: P.best, median: P.median, p90: P.p90, seasons: P.seasons },
-      entry: e ? { five: Math.round(e.five * 10) / 10, pct, coins: coinsFor(lv, pct, e.five, P),
+      entry: e ? { five: Math.round(e.five * 10) / 10, pct, coins: coinsFor(lv, pct, e.five, P, e.ids.length), base: PER_CARD[lv] * e.ids.length,
         cards: e.ids.map(id => cards.find(c => Number(c.id) === Number(id))).filter(Boolean).map(c => ({ id: Number(c.id), card: c.card })) } : null })
   }
   const lastWeek = addDays(week, -7)
@@ -156,7 +160,7 @@ export async function settleChallenges(sql, origin, today) {
     for (const e of entries) {
       const sp = cw.spec[e.level], P = await pool(origin, e.level, sp)
       if (!P.n) continue
-      const pct = pctOf(P, e.five), coins = coinsFor(e.level, pct, e.five, P)
+      const pct = pctOf(P, e.five), coins = coinsFor(e.level, pct, e.five, P, e.ids.length)
       await sql.begin(async t => {
         const [x] = await t`update challenge_entries set pct = ${pct}, coins = ${coins}, settled_at = now() where user_id = ${e.user_id} and week = ${wk} and level = ${e.level} and settled_at is null returning 1`
         if (x && coins) await grant(t, e.user_id, today, 'challenge5', coins, { ref: `${wk}|${e.level}`, label: `Five challenge (${e.level}), week of ${wk}: ${pct}th percentile` })

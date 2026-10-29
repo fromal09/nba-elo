@@ -200,8 +200,16 @@ const getJSON = url => {
   return cache.get(url)
 }
 let headshotPromise = null
+// Live ESPN headshots, over historical ones (NBA.com and Wikimedia Commons, scripts/build_headshots.py) for everyone else
 const getHeadshots = () => {
-  if (!headshotPromise) headshotPromise = fetch('/api/headshots').then(r => r.json()).then(d => d.players || {}).catch(() => ({}))
+  if (!headshotPromise) headshotPromise = Promise.all([
+    fetch('/api/headshots').then(r => r.json()).then(d => d.players || {}).catch(() => ({})),
+    fetch('/data/explorer/headshots_hist.json').then(r => (r.ok ? r.json() : {})).catch(() => ({})),
+  ]).then(([live, hist]) => {
+    const out = {}
+    for (const [k, v] of Object.entries(hist || {})) out[k] = { headshot: v.u, src: v.s, credit: v.c || null, license: v.l || null }
+    return Object.assign(out, live)
+  })
   return headshotPromise
 }
 
@@ -2636,7 +2644,7 @@ function SeasonCard({ name, g, sd, shots, onProfile, onClose, onBinder, onCareer
   return (
     <PlayerCard name={name} row={row} sd={sd} game={info || cardGameInfo(g, row.t, sd, row)}
       team={team || { name: tName(row.t), color: tColor(row.t), abbr: tCode(row.t), logo: logoUrl(row.t) }}
-      logo={logoUrl(row.t)} headshot={shots?.[norm(name)]?.headshot}
+      logo={logoUrl(row.t)} headshot={shots?.[norm(name)]?.headshot} photo={shots?.[norm(name)]}
       career={CAREER.byName[name] || null} peakRank={CAREER.rank[name]} bestRank={CAREER.best[name]}
       onProfile={onProfile} onClose={onClose} onBinder={onBinder} onCareer={onCareer} serial={serial} />
   )

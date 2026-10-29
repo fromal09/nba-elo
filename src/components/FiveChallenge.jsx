@@ -42,7 +42,7 @@ export default function FiveChallenge({ env, tools }) {
         {err && <p className={styles.note}>{err}</p>}
         {!d && !err && <p className={styles.note}>Loading this week’s challenges…</p>}
         {d && <>
-          <p className={styles.intro}>Build a lineup of up to five of your own cards for each challenge. Its total Elo (the pre-game Elo on its cards, added up) is ranked against every real five that franchise put on the floor in those years, one per game. Short a player? Play what you have; it just counts for less. After Sunday you get Coins for your percentile; beat every real five and they double.</p>
+          <p className={styles.intro}>Build a lineup of up to five of your own cards for each challenge. Its total Elo (the pre-game Elo on its cards, added up) is ranked against every real five that franchise put on the floor in those years, one per game. Short a player? Play what you have; it just counts for less. After Sunday you get Coins for every card you played, plus more for your percentile; beat every real five and the percentile Coins double.</p>
           {d.last && <div className={styles.last}>
             <b>Last week</b>
             {d.last.results.map(r => <span key={r.level}>{LEVEL[r.level]} · {r.pct}th percentile · +{r.coins} Coins</span>)}
@@ -65,7 +65,7 @@ function Level({ L, env, onEdit, onClear }) {
         <span className={styles.badge}>{LEVEL[L.level]}</span>
         <Logo t={L.spec.fc} />
         <span className={styles.scope}><b>{teamName(L.spec.fc)}</b><small>{scopeText(L)}</small></span>
-        <span className={styles.max}>up to <b>{L.max}</b> Coins<small>×2 for beating every real five</small></span>
+        <span className={styles.max}><b>+{L.perCard}</b> a card · up to <b>{L.max}</b> more<small>×2 for beating every real five</small></span>
       </header>
       <div className={styles.poolLine}>{P.n ? <>{P.n.toLocaleString()} real fives over {P.seasons} season{P.seasons === 1 ? '' : 's'} · middle {n0(P.median)} · top 10% {n0(P.p90)} · best {n0(P.best)}</> : 'No real fives in the data for this one.'}</div>
       <div className={styles.slots}>
@@ -80,7 +80,7 @@ function Level({ L, env, onEdit, onClear }) {
       {e ? <div className={styles.result}>
         <span><small>Total Elo{e.cards.length < 5 ? ` · ${e.cards.length} of 5` : ''}</small><b>{n0(e.five)}</b></span>
         <span className={styles.bar}><i style={{ width: `${e.pct || 0}%` }} /><em>{e.pct}th percentile</em></span>
-        <span><small>{e.five > P.best ? 'Beats them all' : 'Coins now'}</small><b className={styles.coins}>+{e.coins}</b></span>
+        <span title={`${e.base} for playing ${e.cards.length} card${e.cards.length === 1 ? '' : 's'} · ${e.coins - e.base} for the percentile`}><small>{e.five > P.best ? 'Beats them all' : 'Coins now'}</small><b className={styles.coins}>+{e.coins}</b></span>
       </div> : <p className={styles.note}>No lineup yet. Up to five of your {teamName(L.spec.fc)} game cards from {L.level === 'easy' ? 'any season' : L.level === 'medium' ? `${L.spec.era.years}` : L.spec.s}, one per player.</p>}
       <div className={styles.btns}>
         <button type="button" className={styles.primary} onClick={onEdit}>{e ? 'Change lineup' : 'Build lineup'}</button>
