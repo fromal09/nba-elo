@@ -91,7 +91,7 @@ function Pocket({ e, name, env, onPull, pulled, album }) {
   const out = pulled === e.key
   const owned = ownsCard(e, name, env)
   return (
-    <div className={`${styles.pocket} ${e.post ? styles.pocketPo : ''}`}>
+    <div className={`${styles.pocket} ${e.post ? styles.pocketPo : ''}`} data-settier={e.setTier}>
       <button type="button" className={styles.pocketBtn} disabled={out} onClick={() => onPull(e)} aria-label={`${e.label}: open card`}>
         {out ? <span className={styles.pulledOut}><b>Pulled out</b><small>Close the card to put it back</small></span>
           : e.special ? <Fit><SpecialFace card={e.special} serial={e.serial && <Serial k={e.serial[0]} n={e.serial[1]} inline />} owned={e.owned_} /></Fit>
@@ -856,17 +856,17 @@ export const LEAGUE_SETS = [
   { id: 'titles', title: 'Title clinchers', short: 'Clinchers', color: '#8a6414', chrono: true, album: 'Title clincher',
     desc: 'The Player of the Game from every title-clinching game, NBA and ABA.' },
   { id: 'games', title: 'Greatest games', short: 'Greatest games', color: '#1a5c3a', album: 'All-time great',
-    desc: 'The 54 highest Game Scores on record.' },
+    desc: 'The 125 highest Game Scores on record, in set tiers: one GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares.', ranked: true },
   { id: 'debuts', title: 'Greatest debuts', short: 'Debuts', color: '#173657', album: 'Debut',
-    desc: 'The 54 best first games, by Game Score, graded against every debut on record.' },
+    desc: 'The 125 best first games, by Game Score, graded against every debut on record. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares.', ranked: true },
   { id: 'stat', title: 'Stat-line legends', short: 'Stat lines', color: '#6b2d8a', chrono: true,
     desc: 'Every 60-point game, quadruple-double, 40-rebound game and 25-assist game on record.' },
   { id: 'crowns', title: 'Coronations', short: 'Coronations', color: '#9a2a2a', chrono: true,
     desc: 'The night each player first reached No. 1 in the Elo rankings (100 career games or more).' },
   { id: 'peaks', title: 'Peak Elo', short: 'Peaks', color: '#2b4c72', album: 'Peak Elo',
-    desc: 'The 54 highest peak ratings ever: the card from the night each player hit his peak.' },
+    desc: 'The 125 highest peak ratings ever: the card from the night each player hit his peak. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares.', ranked: true },
   { id: 'swings', title: 'Biggest swings', short: 'Swings', color: '#0f6a6a',
-    desc: 'The 54 largest one-game Elo gains.' },
+    desc: 'The 125 largest one-game Elo gains. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares.', ranked: true },
   { id: 'seasons', title: 'Greatest seasons', short: 'Seasons', color: '#7a5a12', special: true,
     desc: 'The 125 Season cards worth the most points: his final rank, the games he played, his honors and the title. Forged by owning every game of the season.' },
   { id: 'lineups', title: 'Starting Fives', short: 'Starting Fives', color: '#2f5d50', special: true,
@@ -876,9 +876,9 @@ export const LEAGUE_SETS = [
   { id: 'duos', title: 'Dynamic Duos', short: 'Dynamic Duos', color: '#5a2a7a', special: true,
     desc: 'The 125 greatest teammate pairs: 100+ games together, each game rated 75% the weaker partner’s Elo and 25% the stronger’s, ranked half on their prime (their best three seasons together) and half on their peak game. Both average 2,200 or better. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares. Random pulls.' },
   { id: 'slayers', title: 'Giant-Slayers', short: 'Giant-Slayers', color: '#7a5a10', duel: 'slayer',
-    desc: 'The 54 widest Elo gaps ever closed by a Giant-Slayer of the Day.' },
+    desc: 'The 125 widest Elo gaps ever closed by a Giant-Slayer of the Day. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares.', ranked: true },
   { id: 'duels', title: 'Greatest duels', short: 'Duels', color: '#0b5f9e', duel: 'duel',
-    desc: 'The 54 best Duels of the Day: two highly rated opponents who both played well, scored on the weaker side.' },
+    desc: 'The 125 best Duels of the Day: two highly rated opponents who both played well, scored on the weaker side. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares.', ranked: true },
 ]
 
 const featLine = r => {
@@ -890,7 +890,15 @@ const featLine = r => {
   return `${v('ast')} assists`
 }
 
+// A ranked league set's foil, by place in the set (as Rivalries, Starting Fives and Dynamic Duos): No. 1 GOAT, 2-5 Icon,
+// 6-20 Legend, 21-50 Standout, 51-125 Rare. Drawn as the pocket's frame; the card itself keeps its own tier.
+const SET_TIER = i => (i <= 1 ? 'goat' : i <= 5 ? 'icon' : i <= 20 ? 'legend' : i <= 50 ? 'standout' : 'rare')
+const SET_TIER_NAME = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare' }
 export function leagueEntries(env, def, list) {
+  const out = leagueEntries_(env, def, list)
+  return def.ranked ? out.map((e, i) => ({ ...e, setTier: SET_TIER(i + 1), sub: e.sub ? `${SET_TIER_NAME[SET_TIER(i + 1)]} · ${e.sub}` : SET_TIER_NAME[SET_TIER(i + 1)] })) : out
+}
+function leagueEntries_(env, def, list) {
   return list.map((c, i) => {
     if (def.special && c.kind === 'season') return fromIndex(env, c, { rank: i + 1, date: `${c.s.slice(0, 4)}-10-01`, name: c.n,
       label: `${c.allTime}. ${shortName(c.n)} ${c.s.slice(2, 4)}-${c.s.slice(5)}`, sub: `${c.points.toLocaleString()} pts`, owned: !!env.owned?.has(cardRef(c)) })

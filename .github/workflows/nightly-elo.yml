@@ -20,6 +20,10 @@ on:
       since:
         description: 'First day to check (YYYY-MM-DD). Leave blank for the latest day in the data.'
         required: false
+      rebuild:
+        description: 'Rebuild and upload the site data even if there are no new games (after a pipeline change)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -60,7 +64,7 @@ jobs:
         run: python3 scripts/fetch_espn.py --github-output "$GITHUB_OUTPUT" ${{ inputs.since && format('--since {0}', inputs.since) || '' }}
 
       - name: Rebuild ratings
-        if: steps.fetch.outputs.new_games != '0'
+        if: steps.fetch.outputs.new_games != '0' || inputs.rebuild
         run: |
           set -o pipefail
           python3 scripts/build_elo.py $(ls data/[0-9]*.csv | grep -v playoffs | sort) 2>&1 | tail -20
@@ -73,7 +77,7 @@ jobs:
           python3 scripts/build_scoring.py
 
       - name: Upload changed data
-        if: steps.fetch.outputs.new_games != '0'
+        if: steps.fetch.outputs.new_games != '0' || inputs.rebuild
         # Refuses a build with fewer seasons or games than the live data
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}

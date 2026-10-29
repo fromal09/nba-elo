@@ -133,7 +133,7 @@ def day_duels(games):
 
 class Top:
     """The n highest-scoring items seen, kept in a heap."""
-    def __init__(self, n=54):
+    def __init__(self, n=125):   # the league binders' size: one GOAT, four Icons, 15 Legends, 30 Standouts, 75 Rares
         self.n, self.h, self.c = n, [], itertools.count()
 
     def add(self, score, make):
@@ -367,7 +367,7 @@ def main():
         if "debut" in st["ms"]:
             c = st["ms"]["debut"][1]
             debuts.add(c["row"]["gs"] or 0, lambda c=c: c)
-    by_peak = sorted(players.values(), key=lambda st: -st["ms"]["peak_elo"][0])[:54]
+    by_peak = sorted(players.values(), key=lambda st: -st["ms"]["peak_elo"][0])[:125]
     titles = sorted((c for F in fr.values() for c in F["clinch"]), key=lambda c: c["date"])
     # Current franchises: played this season or last (a season a few days old hasn't seen every team yet)
     recent = {f.stem for f in files[-2:]}
