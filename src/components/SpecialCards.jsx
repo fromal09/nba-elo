@@ -7,8 +7,8 @@ import { binderSeasonSummary, binderCareerPath, binderPeaks, binderHistory, bind
  *   PeakCard     a player's career-high Elo (after his rookie year): one reigning Peak per career. Each earlier
  *                career high he carried out of a season is a Former Peak, with the dates it stood. All are pullable;
  *                when he climbs higher, the reigning card becomes a Former Peak (its points stay).
- *   SeasonCard   a player's season with one team, forged by owning his games: a mosaic of tiles, one per game,
- *                each cleared by owning that game's card. Fully revealed at 100%.
+ *   SeasonCard   a player's season with one team, forged by owning his games (Chrome Portrait). In-season (silver,
+ *                through a date) while the season is on; Final (his tier's foil) once it's over and every game is owned.
  *   RivalryCard  two players' career head-to-head in Game Score duels (random pull).
  *   FiveCard     a team's best single-day five: the five highest pre-game Elo players who played that day (random pull).
  *   PotwCard     Player of the Week: the NBA's best player of a week, a numbered gold superfractor for that week's
@@ -146,65 +146,51 @@ function Laurel({ size = 124 }) {
     {leaves}<path d={`M${c - 7},${c + r + 3} Q${c},${c + r - 3} ${c + 7},${c + r + 3}`} fill="none" stroke="#f5d77a" strokeWidth="2.4" strokeLinecap="round" /></svg>
 }
 
-export function SeasonCard({ s, owned, headshot, serial }) {
+// The S1 "Chrome Portrait" design: the player in a foil window (his final tier's foil, rays behind him), honors as plates,
+// his Elo ridge glowing across, chrome name, the season's line. inSeason: silver with a sash, through a date, the ridge
+// dotted out to the end of the season. owned (a Set of game indexes): a preview from the checklist, k of N.
+const SEASON_LEN = 82
+export function SeasonCard({ s, owned, headshot, serial, inSeason }) {
+  const [bad, setBad] = useState(false)
   const { first, last } = split(s.name)
-  const ref = useRef(null)
-  useFit(ref, 50, 24, s.name)
   const N = s.gp, have = owned ? owned.size : N
-  const done = have >= N
-  const cols = 9, rows = Math.ceil(N / cols), cells = cols * rows
-  const W = 292, H = 74
-  const lo = Math.min(...s.path) - 30, hi = Math.max(...s.path) + 20
-  const R = ridge(s.path, W, H, lo, hi)
-  const best = s.best
-  const po = s.po, champ = po?.champ
+  const prog = have < N
+  const live = inSeason || prog
   const tier = s.tier || seasonTier(s.rank)
-  const H_ = s.honors || {}, nba = H_.allNba || 0
+  const H_ = s.honors || {}, nba = H_.allNba || 0, po = s.po, champ = po?.champ
+  const W = 300, Hh = 56
+  const frac = live ? Math.min(1, Math.max(0.04, (s.reg || N) / SEASON_LEN)) : 1
+  const lo = Math.min(...s.path) - 25, hi = Math.max(...s.path) + 15
+  const R = ridge(s.path, W * frac, Hh, lo, hi)
+  const plates = live ? [] : [H_.mvp && (H_.aba ? 'ABA MVP' : 'MVP'), champ && '★ Champion', nba > 0 && `${lgName(s, H_)} ${ORD(nba)}`, H_.allStar && 'All-Star',
+    !champ && po && poResult(po)].filter(Boolean).slice(0, 4)
+  const rec = live ? `${s.pw ?? 0}–${s.pl ?? 0}` : `${s.w}–${s.l}`
   return (
-    <div className={styles.season} data-tier={tier} data-done={done ? '' : undefined} data-champ={champ ? '' : undefined}
-      data-allstar={H_.allStar ? '' : undefined} data-allnba={nba || undefined} data-mvp={H_.mvp ? '' : undefined} style={{ '--c': s.tc || '#173657' }}>
-      <div className={styles.seasonHead}><span>{H_.mvp ? 'MVP' : champ ? 'Champions' : 'Season'}</span><small>{s.s} · {nick(s.tn)}</small></div>
-      {po && <div className={styles.seasonPo} data-champ={champ ? '' : undefined}>{champ ? <>★ {+s.s.slice(0, 4) + 1} NBA champions <b>{po.w}–{po.l}</b></>
-        : <>Playoffs · {poResult(po)}{po.series.length > 1 && <b>· {po.w}–{po.l}</b>}</>}</div>}
-      <div className={styles.seasonBody}>
-        <div className={styles.seasonBg} />
-        <div className={styles.seasonFoil} />
-        {H_.allStar && <div className={styles.seasonStars} />}
-        {nba > 0 && <div className={styles.seasonPins} />}
-        {H_.mvp && <div className={styles.seasonRays} />}
-        <div className={styles.seasonTop}>
-          {H_.mvp && <Laurel />}
-          <Medal name={s.name} headshot={headshot} color={s.tc} size={86} cls={styles.seasonMedal} />
-          {nba > 0 && <span className={styles.nbaShield} data-team={nba} title={`${lgName(s, H_)} ${ORD(nba)} Team`}><small>{lgName(s, H_)}</small><b>{ORD(nba)}</b></span>}
-          {H_.allStar && <span className={styles.starBadge} title="All-Star">★<small>All-Star</small></span>}
-          <div className={styles.seasonRec}><FitName max={44} min={26}>{`${s.w}–${s.l}`}</FitName><small>{nick(s.tn)}</small></div>
-          <div className={styles.seasonRank} data-long={s.rank >= 100 ? '' : undefined}><small>Final rank</small><b>{s.rank ? `#${s.rank}` : '—'}</b><em>{tier === 'goat' ? '★ GOAT' : tier}</em></div>
-        </div>
-        <div className={styles.seasonName}><small>{first}</small><b ref={ref}>{last}</b></div>
-        <div className={styles.seasonChart}>
-          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-            <path d={`${R.line}L${W},${H}L0,${H}Z`} className={styles.seasonFill} />
-            <path d={R.line} className={styles.seasonLine} />
-          </svg>
-          <div className={styles.seasonAxis}><span>Elo {r0(s.start)}</span><span>peak {r0(s.peak)}</span><span>{r0(s.end)}</span></div>
-        </div>
-        <div className={styles.seasonStats}>
-          <div><b>{f1(s.pts)}</b><small>PPG</small></div><div><b>{f1(s.trb)}</b><small>RPG</small></div>
-          <div><b>{f1(s.ast)}</b><small>APG</small></div><div><b>{f1(s.gs)}</b><small>GmSc</small></div><div><b>{s.gp}</b><small>Games</small></div>
-        </div>
-        <div className={styles.seasonBest}><small>Best game</small><span>{ap(best.date)} {best.home === false ? '@' : 'vs'} {best.o} · {best.row.pts} PTS · {f1(best.row.gs)} GmSc</span></div>
-        {/* The mosaic: a tile per game, cleared by owning that game's card */}
-        {!done && <div className={styles.mosaic} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
-          {Array.from({ length: cells }, (_, c) => {
-            const g = Math.min(N - 1, Math.floor((c * N) / cells))
-            return <i key={c} className={owned.has(g) ? styles.tileOn : ''} />
-          })}
-        </div>}
+    <div className={styles.sc} data-tier={tier} data-live={live ? '' : undefined} data-prog={prog ? '' : undefined} data-mvp={H_.mvp && !live ? '' : undefined}
+      style={{ '--c': s.tc || '#173657' }}>
+      <div className={styles.scRays} /><div className={styles.scHolo} />
+      {live && <div className={styles.scSash}>IN-SEASON</div>}
+      <div className={styles.scTop}><span>{s.s} · {nick(s.tn).toUpperCase()}</span><em>{tier === 'goat' ? '★ GOAT' : tier.toUpperCase()}</em></div>
+      {plates.length > 0 && <div className={styles.scPlates}>{plates.map(x => <b key={x}>{x}</b>)}</div>}
+      <div className={styles.scRank}><small>{live ? 'RANK NOW' : 'FINAL RANK'}</small><b>{s.rank ? `#${s.rank}` : '—'}</b></div>
+      <div className={styles.scPhoto}>{headshot && !bad ? <img src={headshot} alt={baseName(s.name)} onError={() => setBad(true)} /> : <i>{initials(s.name)}</i>}</div>
+      <div className={styles.scName}><small>{first !== last ? first : ''}</small><FitName max={42} min={22}>{last}</FitName></div>
+      <svg className={styles.scRidge} viewBox={`0 0 ${W} ${Hh}`} preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id={`scg-${live ? 'l' : 'f'}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".32" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient></defs>
+        <path d={`${R.line}L${R.last[0]},${Hh}L0,${Hh}Z`} fill={`url(#scg-${live ? 'l' : 'f'})`} />
+        <path d={R.line} className={styles.scLine} />
+        {live && frac < 1 && <path d={`M${R.last[0]},${R.last[1]}L${W},${R.last[1]}`} className={styles.scAhead} />}
+      </svg>
+      <div className={styles.scStats}>
+        <div><b>{f1(s.pts)}</b><small>PPG</small></div><div><b>{f1(s.trb)}</b><small>RPG</small></div><div><b>{f1(s.ast)}</b><small>APG</small></div>
+        <div><b>{f1(s.gs)}</b><small>GMSC</small></div><div><b>{rec}</b><small>{live ? 'HIS GAMES' : 'RECORD'}</small></div>
       </div>
-      <div className={styles.seasonFoot}>
-        {done ? <><span>★ Season complete</span><span>{N} of {N} games</span>{serial}</>
-          : <><span>{have} of {N} games · {Math.floor((have / N) * 100)}%</span><span className={styles.seasonBar}><em style={{ width: `${(have / N) * 100}%` }} /></span></>}
+      <div className={styles.scFoot}>
+        {prog ? <><span>{have} OF {N} GAMES · {Math.floor((have / N) * 100)}%</span><span className={styles.scBar}><em style={{ width: `${(have / N) * 100}%` }} /></span></>
+          : live ? <><span className={styles.scLive}><i />THROUGH {s.thru || s.last ? ap(s.thru || s.last).toUpperCase() : ''} · {N} OF {N}</span><span>{s.reg}/{SEASON_LEN}</span></>
+            : <><span>★ FINAL · {N} OF {N} GAMES</span>{serial}</>}
       </div>
+      <div className={styles.scShine} />
     </div>
   )
 }
@@ -547,13 +533,15 @@ function peakState(card, list) {
 function SeasonFront({ card, owned, serial }) {
   // The Greatest Seasons binder ships each card's front with it; any other Season card builds it from the season's games
   const [s, setS] = useState(card.sum && !owned ? card.sum : null)
-  useEffect_(() => { if (card.sum && !owned) return; binderSeasonSummary(card.s, card.n, card.t).then(setS).catch(() => {}) }, [card.s, card.n, card.t])
+  // An in-season card shows his season through its date
+  const thru = card.final === false ? card.thru : undefined
+  useEffect_(() => { if (card.sum && !owned) return; binderSeasonSummary(card.s, card.n, card.t, thru).then(setS).catch(() => {}) }, [card.s, card.n, card.t, thru])
   const shots = useShots()
   if (!s) return <div className={styles.season} style={{ '--c': card.tc || '#173657' }}><div className={styles.seasonHead}><span>Season</span><small>{card.s} · {nick(card.tn)}</small></div>
     <div className={styles.seasonBody}><div className={styles.seasonBg} /></div><div className={styles.seasonFoot}><span>{baseName(card.n)}</span></div></div>
   // owned: the game ids you own (a partial reveal); none means the whole card
   const idx = owned ? new Set(s.tiles.map((t, i) => (owned.has(t.id) ? i : -1)).filter(i => i >= 0)) : undefined
-  return <SeasonCard s={s} owned={idx && idx.size < s.tiles.length ? idx : undefined} headshot={shotOf(shots, card.n)} serial={serial} />
+  return <SeasonCard s={s} owned={idx && idx.size < s.tiles.length ? idx : undefined} headshot={shotOf(shots, card.n)} serial={serial} inSeason={card.final === false} />
 }
 
 function SpecialFaceIn({ card, owned, serial, label }) {

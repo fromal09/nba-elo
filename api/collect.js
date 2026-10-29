@@ -44,7 +44,7 @@ import { upgradePoints, pointsStatus, seasonDetails } from './_lib/rescore.js'
 import { loadWishes, applyWishes, resetMeters, tickMeters, wishView, addWish, removeWish, wishNames, wishCards, warmWishes } from './_lib/wishes.js'
 import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS, SPECIAL_KINDS } from './_lib/packs.js'
 import { cardPoints } from './_lib/points.js'
-import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons, warmRewards, backfillSets } from './_lib/coins.js'
+import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons, warmRewards, backfillSets, settleFinals } from './_lib/coins.js'
 import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
 import { potwWeek, potdPick, settlePotw, predDay, settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
 import { achievements } from './_lib/achievements.js'
@@ -72,6 +72,7 @@ async function readBody(req) {
 // yesterday. Nights without games don't wait, and by noon Eastern the new pack opens whatever the data says.
 let ORIGIN = null
 let potwTried = 0
+const finalsTried = new Map()
 let packDayMemo = { day: null, v: null, at: 0 }
 const etHour = () => +new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23' }).format(new Date())
 async function packDay() {
@@ -439,8 +440,13 @@ export default async function handler(req, res) {
         await settlePotw(sql, origin, etDay()).catch(e => console.error('potw', e))
         await settleChallenges(sql, origin, etDay()).catch(e => console.error('challenge', e))
       }
-      // Complete Set cards for checklists finished before the cards existed
-      if (u0) awards.push(...(await backfillSets(sql, u0.id, origin, etDay()).catch(e => { console.error('sets', e); return [] })))
+      // Once an hour per collector (per instance): Complete Set cards for checklists finished before the cards existed, and
+      // Season and set cards whose season has ended turning Final
+      if (u0 && Date.now() - (finalsTried.get(u0.id) || 0) > 60 * 60e3) {
+        finalsTried.set(u0.id, Date.now())
+        awards.push(...(await backfillSets(sql, u0.id, origin, etDay()).catch(e => { console.error('sets', e); return [] })))
+        awards.push(...(await settleFinals(sql, u0.id, origin, etDay()).catch(e => { console.error('finals', e); return [] })))
+      }
       if (u0) for (const c of await sql`select id, card from cards where user_id = ${u0.id} and tier = 'potw' and not coalesce((card->>'seen')::boolean, false)`) {
         awards.push({ kind: 'potw', amount: 0, label: `Player of the Week: you won the week of ${new Date(c.card.week + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}. Your ${c.card.n} card is in your binder` })
         await sql`update cards set card = card || '{"seen": true}'::jsonb where id = ${c.id}`

@@ -2716,9 +2716,10 @@ export { getJSON as binderJSON, getHeadshots as binderHeadshots, teamInfo as bin
 // ── Special cards: what they need from the seasons and careers ──
 const MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 // A player's season with one franchise, for his Season card: every game as a tile, months, best games, the playoff run
-function seasonSummary(sd, name, fc) {
+// thru: an in-season card's date; only his games through it count
+function seasonSummary(sd, name, fc, thru) {
   const fr = t => MERGE_FRANCHISE[t] || t
-  const gp = [...sd.games].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+  const gp = [...sd.games].filter(g => !thru || g.date <= thru).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
     .map(g => [g, g.players.find(p => p.n === name && fr(p.t) === fc)]).filter(x => x[1])
   if (!gp.length) return null
   const t = gp[gp.length - 1][1].t, tm = sd.teams[t] || {}
@@ -2741,7 +2742,8 @@ function seasonSummary(sd, name, fc) {
   const r = x => Math.round(x)
   const tl = top[0]
   return {
-    name, s: sd.season, t: fc, tn: tm.name || fc, tc: tm.color, w: tm.w, l: tm.l, gp: gp.length, reg: reg.length,
+    name, s: sd.season, t: fc, tn: tm.name || fc, tc: tm.color, w: tm.w, l: tm.l, gp: gp.length, reg: reg.length, thru: thru || null,
+    pw: reg.filter(([g, p]) => won(g, p)).length, pl: reg.filter(([g, p]) => !won(g, p)).length, last: gp[gp.length - 1][0].date,
     pts: av(reg, 'pts'), trb: av(reg, 'trb'), ast: av(reg, 'ast'), gs: av(reg, 'gs'),
     start: r(path[0]), end: r(path[path.length - 1]), peak: r(Math.max(...path)), rank: gp[gp.length - 1][1].lrp, path: path.map(r),
     tiles: gp.map(([g, p]) => ({ id: g.id, d: g.date, o: opp(g, p), w: won(g, p), gs: Math.round((p.gs || 0) * 10) / 10, post: !!g.post })),
@@ -2757,10 +2759,10 @@ const summaries = new Map()
 let honorsP = null
 const binderHonors = () => (honorsP ||= getJSON('/data/explorer/binders/honors.json').catch(() => ({})))
 const parseHonors = c => (c ? { allStar: c.includes('S'), allNba: +(c.match(/[123]/)?.[0] || 0), mvp: c.includes('M'), aba: c.includes('A') } : null)
-export const binderSeasonSummary = (s, name, fc) => {
-  const k = `${s}|${fc}|${name}`
+export const binderSeasonSummary = (s, name, fc, thru) => {
+  const k = `${s}|${fc}|${name}|${thru || ''}`
   if (!summaries.has(k)) summaries.set(k, Promise.all([loadSeason(s, s === NEWEST), binderHonors()])
-    .then(([sd, h]) => { const x = seasonSummary(sd, name, fc); if (x) x.honors = parseHonors(h?.[s]?.[name]); return x }))
+    .then(([sd, h]) => { const x = seasonSummary(sd, name, fc, thru); if (x) x.honors = parseHonors(h?.[s]?.[name]); return x }))
   return summaries.get(k)
 }
 // A player's career Elo path up to a date (for a Peak card's climb), and the whole of it

@@ -109,7 +109,7 @@ export async function cardRewards(t, userId, day, origin, card) {
       const amount = Math.max(100, Math.min(500, roster.length * 20))
       const a = await grant(t, userId, day, 'checklist', amount, { ref: `${fc}|${card.s}`, label: `Completed the ${card.s} ${card.tn} checklist` })
       if (a) out.push(a)
-      const c = await awardSet(t, userId, day, fc, card.s, roster)
+      const c = await awardSet(t, userId, day, fc, card.s, roster, origin)
       if (c) out.push(c)
     }
   }
@@ -135,20 +135,85 @@ export async function cardRewards(t, userId, day, origin, card) {
  * card for that team-season when you finish it; a player added later (the season in progress) doesn't take it back.
  * k: your order among collectors who've completed this set. Returns the award to celebrate, or null if you have it.
  */
-export async function awardSet(t, userId, day, fc, s, roster) {
+export async function awardSet(t, userId, day, fc, s, roster, origin) {
   const ref = `set|${fc}|${s}`
-  const [has] = await t`select 1 from cards where user_id = ${userId} and ref = ${ref}`
-  if (has) return null
+  const over = await seasonOver(origin, s, day)
+  const [has] = await t`select id, card from cards where user_id = ${userId} and ref = ${ref}`
+  // In-season: caught up again with a bigger roster, the card moves up to it
+  if (has && (has.card.final || (has.card.size || 0) >= roster.length)) return null
   const codes = [fc, ...Object.keys(MERGE).filter(k => MERGE[k] === fc)]
-  const [team] = await t`select max(card->>'tn') as tn, max(card->>'tc') as tc from cards where user_id = ${userId} and card->>'s' = ${s}
+  const [team] = await t`select max(card->>'tn') as tn, max(card->>'tc') as tc, max(card->>'date') as d from cards where user_id = ${userId} and card->>'s' = ${s}
     and card->>'t' = any(${codes}) and card->>'kind' is null`
+  const players = roster.map(([name, games]) => [name, games])
+  if (has) {
+    const card = { ...has.card, size: roster.length, players, final: over, thru: over ? null : team?.d || day }
+    await t`update cards set card = ${t.json(card)}, points = ${cardPoints(card).points} where id = ${has.id}`
+    return { kind: 'setcard', amount: 0, label: `Complete Set updated: all ${roster.length} ${s} ${card.tn} players` }
+  }
   const [{ n }] = await t`select count(*)::int as n from cards where ref = ${ref}`
   const [u] = await t`select username from users where id = ${userId}`
   const card = { kind: 'set', tier: 'set', fc, t: fc, s, tn: team?.tn || fc, tc: team?.tc || null, size: roster.length,
-    players: roster.map(([name, games]) => [name, games]), k: n + 1, at: day, by: u?.username || null }
+    players, k: n + 1, at: day, by: u?.username || null, final: over, thru: over ? null : team?.d || day }
   const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, 'set', ${ref}, ${t.json(card)}, ${cardPoints(card).points}, 'set')
     on conflict (user_id, ref) do nothing returning id`
   return row ? { kind: 'setcard', amount: 0, label: `Complete Set: every ${s} ${card.tn} player. Your set card is in your binder` } : null
+}
+
+// ── In-season and Final ─────────────────────────────────────────────────────
+// A season is over once a newer one is in the data, or once three weeks pass without a game (after the Finals).
+// Until then Season and Complete Set cards are in-season: they cover the games (or roster) so far, through a date, and
+// move up whenever you catch up again. They're never taken away. When the season ends, one that still covers
+// everything turns Final (gold, a quarter more points); one that doesn't stays as it is, through its date.
+let newestCache = null
+async function newestSeason(origin) {
+  if (!newestCache || Date.now() - newestCache.at > 10 * 60e3) {
+    const [check, idx] = await Promise.all([dataJSON(origin, 'binders/checklist.json'), poolJSON(origin, 'index.json').catch(() => null)])
+    newestCache = { at: Date.now(), s: check ? Object.keys(check.seasons || {}).sort().pop() : null, last: idx?.recent?.date || null }
+  }
+  return newestCache
+}
+export async function seasonOver(origin, s, today) {
+  const n = await newestSeason(origin)
+  if (!n.s) return false
+  if (s < n.s) return true
+  return !!n.last && (Date.parse(today) - Date.parse(n.last)) / 864e5 > 21
+}
+
+// Season and set cards not yet Final: the ones whose season has ended turn Final (or stay through their date) once.
+// Cards from before in-season existed: past seasons were complete when forged, so they turn Final; this season's become
+// in-season cards through the day they were forged.
+export async function settleFinals(sql, userId, origin, day) {
+  const rows = await sql`select id, tier, card, pulled_at from cards where user_id = ${userId} and tier in ('season', 'set')
+    and coalesce(card->>'final', '') <> 'true' and coalesce(card->>'closed', '') <> 'true'`
+  const out = []
+  for (const r of rows) {
+    const c = r.card, over = await seasonOver(origin, c.s, day)
+    const legacy = c.final === undefined
+    let next = null
+    if (!over) { if (legacy) next = { ...c, final: false, thru: new Date(r.pulled_at).toISOString().slice(0, 10) } }
+    else if (legacy) next = { ...c, final: true, thru: null }
+    else if (r.tier === 'season') {
+      const fc = c.t
+      if (!rosterCache.has(fc)) rosterCache.set(fc, dataJSON(origin, `binders/roster/${fc.replace('@', '_')}.json`))
+      const games = (await rosterCache.get(fc))?.[c.s]?.find(([n]) => n === c.n)?.[1]
+      const codes = [fc, ...Object.keys(MERGE).filter(k => MERGE[k] === fc)]
+      const [{ k }] = await sql`select count(*)::int as k from cards where user_id = ${userId} and card->>'s' = ${c.s} and card->'row'->>'n' = ${c.n}
+        and card->>'t' = any(${codes}) and card->>'kind' is null and card->>'ruby' is null`
+      next = games && k >= games ? { ...c, final: true, thru: null, gp: games, ...(await seasonDetails(origin, c.s, fc, c.n)) } : { ...c, closed: true }
+    } else {
+      const roster = await (rosterCache.get(c.fc) || (rosterCache.set(c.fc, dataJSON(origin, `binders/roster/${c.fc.replace('@', '_')}.json`)), rosterCache.get(c.fc)))
+      const R = roster?.[c.s] || []
+      const codes = [c.fc, ...Object.keys(MERGE).filter(k => MERGE[k] === c.fc)]
+      const have = new Set((await sql`select distinct card->'row'->>'n' as n from cards where user_id = ${userId} and card->>'s' = ${c.s}
+        and card->>'t' = any(${codes})`).map(x => x.n))
+      next = R.length && R.every(([n]) => have.has(n)) ? { ...c, final: true, thru: null, size: R.length, players: R.map(([n, g]) => [n, g]) } : { ...c, closed: true }
+    }
+    if (!next) continue
+    await sql`update cards set card = ${sql.json(next)}, points = ${cardPoints(next).points} where id = ${r.id}`
+    if (next.final && !legacy) out.push({ kind: r.tier === 'set' ? 'setcard' : 'season', amount: 0,
+      label: r.tier === 'set' ? `Final: your ${c.s} ${next.tn} Complete Set card turned gold` : `Final: your ${c.n} ${c.s} Season card turned gold` })
+  }
+  return out
 }
 
 // Collectors who finished a checklist before Complete Set cards existed (their checklist Coins are in the ledger): the card
@@ -161,7 +226,7 @@ export async function backfillSets(sql, userId, origin, day) {
     if (!rosterCache.has(fc)) rosterCache.set(fc, dataJSON(origin, `binders/roster/${fc.replace('@', '_')}.json`))
     const roster = (await rosterCache.get(fc))?.[s]
     if (!roster?.length) continue
-    const a = await sql.begin(t => awardSet(t, userId, day, fc, s, roster))
+    const a = await sql.begin(t => awardSet(t, userId, day, fc, s, roster, origin))
     if (a) out.push(a)
   }
   return out
@@ -174,26 +239,37 @@ export async function backfillSets(sql, userId, origin, day) {
  */
 export async function forgeSeasons(t, userId, day, origin, only = null) {
   const rows = only
-    ? await t`select card->>'s' as s, card->>'t' as t, card->'row'->>'n' as n, count(*)::int as k, max(card->>'tn') as tn, max(card->>'tc') as tc from cards
+    ? await t`select card->>'s' as s, card->>'t' as t, card->'row'->>'n' as n, count(*)::int as k, max(card->>'tn') as tn, max(card->>'tc') as tc, max(card->>'date') as d from cards
         where user_id = ${userId} and card->>'s' = ${only.s} and card->'row'->>'n' = ${only.n} and card->>'kind' is null and card->>'ruby' is null group by 1, 2, 3`
-    : await t`select card->>'s' as s, card->>'t' as t, card->'row'->>'n' as n, count(*)::int as k, max(card->>'tn') as tn, max(card->>'tc') as tc from cards
+    : await t`select card->>'s' as s, card->>'t' as t, card->'row'->>'n' as n, count(*)::int as k, max(card->>'tn') as tn, max(card->>'tc') as tc, max(card->>'date') as d from cards
         where user_id = ${userId} and card->>'kind' is null and card->>'ruby' is null group by 1, 2, 3 having count(*) >= 2`
   const by = new Map()
   for (const r of rows) {
     const fc = MERGE[r.t] || r.t, key = `${r.s}|${fc}|${r.n}`
-    const x = by.get(key) || { s: r.s, fc, n: r.n, k: 0, tn: r.tn, tc: r.tc }
-    x.k += r.k; by.set(key, x)
+    const x = by.get(key) || { s: r.s, fc, n: r.n, k: 0, tn: r.tn, tc: r.tc, d: r.d }
+    x.k += r.k; if (r.d > x.d) x.d = r.d; by.set(key, x)
   }
   const out = []
   for (const x of by.values()) {
     if (!rosterCache.has(x.fc)) rosterCache.set(x.fc, dataJSON(origin, `binders/roster/${x.fc.replace('@', '_')}.json`))
     const games = (await rosterCache.get(x.fc))?.[x.s]?.find(([n]) => n === x.n)?.[1]
     if (!games || x.k < games) continue
-    const card = { kind: 'season', tier: 'season', s: x.s, t: x.fc, tn: x.tn, tc: x.tc, n: x.n, gp: games, ...(await seasonDetails(origin, x.s, x.fc, x.n)) }
+    // In-season until the season is over: every game so far, through the last one you own
+    const over = await seasonOver(origin, x.s, day)
+    const card = { kind: 'season', tier: 'season', s: x.s, t: x.fc, tn: x.tn, tc: x.tc, n: x.n, gp: games, final: over, thru: over ? null : x.d,
+      ...(await seasonDetails(origin, x.s, x.fc, x.n)) }
     const ref = `season|${x.s}|${x.fc}|${x.n}`
+    const [had] = await t`select id, card from cards where user_id = ${userId} and ref = ${ref}`
+    if (had) {
+      // Caught up again: the in-season card moves up to the new games
+      if (had.card.final === true || (!over && (had.card.gp || 0) >= games)) continue
+      await t`update cards set card = ${t.json({ ...had.card, ...card, closed: undefined })}, points = ${cardPoints(card).points} where id = ${had.id}`
+      out.push({ kind: 'season', amount: 0, label: over ? `Final: ${x.n}, ${x.s} · every game` : `Season card updated: ${x.n}, ${x.s} · ${games} game${games === 1 ? '' : 's'} so far` })
+      continue
+    }
     const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, 'season', ${ref}, ${t.json(card)}, ${cardPoints(card).points}, 'forged')
       on conflict (user_id, ref) do nothing returning id`
-    if (row) out.push({ kind: 'season', amount: 0, label: `Season card forged: ${x.n}, ${x.s}` })
+    if (row) out.push({ kind: 'season', amount: 0, label: over ? `Season card forged: ${x.n}, ${x.s}` : `In-season card: ${x.n}, ${x.s} · every game so far (${games})` })
   }
   return out
 }

@@ -116,7 +116,9 @@ export const POTW_POINTS = 2500
 export const SET_POINTS_PER = 100
 export function cardPoints(card) {
   if (card?.kind === 'potw') return { points: POTW_POINTS, base: 0, grade: 0, bonuses: [['Player of the Week', 0]] }
-  if (card?.kind === 'set') return { points: SET_POINTS_PER * (card.size || 0), base: 0, grade: 0, bonuses: [['Complete Set', 0]] }
+  // A Final set (the season over, every player still in your binder) is worth a quarter more than an in-season one
+  if (card?.kind === 'set') return { points: Math.round(SET_POINTS_PER * (card.size || 0) * (card.final === true ? 1.25 : 1)), base: 0, grade: 0,
+    bonuses: [['Complete Set', 0], ...(card.final === true ? [['Final', 0.25]] : [])] }
   // Ruby: the Player of the Day card you called, at twice its points
   if (card?.ruby) {
     const p = cardPoints({ ...card, ruby: undefined })
@@ -147,6 +149,8 @@ export function cardPoints(card) {
     if (h.allNba) bonuses.push([`All-League ${['1st', '2nd', '3rd'][h.allNba - 1]}`, SEASON_HONOR.allNba[h.allNba]])
     if (h.mvp) bonuses.push(['MVP', SEASON_HONOR.mvp])
     if (card.champ) bonuses.push(['Title', SEASON_HONOR.title])
+    // Final: the season over with every game in your binder (in-season cards cover the games so far)
+    if (card.final === true) bonuses.push(['Final', 0.25])
     const mult = 1 + bonuses.reduce((a, x) => a + x[1], 0)
     return { points: Math.max(5, Math.round(80 * base * Math.min(1.25, (card.gp || 0) / 82) * mult)), base, grade: 0, tier, bonuses }
   }

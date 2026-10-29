@@ -1375,7 +1375,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
                     const ids = gamesOwned.get(`${cur.id}|${x.s}|${n}`), k = ids?.size || 0, done = k >= g
                     return <button key={n} type="button" className={`${styles.rosterChip} ${k ? styles.got : ''} ${done ? styles.gotAll : ''}`} style={{ '--p': `${Math.min(1, k / g) * 360}deg` }}
                       title={done ? `Season card complete: all ${g} games` : `${k} of ${g} games with ${x.name} · tap to see his Season card`}
-                      onClick={() => setReveal({ card: { kind: 'season', tier: 'season', s: x.s, t: cur.id, tn: x.name, tc: env.teamInfo(cur.id)?.color, n, gp: g, owned: done ? undefined : (ids || new Set()) }, done, k, g })}>
+                      onClick={() => setReveal({ card: { kind: 'season', tier: 'season', s: x.s, t: cur.id, tn: x.name, tc: env.teamInfo(cur.id)?.color, n, gp: g, owned: done ? undefined : (ids || new Set()),
+                        final: x.s === seasons[0]?.s && view === 'team' ? false : undefined }, done, k, g })}>
                       <i>{done ? '★' : k ? '✓' : ''}</i><span>{baseName(n)}</span><small>{k}/{g}</small></button>
                   })}
                   {(() => {
