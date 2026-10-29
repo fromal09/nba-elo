@@ -9,8 +9,37 @@ const slug = s => (s || 'card').normalize('NFD').replace(/[̀-ͯ]/g, '').replace
 // The element to draw: a display:contents wrapper hands over to its first child
 const target = el => (el && getComputedStyle(el).display === 'contents' ? el.firstElementChild : el)
 
+// Another site's image would be left out of the drawing (no CORS), so each one is swapped for a same-origin copy
+// (api/img.js) while the card is drawn, then put back
+const proxied = src => `/api/img?u=${encodeURIComponent(src)}`
+// The copy loads off-screen first, so a failed one never touches the card (its own onError would swap in initials)
+const preload = url => new Promise(ok => {
+  const im = new Image()
+  im.onload = () => ok(true); im.onerror = () => ok(false)
+  setTimeout(() => ok(false), 8000)
+  im.src = url
+})
+async function localImages(el) {
+  const imgs = [...el.querySelectorAll('img')].map(img => ({ img, src: img.currentSrc || img.src, set: img.getAttribute('srcset') }))
+    .filter(x => /^https?:/.test(x.src) && new URL(x.src).origin !== location.origin)
+  const ok = await Promise.all(imgs.map(x => preload(proxied(x.src))))
+  const swapped = imgs.filter((x, i) => ok[i])
+  await Promise.all(swapped.map(({ img, src }) => new Promise(done => {
+    img.removeAttribute('srcset')
+    img.src = proxied(src)
+    img.complete ? done() : img.addEventListener('load', done, { once: true })
+    setTimeout(done, 3000)
+  })))
+  return () => swapped.forEach(({ img, src, set }) => { if (set) img.setAttribute('srcset', set); img.src = src })
+}
+
 async function save(el, name) {
   const { toBlob } = await load()
+  const restore = await localImages(el)
+  try { await draw(el, name, toBlob) } finally { restore() }
+}
+
+async function draw(el, name, toBlob) {
   // Flip-card faces are turned in 3D; draw them flat and fully shown
   const blob = await toBlob(el, {
     pixelRatio: 2, cacheBust: false,
