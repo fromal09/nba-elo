@@ -1385,7 +1385,17 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
                     return <div className={`${styles.fiveRow} ${got ? styles.fiveGot : ''}`}><b>Starting Five</b><span>{f[5].map(m => baseName(m).split(' ').slice(-1)[0]).join(' · ')}</span>
                       <small>Five Elo {n0(f[0])}</small><em>{got ? '✓ Pulled' : 'Not yet'}</em></div>
                   })()}
-                  {x.n > 0 && <button type="button" className={styles.linkBtn} onClick={() => { setSeason(x.s); setMode('cards'); S.reset() }}>See your {x.s} cards</button>}
+                  <div className={styles.checkBtns}>
+                    {x.n > 0 && <button type="button" className={styles.linkBtn} onClick={() => { setSeason(x.s); setMode('cards'); S.reset() }}>See your {x.s} cards</button>}
+                    {roster?.[x.s] && <button type="button" className={`${styles.linkBtn} ${styles.setBtn}`} onClick={() => {
+                      // Earned: the card itself. Not yet: the card in progress, players you have of the roster
+                      const got = all.find(e => e.special?.kind === 'set' && e.special.fc === cur.id && e.special.s === x.s)
+                      if (got) { setReveal({ card: got.special, done: true }); return }
+                      const players = roster[x.s].map(([n, g]) => [n, g])
+                      setReveal({ set: true, done: false, k: players.filter(([n]) => mineSet?.has(n)).length, g: players.length,
+                        card: { kind: 'set', tier: 'set', fc: cur.id, t: cur.id, s: x.s, tn: x.name, tc: env.teamInfo(cur.id)?.color, size: players.length, players, have: mineSet || new Set() } })
+                    }}>{all.some(e => e.special?.kind === 'set' && e.special.fc === cur.id && e.special.s === x.s) ? '★ See team set card' : 'See team set card'}</button>}
+                  </div>
                 </div>}
               </div>
             )
@@ -1430,8 +1440,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       </div>
     </div>}
     {reveal && <SpecialModal card={reveal.card} onClose={() => setReveal(null)}
-      locked={reveal.done ? null : `${reveal.k} of ${reveal.g} games · collect every one to forge his Season card`}
-      extra={!reveal.done && mine && <WishBtn name={reveal.card.n} season={reveal.card.s} C={C} dark />} />}
+      locked={reveal.done ? null : reveal.set ? `${reveal.k} of ${reveal.g} players · a card of every one earns the set card` : `${reveal.k} of ${reveal.g} games · collect every one to forge his Season card`}
+      extra={!reveal.done && !reveal.set && mine && <WishBtn name={reveal.card.n} season={reveal.card.s} C={C} dark />} />}
     <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right} dock={phone && me ? dock : null}
       summary={<span><b>{n0(st.score)} pts</b>{st.rank ? ` · No. ${st.rank}` : ''} · {all.length} cards</span>}
       onKey={e => { if (P.open) return true; if (view === 'sets' || view === 'badges' || view === 'specials' || view === 'wishes' || view === 'five' || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />

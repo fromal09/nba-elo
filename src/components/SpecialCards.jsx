@@ -464,19 +464,24 @@ export function PotwBack({ card: c }) {
 const ordS = n => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`
 const lastName = n => { const p = baseName(n).split(' '); return (/^(Jr\.?|Sr\.?|II|III|IV)$/.test(p[p.length - 1]) && p.length > 2 ? p[p.length - 2] : p[p.length - 1]).toUpperCase() }
 const seasonNick = c => nick(c.tn)
+// card.have (a Set of names): the card in progress, from the binder checklist. Players you have light up on the ticker,
+// the count reads have/size, and the foil stays dim until it's complete.
 export function SetCard({ card: c }) {
   const [bad, setBad] = useState(false)
   const logo = binderLogo(c.fc)
-  const names = (c.players || []).map(([n]) => lastName(n)).join(' · ')
+  const prog = c.have instanceof Set, got = prog ? (c.players || []).filter(([n]) => c.have.has(n)).length : c.size
+  const tick = (c.players || []).map(([n], i) => <span key={i} data-off={prog && !c.have.has(n) ? '' : undefined}>{lastName(n)}{' · '}</span>)
   return (
-    <div className={styles.set} style={{ '--c': c.tc || '#173657' }}>
+    <div className={styles.set} data-prog={prog ? '' : undefined} style={{ '--c': c.tc || '#173657', '--pct': prog ? got / Math.max(1, c.size) : 1 }}>
       <div className={styles.setPrizm} /><div className={styles.setShards}><i /><i /><i /><i /><i /></div><div className={styles.setHolo} />
       <div className={styles.setLogo}>{logo && !bad ? <img src={logo} alt="" onError={() => setBad(true)} /> : <b>{c.fc.split('@')[0]}</b>}</div>
-      <div className={styles.setBig}>{c.size}/{c.size}</div>
-      <div className={styles.setOf}>COMPLETE SET</div>
+      <div className={styles.setBig}>{got}/{c.size}</div>
+      <div className={styles.setOf}>{prog ? 'SET IN PROGRESS' : 'COMPLETE SET'}</div>
       <div className={styles.setName}><FitName max={40} min={24}>{`${c.s} ${seasonNick(c)}`}</FitName></div>
-      <div className={styles.setTicker}><span>{names} · {names}</span></div>
-      <div className={styles.setFoot}><span>#{c.k || 1} TO COMPLETE</span><span>{c.at ? ap(c.at).toUpperCase() : ''}</span></div>
+      {prog && <div className={styles.setMeter}><em /></div>}
+      <div className={styles.setTicker}><span>{tick}{tick.map((x, i) => <span key={'b' + i} data-off={x.props['data-off']}>{x.props.children}</span>)}</span></div>
+      <div className={styles.setFoot}>{prog ? <><span>{c.size - got} TO GO</span><span>{Math.floor((got / Math.max(1, c.size)) * 100)}%</span></>
+        : <><span>#{c.k || 1} TO COMPLETE</span><span>{c.at ? ap(c.at).toUpperCase() : ''}</span></>}</div>
       <div className={styles.setShine} />
     </div>
   )

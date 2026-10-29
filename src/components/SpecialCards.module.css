@@ -447,7 +447,7 @@
   line-height: .95; white-space: nowrap; overflow: hidden; padding-right: 4px; text-shadow: 0 2px 8px rgba(0,0,0,.35); }
 .setTicker { position: absolute; left: 0; right: 0; bottom: 44px; height: 26px; z-index: 2; background: rgba(0,0,0,.45); overflow: hidden; white-space: nowrap;
   font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 13px; line-height: 26px; letter-spacing: 2px; color: #fff3c4; }
-.setTicker span { display: inline-block; animation: setTick 40s linear infinite; }
+.setTicker > span { display: inline-block; animation: setTick 40s linear infinite; }
 .setFoot { position: absolute; left: 14px; right: 14px; bottom: 12px; z-index: 2; display: flex; justify-content: space-between; font-family: 'Barlow Condensed', 'Inter', sans-serif;
   font-weight: 800; font-size: 13px; letter-spacing: 2px; text-shadow: 0 1px 3px rgba(0,0,0,.4); }
 @keyframes setSpin { to { transform: rotate(360deg); } }
@@ -461,3 +461,10 @@
 .setRow b { color: #2a8a4a; font-size: 10px; } .setRow span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .setRow em { font-style: normal; color: #8a95a2; font-size: 9.5px; }
 .setList[data-long] .setRow { font-size: 9px; line-height: 1.4; } .setList[data-long] .setRow em { font-size: 8.5px; }
+
+/* A set in progress: the foil held back, a meter, the players you have lit on the ticker */
+.set[data-prog] { filter: saturate(.45) brightness(.82); }
+.set[data-prog] .setHolo, .set[data-prog] .setShine { opacity: .25; }
+.setMeter { position: absolute; left: 40px; right: 40px; top: 338px; z-index: 2; height: 8px; border-radius: 4px; background: rgba(0,0,0,.35); overflow: hidden; }
+.setMeter em { display: block; height: 100%; width: calc(var(--pct) * 100%); border-radius: 4px; background: linear-gradient(90deg, #fff, #fff3c4); box-shadow: 0 0 10px rgba(255,255,255,.8); }
+.setTicker span span[data-off] { color: rgba(255,255,255,.35); }
