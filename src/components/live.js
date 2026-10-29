@@ -130,7 +130,9 @@ export function assignRanks(games, R) {
 export function dayBoards(games) {
   const all = games.flatMap(g => g.players.map(p => ({ p, g })))
   const d = x => x.p.post - x.p.pre
-  const performers = [...all].sort((x, y) => y.p.gs - x.p.gs).slice(0, 15)
+  // Ranked by PotD score (Game Score + Elo change ÷ 6), the measure that picks the Player of the Day
+  const potd = x => x.p.gs + d(x) / 6
+  const performers = [...all].sort((x, y) => potd(y) - potd(x)).slice(0, 15)
   const risers = [...all].sort((x, y) => d(y) - d(x)).slice(0, 10)
   const fallers = [...all].sort((x, y) => d(x) - d(y)).slice(0, 10)
   const gameUpsets = games.map(g => {

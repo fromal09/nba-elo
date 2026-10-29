@@ -611,7 +611,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           {live.fetched && <span className={styles.muted}>Updated {new Date(live.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
         </div>
       )}
-      {view === 'potw' ? <PlayerOfWeek day={day} onSelect={selectPlayer} /> : view === 'picks' ? <MyPredictions day={day} /> : view === 'today' ? (
+      {view === 'potw' ? <PlayerOfWeek day={day} onSelect={selectPlayer} ratings={ratings} /> : view === 'picks' ? <MyPredictions day={day} /> : view === 'today' ? (
         <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} />
       ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (
         <OddsView odds={odds} teams={teams} sd={sdL} fc={fc} />
@@ -2240,7 +2240,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
           </section>
   </>
   const tables = []
-  if (scored.length) tables.push({ id: 'perf', g: 'Players', title: 'Top performers', lead: boards.performers[0] && `${shortName(boards.performers[0].p.n)} · ${boards.performers[0].p.gs.toFixed(1)} GmSc`,
+  if (scored.length) tables.push({ id: 'perf', g: 'Players', title: 'Top performers', lead: boards.performers[0] && `${shortName(boards.performers[0].p.n)} · ${nightScore(boards.performers[0].p).toFixed(1)} PotD score`,
     node: <PerfTable rows={boards.performers} shots={shots} onOpen={openCard} /> })
   if (inAction.any) tables.push(
     { id: 'action', g: 'Players', title: 'Top 20 in action', lead: inAction.top[0] && `${shortName(inAction.top[0].n)} · ${r0(inAction.top[0].elo)}`,
@@ -2552,20 +2552,21 @@ function Board({ title, sub, rows, shots, onOpen, val, valCls, line, delta, empt
   )
 }
 
-// Top performers across the day, with the raw and shooting line behind each Game Score
+// Top performers across the day, ranked by PotD score (Game Score + Elo change ÷ 6, what picks the Player of the Day),
+// with the raw and shooting line behind each
 function PerfTable({ rows, shots, onOpen }) {
   const ts = p => { const d = 2 * ((p.fga || 0) + 0.44 * (p.fta || 0)); return d ? ((p.pts || 0) / d).toFixed(3).replace(/^0/, '') : '—' }
   const sh = (m, a) => (m == null ? '—' : `${m}-${a ?? 0}`)
   return (
     <section className={`${styles.board} ${styles.perf}`}>
-      <header><h3>Top performers</h3><span>Ranked by Game Score, the stat every duel is decided on</span></header>
+      <header><h3>Top performers</h3><span>Ranked by PotD score: Game Score + Elo change ÷ 6. The top score is the Player of the Day (duels use Game Score alone).</span></header>
       <div className={styles.tableWrap}>
         <table className={styles.perfTable}>
           <thead><tr>
             <th /><th className={styles.pLeft}>Player</th><th className={styles.pLeft}>Game</th>
             <th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th>
             <th className={styles.pGap}>FG</th><th>3PT</th><th>FT</th><th>TS%</th>
-            <th className={styles.pGap}>GmSc</th><th>Elo Δ</th><th>Rank</th>
+            <th className={styles.pGap}>GmSc</th><th>Elo Δ</th><th className={styles.pGap} title="Game Score + Elo change ÷ 6">PotD</th><th>Rank</th>
           </tr></thead>
           <tbody>
             {rows.map(({ p, g }, i) => {
@@ -2574,14 +2575,15 @@ function PerfTable({ rows, shots, onOpen }) {
                 <tr key={g.id + p.n} onClick={() => onOpen(g, p)}>
                   <td className={styles.bRank}>{i + 1}</td>
                   <td className={styles.pLeft}><span className={styles.pWho}><Headshot name={p.n} shots={shots} color={tColor(p.t)} />
-                    <span><b>{shortName(p.n)}</b><small>{tCode(p.t)}{p.pos ? ` · ${p.pos}` : ''}</small></span></span></td>
+                    <span><b>{shortName(p.n)}{p.potd && <i className={styles.potdTag}>PotD</i>}</b><small>{tCode(p.t)}{p.pos ? ` · ${p.pos}` : ''}</small></span></span></td>
                   <td className={styles.pLeft}><span className={styles.pGame}>{g.home === p.t ? 'vs' : '@'} {tCode(o)}
                     {g.live?.state === 'in' && <i className={styles.liveTxt}><i className={styles.liveDot} />live</i>}</span></td>
                   <td>{p.mp ?? '—'}</td><td className={styles.pPts}>{p.pts ?? '—'}</td><td>{p.trb ?? '—'}</td><td>{p.ast ?? '—'}</td>
                   <td>{p.stl ?? '—'}</td><td>{p.blk ?? '—'}</td><td>{p.tov ?? '—'}</td>
                   <td className={styles.pGap}>{sh(p.fg, p.fga)}</td><td>{sh(p.tp, p.tpa)}</td><td>{sh(p.ft, p.fta)}</td><td>{ts(p)}</td>
-                  <td className={`${styles.pGap} ${styles.pGs}`}>{p.gs.toFixed(1)}</td>
+                  <td className={styles.pGap}>{p.gs.toFixed(1)}</td>
                   <td className={d >= 0 ? styles.up : styles.down}><b>{sgn(d)}</b></td>
+                  <td className={`${styles.pGap} ${styles.pGs}`} title={`${p.gs.toFixed(1)} ${d >= 0 ? '+' : '−'} ${Math.abs(d / 6).toFixed(1)}`}>{nightScore(p).toFixed(1)}</td>
                   <td><RankCell p={p} /></td>
                 </tr>
               )

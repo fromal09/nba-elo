@@ -770,6 +770,13 @@ function weekLine(x, week) {
     best: { date: top.date, o: top.o, pts: top.row.pts, gs: top.row.gs },
   }
 }
+// Running totals for one player's week (the page adds live games to these)
+function weekSums(x) {
+  const G = [...x.games].sort((a, b) => a.date.localeCompare(b.date)), last = G[G.length - 1]
+  const sum = k => G.reduce((a, c) => a + (c.row[k] || 0), 0)
+  return { n: x.n, t: last.t, tn: last.tn, tc: last.tc, pos: last.row.pos, s: last.s, gp: G.length, w: G.filter(c => c.won).length,
+    pts: sum('pts'), trb: sum('trb'), ast: sum('ast'), gs: r1(sum('gs')), score: r1(x.score), e0: r1(G[0].row.pre), e1: r1(last.row.post) }
+}
 export async function weekStar(origin, week) {
   const { rows } = await weekRows(origin, week)
   const best = rows.find(x => x.games.length >= 2)
@@ -787,14 +794,15 @@ export async function potwWeek(sql, origin, day) {
   let board = m && Date.now() - m.at < 10 * 60e3 ? m.data : null
   if (!board) {
     const { rows, through } = await weekRows(origin, week)
+    // all: every player's week as running totals, so the page can add tonight's live games and re-rank
     board = { through, top: rows.slice(0, 20).map(x => ({ ...weekLine(x, week), games: undefined, qualified: x.games.length >= 2 })),
-      leader: rows[0]?.games.length >= 2 ? weekLine(rows[0], week) : null }
+      leader: rows[0]?.games.length >= 2 ? weekLine(rows[0], week) : null, all: rows.map(weekSums) }
     boards.set(week, { at: Date.now(), data: board })
     if (boards.size > 20) boards.delete(boards.keys().next().value)
   }
   const race = week <= today ? (await rank(sql, week, end, 5)).map((r, i) => ({ rank: i + 1, username: r.username, score: r.score, picks: [r.w, r.n - r.w], matchups: [r.dw, r.dn - r.dw], over: Math.round(r.over * 10) / 10 })) : []
   return { week, end, complete: today > end, settled: done?.card ? { card: { ...done.card, k: 1 }, winners: done.card.winners || [] } : null,
-    through: board.through, leader: done?.card || board.leader, top: board.top, race }
+    through: board.through, leader: done?.card || board.leader, top: board.top, all: done?.card ? undefined : board.all, race }
 }
 
 // Monday on: the week's pick'em winner gets the card; a tie shares it, numbered (1/3, 2/3, 3/3)

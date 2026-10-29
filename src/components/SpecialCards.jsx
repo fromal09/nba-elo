@@ -416,7 +416,7 @@ export function PotwCard({ card: c, headshot, label }) {
       <div className={styles.potwBadge}>PLAYER OF THE WEEK</div>
       <div className={styles.potwShot}>{headshot && !bad ? <img src={headshot} alt={baseName(c.n)} onError={() => setBad(true)} /> : <b>{initials(c.n)}</b>}</div>
       <div className={styles.potwName}><small>{first !== last ? first : ''}</small><FitName max={40} min={22}>{last}</FitName></div>
-      <div className={styles.potwWeek}>{nick(c.tn).toUpperCase()} · {weekSpan(c).replace(/, \d{4}$/, '').toUpperCase()} · {c.gp} GAMES · {c.w}–{c.gp - c.w}</div>
+      <div className={styles.potwWeek}>{nick(c.tn).toUpperCase()} · {weekSpan(c).replace(/, \d{4}$/, '').toUpperCase()} · {c.gp} GAMES · {c.w}–{c.l ?? c.gp - c.w}</div>
       <div className={styles.potwStats}>
         <div><b>{f1(c.pts)}</b><small>PPG</small></div><div><b>{f1(c.trb)}</b><small>RPG</small></div>
         <div><b>{f1(c.ast)}</b><small>APG</small></div><div><b>{f1(c.gs)}</b><small>GmSc</small></div>

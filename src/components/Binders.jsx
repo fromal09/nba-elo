@@ -1451,6 +1451,9 @@ export function PublicBinder({ name, env, onClose, onLeague }) {
 
 // The wish list: each wish's progress, and its meter at every tier where it still has cards you don't own
 const WISH_TIER = { common: "Common", rare: "Rare", standout: "Standout", legend: "Legend", icon: "Icon", goat: "★ GOAT" }
+// How far a tier's meter is toward its guarantee: the wish's card is due once you've kept need − 1 cards at that tier
+// without seeing it, so that's the target
+const wishGoal = t => { const target = Math.max(1, t.need - 1), left = Math.max(0, target - t.meter); return { pct: Math.min(100, Math.round((t.meter / target) * 100)), left } }
 function WishList({ user, mine, C, env, tools }) {
   const [d, setD] = useState(null)
   const key = (C?.me?.wishes || []).map(w => w.id).join() + '|' + (C?.me?.stats?.cards || 0)
@@ -1466,20 +1469,28 @@ function WishList({ user, mine, C, env, tools }) {
       {!d ? <p className={styles.light}>Loading…</p> : !d.wishes.length ? <div className={styles.emptySheet}><b>{mine ? 'No wishes yet' : 'No wishes right now'}</b>
         <span>{mine ? 'Find a player above, or tap ♡ Wish in any career or season binder.' : 'This collector isn’t wishing for anyone.'}</span></div>
         : <div className={styles.wishList}>{d.wishes.map(w => {
+          const open = w.tiers.filter(t => t.have < t.total)
+          const best = open.map(t => ({ t, ...wishGoal(t) })).sort((a, b) => b.pct - a.pct)[0]
           return (
             <div key={w.id} className={styles.wishItem}>
               <div className={styles.wishTop}>
                 <span className={styles.wishWho}><b>{w.tier && <i className={styles.wishTierTag} data-tier={w.tier}>{WISH_TIER[w.tier]}</i>}{w.name}</b><small>{w.season ? `${w.season} season` : 'Any season'}{w.tier ? ` · ${WISH_TIER[w.tier]} cards only` : ''} · you have {w.have.toLocaleString()} of {w.total.toLocaleString()}</small></span>
-                {mine && <button type="button" className={styles.linkBtn} onClick={() => drop(w)}>Remove</button>}
+                <span className={styles.wishEnd}>
+                  {best && <span className={styles.wishPct} data-tier={best.t.tier} title={`Closest guarantee: ${WISH_TIER[best.t.tier]}`}><b>{best.pct}%</b><small>{best.left ? `${best.left} to go` : 'due next'}</small></span>}
+                  {mine && <button type="button" className={styles.linkBtn} onClick={() => drop(w)}>Remove</button>}
+                </span>
               </div>
               <div className={styles.wishMeters}>
-                {w.tiers.filter(t => t.have < t.total).map(t => (
-                  <div key={t.tier} className={styles.wishMeter} data-tier={t.tier}>
-                    <span className={styles.wishTier}>{WISH_TIER[t.tier]}<small>{(t.total - t.have).toLocaleString()} to find</small></span>
-                    <span className={styles.wishBar}><em style={{ width: `${(t.meter / t.need) * 100}%` }} /></span>
-                    <span className={styles.wishNum}>{t.meter >= t.need - 1 ? 'Next one is his' : `Guaranteed by your ${ord(t.need - t.meter)} ${WISH_TIER[t.tier]} pull`}</span>
-                  </div>
-                ))}
+                {open.map(t => {
+                  const g = wishGoal(t)
+                  return (
+                    <div key={t.tier} className={styles.wishMeter} data-tier={t.tier}>
+                      <span className={styles.wishTier}>{WISH_TIER[t.tier]}<small>{(t.total - t.have).toLocaleString()} to find</small></span>
+                      <span className={styles.wishBar}><em style={{ width: `${g.pct}%` }} /></span>
+                      <span className={styles.wishNum} title={g.left ? `${t.meter} of ${t.need - 1} ${WISH_TIER[t.tier]} cards kept without seeing his. Guaranteed by your ${ord(t.need - t.meter)} ${WISH_TIER[t.tier]} pull.` : undefined}><b>{g.pct}%</b> · {g.left ? `${g.left} more ${WISH_TIER[t.tier]}${g.left === 1 ? '' : 's'} to go` : `Your next ${WISH_TIER[t.tier]} is his`}</span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )

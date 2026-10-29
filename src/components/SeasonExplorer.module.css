@@ -475,6 +475,7 @@
 .pGame .liveTxt { font-style: normal; font-size: 10.5px; text-transform: uppercase; }
 .pPts { font-weight: 800; }
 .pGs { font-weight: 800; color: #173657; font-size: 14px; }
+.potdTag { margin-left: 6px; font-style: normal; font-size: 9px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: #8a6412; background: #fbf0d4; border: 1px solid #ecd7a0; padding: 1px 5px; border-radius: 3px; vertical-align: 1px; }
 
 /* Box score views: Standard / Shooting / Elo */
 .statSwitch { margin-left: auto; display: inline-flex; gap: 2px; background: rgba(0,0,0,.22); border-radius: 18px; padding: 3px; }
