@@ -118,11 +118,15 @@ IMG_HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Ap
 
 
 def photo_status(pid, timeout=8):
-    """True (photo), False (NBA.com has none), None (no answer)."""
+    """The photo's size in bytes (an image came back), False (NBA.com has none), None (no answer). NBA.com sends the same
+    silhouette for players it has no photo of, so the size tells real photos apart (see main)."""
     try:
         req = urllib.request.Request(NBA_IMG.format(pid), headers=IMG_HEADERS)
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status in (200, 206) and "image" in r.headers.get("Content-Type", "")
+            if r.status not in (200, 206) or "image" not in r.headers.get("Content-Type", ""):
+                return False
+            total = (r.headers.get("Content-Range") or "").rsplit("/", 1)[-1]
+            return int(total) if total.isdigit() else int(r.headers.get("Content-Length") or 1)
     except urllib.error.HTTPError as e:
         return False if e.code in (403, 404) else None
     except Exception:
@@ -195,12 +199,18 @@ def main():
         print("  NBA.com: skipping the per-player check; using the NBA.com URL for every matched player", flush=True)
         ok = [True] * len(keys)
     else:
-        ok = []
+        sizes = []
         with ThreadPoolExecutor(32) as ex:
             for i, y in enumerate(ex.map(lambda k: has_photo(m[k]["id"]), keys), 1):
-                ok.append(y)
-                if i % 250 == 0 or i == len(keys):
-                    print(f"    {i:,} of {len(keys):,} checked · {sum(ok):,} with a photo", flush=True)
+                sizes.append(y)
+                if i % 500 == 0 or i == len(keys):
+                    print(f"    {i:,} of {len(keys):,} checked", flush=True)
+        # Real headshots all differ in size; one size shared by ten or more players is the no-photo silhouette
+        common = Counter(x for x in sizes if x)
+        fake = {sz for sz, n in common.items() if n >= 10}
+        for sz in sorted(fake, key=lambda z: -common[z]):
+            print(f"  NBA.com placeholder: {common[sz]:,} players get the same {sz:,}-byte image; treated as no photo", flush=True)
+        ok = [bool(x) and x not in fake for x in sizes]
     for k, y in zip(keys, ok):
         if y:
             result[k] = {"u": NBA_IMG.format(m[k]["id"]), "s": "nba"}

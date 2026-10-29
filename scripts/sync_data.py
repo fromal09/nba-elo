@@ -8,6 +8,8 @@ fetches /data/... doesn't change. Works with Cloudflare R2 (the default) or any 
          didn't produce stay in the bucket; --prune deletes them. Refuses a build that lost seasons
          or games (see guard()).
            python3 scripts/sync_data.py push [--dry-run] [--prune]
+         --only PATH [PATH …] uploads just those files (paths under public/data) and leaves everything else
+         as it is, without the guard: for a file built outside the nightly run, like explorer/headshots_hist.json.
   pull   Download files from the public URL (no credentials needed).
            python3 scripts/sync_data.py pull elo.json explorer/index.json
            python3 scripts/sync_data.py pull --all
@@ -83,6 +85,18 @@ def push(args):
     bucket = os.environ["R2_BUCKET"]
     s3 = client()
     remote = get_json(s3, bucket, MANIFEST) or {}
+    if args.only:
+        for k in args.only:
+            f = LOCAL / k
+            if not f.is_file():
+                sys.exit(f"::error::No public/data/{k}")
+            ctype = "application/json; charset=utf-8" if k.endswith(".json") else (mimetypes.guess_type(k)[0] or "application/octet-stream")
+            s3.upload_file(str(f), bucket, PREFIX + k, ExtraArgs={"ContentType": ctype, "CacheControl": CACHE})
+            remote[k] = md5(f)
+            print(f"Uploaded {k} ({f.stat().st_size / 1e3:.0f} KB)")
+        s3.put_object(Bucket=bucket, Key=MANIFEST, Body=json.dumps(remote, separators=(",", ":")).encode(),
+                      ContentType="application/json", CacheControl="no-cache")
+        return
     files = local_files()
     if not files:
         sys.exit("::error::public/data is empty; run the build first.")
@@ -158,7 +172,7 @@ def pull(args):
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("push"); p.add_argument("--dry-run", action="store_true"); p.add_argument("--prune", action="store_true")
+    p = sub.add_parser("push"); p.add_argument("--dry-run", action="store_true"); p.add_argument("--prune", action="store_true"); p.add_argument("--only", nargs="+")
     q = sub.add_parser("pull"); q.add_argument("paths", nargs="*"); q.add_argument("--all", action="store_true")
     args = ap.parse_args()
     push(args) if args.cmd == "push" else pull(args)
