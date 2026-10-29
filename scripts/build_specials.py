@@ -11,13 +11,19 @@ Rivalries   Every pair of opponents, scored over their head-to-head Game Score d
             w = 4 / (that season's regular-season meetings of the two teams), so each season's pairing counts about four games
                 whatever the schedule; playoff duels count 1 each.
             The top 125 get the player tiers: GOAT No. 1, Icon 2-5, Legend 6-20, Standout 21-50, Rare 51-125.
+Duos        Dynamic Duos: every pair of teammates with 100+ games both on the floor (any team, so a pair who played
+            together on two teams counts every game). Each game's duo Elo is 75% the weaker partner's pre-game Elo and 25%
+            the stronger's: a duo is only as good as its second star. The ranking is half their prime (the average duo Elo
+            over their best three seasons together, 20+ games each) and half their peak (the single highest game). Both must average DUO_MIN_ELO or better while
+            together. The top 125 get the player tiers, as Rivalries.
 Fives       Each team-season's best single-day five: the game whose five highest pre-game Elo players (among those who played)
             had the highest average, with each player's line, how often those five played together and the team's season.
 
 Writes, under public/data/explorer/:
-  packs/special/index.json            {"peaks": [[file, n]], "rivals": [[file, n]], "fives": [[file, n]]}
+  packs/special/index.json            {"peaks": [[file, n]], "rivals": [[file, n]], "fives": [[file, n]], "duos": [[file, n]]}
   packs/special/<kind>-<k>.json       {"cards": [card, ...]}   cards in the shape the site draws (kind: peak | rival | five)
   binders/rivalries.json              the 125 rivalry cards, by rank (also added to binders/league.json as the "rivalries" set)
+  binders/duos.json                   the 125 Dynamic Duo cards, by rank (league.json's "duos" set)
   binders/peaks.json                  {player: [[season, game id, elo, date, until], ...]}  every Peak, oldest first
   binders/fives.json                  {franchise: {season: [elo, date, opp, won, score, [five names]]}}
   binders/fivedist.json               {franchise: {season: [every game's five's total pre-game Elo, sorted]}}: the weekly Five challenge ranks against these
@@ -38,6 +44,11 @@ MERGE = {"DEN@ABA": "DEN", "IND@ABA": "IND", "SAS@ABA": "SAS", "BKN@ABA": "BKN"}
 K_FIVE = 40   # how fast a Starting Five player's weight falls with his league rank (see the Starting Five tiers)
 TIERS = [("goat", 1), ("icon", 5), ("legend", 20), ("standout", 50), ("rare", 125)]
 SHARD = 1500
+DUO_GAMES = 100      # games both on the floor to be a Dynamic Duo
+DUO_MIN_ELO = 2200   # each partner's average pre-game Elo while together
+DUO_WEAK = 0.75      # the weaker partner's share of a game's duo score
+DUO_PRIME = 3        # seasons in a duo's prime
+DUO_SEASON_MIN = 20  # games together for a season to count toward the prime
 
 
 def tier_of(rank):
@@ -110,6 +121,89 @@ def duel_p(a, b):
     return 1 / (1 + 10 ** ((b["pre"] - a["pre"]) / 620))
 
 
+def dynamic_duos(files, duo):
+    """The top 125 Dynamic Duos in detail: record, playoffs, titles, seasons, colors, who carried it, best game together."""
+    ok = [(k, x) for k, x in duo.items() if x[0] >= DUO_GAMES and min(x[2], x[3]) / x[0] >= DUO_MIN_ELO]
+    def prime(x):
+        """Their best DUO_PRIME seasons together (DUO_SEASON_MIN games or more), by average duo Elo: (average, seasons)"""
+        ss = sorted(((v[1] / v[0], s_, v) for s_, v in x[6].items() if v[0] >= DUO_SEASON_MIN), reverse=True)[:DUO_PRIME]
+        if not ss:
+            return x[1] / x[0], []
+        return sum(v[1] for _, _, v in ss) / sum(v[0] for _, _, v in ss), sorted(s_ for _, s_, _ in ss)
+    rank_by = lambda x: 0.5 * prime(x)[0] + 0.5 * x[4]   # half the prime, half the peak
+    top = sorted(ok, key=lambda kx: -rank_by(kx[1]))[:125]
+    want = {k: i for i, (k, _) in enumerate(top)}
+    by_name = defaultdict(list)
+    for k in want:
+        by_name[k[0]].append(k)
+    D = {k: {"w": 0, "pn": 0, "pw": 0, "titles": [], "seasons": {}, "teams": defaultdict(int), "names": {}, "colors": {}, "gsA": 0.0, "gsB": 0.0,
+             "best": None, "first": None, "last": None} for k in want}
+    for f in files:
+        d = load(f)
+        season, games = d["season"], d["games"]
+        bnd = bands(games)
+        champ = next(((x["id"], t_) for x in games if x.get("post") for t_ in x["teams"]
+                      if (bnd.get((x["id"], t_)) or {}).get("champ") and x["pts"][x["teams"].index(t_)] > x["pts"][1 - x["teams"].index(t_)]), None)
+        champ_t = champ[1] if champ else None
+        po_together = set()
+        for g in games:
+            here = [p["n"] for p in g["players"] if p["n"] in by_name]
+            if not here:
+                continue
+            on = {p["n"]: p for p in g["players"] if played(p)}
+            for a in here:
+                if a not in on:
+                    continue
+                for k in by_name[a]:
+                    b = on.get(k[1])
+                    pa = on[a]
+                    if not b or b["t"] != pa["t"]:
+                        continue
+                    x = D[k]
+                    t_ = pa["t"]
+                    i_ = g["teams"].index(t_)
+                    won = g["pts"][i_] > g["pts"][1 - i_]
+                    x["w"] += won
+                    if g.get("post"):
+                        x["pn"] += 1; x["pw"] += won
+                        if t_ == champ_t:
+                            po_together.add(k)
+                    ss = x["seasons"].setdefault(season, [0.0, 0])
+                    ss[0] += pa["pre"] + b["pre"]; ss[1] += 1
+                    x["teams"][t_] += 1
+                    x["names"][t_] = d["teams"].get(t_, {}).get("name", t_)
+                    x["colors"][t_] = d["teams"].get(t_, {}).get("color")
+                    x["gsA"] += pa.get("gs") or 0; x["gsB"] += b.get("gs") or 0
+                    tot = (pa.get("gs") or 0) + (b.get("gs") or 0)
+                    if x["best"] is None or tot > x["best"]["tot"]:
+                        x["best"] = {"tot": tot, "date": g["date"], "o": g["teams"][1 - i_], "home": None if g.get("home") is None else g["home"] == t_,
+                                     "won": won, "score": f"{g['pts'][i_]}–{g['pts'][1 - i_]}", "post": bool(g.get("post")),
+                                     "ap": pa.get("pts"), "bp": b.get("pts"), "ag": pa.get("gs"), "bg": b.get("gs")}
+                    x["first"] = x["first"] or g["date"]; x["last"] = g["date"]
+        for k in po_together:
+            D[k]["titles"].append(season)
+        print(f"  duos {season}", end="\r")
+    out = []
+    for k, i in want.items():
+        n_, sc, sa, sb, pk, pkd, _ = duo[k]
+        pr, prs = prime(duo[k])
+        x = D[k]
+        a, b = k
+        ea, eb, ga, gb = sa / n_, sb / n_, x["gsA"], x["gsB"]
+        if eb > ea:   # the stronger partner first
+            a, b, ea, eb, ga, gb = b, a, eb, ea, gb, ga
+            if x["best"]:
+                bb = x["best"]; x["best"] = {**bb, "ap": bb["bp"], "bp": bb["ap"], "ag": bb["bg"], "bg": bb["ag"]}
+        t_ = max(x["teams"], key=x["teams"].get)
+        out.append({"kind": "duo", "rank": i + 1, "tier": tier_of(i + 1), "a": a, "b": b, "score": round(rank_by(duo[k])), "avg": round(sc / n_), "prime": round(pr), "primeSeasons": prs, "peak": round(pk), "peakDate": pkd, "elo": round((sa + sb) / n_),
+                    "ea": round(ea), "eb": round(eb), "n": n_, "w": x["w"], "l": n_ - x["w"], "pw": x["pw"], "pl": x["pn"] - x["pw"], "titles": x["titles"],
+                    "t": t_, "tn": x["names"][t_], "tc": x["colors"][t_], "teams": sorted(x["names"][c] for c in x["teams"]),
+                    "share": round(ga / (ga + gb) * 100) if ga + gb > 0 else 50, "first": x["first"], "last": x["last"],
+                    "seasons": [[s_, round(v[0] / v[1]), v[1]] for s_, v in sorted(x["seasons"].items())],
+                    "best": {kk: vv for kk, vv in (x["best"] or {}).items() if kk != "tot"} or None})
+    return sorted(out, key=lambda r: r["rank"])
+
+
 def main():
     files = sorted(EXP.glob("[12][0-9][0-9][0-9]-[0-9][0-9].json"))
     # ── Pass 1: peaks, fives, rivalry scores ──
@@ -118,6 +212,7 @@ def main():
     fives = []
     five_dist = defaultdict(lambda: defaultdict(list))  # franchise -> season -> every game's five, total pre-game Elo
     league_size = {}  # season -> ranked players (the deepest league rank seen)
+    duo = {}          # (a, b) -> [games, duo Elo sum, a's Elo sum, b's Elo sum, peak duo Elo, its date, {season: [games, duo Elo sum]}]
     season_cands = [] # (points, end Elo, season, franchise, player) for every player-season with a franchise
     hp = EXP / "binders" / "honors.json"   # published by build_honors.py, which build_binders.py runs first
     honors_ = json.loads(hp.read_text(encoding="utf-8")) if hp.exists() else {}
@@ -155,6 +250,23 @@ def main():
                         c["row"]["gp"] = p.get("gp")
                         season_best[n] = (p["post"], c)
                     high[n] = p["post"]
+            # Dynamic Duos: every pair of teammates who both played
+            for t_ in g["teams"]:
+                mates = sorted((p["n"], p["pre"]) for p in g["players"] if p["t"] == t_ and played(p) and p.get("pre") is not None)
+                for i_ in range(len(mates)):
+                    a_, ea = mates[i_]
+                    for b_, eb in mates[i_ + 1:]:
+                        x_ = duo.get((a_, b_))
+                        if x_ is None:
+                            x_ = duo[(a_, b_)] = [0, 0.0, 0.0, 0.0, 0.0, None, {}]
+                        v_ = DUO_WEAK * min(ea, eb) + (1 - DUO_WEAK) * max(ea, eb)
+                        x_[0] += 1; x_[1] += v_; x_[2] += ea; x_[3] += eb
+                        if v_ > x_[4]:
+                            x_[4], x_[5] = v_, g["date"]
+                        ss_ = x_[6].get(season)
+                        if ss_ is None:
+                            ss_ = x_[6][season] = [0, 0.0]
+                        ss_[0] += 1; ss_[1] += v_
             # Rivalry duels between ranked opponents
             ps = [p for p in g["players"] if played(p) and p.get("lr") is not None and p["lr"] <= 150]
             A = [p for p in ps if p["t"] == g["teams"][0]]
@@ -292,6 +404,7 @@ def main():
                       "teamsA": r["teamsB"], "teamsB": r["teamsA"], "ac": r["bc"], "bc": r["ac"]})
         rivals.append(r)
     rivals.sort(key=lambda r: r["rank"])
+    duos = dynamic_duos(files, duo)
     # ── Write ──
     OUT.mkdir(parents=True, exist_ok=True)
     for old in OUT.glob("*.json"):
@@ -309,7 +422,7 @@ def main():
         c["rank"] = i + 1
         c["tier"] = tier_of(i + 1)
     top_fives = sorted([c for c in fives if c["rank"] <= 125], key=lambda c: c["rank"])
-    for kind, cards in (("peaks", all_peaks), ("rivals", rivals), ("fives", fives)):
+    for kind, cards in (("peaks", all_peaks), ("rivals", rivals), ("fives", fives), ("duos", duos)):
         index[kind] = []
         for k in range(0, len(cards), SHARD):
             name = f"{kind}-{k // SHARD}.json"
@@ -338,6 +451,7 @@ def main():
     B = EXP / "binders"
     B.mkdir(parents=True, exist_ok=True)
     (B / "rivalries.json").write_text(json.dumps(rivals, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    (B / "duos.json").write_text(json.dumps(duos, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     # The Rivalries league binder: every possible Rivalry card, by rank
     lp = B / "league.json"
     if lp.exists():
@@ -345,6 +459,7 @@ def main():
         league.setdefault("sets", {})["rivalries"] = rivals
         league["sets"]["lineups"] = top_fives
         league["sets"]["seasons"] = seasons_set
+        league["sets"]["duos"] = duos
         lp.write_text(json.dumps(league, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         # What the server needs from the league sets when a card is kept: each game-card set's refs (a few KB, not the whole file)
         refs = {k: [f"{c['s']}|{c['id']}|{c['row']['n']}" for c in v] for k, v in league["sets"].items()
@@ -359,7 +474,7 @@ def main():
     (B / "fives.json").write_text(json.dumps(fv, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     (B / "fivedist.json").write_text(json.dumps({fc: {s_: sorted(v) for s_, v in ss.items()} for fc, ss in five_dist.items()},
                                                 separators=(",", ":")), encoding="utf-8")
-    print(f"  Specials: {len(all_peaks):,} Peak cards ({len(peaks):,} players) · {len(rivals)} rivalries · {len(fives):,} Starting Fives            ")
+    print(f"  Specials: {len(all_peaks):,} Peak cards ({len(peaks):,} players) · {len(rivals)} rivalries · {len(duos)} Dynamic Duos · {len(fives):,} Starting Fives            ")
 
 
 if __name__ == "__main__":

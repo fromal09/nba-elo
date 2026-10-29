@@ -83,14 +83,14 @@ function shard(origin, file) {
 
 const tierOf = rank => (rank == null ? 'common' : rank <= 1 ? 'goat' : rank <= 5 ? 'icon' : rank <= 20 ? 'legend' : rank <= 50 ? 'standout' : rank <= 125 ? 'rare' : 'common')
 // A card's identity. Special cards: duel (Duel of the Day), peak, rival (Rivalry), five (Starting Five), season (forged Season card)
-export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}`
+export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}` : c.kind === 'duo' ? `duo|${c.a}|${c.b}`
   : c.kind === 'five' ? `five|${c.s}|${c.t}` : c.kind === 'season' ? `season|${c.s}|${c.t}|${c.n}` : c.kind === 'potw' ? `potw|${c.week}`
     : c.kind === 'set' ? `set|${c.fc}|${c.s}` : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
-export const SPECIAL_KINDS = new Set(['duel', 'peak', 'rival', 'five', 'season', 'potw', 'set'])
+export const SPECIAL_KINDS = new Set(['duel', 'peak', 'rival', 'five', 'season', 'potw', 'set', 'duo'])
 
-// About one pack in 15 swaps the last slot's first offer for a special card: a Peak, a Starting Five or a Rivalry
+// About one pack in 15 swaps the last slot's first offer for a special card: a Peak, a Starting Five, a Rivalry or a Dynamic Duo
 export const SPECIAL_EVERY = Number(process.env.SPECIAL_EVERY) || 15
-const SPECIAL_MIX = { peaks: 45, fives: 35, rivals: 20 }
+const SPECIAL_MIX = { peaks: 40, fives: 30, rivals: 15, duos: 15 }
 const RIVAL_WEIGHT = { goat: 1, icon: 2, legend: 4, standout: 8, rare: 16 }
 let specialIndex = null
 async function specialCard(origin, taken) {
@@ -103,7 +103,7 @@ async function specialCard(origin, taken) {
     const list = idx[kind]
     const file = list[roll(Object.fromEntries(list.map(([, n], i) => [i, n])))][0]
     const cards = (await shard(origin, `special/${file}`)).cards
-    const c = kind === 'rivals' ? cards[+roll(Object.fromEntries(cards.map((x, i) => [i, RIVAL_WEIGHT[x.tier] || 1])))] : cards[randomInt(cards.length)]
+    const c = kind === 'rivals' || kind === 'duos' ? cards[+roll(Object.fromEntries(cards.map((x, i) => [i, RIVAL_WEIGHT[x.tier] || 1])))] : cards[randomInt(cards.length)]
     if (c && !taken.has(refOf(c))) return { ...c, from: 'special' }
   }
   return null

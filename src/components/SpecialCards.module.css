@@ -532,3 +532,58 @@
 .scLive { display: inline-flex; align-items: center; gap: 5px; } .scLive i { width: 7px; height: 7px; border-radius: 50%; background: #ff4b3a; box-shadow: 0 0 6px #ff4b3a; flex: none; }
 .scBar { flex: 1; max-width: 120px; height: 6px; border-radius: 3px; background: rgba(0,0,0,.4); overflow: hidden; } .scBar em { display: block; height: 100%; background: #fff; border-radius: 3px; }
 @media (prefers-reduced-motion: reduce) { .scRays, .scHolo, .scShine { animation: none; } }
+
+/* ── Dynamic Duo ── a split team-color field, two headshots, the & medallion; foil by tier (as Season cards) */
+.duo { position: relative; width: 340px; height: 476px; border-radius: 16px; overflow: hidden; isolation: isolate; color: #fff; font-family: 'Inter', sans-serif;
+  --f1: #c9d2dc; --f2: #6f7c89; --ray: rgba(230,238,246,.16); --gold: linear-gradient(180deg, #fff, #dfe7ef 50%, #7d8a97 52%, #f4f8fb);
+  background: linear-gradient(115deg, color-mix(in srgb, var(--c) 82%, #000) 0 50%, color-mix(in srgb, var(--c) 72%, #fff) 50% 100%);
+  box-shadow: 0 0 0 2px var(--f1), 0 0 0 5px var(--f2), 0 0 0 7px var(--f1), 0 14px 36px rgba(0,0,0,.55); }
+.duo[data-tier=rare] { --f1: #f1c39a; --f2: #8c5326; --ray: rgba(255,200,150,.18); }
+.duo[data-tier=standout] { --f1: #dfe8f2; --f2: #5d7389; }
+.duo[data-tier=legend], .duo[data-tier=goat] { --f1: #fff3c4; --f2: #8a6412; --ray: rgba(255,226,140,.22); --gold: linear-gradient(180deg, #fff8d8, #f4c84c 55%, #9b6a08 57%, #ffe48a);
+  box-shadow: 0 0 0 2px var(--f1), 0 0 0 5px var(--f2), 0 0 0 7px var(--f1), 0 14px 36px rgba(0,0,0,.55), 0 0 34px rgba(255,210,90,.4); }
+.duo[data-tier=goat] { background: linear-gradient(115deg, #2a1f06 0 50%, #4a3a12 50% 100%); }
+.duo[data-tier=icon] { --f1: #fff; --f2: #7a5cff; --gold: linear-gradient(90deg, #ff8a8d, #fff3a0, #9cffd9, #9fd0ff, #e0a8ff);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 5px #7a5cff, 0 0 0 7px #fff, 0 14px 36px rgba(0,0,0,.55), 0 0 34px rgba(160,120,255,.6); }
+.duo .scRays { background: repeating-conic-gradient(var(--ray) 0 5deg, transparent 5deg 14deg); top: 30%; }
+.duoTop { position: absolute; left: 14px; right: 14px; top: 12px; z-index: 3; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 13px; letter-spacing: 1.8px; text-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.duoTop span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.duoTop em { flex: none; font-style: normal; background: var(--gold); color: #2a1c00; padding: 2px 8px; border-radius: 4px; letter-spacing: 2px; text-shadow: none; }
+.duoPair { position: absolute; left: 4px; right: 4px; top: 40px; height: 170px; z-index: 2; display: grid; grid-template-columns: 1fr 1fr; }
+.duoP { display: flex; align-items: flex-end; justify-content: center; overflow: hidden; }
+.duoP img { max-width: 100%; max-height: 100%; object-fit: contain; object-position: 50% 100%; filter: drop-shadow(0 8px 12px rgba(0,0,0,.4));
+  -webkit-mask-image: linear-gradient(180deg, #000 82%, transparent); mask-image: linear-gradient(180deg, #000 82%, transparent); }
+.duoP i { width: 104px; height: 104px; margin-bottom: 20px; border-radius: 50%; display: grid; place-items: center; font-style: italic; font-family: 'Barlow Condensed', 'Inter', sans-serif;
+  font-weight: 800; font-size: 44px; background: rgba(0,0,0,.25); box-shadow: 0 0 0 3px var(--f1); }
+.duoAmp { position: absolute; left: 50%; top: 104px; z-index: 3; width: 46px; height: 46px; margin-left: -23px; border-radius: 50%; background: var(--gold); color: #2a1c00;
+  display: grid; place-items: center; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 28px;
+  box-shadow: 0 0 0 3px rgba(0,0,0,.35), 0 0 18px rgba(255,255,255,.5); }
+.duoNames { position: absolute; left: 10px; right: 10px; top: 212px; z-index: 4; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; text-align: center; }
+.duoNames > div { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.duoNames small { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 12px; letter-spacing: 4px; text-transform: uppercase; min-height: 12px;
+  text-shadow: 0 1px 3px rgba(0,0,0,.5); white-space: nowrap; overflow: hidden; max-width: 100%; }
+.duoNames b { display: block; max-width: 100%; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; text-transform: uppercase; white-space: nowrap;
+  overflow: hidden; line-height: 1; padding: 0 3px; background: linear-gradient(180deg, #fff 0%, #e3e9ef 42%, #7d8a97 50%, #f4f8fb 60%, #c2ccd6 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 3px 0 rgba(0,0,0,.45)); }
+.duoElo { position: absolute; left: 0; right: 0; top: 270px; z-index: 3; text-align: center; }
+.duoElo b { display: block; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 58px; line-height: .9; padding-right: 4px;
+  background: var(--gold); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 3px 0 rgba(0,0,0,.4)); }
+.duoElo small { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 11px; letter-spacing: 3px; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.duoShare { position: absolute; left: 28px; right: 28px; top: 346px; z-index: 3; height: 16px; border-radius: 8px; overflow: hidden; display: flex; justify-content: space-between;
+  align-items: center; padding: 0 7px; background: color-mix(in srgb, var(--c) 45%, #000); }
+.duoShare span { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; }
+.duoShare em { position: relative; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 10px; font-style: normal; letter-spacing: 1px; color: #1d2633; }
+.duoShare em:last-child { color: #fff; }
+.duoStats { position: absolute; left: 12px; right: 12px; bottom: 40px; z-index: 3; display: grid; grid-template-columns: repeat(4, 1fr); background: rgba(0,0,0,.42); border-radius: 10px;
+  padding: 7px 0; text-align: center; }
+.duoStats b { display: block; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 21px; line-height: 1; white-space: nowrap; }
+.duoStats small { font-size: 8.5px; font-weight: 700; letter-spacing: 1px; opacity: .75; }
+.duoFoot { position: absolute; left: 14px; right: 14px; bottom: 11px; z-index: 3; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-size: 12px; letter-spacing: 1.8px; color: var(--f1); text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.duoFoot > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.duoBars { display: flex; gap: 5px; height: 66px; align-items: flex-end; }
+.duoBars > div { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 1px; }
+.duoBars i { width: 100%; background: var(--c, #173657); border-radius: 3px 3px 0 0; min-height: 4px; }
+.duoBars b { font-size: 9px; } .duoBars small { font-size: 8.5px; color: #6b7783; } .duoBars em { font-style: normal; font-size: 8px; color: #9aa4ae; }
+.duoBars[data-many] b, .duoBars[data-many] em { display: none; }

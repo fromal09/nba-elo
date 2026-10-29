@@ -18,6 +18,8 @@ export const isInSeason = c => c.final === false || (c.final === undefined && !!
  *   SetCard      Complete Set: one of every player on a team-season's roster. A team-color refractor (turning prism lines,
  *                a color-shifting holo layer, a light sweep), chrome count, the roster on a ticker; #k = your order among
  *                collectors who finished it. The back is the checklist.
+ *   DuoCard      Dynamic Duo: one of the 125 greatest teammate pairs (random pull). Two headshots over a split team-color
+ *                field, the & medallion, combined Elo in the tier's foil, who carried it. The back: Elo by season, best game.
  *   Serial       the "#k of n" tab: your copy's order among everyone who owns the card.
  */
 
@@ -491,23 +493,87 @@ export function SetBack({ card: c }) {
   )
 }
 
+// ── Dynamic Duo ──────────────────────────────────────────────────────────────
+const yrSpan = c => { const a = c.seasons[0][0].slice(0, 4), b = String(+c.seasons[c.seasons.length - 1][0].slice(0, 4) + 1); return `${a}–${b.slice(2)}` }
+function DuoShot({ name, shot }) {
+  const [bad, setBad] = useState(false)
+  return <div className={styles.duoP}>{shot && !bad ? <img src={shot} alt={baseName(name)} onError={() => setBad(true)} /> : <i>{initials(name)}</i>}</div>
+}
+export function DuoCard({ card: c, shotA, shotB, serial }) {
+  const A = split(c.a), B = split(c.b)
+  return (
+    <div className={styles.duo} data-tier={c.tier} style={{ '--c': c.tc || '#173657' }}>
+      <div className={styles.scRays} /><div className={styles.scHolo} />
+      <div className={styles.duoTop}><span>DYNAMIC DUO · {nick(c.tn).toUpperCase()}</span><em>{c.tier === 'goat' ? '★ GOAT' : c.tier.toUpperCase()}</em></div>
+      <div className={styles.duoPair}><DuoShot name={c.a} shot={shotA} /><DuoShot name={c.b} shot={shotB} /></div>
+      <div className={styles.duoAmp}>&amp;</div>
+      <div className={styles.duoNames}><div><small>{A.first !== A.last ? A.first : ''}</small><FitName max={34} min={18}>{A.last}</FitName></div>
+        <div><small>{B.first !== B.last ? B.first : ''}</small><FitName max={34} min={18}>{B.last}</FitName></div></div>
+      <div className={styles.duoElo}><b>{r0(c.elo)}</b><small>COMBINED ELO · NO. {c.rank} ALL-TIME</small></div>
+      <div className={styles.duoShare} title={`Share of the pair's Game Score: ${baseName(c.a)} ${c.share}%, ${baseName(c.b)} ${100 - c.share}%`}>
+        <span style={{ width: `${c.share}%` }} /><em>{c.share}%</em><em>{100 - c.share}%</em></div>
+      <div className={styles.duoStats}>
+        <div><b>{c.n}</b><small>GAMES</small></div><div><b>{c.w}–{c.l}</b><small>RECORD</small></div>
+        <div><b>{c.titles?.length ? `${c.titles.length}×` : `${c.pw}–${c.pl}`}</b><small>{c.titles?.length ? 'TITLES' : 'PLAYOFFS'}</small></div><div><b>{yrSpan(c)}</b><small>TOGETHER</small></div>
+      </div>
+      <div className={styles.duoFoot}><span>{c.teams.length > 1 ? c.teams.map(nick).join(' · ').toUpperCase() : `${nick(c.tn).toUpperCase()} · ${c.seasons.length} SEASON${c.seasons.length === 1 ? '' : 'S'}`}</span>{serial}</div>
+      <div className={styles.scShine} />
+    </div>
+  )
+}
+export function DuoBack({ card: c }) {
+  const S = c.seasons || [], mx = Math.max(...S.map(x => x[1])), mn = Math.min(...S.map(x => x[1])) - 60
+  const b = c.best
+  return (
+    <div className={styles.back} style={{ '--c': c.tc || '#173657' }}>
+      <div className={styles.backHead}><div><FitName>{`${split(c.a).last} & ${split(c.b).last}`}</FitName><small>{c.teams.join(' · ')} · {S[0]?.[0]} to {S[S.length - 1]?.[0]}</small></div><span>No. {c.rank}</span></div>
+      <section>
+        <h4>Combined Elo by season <em>average, games both played</em></h4>
+        <div className={styles.duoBars} data-many={S.length > 9 ? '' : undefined}>{S.map(([s_, e, g]) => (
+          <div key={s_}><i style={{ height: `${Math.max(6, ((e - mn) / Math.max(1, mx - mn)) * 100)}%` }} /><b>{r0(e)}</b><small>{s_.slice(2)}</small><em>{g} G</em></div>))}</div>
+      </section>
+      {b && <section>
+        <h4>Best game together <em>{ap(b.date)} {b.home === false ? '@' : 'vs'} {b.o} · {b.won ? 'W' : 'L'} {b.score}{b.post ? ' · playoffs' : ''}</em></h4>
+        <div className={styles.backRow}><span>{baseName(c.a)}</span><span>{b.ap} pts</span><b>{f1(b.ag)}</b></div>
+        <div className={styles.backRow}><span>{baseName(c.b)}</span><span>{b.bp} pts</span><b>{f1(b.bg)}</b></div>
+      </section>}
+      <section>
+        <h4>Who carried it <em>Game Score share · Elo together</em></h4>
+        <div className={styles.backRow}><span>{baseName(c.a)}</span><span>{r0(c.ea)} Elo</span><b>{c.share}%</b></div>
+        <div className={styles.backRow}><span>{baseName(c.b)}</span><span>{r0(c.eb)} Elo</span><b>{100 - c.share}%</b></div>
+      </section>
+      {c.peak != null && <section>
+        <h4>Duo rating <em>75% weaker partner · ranked on {r0(c.score)}, half each</em></h4>
+        <div className={styles.backRow}><span>Prime · {c.primeSeasons?.length ? c.primeSeasons.map(x => x.slice(2)).join(', ') : 'every game'}</span><span /><b>{r0(c.prime ?? c.avg)}</b></div>
+        <div className={styles.backRow}><span>Peak · {ap(c.peakDate)}</span><span /><b>{r0(c.peak)}</b></div>
+      </section>}
+      <section>
+        <h4>Together <em>{c.n} games, both on the floor</em></h4>
+        <p className={styles.backNote}>{c.w}–{c.l} in all, {c.pw}–{c.pl} in the playoffs{c.titles?.length ? `, champions in ${c.titles.map(s_ => +s_.slice(0, 4) + 1).join(', ')}` : ''}. First game together {ap(c.first)}; last {ap(c.last)}.</p>
+      </section>
+      <div className={styles.backFoot}><span>Dynamic Duos · half prime, half peak</span><span>No. {c.rank} of 125</span></div>
+    </div>
+  )
+}
+
 export function Serial({ k, n, flip, inline, pocket }) {
   return <span className={styles.serial} data-flip={flip ? '' : undefined} data-inline={inline ? '' : undefined} data-pocket={pocket ? '' : undefined} title={`Copy ${k} of ${n} in collectors’ binders`}><b>#{k}</b><i>/</i>{n}</span>
 }
 
 // ── Any special card, anywhere: binder pockets, pack openings, showcases ─────
 
-export const SPECIAL = new Set(['peak', 'rival', 'five', 'season', 'potw', 'set'])
+export const SPECIAL = new Set(['peak', 'rival', 'five', 'season', 'potw', 'set', 'duo'])
 export const isSpecial = c => SPECIAL.has(c?.kind)
-const KIND_NAME = { peak: 'Peak', rival: 'Rivalry', five: 'Starting Five', season: 'Season card', duel: 'Duel of the Day', potw: 'Player of the Week', set: 'Complete Set' }
+const KIND_NAME = { peak: 'Peak', rival: 'Rivalry', five: 'Starting Five', season: 'Season card', duel: 'Duel of the Day', potw: 'Player of the Week', set: 'Complete Set', duo: 'Dynamic Duo' }
 export const specialTitle = c => (c.kind === 'peak' ? `${baseName(c.row.n)} · ${c.until ? 'Former Peak' : 'Peak'}` : c.kind === 'rival' ? `${split(c.a).last} vs. ${split(c.b).last}`
   : c.kind === 'five' ? `${c.s} ${nick(c.tn)} · Starting Five` : c.kind === 'season' ? `${baseName(c.n)} · ${c.s} Season` : c.kind === 'duel' ? `${baseName(c.a.row.n)} · Duel of the Day`
-  : c.kind === 'potw' ? `${baseName(c.n)} · Player of the Week` : c.kind === 'set' ? `${c.s} ${nick(c.tn)} · Complete Set` : '')
+  : c.kind === 'potw' ? `${baseName(c.n)} · Player of the Week` : c.kind === 'set' ? `${c.s} ${nick(c.tn)} · Complete Set` : c.kind === 'duo' ? `${split(c.a).last} & ${split(c.b).last}` : '')
 export const specialLabel = c => (c.kind === 'rival' ? `Rivalry · ${TIER_LABEL[c.tier] || ''}` : KIND_NAME[c.kind] || '')
 export const specialLine = c => (c.kind === 'peak' ? `Career-high Elo ${r0(c.row.post)} · ${ap(c.date)} ${c.home === false ? '@' : 'vs'} ${c.o}`
   : c.kind === 'rival' ? `${c.w}–${c.l} in ${c.w + c.l + (c.t || 0)} duels · No. ${c.rank} all-time` : c.kind === 'five' ? `Five Elo ${r0(c.elo)} · ${ap(c.date)} vs ${c.o} · ${c.won ? 'W' : 'L'} ${c.score}`
     : c.kind === 'season' ? `${c.gp} games with the ${nick(c.tn)}` : c.kind === 'potw' ? `Week of ${weekSpan(c)} · ${c.k || 1} of ${c.of || 1}`
-    : c.kind === 'set' ? `All ${c.size} players · #${c.k || 1} to complete` : '')
+    : c.kind === 'set' ? `All ${c.size} players · #${c.k || 1} to complete`
+      : c.kind === 'duo' ? `${r0(c.elo)} combined Elo · No. ${c.rank} all-time` : '')
 
 // Shared, cached lookups for Peak cards
 let peaksP = null, shotsP = null
@@ -567,6 +633,7 @@ function SpecialFaceIn({ card, owned, serial, label }) {
   if (card.kind === 'season') return <SeasonFront card={card} owned={owned} serial={serial} />
   if (card.kind === 'potw') return <PotwCard card={card} headshot={shotOf(shots, card.n)} label={label} />
   if (card.kind === 'set') return <SetCard card={card} />
+  if (card.kind === 'duo') return <DuoCard card={card} shotA={shotOf(shots, card.a)} shotB={shotOf(shots, card.b)} serial={serial} />
   return null
 }
 // Tagged for "Save card image" (right-click)
@@ -615,6 +682,7 @@ function SpecialBack({ card }) {
   if (card.kind === 'season') return <SeasonBackLoader card={card} />
   if (card.kind === 'potw') return <PotwBack card={card} />
   if (card.kind === 'set') return <SetBack card={card} />
+  if (card.kind === 'duo') return <DuoBack card={card} />
   return null
 }
 function SeasonBackLoader({ card }) {

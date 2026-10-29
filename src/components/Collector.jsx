@@ -19,7 +19,7 @@ const noop = () => {}
 export const useCollector = () => useContext(Ctx) || { me: null, owned: new Set(), cards: [], openAuth: noop, claim: noop, openTeam: noop, resume: noop }
 
 export const TIER_NAME = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' }
-export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}`
+export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}` : c.kind === 'duo' ? `duo|${c.a}|${c.b}`
   : c.kind === 'five' ? `five|${c.s}|${c.t}` : c.kind === 'season' ? `season|${c.s}|${c.t}|${c.n}` : c.kind === 'potw' ? `potw|${c.week}` : c.kind === 'set' ? `set|${c.fc}|${c.s}` : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
 export const CURRENT_TEAMS = ['ATL', 'BOS', 'BKN', 'CHO', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN',
   'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']

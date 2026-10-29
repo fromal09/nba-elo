@@ -288,7 +288,7 @@ function SmallCard({ e, name, env, onPull, title, line, sub }) {
 
 // Any card's identity, as the server's refOf
 export const cardRef = c => (c.kind === 'duel' ? `duel|${c.date}` : isSpecial(c) ? specialRef(c) : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
-const specialRef = c => (c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}` : c.kind === 'five' ? `five|${c.s}|${c.t}`
+const specialRef = c => (c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}` : c.kind === 'duo' ? `duo|${c.a}|${c.b}` : c.kind === 'five' ? `five|${c.s}|${c.t}`
   : c.kind === 'potw' ? `potw|${c.week}` : c.kind === 'set' ? `set|${c.fc}|${c.s}` : `season|${c.s}|${c.t}|${c.n}`)
 
 // A Duel of the Day card from a binder (kind 'duel': the day's two players) in the shape a pocket needs
@@ -873,6 +873,8 @@ export const LEAGUE_SETS = [
     desc: 'The 125 greatest starting lineups, by where the five stood in the league that day: one GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares. Every other Starting Five is Common. Random pulls.' },
   { id: 'rivalries', title: 'Rivalries', short: 'Rivalries', color: '#4a5562', special: true,
     desc: 'The 125 greatest head-to-head rivalries, by tier: one GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares. Rivalry cards are random pulls.' },
+  { id: 'duos', title: 'Dynamic Duos', short: 'Dynamic Duos', color: '#5a2a7a', special: true,
+    desc: 'The 125 greatest teammate pairs: 100+ games together, each game rated 75% the weaker partner’s Elo and 25% the stronger’s, ranked half on their prime (their best three seasons together) and half on their peak game. Both average 2,200 or better. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares. Random pulls.' },
   { id: 'slayers', title: 'Giant-Slayers', short: 'Giant-Slayers', color: '#7a5a10', duel: 'slayer',
     desc: 'The 54 widest Elo gaps ever closed by a Giant-Slayer of the Day.' },
   { id: 'duels', title: 'Greatest duels', short: 'Duels', color: '#0b5f9e', duel: 'duel',
@@ -894,6 +896,8 @@ export function leagueEntries(env, def, list) {
       label: `${c.allTime}. ${shortName(c.n)} ${c.s.slice(2, 4)}-${c.s.slice(5)}`, sub: `${c.points.toLocaleString()} pts`, owned: !!env.owned?.has(cardRef(c)) })
     if (def.special && c.kind === 'five') return fromIndex(env, c, { rank: i + 1, date: c.date, name: [...c.players].sort((a, b) => b.pre - a.pre)[0]?.n,
       label: `${c.rank}. ${c.s} ${nick(c.tn)}`, sub: { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare' }[c.tier], owned: !!env.owned?.has(cardRef(c)) })
+    if (def.special && c.kind === 'duo') return fromIndex(env, c, { rank: i + 1, date: c.first, name: c.a,
+      label: `${c.rank}. ${shortName(c.a).split(' ').pop()} & ${shortName(c.b).split(' ').pop()}`, sub: { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare' }[c.tier], owned: !!env.owned?.has(cardRef(c)) })
     if (def.special) return fromIndex(env, c, { rank: i + 1, date: `${c.first}-10-01`, name: c.a, label: `${c.rank}. ${shortName(c.a).split(' ').pop()}–${shortName(c.b).split(' ').pop()}`,
       sub: { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare' }[c.tier], owned: !!env.owned?.has(cardRef(c)) })
     if (def.duel) {
@@ -973,7 +977,7 @@ export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
 
 // ── A personal binder: yours, or anyone's (read-only) from the leaderboard ──
 // Shelves by franchise and decade, player checklists for every team-season, Starred, the showcase, points
-const TIER_RANK = { set: -2, potw: -1, ...Object.fromEntries(TIER_IDS.map((t, i) => [t, i])), duel: TIER_IDS.length, peak: TIER_IDS.length, rival: TIER_IDS.length, five: TIER_IDS.length, season: TIER_IDS.length }
+const TIER_RANK = { set: -2, potw: -1, ...Object.fromEntries(TIER_IDS.map((t, i) => [t, i])), duel: TIER_IDS.length, peak: TIER_IDS.length, rival: TIER_IDS.length, duo: TIER_IDS.length, five: TIER_IDS.length, season: TIER_IDS.length }
 const MERGE_ABA = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
 const decadeOf = s => `${s.slice(0, 3)}0s`
 const n0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
@@ -1268,6 +1272,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       ['ruby', 'Ruby Players of the Day', 'Called the night’s Player of the Day in Predictions: that card in ruby, at twice its points.'],
       ['season', 'Season cards', 'Forged by owning every game of a player’s season with a team. Track them on the franchise checklists.'],
       ['peak', 'Peaks', 'A player’s career highs after his rookie year: the reigning Peak and every Former Peak. Random pulls.'],
+      ['duo', 'Dynamic Duos', 'The 125 greatest teammate pairs: their prime and their peak together, weighted to the weaker partner. Random pulls.'],
       ['rival', 'Rivalries', 'The 125 greatest head-to-head rivalries. Random pulls.'],
       ['five', 'Starting Fives', 'Each team-season’s best single-day five. Random pulls.'],
       ['duel', 'Duels of the Day', 'Won by getting every matchup right in Predictions.'],
@@ -1278,11 +1283,12 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
         <div className={styles.achBody}>
           {groups.map(([k, title, desc]) => {
             const list = k === 'ruby' ? all.filter(e => e.ruby) : specials.filter(e => (k === 'duel' ? !!e.duel : e.special?.kind === k))
-            const total = k === 'rival' ? league?.sets?.rivalries?.length : k === 'five' && fives ? Object.values(fives).reduce((a, x) => a + Object.keys(x).length, 0) : null
+            const total = k === 'rival' ? league?.sets?.rivalries?.length : k === 'duo' ? league?.sets?.duos?.length : k === 'five' && fives ? Object.values(fives).reduce((a, x) => a + Object.keys(x).length, 0) : null
             return (
               <section key={k} className={styles.spSection}>
                 <div className={styles.spHead}><h4>{title}<span>{list.length}{total ? ` of ${total.toLocaleString()}` : ''}</span></h4>
                   {k === 'rival' && onLeague && <button type="button" className={styles.linkBtn} onClick={() => onLeague('rivalries')}>See all 125</button>}
+                  {k === 'duo' && onLeague && <button type="button" className={styles.linkBtn} onClick={() => onLeague('duos')}>See all 125</button>}
                   {k === 'five' && onLeague && <button type="button" className={styles.linkBtn} onClick={() => onLeague('lineups')}>See the top 125</button>}
                   {k === 'season' && onLeague && <button type="button" className={styles.linkBtn} onClick={() => onLeague('seasons')}>See the top 125</button>}</div>
                 <p className={styles.light}>{desc}</p>

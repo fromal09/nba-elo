@@ -129,6 +129,12 @@ export function cardPoints(card) {
     return { ...p, points: Math.round(p.points * 1.5), bonuses: [...p.bonuses, ['Peak', 0.5]] }
   }
   // Rivalry: a great game's worth at its tier (10 × base × 6), up to half again for the top of its tier
+  // Dynamic Duo: priced like a Rivalry of its tier
+  if (card?.kind === 'duo') {
+    const base = TIER_BASE[card.tier] ?? 3, [lo, hi] = RIVAL_SPAN[card.tier] || [card.rank, card.rank]
+    const top = card.rank == null || hi === lo ? 1 : 1 - (card.rank - lo) / (hi - lo)
+    return { points: Math.round(60 * base * (1 + 0.5 * top)), base, grade: 0, bonuses: [['Dynamic Duo', 5], ['Top of its tier', 0.5 * top]] }
+  }
   if (card?.kind === 'rival') {
     const base = TIER_BASE[card.tier] ?? 3, [lo, hi] = RIVAL_SPAN[card.tier] || [card.rank, card.rank]
     const top = card.rank == null || hi === lo ? 1 : 1 - (card.rank - lo) / (hi - lo)

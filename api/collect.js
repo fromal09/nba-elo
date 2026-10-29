@@ -378,7 +378,7 @@ async function sell(u, origin, b) {
   const sql = db(), today = etDay(), id = Number(b.id)
   const [c] = await sql`select * from cards where id = ${id} and user_id = ${u.id}`
   if (!c) throw fail(404, 'That card isn’t in your binder.')
-  if (SPECIAL_KINDS.has(c.tier)) throw fail(409, 'Special cards (Duels, Peaks, Rivalries, Starting Fives, Season cards, Player of the Week, Complete Sets) can’t be sold.')
+  if (SPECIAL_KINDS.has(c.tier)) throw fail(409, 'Special cards (Duels, Peaks, Rivalries, Starting Fives, Season cards, Player of the Week, Complete Sets, Dynamic Duos) can’t be sold.')
   if (c.card?.ruby) throw fail(409, 'Ruby cards can’t be sold.')
   if (u.starred.map(Number).includes(id)) throw fail(409, 'Un-star the card first. Starred and showcase cards can’t be sold.')
   const hours = (Date.now() - new Date(c.pulled_at).getTime()) / 36e5
