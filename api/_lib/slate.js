@@ -58,7 +58,16 @@ export async function slate(sql, day, { fresh = false, origin = null } = {}) {
     const keep = Object.fromEntries(kept.filter(r => r.line?.duel).map(r => [r.id, r.line.duel]))
     const fc = origin && ahead.length ? await forecast(origin, ahead, keep).catch(e => { console.error('forecast', e.message); return {} }) : {}
     for (const g of games) g.line = fc[g.id] ? { ...fc[g.id], src: 'elo' } : null
+    // Only games that changed are written: rewriting every game every minute kept the database awake and busy
+    const had = new Map((await sql`select id, day, tip, state, detail, hs, as_, winner, line from pred_games where id = any(${games.map(g => g.id)})`).map(r => [r.id, r]))
+    const ymd = v => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10))
+    // jsonb keeps its own key order, so lines compare with sorted keys
+    const stable = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map(j => [j, x[j]])) : x))
+    const same = (g, r) => r && ymd(r.day) === day && Date.parse(r.tip) === Date.parse(g.tip) && r.state === g.state && (r.detail ?? null) === (g.detail ?? null)
+      && (r.hs ?? null) === (g.hs ?? null) && (r.as_ ?? null) === (g.as ?? null) && (r.winner ?? null) === (g.winner ?? null)
+      && (Date.parse(g.tip) <= Date.now() || !g.line || stable(r.line) === stable(g.line))
     for (const g of games) {
+      if (same(g, had.get(g.id))) continue
       // The forecast updates until tipoff, then stays as it was when picks locked
       await sql`insert into pred_games (id, day, tip, home, away, state, detail, hs, as_, winner, line, updated_at)
         values (${g.id}, ${day}, ${g.tip}, ${g.home}, ${g.away}, ${g.state}, ${g.detail}, ${g.hs}, ${g.as}, ${g.winner}, ${g.line ? sql.json(g.line) : null}, now())

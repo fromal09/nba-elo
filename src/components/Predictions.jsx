@@ -4,6 +4,7 @@ import { Fit, Seg, fromIndex, usePull } from './Binders'
 import { MiniCard, DuelCard } from './PlayerCard'
 import { Coin, TIER_NAME, useCollector } from './Collector'
 import { binderLogo, binderTeamInfo } from './SeasonExplorer'
+import { usePoll, gamesHot } from './poll'
 
 /*
  * Predictions, a page of My binder, for today's and tomorrow's games. Everything locks at each game's tipoff
@@ -462,11 +463,9 @@ export function PredictPages({ env, phone, tools, children }) {
   const [busy, setBusy] = useState(null)
   const [reward, setReward] = useState(null) // { day, kind }
   const [allOpen, setAllOpen] = useState(false) // History: every day expanded
-  useEffect(() => {
-    C.loadPredictions().catch(e => setErr(e.message))
-    const t = setInterval(() => C.loadPredictions().catch(() => {}), 60e3)
-    return () => clearInterval(t)
-  }, [])
+  useEffect(() => { C.loadPredictions().catch(e => setErr(e.message)) }, [])
+  // Every minute while a game is on (or about to tip), only while the tab is visible
+  usePoll(() => C.loadPredictions().catch(() => {}), 60e3, gamesHot(d?.slates))
   if (!d) return children({
     left: <p className={styles.line}>{err || 'Loading the slate…'}</p>,
     right: <div className={styles.right}><div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Predictions</b><span>loading…</span></div>{tools}</div></div>,
@@ -601,9 +600,8 @@ export function usePredSlate(day) {
   useEffect(() => {
     if (!live || !C.me || C.down) return
     C.loadPredictions().catch(() => {})
-    const t = setInterval(() => C.loadPredictions().catch(() => {}), 120e3)
-    return () => clearInterval(t)
   }, [day, live, !!C.me])
+  usePoll(() => C.loadPredictions().catch(() => {}), 120e3, live && !!C.me && !C.down && gamesHot(C.preds?.slates), [day])
   return live
 }
 

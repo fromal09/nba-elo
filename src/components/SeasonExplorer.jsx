@@ -2774,6 +2774,8 @@ export function binderCareerPath(name, date) {
   const idx = []; for (let i = 0; i < all.length; i += k) idx.push(i); if (idx[idx.length - 1] !== all.length - 1) idx.push(all.length - 1)
   return { path: [...idx.filter(i => i < cut).map(i => all[i]), all[cut - 1]], pathAll: idx.map(i => all[i]) }
 }
+// The newest season in the data (an in-season card is one from it until the server marks it Final)
+export const binderNewest = () => NEWEST
 export const binderPeaks = () => getJSON('/data/explorer/binders/peaks.json')
 export const binderHistory = () => historyReady()
 

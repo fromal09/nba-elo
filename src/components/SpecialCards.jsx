@@ -1,6 +1,8 @@
 import { useState, useRef, useLayoutEffect, useMemo, useEffect as useEffect_ } from 'react'
 import styles from './SpecialCards.module.css'
-import { binderSeasonSummary, binderCareerPath, binderPeaks, binderHistory, binderHeadshots, binderLogo } from './SeasonExplorer'
+import { binderSeasonSummary, binderCareerPath, binderPeaks, binderHistory, binderHeadshots, binderLogo, binderNewest } from './SeasonExplorer'
+// In-season: marked so by the server, or (a card from before the mark, not converted yet) from the newest season
+export const isInSeason = c => c.final === false || (c.final === undefined && !!binderNewest() && c.s >= binderNewest())
 
 /*
  * Special cards, each drawn at 340 × 476 like MiniCard and DuelCard:
@@ -201,13 +203,13 @@ const roundOf = x => ROUND[(x.round || '').split(' · ')[0]] || 'playoffs'
 const poResult = po => { const x = po.series[po.series.length - 1]; return po.champ ? 'Champions' : `Lost ${roundOf(x)} ${x.w}–${x.l}` }
 
 // The back of a Season card: every game as a tile, month by month, the best games and the playoff run
-export function SeasonBack({ s }) {
+export function SeasonBack({ s, inSeason }) {
   const heat = gs => (gs >= 40 ? 5 : gs >= 30 ? 4 : gs >= 22 ? 3 : gs >= 15 ? 2 : gs >= 8 ? 1 : 0)
   const maxM = Math.max(...s.months.map(m => m.gs))
   return (
     <div className={styles.back} style={{ '--c': s.tc || '#173657' }}>
       <div className={styles.backHead}><div><FitName>{baseName(s.name)}</FitName><small>{s.tn} · {s.s}</small></div>
-        <span>{s.po?.champ ? '★ Champions' : `#${s.rank} final`}</span></div>
+        <span>{inSeason ? `#${s.rank} now` : s.po?.champ ? '★ Champions' : `#${s.rank} final`}</span></div>
       {honorList(s).length > 0 && <div className={styles.backHonors}>{honorList(s).map(x => <span key={x}>{x}</span>)}</div>}
       <section>
         <h4>Every game <em>{s.reg} regular season{s.po ? ` · ${s.po.w + s.po.l} playoffs` : ''}</em></h4>
@@ -229,7 +231,8 @@ export function SeasonBack({ s }) {
       {s.po ? <section>
         <h4>Playoffs <em>{s.po.w}–{s.po.l} · {f1(s.po.pts)} PPG</em></h4>
         <div className={styles.series}>{s.po.series.map(x => <span key={x.o} data-won={x.w > x.l ? '' : undefined}><small>{(x.round || '').split(' · ')[0]}</small><b>{x.o}</b><em>{x.w}–{x.l}</em></span>)}</div>
-      </section> : <section><h4>Playoffs</h4><p className={styles.backNote}>Missed the playoffs ({s.w}–{s.l}).</p></section>}
+      </section> : inSeason ? <section><h4>In-season <em>through {ap(s.thru || s.last)}</em></h4><p className={styles.backNote}>His games so far ({s.pw}–{s.pl} in them). It turns Final, in his tier's foil, if every game of the season is in your binder when it ends.</p></section>
+        : <section><h4>Playoffs</h4><p className={styles.backNote}>Missed the playoffs ({s.w}–{s.l}).</p></section>}
       <div className={styles.backFoot}><span>Elo {r0(s.start)} → {r0(s.end)} · peak {r0(s.peak)}</span><span>{s.potd} Player of the Day · {s.potg} of the Game</span></div>
     </div>
   )
@@ -456,10 +459,12 @@ export function SetCard({ card: c }) {
   const [bad, setBad] = useState(false)
   const logo = binderLogo(c.fc)
   const prog = c.have instanceof Set, got = prog ? (c.players || []).filter(([n]) => c.have.has(n)).length : c.size
+  const live = !prog && isInSeason(c)
   const tick = (c.players || []).map(([n], i) => <span key={i} data-off={prog && !c.have.has(n) ? '' : undefined}>{lastName(n)}{' · '}</span>)
   return (
     <div className={styles.set} data-prog={prog ? '' : undefined} style={{ '--c': c.tc || '#173657', '--pct': prog ? got / Math.max(1, c.size) : 1 }}>
       <div className={styles.setPrizm} /><div className={styles.setShards}><i /><i /><i /><i /><i /></div><div className={styles.setHolo} />
+      {live && <div className={styles.scSash}>IN-SEASON</div>}
       <div className={styles.setLogo}>{logo && !bad ? <img src={logo} alt="" onError={() => setBad(true)} /> : <b>{c.fc.split('@')[0]}</b>}</div>
       <div className={styles.setBig}>{got}/{c.size}</div>
       <div className={styles.setOf}>{prog ? 'SET IN PROGRESS' : 'COMPLETE SET'}</div>
@@ -467,7 +472,8 @@ export function SetCard({ card: c }) {
       {prog && <div className={styles.setMeter}><em /></div>}
       <div className={styles.setTicker}><span>{tick}{tick.map((x, i) => <span key={'b' + i} data-off={x.props['data-off']}>{x.props.children}</span>)}</span></div>
       <div className={styles.setFoot}>{prog ? <><span>{c.size - got} TO GO</span><span>{Math.floor((got / Math.max(1, c.size)) * 100)}%</span></>
-        : <><span>#{c.k || 1} TO COMPLETE</span><span>{c.at ? ap(c.at).toUpperCase() : ''}</span></>}</div>
+        : live ? <><span>#{c.k || 1} TO COMPLETE</span><span>THROUGH {ap(c.thru || c.at).toUpperCase()}</span></>
+          : <><span>#{c.k || 1} TO COMPLETE</span><span>{c.final ? '★ FINAL' : c.at ? ap(c.at).toUpperCase() : ''}</span></>}</div>
       <div className={styles.setShine} />
     </div>
   )
@@ -534,14 +540,15 @@ function SeasonFront({ card, owned, serial }) {
   // The Greatest Seasons binder ships each card's front with it; any other Season card builds it from the season's games
   const [s, setS] = useState(card.sum && !owned ? card.sum : null)
   // An in-season card shows his season through its date
-  const thru = card.final === false ? card.thru : undefined
+  const live = isInSeason(card)
+  const thru = live ? card.thru : undefined
   useEffect_(() => { if (card.sum && !owned) return; binderSeasonSummary(card.s, card.n, card.t, thru).then(setS).catch(() => {}) }, [card.s, card.n, card.t, thru])
   const shots = useShots()
   if (!s) return <div className={styles.season} style={{ '--c': card.tc || '#173657' }}><div className={styles.seasonHead}><span>Season</span><small>{card.s} · {nick(card.tn)}</small></div>
     <div className={styles.seasonBody}><div className={styles.seasonBg} /></div><div className={styles.seasonFoot}><span>{baseName(card.n)}</span></div></div>
   // owned: the game ids you own (a partial reveal); none means the whole card
   const idx = owned ? new Set(s.tiles.map((t, i) => (owned.has(t.id) ? i : -1)).filter(i => i >= 0)) : undefined
-  return <SeasonCard s={s} owned={idx && idx.size < s.tiles.length ? idx : undefined} headshot={shotOf(shots, card.n)} serial={serial} inSeason={card.final === false} />
+  return <SeasonCard s={s} owned={idx && idx.size < s.tiles.length ? idx : undefined} headshot={shotOf(shots, card.n)} serial={serial} inSeason={live} />
 }
 
 function SpecialFaceIn({ card, owned, serial, label }) {
@@ -612,8 +619,9 @@ function SpecialBack({ card }) {
 }
 function SeasonBackLoader({ card }) {
   const [s, setS] = useState(null)
-  useEffect_(() => { binderSeasonSummary(card.s, card.n, card.t).then(setS).catch(() => {}) }, [card.s, card.n, card.t])
-  return s ? <SeasonBack s={s} /> : <div className={styles.back} />
+  const live = isInSeason(card), thru = live ? card.thru : undefined
+  useEffect_(() => { binderSeasonSummary(card.s, card.n, card.t, thru).then(setS).catch(() => {}) }, [card.s, card.n, card.t, thru])
+  return s ? <SeasonBack s={s} inSeason={live} /> : <div className={styles.back} />
 }
 
 // Full size, flippable: tap the card (or the button, or F) to turn it over

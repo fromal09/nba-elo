@@ -4,6 +4,7 @@ import { useCollector, TIER_NAME } from './Collector'
 import { binderLogo, binderTeamInfo } from './SeasonExplorer'
 import { watchDay } from './liveFeed.js'
 import { norm } from './predict'
+import { usePoll, gamesHot } from './poll'
 
 /*
  * My Predictions, on the Scoreboard: for one day, every game pick, every matchup and the lineup, with live
@@ -33,11 +34,12 @@ export function useMyDay(day) {
     setD(null); setErr(null)
     if (!C.me || C.down || !day) return
     let live = true
-    const get = () => C.predDay(day).then(x => live && setD(x)).catch(e => live && setErr(e.message))
-    get()
-    const t = day >= addDays(etToday(), -1) && day <= etToday() ? setInterval(get, 60e3) : null
-    return () => { live = false; if (t) clearInterval(t) }
+    C.predDay(day).then(x => live && setD(x)).catch(e => live && setErr(e.message))
+    return () => { live = false }
   }, [day, !!C.me, C.down])
+  // Today's (or last night's) picks refresh every minute while a game is on, only while the tab is visible
+  const recent = day >= addDays(etToday(), -1) && day <= etToday()
+  usePoll(() => C.predDay(day).then(setD).catch(() => {}), 60e3, recent && !!C.me && !C.down && gamesHot(C.preds?.slates || (d ? [d] : [])), [day])
   return { d, err }
 }
 const addDays = (day, k) => { const x = new Date(day + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + k); return x.toISOString().slice(0, 10) }
