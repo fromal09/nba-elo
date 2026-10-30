@@ -624,23 +624,28 @@ export function DuelModal({ kind, scope, a, b, date, matchup, sd, careerA: cA, c
 // a header band and, from Hot on, flames off its edges that grow at each level.
 const HEAT = [[25, 'white', 'White-Hot'], [20, 'inferno', 'Inferno'], [15, 'fire', 'On Fire'], [10, 'hot', 'Hot'], [5, 'warm', 'Heating Up']]
 export const heatOf = row => { const n = row?.hs || 0; const h = HEAT.find(([min]) => n >= min); return h ? { n, id: h[1], label: h[2] } : null }
-// The flame turbulence, once per card that needs it (identical copies are harmless)
-const FireDefs = () => (
-  <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
-    {[[1, 16, 2.4], [2, 22, 2], [3, 30, 1.6], [4, 38, 1.3]].map(([k, sc, dur]) => (
-      <filter key={k} id={`fpr-fire${k}`} x="-40%" y="-40%" width="180%" height="180%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.03 0.1" numOctaves="3" seed={k * 3} result="n">
-          <animate attributeName="baseFrequency" dur={`${dur}s`} values="0.03 0.1;0.04 0.13;0.03 0.1" repeatCount="indefinite" />
-        </feTurbulence>
-        <feDisplacementMap in="SourceGraphic" in2="n" scale={sc} xChannelSelector="R" yChannelSelector="G" />
-      </filter>
-    ))}
-  </svg>
-)
+// Flames for the opened card only: tongues around the edges (more along the top), each a gradient that only scales and
+// fades, so the browser animates them on the GPU. No filters: SVG turbulence on every heated card in a binder was
+// too much for phones. Binder pockets and other small cards get the band and a still glow instead.
+const TONGUES = (() => {
+  const out = []
+  const edge = (n, side) => { for (let i = 0; i < n; i++) out.push({ side, at: (i + 0.5) / n, k: (i * 7 + side.length * 3) % 10 }) }
+  edge(16, 'top'); edge(11, 'left'); edge(11, 'right'); edge(8, 'bottom')
+  return out
+})()
+const ROT = { top: 0, right: 90, bottom: 180, left: -90 }
 function HeatFx({ row }) {
   const h = heatOf(row)
   if (!h || h.id === 'warm') return null
-  return <><FireDefs /><div className={styles.heatFx} aria-hidden="true"><i /><i /></div></>
+  return (
+    <div className={styles.heatFx} aria-hidden="true">
+      {TONGUES.map((t, i) => {
+        const pos = t.side === 'top' ? { left: `${t.at * 100}%`, top: 0 } : t.side === 'bottom' ? { left: `${t.at * 100}%`, top: '100%' }
+          : t.side === 'left' ? { left: 0, top: `${t.at * 100}%` } : { left: '100%', top: `${t.at * 100}%` }
+        return <span key={i} className={styles.tongue} style={{ ...pos, '--r': `${ROT[t.side]}deg`, '--d': `${-(t.k / 10)}`, '--s': 0.7 + (t.k % 4) * 0.12 }}><i /></span>
+      })}
+    </div>
+  )
 }
 
 // Data attributes that drive the card's finish: tier, playoff round, honor, career game, milestones, heater
@@ -676,7 +681,6 @@ export function SlabLabel({ row, game, kind, className }) {
 export function MiniCard({ name, row, game, team, headshot, slab }) {
   const card = (
     <div className={`${styles.card} ${styles.miniCard}`} {...cardAttrs(row, game)} style={{ '--tc': team?.color || '#173657' }} data-card-shot={`${baseName(name)} ${game?.date || ''}`}>
-      <HeatFx row={row} />
       <div className={`${styles.face} ${styles.front}`}>{game?.ruby ? <RubyFront name={name} row={row} game={game} team={team} headshot={headshot} /> : <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />}</div>
     </div>
   )

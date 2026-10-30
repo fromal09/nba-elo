@@ -677,14 +677,16 @@
 .card[data-heat=warm] .face.front { animation: heatWarm 2.4s ease-in-out infinite; }
 @keyframes heatWarm { 0%, 100% { box-shadow: 0 0 0 2px var(--h2), 0 0 14px 2px rgba(255,140,40,.35), 0 24px 60px rgba(0,0,0,.5); }
   50% { box-shadow: 0 0 0 2px var(--h2), 0 0 26px 6px rgba(255,140,40,.6), 0 24px 60px rgba(0,0,0,.5); } }
-.heatFx { position: absolute; z-index: 0; inset: 0; pointer-events: none; }
-.heatFx i { position: absolute; left: calc(var(--hsz) * -1); right: calc(var(--hsz) * -1); top: calc(var(--hsz) * -1.9); bottom: calc(var(--hsz) * -.6); border-radius: 26px 26px 22px 22px;
-  background: linear-gradient(0deg, var(--h3), var(--h1) 40%, var(--h3) 75%, var(--h1)); opacity: .9; transform-origin: 50% 100%; animation: heatFlick var(--hspd) ease-in-out infinite; }
-.heatFx i + i { left: calc(var(--hsz) * -.5); right: calc(var(--hsz) * -.5); top: calc(var(--hsz) * -1.1); bottom: calc(var(--hsz) * -.3);
-  background: linear-gradient(0deg, var(--h2), #fff7d6 50%, var(--h2)); opacity: 1; animation-delay: calc(var(--hspd) * -.5); }
-.card[data-heat=hot] .heatFx i { filter: url(#fpr-fire1) blur(1px); } .card[data-heat=hot] .heatFx i + i { opacity: .6; }
-.card[data-heat=fire] .heatFx i { filter: url(#fpr-fire2) blur(1px); }
-.card[data-heat=inferno] .heatFx i { filter: url(#fpr-fire3) blur(1.5px); } .card[data-heat=inferno] .heatFx i:first-child { box-shadow: 0 0 30px 6px rgba(255,60,0,.45); }
-.card[data-heat=white] .heatFx i { filter: url(#fpr-fire4) blur(1.5px); } .card[data-heat=white] .heatFx i:first-child { box-shadow: 0 0 34px 8px rgba(80,150,255,.5); }
-@keyframes heatFlick { 0%, 100% { transform: scale(1); opacity: .85; } 50% { transform: scale(var(--hpulse)); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .heatFx i, .heatBand, .card[data-heat=warm] .face.front { animation: none; } }
+.heatFx { position: absolute; z-index: 0; inset: 0; pointer-events: none; border-radius: 16px;
+  box-shadow: 0 0 calc(var(--hsz) * 1.4) calc(var(--hsz) * .35) color-mix(in srgb, var(--h1) 70%, transparent); }
+.tongue { position: absolute; width: 0; height: 0; transform: rotate(var(--r)); }
+.tongue i { position: absolute; left: calc(var(--hsz) * -1.5); bottom: -10px; width: calc(var(--hsz) * 3); height: calc(var(--hsz) * 2.8 * var(--s) + 10px);
+  border-radius: 50% 50% 40% 40% / 75% 75% 25% 25%; transform-origin: 50% 100%; will-change: transform, opacity;
+  background: radial-gradient(ellipse 50% 90% at 50% 100%, var(--h2) 0%, var(--h1) 40%, var(--h3) 68%, transparent 72%);
+  animation: tongue var(--hspd) ease-in-out infinite alternate; animation-delay: calc(var(--hspd) * var(--d)); }
+@keyframes tongue { 0% { transform: scale(.85, .55); opacity: .7; } 60% { transform: scale(1.05, 1.1); opacity: 1; } 100% { transform: scale(.9, .8); opacity: .85; } }
+/* Small cards (binder pockets, packs, lists): the band and a still glow; flames only on the opened card */
+.miniCard[data-heat] .face { box-shadow: 0 0 0 2px var(--h2), 0 0 calc(6px + var(--hsz)) color-mix(in srgb, var(--h1) 75%, transparent), 0 6px 16px rgba(0,0,0,.35); }
+.miniCard[data-heat] .heatBand { animation: none; background-position: 50% 0; }
+.miniCard[data-heat=warm] .face.front { animation: none; }
+@media (prefers-reduced-motion: reduce) { .tongue i, .heatBand, .card[data-heat=warm] .face.front { animation: none; } }

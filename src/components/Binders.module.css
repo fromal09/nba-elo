@@ -548,3 +548,7 @@
 .pocket[data-settier=legend] .pocketBtn::after { background: linear-gradient(135deg, #8a6412, #fff3c4, #b8871e); box-shadow: 0 0 12px rgba(255,210,90,.45); }
 .pocket[data-settier=icon] .pocketBtn::after { background: conic-gradient(#ff5f6d, #ffc371, #f9f871, #5cf2a5, #4dc9ff, #a77bff, #ff5fd2, #ff5f6d); box-shadow: 0 0 14px rgba(160,120,255,.5); }
 .pocket[data-settier=goat] .pocketBtn::after { background: linear-gradient(135deg, #1a1405, #ffe48a 30%, #fff8d8 50%, #b8871e 70%, #1a1405); box-shadow: 0 0 18px rgba(255,210,90,.7); }
+
+/* Cards in binder pockets hold still: spinning foil, holo shifts and light sweeps run only on a card you open, so a
+   sheet of nine (or a phone) isn't animating dozens of layers at once */
+.pocketBtn *, .pocketBtn *::before, .pocketBtn *::after { animation-play-state: paused !important; }
