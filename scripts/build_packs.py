@@ -13,7 +13,7 @@ Writes, under public/data/explorer/packs/:
   team/<FRANCHISE>/<tier>-<k>.json  the weekly team pack's pool: one franchise's cards across every season
                             {"teams": {"<season>|<code>": [name, color]}, "rows": [...]}   index.json "teams": {franchise: {tier: [[file, n]]}}
 
-A row (cols): s, id, date, t, o, home, won, us, them, ot, band, honor, n, pos, mp, pts, trb, ast, stl, blk, tp, gs, pre, post, lr, lrp, fx, gp
+A row (cols): s, id, date, t, o, home, won, us, them, ot, band, honor, n, pos, mp, pts, trb, ast, stl, blk, tp, gs, pre, post, lr, lrp, fx, gp, hs
 (gp = the player's career game number, so 1 is his debut)
 
 Also writes the personal-binder checklists, which count players (own any card of a player and he's checked off):
@@ -41,7 +41,7 @@ EXP = ROOT / "public" / "data" / "explorer"
 OUT = EXP / "packs"
 TIERS = [("goat", 1), ("icon", 5), ("legend", 20), ("standout", 50), ("rare", 125)]
 COLS = ["s", "id", "date", "t", "o", "home", "won", "us", "them", "ot", "band", "honor", "n", "pos", "mp",
-        "pts", "trb", "ast", "stl", "blk", "tp", "gs", "pre", "post", "lr", "lrp", "fx", "gp"]
+        "pts", "trb", "ast", "stl", "blk", "tp", "gs", "pre", "post", "lr", "lrp", "fx", "gp", "hs"]
 SHARD = 3000   # cards per shard
 # ABA teams that joined the NBA count toward their franchise, as in the franchise binders
 MERGE = {"DEN@ABA": "DEN", "IND@ABA": "IND", "SAS@ABA": "SAS", "BKN@ABA": "BKN"}
@@ -67,7 +67,7 @@ def row(season, g, p, band, honor):
     home = None if g.get("home") is None else g["home"] == p["t"]
     return [season, g["id"], g["date"], p["t"], g["teams"][1 - i], home, g["pts"][i] > g["pts"][1 - i], g["pts"][i], g["pts"][1 - i],
             g.get("ot") or "", b, honor, p["n"], p.get("pos"), r1(p.get("mp")), p.get("pts"), p.get("trb"), p.get("ast"),
-            p.get("stl"), p.get("blk"), p.get("tp"), r1(p.get("gs")), r1(p["pre"]), r1(p["post"]), p.get("lr"), p.get("lrp"), p.get("fx"), p.get("gp")]
+            p.get("stl"), p.get("blk"), p.get("tp"), r1(p.get("gs")), r1(p["pre"]), r1(p["post"]), p.get("lr"), p.get("lrp"), p.get("fx"), p.get("gp"), p.get("hs") or 0]
 
 
 def main():

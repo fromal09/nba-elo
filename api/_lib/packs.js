@@ -117,7 +117,7 @@ function toCard(cols, r, teams, from) {
     s: o.s, id: o.id, date: o.date, t: o.t, tn: team(o.t)[0], tc: team(o.t)[1], o: o.o, on: team(o.o)[0], oc: team(o.o)[1],
     home: o.home, won: o.won, score: `${o.us}–${o.them}`, ot: o.ot,
     band: o.band ? { level: o.band[0], label: o.band[1], champ: o.band[2] } : null, honor: o.honor, tier: tierOf(o.lrp ?? o.lr), from,
-    row: { n: o.n, pos: o.pos, mp: o.mp, pts: o.pts, trb: o.trb, ast: o.ast, stl: o.stl, blk: o.blk, tp: o.tp, gs: o.gs, pre: o.pre, post: o.post, lr: o.lr, lrp: o.lrp, fx: o.fx, gp: o.gp },
+    row: { n: o.n, pos: o.pos, mp: o.mp, pts: o.pts, trb: o.trb, ast: o.ast, stl: o.stl, blk: o.blk, tp: o.tp, gs: o.gs, pre: o.pre, post: o.post, lr: o.lr, lrp: o.lrp, fx: o.fx, gp: o.gp, hs: o.hs || 0 },
   }
 }
 

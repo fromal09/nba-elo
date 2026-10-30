@@ -875,6 +875,8 @@ export const LEAGUE_SETS = [
     desc: 'The 125 greatest head-to-head rivalries, by tier: one GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares. Rivalry cards are random pulls.' },
   { id: 'duos', title: 'Dynamic Duos', short: 'Dynamic Duos', color: '#5a2a7a', special: true,
     desc: 'The 125 greatest teammate pairs: 100+ games together, each game rated 75% the weaker partner’s Elo and 25% the stronger’s, ranked half on their prime (their best three seasons together) and half on their peak game. Both average 2,200 or better. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares. Random pulls.' },
+  { id: 'heaters', title: 'Longest Heaters', short: 'Heaters', color: '#b3360f', ranked: true,
+    desc: 'The 125 longest runs of straight games gaining Elo, each as the card of the game that capped it. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares.' },
   { id: 'slayers', title: 'Giant-Slayers', short: 'Giant-Slayers', color: '#7a5a10', duel: 'slayer',
     desc: 'The 125 widest Elo gaps ever closed by a Giant-Slayer of the Day. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares.', ranked: true },
   { id: 'duels', title: 'Greatest duels', short: 'Duels', color: '#0b5f9e', duel: 'duel',
@@ -918,7 +920,7 @@ function leagueEntries_(env, def, list) {
     }
     const r = c.row, abbr = env.teamInfo(c.t, c.tn, c.tc).abbr
     const sub = { titles: `${c.s}`, games: `${r.gs} GmSc`, debuts: `${r.gs} GmSc`, stat: featLine(r), crowns: fullDay(c.date),
-      peaks: `Elo ${r0(r.post)}`, swings: sgn(r.post - r.pre) }[def.id]
+      peaks: `Elo ${r0(r.post)}`, swings: sgn(r.post - r.pre), heaters: c.heat ? `${c.heat.n} straight · ${sgn(c.heat.e1 - c.heat.e0)}` : '' }[def.id]
     const label = def.id === 'titles' ? `${shortName(r.n)} · ${abbr}` : def.chrono ? shortName(r.n) : `${i + 1}. ${shortName(r.n)}`
     return fromIndex(env, c, { rank: i + 1, date: c.date, gs: r.gs || 0, label, sub, subColor: def.id === 'swings' ? '#1a7a4a' : undefined,
       owned: !!env.owned?.has(`${c.s}|${c.id}|${r.n}`) })

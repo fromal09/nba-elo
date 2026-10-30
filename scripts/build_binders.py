@@ -39,7 +39,7 @@ OUT = EXP / "binders"
 TIERS = [(5, 0), (20, 1), (50, 2), (125, 3)]
 # ABA teams that joined the NBA share a franchise binder with their NBA seasons
 MERGE = {"DEN@ABA": "DEN", "IND@ABA": "IND", "SAS@ABA": "SAS", "BKN@ABA": "BKN"}
-ROW_KEYS = ["n", "pos", "pts", "trb", "ast", "gs", "pre", "post", "lr", "lrp", "fx"]
+ROW_KEYS = ["n", "pos", "pts", "trb", "ast", "gs", "pre", "post", "lr", "lrp", "fx", "hs"]
 
 
 def tier(rank):
@@ -211,13 +211,23 @@ def card(season, teams, g, p, band, honor):
             "row": {k: (round(p[k], 1) if isinstance(p.get(k), float) else p.get(k)) for k in ROW_KEYS}}
 
 
+def end_heater(L, h):
+    """A run of straight Elo gains is over: 5+ games makes it a Heater, its last game's card with the run attached."""
+    c = h.get("card")
+    if not c or (h.get("n") or 0) < 5:
+        return
+    post = c["row"]["post"]
+    L["heaters"].add(h["n"] + (post - h["e0"]) / 1e5, lambda: {**c, "heat": {"n": h["n"], "from": h["from"], "e0": round(h["e0"], 1), "e1": round(post, 1)}})
+
+
 def main():
     tm = json.loads((EXP / "timemachine.json").read_text(encoding="utf-8"))
     TC = tm["cols"]
     champs = {(r[TC.index("s")], r[TC.index("t")]) for r in tm["teams"] if r[TC.index("champ")]}
 
     players = {}                     # name -> state
-    L = {"games": Top(), "swings": Top(), "slayers": Top(), "duels": Top(), "stat": [], "crowns": []}
+    L = {"games": Top(), "swings": Top(), "slayers": Top(), "duels": Top(), "heaters": Top(), "stat": [], "crowns": []}
+    heat = {}    # player -> the run of straight Elo gains he's on: {"from", "e0", "card"} (its latest game's card)
     fr = defaultdict(lambda: {"seasons": [], "peak": {}, "games": defaultdict(int), "best_gs": None, "most_pts": None, "sig": {},
                               "first": None, "clinch": [], "peak_elo": None, "swing": None})
     files = sorted(EXP.glob("[12][0-9][0-9][0-9]-[0-9][0-9].json"))
@@ -271,6 +281,15 @@ def main():
                         ms[k] = (v, c or mk()); c = ms[k][1]
                 L["games"].add(gs, lambda: c or mk())
                 L["swings"].add(p["post"] - p["pre"], lambda: c or mk())
+                # Heaters: each run of 5+ straight Elo gains, as the card of its last game (ties: the bigger climb)
+                hs = p.get("hs") or 0
+                if hs == 1:
+                    heat[p["n"]] = {"from": g["date"], "e0": p["pre"]}
+                if hs >= 5 and p["n"] in heat:
+                    heat[p["n"]]["card"] = c or mk()
+                    heat[p["n"]]["n"] = hs
+                if hs == 0 and p["n"] in heat:
+                    end_heater(L, heat.pop(p["n"]))
                 if stat_feat(p):
                     L["stat"].append(c or mk())
                 # First time at No. 1, once he has 100 games (opening weeks of the first seasons rank tiny samples)
@@ -361,6 +380,8 @@ def main():
                            "best_gs": F["best_gs"][1], "most_pts": F["most_pts"][1]},
                "milestones": {"first": F["first"], "clinch": F["clinch"], "peak_elo": F["peak_elo"][1], "swing": F["swing"][1]}}
         (OUT / "f" / f"{code.replace('@', '_')}.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    for h in heat.values():
+        end_heater(L, h)
     # League-wide sets for the Binders page
     debuts = Top()
     for st in players.values():
@@ -381,7 +402,7 @@ def main():
     league = {"franchises": sorted(franchises, key=lambda x: x["name"]),
               "sets": {"titles": titles, "debuts": debuts.items(), "games": L["games"].items(), "stat": L["stat"], "crowns": L["crowns"],
                        "peaks": [st["ms"]["peak_elo"][1] for st in by_peak], "swings": L["swings"].items(),
-                       "slayers": L["slayers"].items(), "duels": L["duels"].items()}}
+                       "slayers": L["slayers"].items(), "duels": L["duels"].items(), "heaters": L["heaters"].items()}}
     (OUT / "league.json").write_text(json.dumps(league, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"  Binders: {len(players):,} players, {len(fr)} franchises, league sets " +
           ", ".join(f"{k} {len(v)}" for k, v in league["sets"].items()) + "            ")

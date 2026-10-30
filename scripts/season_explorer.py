@@ -26,11 +26,13 @@ import rivalries
 
 OUT_DIR = Path("public/data/explorer")
 COLS = ["n", "t", "st", "pos", "mp", "pts", "fg", "fga", "tp", "tpa", "ft", "fta", "orb", "drb", "trb",
-        "ast", "stl", "blk", "tov", "pf", "pm", "gs", "pre", "post", "gp", "xw", "w", "lr", "lrp", "fx"]
+        "ast", "stl", "blk", "tov", "pf", "pm", "gs", "pre", "post", "gp", "xw", "w", "lr", "lrp", "fx", "hs"]
 # lr / lrp: Elo rank before / after the game among FPR-qualified players (same league) on that date
 # fx: career-moment flags for this game, counted only once a player has 20+ career games:
 #     1 career-best Game Score, 2 career-best league rank, 4 career-high Elo
 FX_GAME, FX_RANK, FX_ELO, FX_MIN_GP = 1, 2, 4, 20
+# hs: the straight games he's gained Elo through this one (0 when this game lost Elo). A Heater is 5 or more: cards
+# light up at 5, 10, 15, 20 and 25, and the longest runs make the Longest Heaters league binder.
 STAT_SRC = {"pts": "PTS", "fg": "FG", "fga": "FGA", "tp": "3P", "tpa": "3PA", "ft": "FT", "fta": "FTA",
             "orb": "ORB", "drb": "DRB", "trb": "TRB", "ast": "AST", "stl": "STL", "blk": "BLK",
             "tov": "TOV", "pf": "PF"}
@@ -135,6 +137,7 @@ _best = {}           # player -> [best league rank, season label]
 _pool = defaultdict(dict)        # league -> {player: (team, last date, Elo)}
 _team_dates = defaultdict(list)  # team -> its recent game dates
 _career = {}                     # player -> [best Game Score, best post-game rank, peak Elo] so far
+_heat = {}                       # player -> straight games gaining Elo through his last game
 _recent = defaultdict(lambda: deque(maxlen=10))  # player -> last 10 appearances (date, team, minutes)
 
 
@@ -191,7 +194,7 @@ def bind(df):
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
     OUT_DIR.mkdir(parents=True)
-    _games.clear(); _index.clear(); _final.clear(); _best.clear(); _recent.clear(); _pool.clear(); _team_dates.clear(); _career.clear(); rivalries.reset(); _cur[0] = None
+    _games.clear(); _index.clear(); _final.clear(); _best.clear(); _recent.clear(); _pool.clear(); _team_dates.clear(); _career.clear(); _heat.clear(); rivalries.reset(); _cur[0] = None
 
 
 def _v(x):
@@ -407,6 +410,9 @@ def _write_season(sy, raw_games, latest=False):
                 if best and gp >= FX_MIN_GP:
                     fx |= (FX_GAME if gs > best[0] else 0) | (FX_RANK if rp < best[1] else 0) | (FX_ELO if post > best[2] else 0)
                 r.append(fx)
+                hs = _heat.get(r[0], 0) + 1 if post > r[22] else 0
+                _heat[r[0]] = hs
+                r.append(hs)
                 _career[r[0]] = [max(gs, best[0]), min(rp, best[1]), max(post, best[2])] if best else [gs, rp, post]
 
     # Head-to-head duel history: each game's notable rivalries going in, then the game's duels

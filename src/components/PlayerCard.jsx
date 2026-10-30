@@ -207,6 +207,7 @@ export function RubyFront({ name, row, game, team, headshot }) {
 }
 
 export function CardFront({ name, row, game, team, headshot }) {
+  const heat = heatOf(row)
   const [imgBad, setImgBad] = useState(false)
   const lastRef = useRef(null)
   const rank = row.lrp ?? row.lr ?? null
@@ -242,6 +243,7 @@ export function CardFront({ name, row, game, team, headshot }) {
   const [us, them] = (game.score || '').split('–')
   return (
     <div className={styles.frame} data-front={variant} data-era={era || undefined}>
+      {heat && <div className={styles.heatBand}><b>{heat.label}</b><span>{heat.n} straight Elo gains</span></div>}
       <div className={styles.photo}>
         <div className={styles.photoBg} />
         {/* foil sits behind the player so the headshot stays crisp */}
@@ -618,10 +620,34 @@ export function DuelModal({ kind, scope, a, b, date, matchup, sd, careerA: cA, c
   )
 }
 
-// Data attributes that drive the card's finish: tier, playoff round, honor, career game, milestones
+// Heaters: a game in a run of straight games gaining Elo (row.hs, from the pipeline). The card gets
+// a header band and, from Hot on, flames off its edges that grow at each level.
+const HEAT = [[25, 'white', 'White-Hot'], [20, 'inferno', 'Inferno'], [15, 'fire', 'On Fire'], [10, 'hot', 'Hot'], [5, 'warm', 'Heating Up']]
+export const heatOf = row => { const n = row?.hs || 0; const h = HEAT.find(([min]) => n >= min); return h ? { n, id: h[1], label: h[2] } : null }
+// The flame turbulence, once per card that needs it (identical copies are harmless)
+const FireDefs = () => (
+  <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+    {[[1, 16, 2.4], [2, 22, 2], [3, 30, 1.6], [4, 38, 1.3]].map(([k, sc, dur]) => (
+      <filter key={k} id={`fpr-fire${k}`} x="-40%" y="-40%" width="180%" height="180%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.03 0.1" numOctaves="3" seed={k * 3} result="n">
+          <animate attributeName="baseFrequency" dur={`${dur}s`} values="0.03 0.1;0.04 0.13;0.03 0.1" repeatCount="indefinite" />
+        </feTurbulence>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale={sc} xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    ))}
+  </svg>
+)
+function HeatFx({ row }) {
+  const h = heatOf(row)
+  if (!h || h.id === 'warm') return null
+  return <><FireDefs /><div className={styles.heatFx} aria-hidden="true"><i /><i /></div></>
+}
+
+// Data attributes that drive the card's finish: tier, playoff round, honor, career game, milestones, heater
 function cardAttrs(row, game) {
   const m = momentsFor(row)
   return {
+    'data-heat': heatOf(row)?.id,
     'data-tier': cardTier(row).id,
     'data-po': game.band ? game.band.level : undefined,
     'data-honor': game.honor || undefined,
@@ -650,6 +676,7 @@ export function SlabLabel({ row, game, kind, className }) {
 export function MiniCard({ name, row, game, team, headshot, slab }) {
   const card = (
     <div className={`${styles.card} ${styles.miniCard}`} {...cardAttrs(row, game)} style={{ '--tc': team?.color || '#173657' }} data-card-shot={`${baseName(name)} ${game?.date || ''}`}>
+      <HeatFx row={row} />
       <div className={`${styles.face} ${styles.front}`}>{game?.ruby ? <RubyFront name={name} row={row} game={game} team={team} headshot={headshot} /> : <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />}</div>
     </div>
   )
@@ -729,6 +756,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
         <div ref={ref} className={`${styles.card} ${flipped ? styles.flipped : ''}`} {...cardAttrs(row, game)}
           title={photo?.src === 'wiki' ? `Photo: ${photo.credit || 'Wikimedia Commons'}${photo.license ? ` · ${photo.license}` : ''} · via Wikimedia Commons` : undefined}
           style={{ '--tc': color }} onPointerMove={tilt} onPointerLeave={untilt}>
+          <HeatFx row={row} />
           <div className={styles.tilt}><div className={styles.flip} onClick={e => { if (!e.target.closest('button')) setFlipped(f => !f) }}>
             {/* ── Front ── */}
             <div className={`${styles.face} ${styles.front}`} data-card-shot={`${baseName(name)} ${game.date}`}>

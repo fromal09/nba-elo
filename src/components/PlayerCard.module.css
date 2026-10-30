@@ -658,3 +658,33 @@
 .rbStats small { font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase; font-weight: 700; opacity: .75; }
 .rbEdge { position: absolute; inset: 0; border-radius: 16px; box-shadow: inset 0 0 0 2px #ff2a4a, inset 0 0 26px rgba(255,42,74,.6); pointer-events: none; z-index: 4; }
 @media (prefers-reduced-motion: reduce) { .rbVeins { animation: none; } }
+
+/* ── Heaters: straight games gaining Elo. A band above everything at 5, then flames off the edges that grow at 10, 15, 20, 25 ── */
+.card[data-heat] { position: relative; --h1: #ff9a3c; --h2: #ffcf7a; --h3: #ff5a1f; --hsz: 0px; --hspd: 2.4s; --hpulse: 1.02; }
+.card[data-heat=hot] { --h1: #ff8a1f; --h2: #ffd25a; --h3: #ff4a00; --hsz: 8px; --hspd: 2.1s; --hpulse: 1.025; }
+.card[data-heat=fire] { --h1: #ff6a00; --h2: #ffcc33; --h3: #e01b00; --hsz: 13px; --hspd: 1.7s; --hpulse: 1.035; }
+.card[data-heat=inferno] { --h1: #ff3d00; --h2: #ffe27a; --h3: #b30000; --hsz: 18px; --hspd: 1.3s; --hpulse: 1.045; }
+.card[data-heat=white] { --h1: #5fb8ff; --h2: #ffffff; --h3: #2b4cff; --hsz: 22px; --hspd: 1s; --hpulse: 1.05; }
+.card[data-heat] .tilt, .card[data-heat] > .face { position: relative; z-index: 1; }
+.card[data-heat].miniCard > .face { position: absolute; }
+.heatBand { flex: none; position: relative; z-index: 7; height: 24px; display: flex; align-items: center; justify-content: center; gap: 8px; overflow: hidden;
+  background: linear-gradient(90deg, var(--h3), var(--h1) 30%, var(--h2) 50%, var(--h1) 70%, var(--h3)); background-size: 200% 100%; animation: heatSlide 3s linear infinite;
+  color: #1a0800; font-family: 'Barlow Condensed', 'Inter', sans-serif; text-transform: uppercase; white-space: nowrap; }
+.heatBand b { font-weight: 800; font-style: italic; font-size: 15px; letter-spacing: 1.5px; padding-right: 2px; }
+.heatBand span { font-weight: 700; font-size: 11px; letter-spacing: .8px; opacity: .85; }
+.card[data-heat=white] .heatBand { color: #061433; }
+@keyframes heatSlide { to { background-position: 200% 0; } }
+.card[data-heat=warm] .face.front { animation: heatWarm 2.4s ease-in-out infinite; }
+@keyframes heatWarm { 0%, 100% { box-shadow: 0 0 0 2px var(--h2), 0 0 14px 2px rgba(255,140,40,.35), 0 24px 60px rgba(0,0,0,.5); }
+  50% { box-shadow: 0 0 0 2px var(--h2), 0 0 26px 6px rgba(255,140,40,.6), 0 24px 60px rgba(0,0,0,.5); } }
+.heatFx { position: absolute; z-index: 0; inset: 0; pointer-events: none; }
+.heatFx i { position: absolute; left: calc(var(--hsz) * -1); right: calc(var(--hsz) * -1); top: calc(var(--hsz) * -1.9); bottom: calc(var(--hsz) * -.6); border-radius: 26px 26px 22px 22px;
+  background: linear-gradient(0deg, var(--h3), var(--h1) 40%, var(--h3) 75%, var(--h1)); opacity: .9; transform-origin: 50% 100%; animation: heatFlick var(--hspd) ease-in-out infinite; }
+.heatFx i + i { left: calc(var(--hsz) * -.5); right: calc(var(--hsz) * -.5); top: calc(var(--hsz) * -1.1); bottom: calc(var(--hsz) * -.3);
+  background: linear-gradient(0deg, var(--h2), #fff7d6 50%, var(--h2)); opacity: 1; animation-delay: calc(var(--hspd) * -.5); }
+.card[data-heat=hot] .heatFx i { filter: url(#fpr-fire1) blur(1px); } .card[data-heat=hot] .heatFx i + i { opacity: .6; }
+.card[data-heat=fire] .heatFx i { filter: url(#fpr-fire2) blur(1px); }
+.card[data-heat=inferno] .heatFx i { filter: url(#fpr-fire3) blur(1.5px); } .card[data-heat=inferno] .heatFx i:first-child { box-shadow: 0 0 30px 6px rgba(255,60,0,.45); }
+.card[data-heat=white] .heatFx i { filter: url(#fpr-fire4) blur(1.5px); } .card[data-heat=white] .heatFx i:first-child { box-shadow: 0 0 34px 8px rgba(80,150,255,.5); }
+@keyframes heatFlick { 0%, 100% { transform: scale(1); opacity: .85; } 50% { transform: scale(var(--hpulse)); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .heatFx i, .heatBand, .card[data-heat=warm] .face.front { animation: none; } }
