@@ -318,7 +318,12 @@ def _write_season(sy, raw_games, latest=False):
 
     # Regular season ends on the last game of the teams that played the fewest games
     # (non-playoff teams); anything later is postseason. Done per league.
+    # A season in progress (a game in the last 30 days) needs more than that: early on, the teams that have played the
+    # fewest games are just the ones that didn't play today, which made today's games look like playoff games. So its
+    # postseason starts only once no team is below that count, it's a full season's worth (40+ games), and those teams
+    # are all done before the league's last game day.
     reg_end = {}
+    in_progress = (date.today() - date.fromisoformat(max(g["date"] for g in games))).days <= 30
     for lg in {lg_of(t) for g in games for t in g["teams"]}:
         cnt, last = Counter(), {}
         for g in games:
@@ -330,7 +335,10 @@ def _write_season(sy, raw_games, latest=False):
         low = vals[: max(1, len(vals) // 2)]
         L = Counter(low).most_common(1)[0][0]
         ends = [last[t] for t in cnt if cnt[t] == L]
-        reg_end[lg] = max(ends) if ends and max(cnt.values()) > L else None
+        end = max(ends) if ends and max(cnt.values()) > L else None
+        if end and in_progress and not (min(vals) == L and L >= 40 and len(ends) >= 2 and max(last.values()) > end):
+            end = None
+        reg_end[lg] = end
 
     teams = {}
     rec = defaultdict(lambda: [0, 0, 0, 0])

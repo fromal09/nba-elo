@@ -39,6 +39,20 @@ async function run(sql, origin) {
   // Game cards, Peaks, Duels, Rivalries and Starting Fives rescore right away; Season cards wait for the Season data
   if (!done.has(POINTS_VERSION)) await rescore(sql, origin, c => c?.kind !== 'season', POINTS_VERSION)
   if (!done.has(POINTS_VERSION + '-seasons') && seasonsReady) await rescore(sql, origin, c => c?.kind === 'season', POINTS_VERSION + '-seasons')
+  // A build on Oct. 29, 2026 marked that day's regular-season games as playoff games (scripts/season_explorer.py's
+  // postseason guess, fixed). Once the rebuilt pool no longer has playoff bands on last night's cards, 2026-27 cards
+  // lose the band and the playoff bonus in their points, once.
+  if (!done.has('bands-2026-27')) {
+    const idx = await poolJSON(origin, 'index.json').catch(() => null)
+    const bi = idx?.cols?.indexOf('band') ?? -1
+    const clean = idx?.recent?.rows?.length && bi >= 0 && !idx.recent.rows.some(r => r[bi])
+    if (clean) {
+      for (const table of ['cards', 'sold']) {
+        await sql`update ${sql(table)} set card = jsonb_set(card, '{band}', 'null'::jsonb) where card->>'s' = '2026-27' and jsonb_typeof(card->'band') = 'object'`
+      }
+      await rescore(sql, origin, c => c?.s === '2026-27' && !c.kind, 'bands-2026-27')
+    }
+  }
   // Starting Fives refresh again once the pool carries their tiers (Common to GOAT)
   if (!done.has('fives-tiers')) {
     const idx = await poolJSON(origin, 'special/index.json').catch(() => null)

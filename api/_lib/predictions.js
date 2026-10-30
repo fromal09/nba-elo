@@ -107,8 +107,9 @@ export async function ensurePredSchema(t) {
 // ── The day's cards (published by the nightly build): reward picks, matchup and lineup Game Scores ──
 const files = new Map() // day -> { at, data }
 export async function dayFile(origin, day) {
+  // Refetched every 10 minutes: a day file published while games were still going (a partial day) gets replaced
   const m = files.get(day)
-  if (m && (m.data || Date.now() - m.at < 5 * 60e3)) return m.data
+  if (m && Date.now() - m.at < (m.data ? 10 : 5) * 60e3) return m.data
   let data = null
   try {
     const idx = await poolIndex(origin)
@@ -174,13 +175,15 @@ async function gradeSource(origin, day, games) {
   const file = origin ? await dayFile(origin, day) : null
   const old = day <= addDays(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }), -2)
   const box = new Map()
-  if (!file) await Promise.all(games.filter(g => g.state === 'post').map(async g => { const b = await espnBox(g.id); if (b) box.set(g.id, b) }))
+  // Finished games the day file doesn't have (none at all, or a partial day): ESPN's box scores
+  const inFile = g => !!file && hasGame(file, day, g.home, g.away)
+  await Promise.all(games.filter(g => g.state === 'post' && !inFile(g)).map(async g => { const b = await espnBox(g.id); if (b) box.set(g.id, b) }))
   return {
     file,
-    has: g => g.state === 'post' && (file ? hasGame(file, day, g.home, g.away) : box.has(g.id)),
+    has: g => g.state === 'post' && (inFile(g) || box.has(g.id)),
     gs(g, team, name) {
       const opp = g.home === team ? g.away : g.home
-      if (file) return findRow(file, day, team, opp, name)?.row.gs ?? null
+      if (inFile(g)) return findRow(file, day, team, opp, name)?.row.gs ?? null
       const v = box.get(g.id)?.get(`${team}|${norm(name)}`)
       return v ?? (old ? null : undefined)
     },
@@ -195,6 +198,11 @@ function duelCard(d) {
 
 // The day's Player of the Day card (the pipeline marks it), and its ruby version for a correct call
 const potdCard = (file, day) => file?.cards.find(c => c.honor === 'potd' && c.date === day) || null
+// The day file covers every game the slate finished (a run during the night can publish a partial day; its Player of the
+// Day is only the best of the games in it)
+const fullDay = (file, day, games) => !!file && games.every(isDone) && games.filter(g => g.state === 'post').every(g => hasGame(file, day, g.home, g.away))
+// The Player of the Day, once the day is over and the day file has all of it
+const potdOf = (file, day, games) => (fullDay(file, day, games) ? potdCard(file, day) : null)
 const rubyOf = c => ({ ...c, ruby: true, from: 'potd' })
 
 // Each game's matchup result from its Game Scores: { id: { winner | null (void), ag, bg } }
@@ -299,7 +307,7 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
         const correct = mine.filter(p => p.pick === results[p.game_id].winner).length
         let reward = total > 0 && correct === total ? 'duel' : correct * 2 > total ? 'rare' : null
         let claimed = null
-        if (reward === 'duel' && !file) break duels // the Duel of the Day card comes with the day file: close the day then
+        if (reward === 'duel' && !fullDay(file, day, games)) break duels // the Duel of the Day card comes with the whole day's file: close the day then
         if (reward === 'duel') {
           if (file.duel) {
             const c = duelCard(file.duel)
@@ -331,7 +339,7 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
       }
       // Player of the Day call: graded from the day's cards, which name the Player of the Day
       const [pp] = await t`select * from potd_picks where user_id = ${userId} and day = ${day} for update`
-      const potd = file && games.every(isDone) ? potdCard(file, day) : null
+      const potd = potdOf(file, day, games)
       if (pp && !pp.credited && potd) {
         const win = norm(potd.row.n) === norm(pp.player)
         if (win) {
@@ -345,7 +353,33 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
       }
     })
   }
+  awards.push(...(await repairPotd(sql, userId, today, origin)))
   return awards
+}
+
+// A Player of the Day call graded a loss against a partial day file (Oct. 29, 2026: the night's first run had two
+// games): once the whole day is in and names the player called, the call is a win after all, with its ruby card and
+// Coins. Only the last few days, and never the other way (a win stays a win).
+async function repairPotd(sql, userId, today, origin) {
+  if (!origin) return []
+  const out = []
+  for (const r of await sql`select day, player from potd_picks where user_id = ${userId} and result = 'loss' and day >= ${addDays(today, -4)}`) {
+    const day = iso(r.day)
+    const games = await slate(sql, day, { origin }).catch(() => [])
+    const potd = potdOf(await dayFile(origin, day).catch(() => null), day, games)
+    if (!potd || norm(potd.row.n) !== norm(r.player)) continue
+    await sql.begin(async t => {
+      const [x] = await t`update potd_picks set result = 'win', credited = true where user_id = ${userId} and day = ${day} and result = 'loss' returning 1`
+      if (!x) return
+      const c = rubyOf(potd)
+      const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, ${c.tier}, ${refOf(c)}, ${t.json(c)}, ${cardPoints(c).points}, 'potd')
+        on conflict (user_id, ref) do nothing returning id`
+      if (row) out.push({ kind: 'potdcard', amount: 0, label: `You called the Player of the Day after all: ruby ${potd.row.n} is in your binder` })
+      const a = await grant(t, userId, today, 'potdcorrect', PRED.potd, { ref: day, label: `Player of the Day called: ${potd.row.n}` })
+      if (a) out.push(a)
+    })
+  }
+  return out
 }
 
 // The summary `me` carries: today's slate size, your picks, cards waiting to be chosen
@@ -647,7 +681,7 @@ async function refresh(sql, origin, today) {
 // Everyone's Player of the Day calls for a finished day (results only; Coins and the card come with each collector's settle)
 async function gradePotd(sql, origin, day, games) {
   if (!origin || !games.length || !games.every(isDone)) return
-  const top = potdCard(await dayFile(origin, day), day)
+  const top = potdOf(await dayFile(origin, day), day, games)
   if (!top) return
   for (const r of await sql`select user_id, player from potd_picks where day = ${day} and result is null`)
     await sql`update potd_picks set result = ${norm(r.player) === norm(top.row.n) ? 'win' : 'loss'} where user_id = ${r.user_id} and day = ${day} and result is null`
@@ -718,7 +752,7 @@ async function potdView(sql, u, origin, day, games) {
     }
     candidates.sort((a, b) => b.elo - a.elo)
   }
-  const top = live.length && live.every(isDone) && origin ? potdCard(await dayFile(origin, day).catch(() => null), day) : null
+  const top = live.length && live.every(isDone) && origin ? potdOf(await dayFile(origin, day).catch(() => null), day, live) : null
   return { pick: pp ? { player: pp.player, team: pp.team, result: pp.result } : null, open, lock: firstTip(games), candidates,
     winner: top ? { name: top.row.n, team: top.t, gs: top.row.gs, pts: top.row.pts, trb: top.row.trb, ast: top.row.ast, card: top, ruby: pp?.result === 'win' } : null }
 }
@@ -846,7 +880,7 @@ export async function predDay(sql, u, day, origin) {
   const [ld] = await sql`select total, coins from lineup_days where user_id = ${u.id} and day = ${day}`
   const [pp] = await sql`select player, team, result from potd_picks where user_id = ${u.id} and day = ${day}`
   const done = games.length && games.every(g => g.state === 'post')
-  const top = done && origin ? potdCard(await dayFile(origin, day).catch(() => null), day) : null
+  const top = done && origin ? potdOf(await dayFile(origin, day).catch(() => null), day, games) : null
   const mr = done ? matchupResults(games, await gradeSource(origin, day, games).catch(() => ({ has: () => false }))) : {}
   return {
     day,
