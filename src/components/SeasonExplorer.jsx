@@ -605,7 +605,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
             <button className={standView === 'awards' ? styles.standOn : ''} onClick={() => setStandView('awards')}>Award races</button>
           </div>
           {standView === 'odds' && <span>{ODDS_N.toLocaleString()} simulated seasons · updates with every result</span>}
-          {standView === 'power' && <span>Healthy strength, form against the forecast and Elo momentum · updates with every final</span>}
+          {standView === 'power' && <span>Healthy strength, recent results and Elo momentum · updates with every final</span>}
           {standView === 'awards' && <span>{RACE_N.toLocaleString()} simulated seasons · this season so far plus a projection for the rest</span>}
         </div>
       )}
@@ -641,33 +641,41 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
 // ── Power rankings ──────────────────────────────────────────────────────────
 // Power score: three parts, each a z-score across the league, weighted and scaled to 0–100 (50 = average)
 //   Healthy strength 45%: rotation Elo now, the forecaster's minutes-weighted Elo with tonight's injury report
-//   Form 35%: the last 10 games' margin minus the pre-game expected margin (σ · Φ⁻¹(win chance)), recent games weighted more
+//   Results 35%: the last 10 games' scoring margin (capped at ±25), adjusted for the opponent's lineup Elo, recent games
+//     weighted more. Actual results only: a heavy favorite isn't marked down for winning by less than expected
 //   Momentum 20%: change in the team's minutes-weighted lineup Elo over the last 14 days
 // Movement: the change from the ranking before the latest day of games.
 const PW = { health: 0.45, form: 0.35, mom: 0.20 }
+const PTS_PER_ELO = 0.0376 // lineup Elo gap to points, the forecaster's Elo-only conversion
 const PTIERS = [[75, 'Contenders'], [60, 'Threats'], [40, 'The Middle'], [-1, 'Rebuilding']]
 function powerRank(sd, teams, fc, cutDay) {
   const ts = Object.keys(teams).filter(t => teams[t].group?.endsWith('Conference'))
   const day = etToday() // tonight's injury report
   const games = sd.games.filter(g => !g.post && (!cutDay || g.date < cutDay))
   const P = {}
+  const pres = games.flatMap(g => g.teams.map(x => g.elo[x]?.pre).filter(v => v != null))
+  const leagueElo = pres.length ? pres.reduce((a, v) => a + v, 0) / pres.length : 2000
   for (const t of ts) {
     const gs = games.filter(g => g.teams.includes(t))
     const last10 = gs.slice(-10)
     let fw = 0, fs = 0
     const form = last10.map((g, k) => {
-      const i = g.teams.indexOf(t), m = g.pts[i] - g.pts[1 - i]
-      const exp = 13.7 * invPhi(g.wp[t])
-      const wgt = k + 1; fw += wgt; fs += wgt * (m - exp)
-      return m > 0 ? 'W' : 'L'
+      // Actual results, not results against the forecast: the scoring margin (capped at ±25 so garbage time doesn't
+      // count double), plus credit for beating a strong opponent's lineup and less for a weak one's
+      const i = g.teams.indexOf(t), o = g.teams[1 - i], m = Math.max(-25, Math.min(25, g.pts[i] - g.pts[1 - i]))
+      const opp = (g.elo[o]?.pre ?? leagueElo) - leagueElo
+      const wgt = k + 1; fw += wgt; fs += wgt * (m + PTS_PER_ELO * opp)
+      return g.pts[i] > g.pts[1 - i] ? 'W' : 'L'
     })
+    // Few games: pulled toward average (0) until about five are in
+    const nForm = last10.length, shrink = nForm / (nForm + 3)
     const end = gs.at(-1), endDay = end?.date
     const from = endDay ? gs.find(g => g.date >= addDays(endDay, -14)) : null
     const mom = end && from ? end.elo[t].post - from.elo[t].pre : 0
     let side = null
     try { side = fc.f.team(t, day) } catch { /* team unknown to the forecaster */ }
     const w = gs.filter(g => g.pts[g.teams.indexOf(t)] > g.pts[1 - g.teams.indexOf(t)]).length
-    P[t] = { t, health: side?.rot ?? end?.elo[t].post ?? 1500, form: fw ? fs / fw : 0, mom, last: form, w, l: gs.length - w,
+    P[t] = { t, health: side?.rot ?? end?.elo[t].post ?? 1500, form: fw ? (fs / fw) * shrink : 0, mom, last: form, w, l: gs.length - w,
       outs: (side?.rows || []).filter(r => r.out).sort((a, b) => b.elo - a.elo).slice(0, 2).map(r => r.name) }
   }
   const z = k => { const v = ts.map(t => P[t][k]), m = v.reduce((a, x) => a + x, 0) / v.length, sdv = Math.sqrt(v.reduce((a, x) => a + (x - m) ** 2, 0) / v.length) || 1; ts.forEach(t => { P[t]['z_' + k] = (P[t][k] - m) / sdv }) }
@@ -682,7 +690,7 @@ function powerRank(sd, teams, fc, cutDay) {
 function powerWhy(x) {
   const parts = [['health', PW.health * x.z_health], ['form', PW.form * x.z_form], ['mom', PW.mom * x.z_mom]].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
   const [k] = parts[0]
-  if (k === 'form') return `${x.form >= 0 ? 'Beating' : 'Trailing'} the forecast by ${Math.abs(x.form).toFixed(1)} points a game over the last 10.`
+  if (k === 'form') return `${x.form >= 0 ? 'Outscoring' : 'Outscored by'} opponents by ${Math.abs(x.form).toFixed(1)} points a game over the last 10, adjusted for schedule.`
   if (k === 'mom') return `Rotation Elo ${x.mom >= 0 ? 'up' : 'down'} ${Math.abs(Math.round(x.mom))} in the last two weeks.`
   return `${ord(x.hRank)}-best healthy rotation (${r0(x.health)} Elo)${x.outs.length ? `, without ${x.outs.map(shortName).join(' and ')}` : ''}.`
 }
@@ -706,7 +714,7 @@ function PowerView({ sd, teams, fc, live }) {
             <Fragment key={t}>
               {head && <div className={styles.prTier} data-tier={head}>{head}</div>}
               <div className={styles.prRow} style={{ '--tc': tColor(t) }}
-                title={`Healthy strength ${r0(x.health)} (${sgn2(x.z_health)}σ) · form ${x.form >= 0 ? '+' : ''}${x.form.toFixed(1)} pts/g vs forecast (${sgn2(x.z_form)}σ) · momentum ${x.mom >= 0 ? '+' : ''}${Math.round(x.mom)} Elo in 14 days (${sgn2(x.z_mom)}σ)`}>
+                title={`Healthy strength ${r0(x.health)} (${sgn2(x.z_health)}σ) · results ${x.form >= 0 ? '+' : ''}${x.form.toFixed(1)} pts/g, schedule-adjusted (${sgn2(x.z_form)}σ) · momentum ${x.mom >= 0 ? '+' : ''}${Math.round(x.mom)} Elo in 14 days (${sgn2(x.z_mom)}σ)`}>
                 <span className={styles.prRank}>{x.rank}</span>
                 <span className={styles.prMove}>{mv > 0 ? <b className={styles.up}>▲{mv}</b> : mv < 0 ? <b className={styles.down}>▼{-mv}</b> : <i>—</i>}</span>
                 <span className={styles.prTeam}><TeamMark t={t} size={26} /><span><b>{tName(t)}</b>{lv && <em className={styles.prLive}><i className={styles.liveDot} />{lv.detail}</em>}
@@ -720,7 +728,7 @@ function PowerView({ sd, teams, fc, live }) {
           )
         })}
       </div>
-      <p className={styles.oNote}>Power score: healthy strength 45% (rotation Elo with tonight's injury report), form 35% (last 10 games' margin against the pre-game forecast, recent games weighted more) and momentum 20% (lineup Elo change over 14 days). Each part is compared across the league, then scaled so 50 is average. Hover a team for its three parts.</p>
+      <p className={styles.oNote}>Power score: healthy strength 45% (rotation Elo with tonight's injury report), results 35% (last 10 games' scoring margin, capped at 25 a game and adjusted for the opponent's lineup strength, recent games weighted more) and momentum 20% (lineup Elo change over 14 days). Each part is compared across the league, then scaled so 50 is average. Hover a team for its three parts.</p>
     </section>
   )
 }
