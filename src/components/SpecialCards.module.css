@@ -606,8 +606,8 @@
 .fhHead b { font-family: 'Oswald', 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 18px; letter-spacing: 3px; text-transform: uppercase; }
 .fhHead small { font-size: 12px; font-weight: 800; letter-spacing: 1.5px; color: #9aa4ae; }
 .fhYrs { position: absolute; top: 50px; left: 18px; right: 18px; display: flex; justify-content: space-between; font-family: 'Bebas Neue', 'Barlow Condensed', sans-serif; font-size: 30px; color: #c4ced4; z-index: 3; }
-.fhTiles { position: absolute; left: 18px; right: 18px; top: 92px; bottom: 132px; display: grid; grid-auto-rows: 1fr; gap: 4px; z-index: 2; align-content: start; }
-.fhTiles i { display: block; border-radius: 3px; background: var(--c); min-height: 14px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.fhTiles { position: absolute; left: 18px; right: 18px; top: 92px; bottom: 132px; display: grid; gap: 4px; z-index: 2; }
+.fhTiles i { display: block; border-radius: 3px; background: var(--c); max-height: 48px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
 .fhTiles i[data-ring] { background: linear-gradient(135deg, #fff4c9, #d4a64a); box-shadow: 0 0 8px rgba(255,215,122,.6); }
 .fhTiles i[data-off] { background: transparent !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
 .fhPlate { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; padding: 16px 18px 20px; border-top: 3px solid #c4ced4; background: #0e1114; }

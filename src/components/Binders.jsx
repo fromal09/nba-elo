@@ -161,7 +161,10 @@ function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, pho
 
 // The book: overlay, cover, left page, rings, right page, divider tabs; one page on a phone
 // Phone: a compact head with a one-line summary that opens the left page as a drawer, the page of pockets, and a dock
-export function Book({ tc, onClose, onKey, left, right, tabs, phone, summary, head, stack, dock }) {
+// Binder looks from Settings (users.binder_theme): cover, page paper. null: the favorite team's colors on cream paper
+export const BINDER_THEMES = [[null, 'Team colors', null, '#f6f3ea'], ['classic', 'Classic navy', '#173657', '#f6f3ea'], ['leather', 'Leather', '#5a3418', '#efe4cc'],
+  ['midnight', 'Midnight', '#0f1626', '#e9edf3'], ['hardwood', 'Hardwood', '#9a5b26', '#f6efe2'], ['chrome', 'Chrome', '#6d777e', '#f2f4f6'], ['ivory', 'Ivory', '#cbbd98', '#fbf8f0']]
+export function Book({ tc, onClose, onKey, left, right, tabs, phone, summary, head, stack, dock, theme }) {
   useEffect(() => {
     const k = e => {
       if (onKey?.(e)) return
@@ -174,7 +177,8 @@ export function Book({ tc, onClose, onKey, left, right, tabs, phone, summary, he
   const [open, setOpen] = useState(false)
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.book} style={{ '--tc': tc || '#173657' }} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+      <div className={styles.book} data-theme={theme || undefined} style={{ '--tc': (theme && BINDER_THEMES.find(x => x[0] === theme)?.[2]) || tc || '#173657', '--paper': (BINDER_THEMES.find(x => x[0] === (theme || null))?.[3]) || '#f6f3ea' }}
+        onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
         <button type="button" className={styles.close} onClick={onClose} aria-label="Close binder">×</button>
         {phone && stack ? <>
           <div className={styles.phoneHead}>{head}</div>
@@ -1074,6 +1078,156 @@ function PointsHelp() {
   )
 }
 
+// NBA history only for Franchise History and Completed Franchise: no BAA seasons, the four ABA teams from 1976-77
+const nbaSeasonC = (fc, s) => !!fc && !fc.includes('@') && s >= (['DEN', 'IND', 'SAS', 'BKN'].includes(fc) ? '1976-77' : '1949-50')
+
+// Settings: favorite team and the binder's look
+function SettingsModal({ env, C, fav, theme, onClose }) {
+  const [busy, setBusy] = useState(false)
+  const save = async patch => { setBusy(true); try { await C.saveProfile(patch) } finally { setBusy(false) } }
+  return (
+    <div className={styles.askOverlay} onClick={onClose}>
+      <div className={styles.settings} role="dialog" aria-modal="true" aria-label="Binder settings" onClick={e => e.stopPropagation()}>
+        <div className={styles.setHead}><b>Binder settings</b><button type="button" onClick={onClose} aria-label="Close">×</button></div>
+        <label className={styles.setLab}>Favorite team
+          <select className={styles.favSel} value={fav || ''} disabled={busy} onChange={e => save({ favoriteTeam: e.target.value || null })}>
+            <option value="">None</option>
+            {CURRENT_TEAMS.map(code => <option key={code} value={code}>{env.teamInfo(code).name}</option>)}
+          </select>
+          <small>Your binder’s colors when the look is Team colors, and your team on the leaderboard.</small></label>
+        <div className={styles.setLab}>Binder look</div>
+        <div className={styles.themeGrid}>
+          {BINDER_THEMES.map(([id, name, cover, paper]) => (
+            <button key={id || 'team'} type="button" disabled={busy} className={(theme || null) === id ? styles.themeOn : ''} onClick={() => save({ binderTheme: id })}
+              style={{ '--cv': cover || (fav ? env.teamInfo(fav).color : '#173657'), '--pp': paper }} data-theme={id || undefined}>
+              <i><em /></i><span>{name}</span></button>
+          ))}
+        </div>
+        <button type="button" className={styles.primary} onClick={onClose}>Done</button>
+      </div>
+    </div>
+  )
+}
+
+// Checklists · Franchises: every franchise's team rosters, player seasons, NBA history and every player it ever had
+function FranchiseChecklists({ check, all, have, nbaHave, env, fav, mine, onSeasons, onPreview, loadRoster }) {
+  const [showOld, setShowOld] = useState(false)
+  if (!check) return <p className={styles.light}>Loading the checklists…</p>
+  const F = check.franchises
+  const earned = (kind, fc) => all.filter(e => e.special?.kind === kind && (e.special.fc || e.special.t) === fc)
+  const row = fc => {
+    const f = F[fc]; if (!f) return null
+    const seasons = Object.keys(f.seasons || {}), nba = f.nba || [seasons.filter(s => nbaSeasonC(fc, s)).length, null]
+    const hs = nbaHave.get(fc), tc = env.teamInfo(fc)?.color || '#173657'
+    const sets = earned('set', fc).length, seas = all.filter(e => e.special?.kind === 'season' && e.special.t === fc).length
+    const fhist = earned('fhist', fc)[0], fcomp = earned('fcomp', fc)[0]
+    const teamsWith = seasons.filter(s => have.ts.get(`${fc}|${s}`)?.size).length
+    const meter = (label, n, d, sub) => <div className={styles.frMeter}><small>{label}</small><span className={styles.setBar}><em style={{ width: `${d ? Math.min(100, (n / d) * 100) : 0}%` }} /></span><b>{n}{d != null ? <i>/{d}</i> : ''}</b>{sub && <em>{sub}</em>}</div>
+    const preview = async kind => {
+      const got = kind === 'fhist' ? fhist : fcomp
+      if (got) { onPreview({ card: got.special, done: true }); return }
+      const R = await loadRoster(fc).catch(() => null)
+      if (!R) return
+      const ns = Object.keys(R).filter(s => nbaSeasonC(fc, s)).sort()
+      if (kind === 'fhist') {
+        const hv = new Set(ns.filter(s => hs?.s.has(s)))
+        onPreview({ done: false, lockText: `${hv.size} of ${ns.length} seasons · a card from every NBA season earns it`,
+          card: { kind: 'fhist', tier: 'fhist', fc, t: fc, tn: f.name, tc, size: ns.length, seasons: ns, from: ns[0], to: ns[ns.length - 1], have: hv } })
+      } else {
+        const g = new Map(); ns.forEach(s => (R[s] || []).forEach(([n, k]) => g.set(n, (g.get(n) || 0) + (k || 0))))
+        const players = [...g].sort((a, b) => b[1] - a[1])
+        const hv = new Set(players.map(([n]) => n).filter(n => hs?.p.has(n)))
+        onPreview({ done: false, lockText: `${hv.size} of ${players.length} players · a card of every player in franchise history earns it`,
+          card: { kind: 'fcomp', tier: 'fcomp', fc, t: fc, tn: f.name, tc, size: players.length, players, from: ns[0], to: ns[ns.length - 1], have: hv } })
+      }
+    }
+    return (
+      <section key={fc} className={styles.frRow} style={{ '--c': tc }}>
+        <header><TeamLogoMark env={env} fc={fc} /><b>{f.name}</b>{fc === fav && <span className={styles.frFav}>★ Favorite</span>}
+          {have.fr.get(fc)?.size > 0 && <button type="button" className={styles.linkBtn} onClick={() => onSeasons(fc)}>Season checklists</button>}</header>
+        <div className={styles.frMeters}>
+          {meter('Team rosters', sets, seasons.length, `${teamsWith} season${teamsWith === 1 ? '' : 's'} started`)}
+          {meter('Player seasons', seas, null, 'Season cards forged')}
+          {nba[0] > 0 && meter('Franchise History', hs?.s.size || 0, nba[0], fhist ? '★ Earned' : 'a card from every NBA season')}
+          {nba[0] > 0 && meter('Completed Franchise', hs?.p.size || 0, nba[1], fcomp ? '★ Earned' : 'every player in NBA history')}
+        </div>
+        {nba[0] > 0 && <div className={styles.checkBtns}>
+          <button type="button" className={`${styles.linkBtn} ${styles.setBtn}`} onClick={() => preview('fhist')}>{fhist ? '★ ' : ''}See Franchise History card</button>
+          <button type="button" className={`${styles.linkBtn} ${styles.setBtn}`} onClick={() => preview('fcomp')}>{fcomp ? '★ ' : ''}See Completed Franchise card</button>
+        </div>}
+      </section>
+    )
+  }
+  const cur = CURRENT_TEAMS.filter(fc => F[fc]).sort((a, b) => (b === fav) - (a === fav) || (have.fr.get(b)?.size || 0) - (have.fr.get(a)?.size || 0) || (F[a].name || '').localeCompare(F[b].name || ''))
+  const old = Object.keys(F).filter(fc => !CURRENT_TEAMS.includes(fc) && !MERGE_ABA[fc]).sort((a, b) => (F[a].name || '').localeCompare(F[b].name || ''))
+  return <>
+    <p className={styles.light}>Every franchise’s checklists. Team rosters: one card of every player on a season’s roster earns its team set card. Player seasons: every game of a player’s season forges his Season card. Franchise History: a card from every NBA season. Completed Franchise: a card of every player in the franchise’s NBA history. Earned cards stay yours as new seasons are added.</p>
+    {cur.map(row)}
+    <button type="button" className={styles.linkBtn} onClick={() => setShowOld(v => !v)}>{showOld ? 'Hide' : 'Show'} former franchises · {old.length}</button>
+    {showOld && old.map(row)}
+  </>
+}
+function TeamLogoMark({ env, fc }) {
+  const t = env.teamInfo(fc)
+  const [bad, setBad] = useState(false)
+  return <span className={styles.frLogo}>{t?.logo && !bad ? <img src={t.logo} alt="" onError={() => setBad(true)} /> : <b>{(t?.abbr || fc).split('@')[0]}</b>}</span>
+}
+
+// Checklists · Rewards: the reward cards you've earned, and the All-Star checklists
+const REWARD_GROUPS = [
+  ['potw', 'Player of the Week', 'One a week, to the week’s pick’em winner.'],
+  ['ruby', 'Ruby Players of the Day', 'Called the night’s Player of the Day in Predictions.'],
+  ['season', 'Player Seasons', 'Every game of a player’s season with a team.'],
+  ['set', 'Team Rosters', 'A card of every player on a team’s roster for a season.'],
+  ['fhist', 'Franchise Histories', 'A card from every NBA season of a franchise.'],
+  ['fcomp', 'Completed Franchises', 'A card of every player in a franchise’s NBA history.'],
+  ['allstar', 'All-Star Rosters', 'A game card from the season of every All-Star that season.'],
+  ['banner', 'Banners', 'Every rung of a franchise’s Hang the Banner ladder.'],
+]
+function RewardShelves({ all, have, honors, env, P, open, setOpen, onPreview }) {
+  // Each season's All-Stars (ABA All-Stars are their own list), how many you have, newest first
+  const lists = useMemo(() => {
+    if (!honors) return []
+    const out = []
+    for (const [s, h] of Object.entries(honors)) {
+      const nba = [], aba = []
+      for (const [n, code] of Object.entries(h)) if (code.includes('S')) (code.includes('A') ? aba : nba).push(n)
+      for (const [lg, list] of [['nba', nba], ['aba', aba]]) if (list.length) out.push({ s, aba: lg === 'aba', list: list.sort(), n: list.filter(n => have.ss.get(s)?.has(n)).length })
+    }
+    return out.sort((a, b) => b.n / b.list.length - a.n / a.list.length || b.s.localeCompare(a.s))
+  }, [honors, have])
+  return <>
+    {REWARD_GROUPS.map(([k, title, desc]) => {
+      const list = k === 'ruby' ? all.filter(e => e.ruby) : all.filter(e => e.special?.kind === k)
+      return (
+        <section key={k} className={styles.spSection}>
+          <div className={styles.spHead}><h4>{title}<span>{list.length} earned</span></h4></div>
+          <p className={styles.light}>{desc}</p>
+          {list.length > 0 && <div className={styles.spGrid}>{list.map(e => <Pocket key={e.key} e={e} name={e.name} env={env} onPull={P.pull} pulled={P.pulled} />)}</div>}
+          {k === 'allstar' && <div className={styles.checkList}>
+            {!honors && <p className={styles.light}>Loading the All-Star checklists…</p>}
+            {(open ? lists : lists.slice(0, 8)).map(x => {
+              const got = all.find(e => e.special?.kind === 'allstar' && e.special.s === x.s && !!e.special.aba === x.aba)
+              return (
+                <div key={x.s + x.aba} className={`${styles.checkRow} ${x.n ? styles.checkHas : ''} ${x.n === x.list.length ? styles.checkDone : ''}`}>
+                  <button type="button" className={styles.checkHead} onClick={() => onPreview(got ? { card: got.special, done: true }
+                    : { done: false, lockText: `${x.n} of ${x.list.length} All-Stars · a game card from the season of every one earns it`,
+                      card: { kind: 'allstar', tier: 'allstar', s: x.s, aba: x.aba, size: x.list.length, players: x.list, have: have.ss.get(x.s) || new Set() } })}>
+                    <b>{x.s}</b><span>{x.aba ? 'ABA All-Stars' : 'All-Stars'}{got ? ' · ★ earned' : ''}</span>
+                    <span className={styles.setBar}><em style={{ width: `${(x.n / x.list.length) * 100}%` }} /></span>
+                    <strong>{x.n}<small>/{x.list.length}</small></strong><i>›</i>
+                  </button>
+                </div>
+              )
+            })}
+            {lists.length > 8 && <button type="button" className={styles.linkBtn} onClick={() => setOpen(!open)}>{open ? 'Show fewer' : `Show all ${lists.length} seasons`}</button>}
+          </div>}
+        </section>
+      )
+    })}
+  </>
+}
+
 export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onStore, startView }) {
   const phone = useIsPhone()
   const per = 9 // a 3 × 3 sheet on every screen
@@ -1094,6 +1248,10 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const [league, setLeague] = useState(null)
   const [check, setCheck] = useState(null)
   const [rosters, setRosters] = useState({})
+  const [settings, setSettings] = useState(false)
+  const [ck, setCk] = useState('fr')          // Checklists: fr (franchises) | sets (special sets) | rewards
+  const [honors, setHonors] = useState(null)  // All-Star rosters by season, for the All-Star checklists
+  const [allStarsOpen, setAllStarsOpen] = useState(false)
   useEffect(() => {
     env.getJSON('/data/explorer/binders/league.json').then(setLeague).catch(() => {})
     env.getJSON('/data/explorer/binders/checklist.json').then(setCheck).catch(() => {})
@@ -1165,7 +1323,14 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     if (view !== 'team' || mode !== 'checklist' || !cur || rosters[cur.id]) return
     env.getJSON(`/data/explorer/binders/roster/${cur.id.replace('@', '_')}.json`).then(r => setRosters(x => ({ ...x, [cur.id]: r }))).catch(() => {})
   }, [view, mode, cur?.id])
-  const pickView = v => { setView(v); setGroup(null); setSeason(null); setMode('cards'); setOpenRow(null); S.reset() }
+  const pickView = v => { if (v.startsWith('checklists:')) { setCk(v.slice(11)); v = 'checklists' } setView(v); setGroup(null); setSeason(null); setMode('cards'); setOpenRow(null); S.reset() }
+  useEffect(() => { if (view === 'checklists' && ck === 'rewards' && !honors) env.getJSON('/data/explorer/binders/honors.json').then(setHonors).catch(() => {}) }, [view, ck])
+  // NBA seasons and players you have, by franchise (Franchise History and Completed Franchise; no BAA or ABA seasons)
+  const nbaHave = useMemo(() => {
+    const m = new Map()
+    cardsOnly.forEach(e => { if (!nbaSeasonC(e.fc, e.s)) return; if (!m.has(e.fc)) m.set(e.fc, { s: new Set(), p: new Set() }); const x = m.get(e.fc); x.s.add(e.s); x.p.add(e.name) })
+    return m
+  }, [cardsOnly])
   if (!src) return null
   const me = mine ? C.me : null
   const fav = src.user.favoriteTeam
@@ -1175,22 +1340,22 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const show = showIds.map(id => all.find(e => e.cardId === id)).filter(Boolean)
   const top = groups.team[0]
   const t = me?.today, open = me?.open?.[0]
-  const packRow = me && (
-    <div className={styles.packRow}>
-      {open ? <button type="button" className={styles.packCta} onClick={() => C.resume(open.id)}>Finish your {open.kind === 'team' ? 'team ' : ''}pack · {open.picked}/{open.total}</button>
-        : !t.claimed && <button type="button" className={styles.packCta} onClick={() => C.claim()}>{t.bonusToday ? 'Open today’s pack + streak bonus' : 'Open today’s pack'}</button>}
-      {!me.week.claimed
-        ? <button type="button" className={styles.teamCta} onClick={() => C.openTeam()}>Weekly team pack · pick a team</button>
-        : <span className={styles.light}>Next team pack {fullDay(me.week.next)}</span>}
-      {view !== 'predict' && <button type="button" className={styles.predictCta} onClick={() => pickView('predict')}>Predictions{me.predict?.unclaimed ? ` · ${me.predict.unclaimed} card${me.predict.unclaimed === 1 ? '' : 's'} to choose` : me.predict?.open ? ` · ${me.predict.picked}/${me.predict.games} picked` : ''}</button>}
-      {onStore && <button type="button" className={styles.storeCta} onClick={onStore}>Store · {(me.coins?.balance ?? 0).toLocaleString()} Coins</button>}
-    </div>
-  )
-  const profileRow = mine ? <div className={styles.headRow}>
-      <select className={styles.favSel} value={fav || ''} onChange={e => C.saveProfile({ favoriteTeam: e.target.value || null })} aria-label="Favorite team">
-        <option value="">Favorite team…</option>
-        {CURRENT_TEAMS.map(code => <option key={code} value={code}>{env.teamInfo(code).name}</option>)}
-      </select>
+  const PR = me?.predict || {}
+  // The binder's buttons: packs, rewards, the store, today's predictions. Greyed out when there's nothing to do
+  const lBtn = (key, label, sub, on, onClick, cls) => <button key={key} type="button" className={`${styles.lBtn} ${cls || ''}`} disabled={!on} onClick={onClick}><b>{label}</b>{sub && <small>{sub}</small>}</button>
+  const actions = me && <div className={styles.lBtns}>
+    {open ? lBtn('daily', `Finish your ${open.kind === 'team' ? 'weekly ' : ''}pack`, `${open.picked} of ${open.total} picked`, true, () => C.resume(open.id), styles.lGold)
+      : lBtn('daily', 'Daily Pack', !t.claimed ? (t.bonusToday ? 'Ready · streak bonus inside' : 'Ready to open') : t.waiting ? 'Waiting on last night’s games' : 'Opened · back tomorrow', !t.claimed, () => C.claim(), styles.lGold)}
+    {lBtn('weekly', 'Weekly Pack', me.week.claimed ? `Opened · next ${fullDay(me.week.next)}` : 'Ready · pick a team', !me.week.claimed, () => C.openTeam(), styles.lTeam)}
+    {lBtn('claim', 'Claim Rewards', PR.unclaimed ? `${PR.unclaimed} card${PR.unclaimed === 1 ? '' : 's'} to choose` : 'Nothing to claim', !!PR.unclaimed, () => pickView('predict:history'), styles.lClaim)}
+    {onStore && lBtn('store', 'Store', `${(me.coins?.balance ?? 0).toLocaleString()} Coins`, true, onStore, styles.lStore)}
+    {lBtn('games', 'Game Predictions', PR.games ? `${PR.picked} of ${PR.games} picked` : 'No games today', true, () => pickView('predict:games'))}
+    {lBtn('match', 'Matchup Predictions', PR.duels ? `${PR.duels_picked} of ${PR.duels} picked` : 'Not set yet', true, () => pickView('predict:matchups'))}
+    {lBtn('potd', 'Player of the Day', `${PR.potd ? 1 : 0} of 1 picked`, true, () => pickView('predict:potd'))}
+  </div>
+  const theme = src.user.binderTheme || null
+  const settingsBtns = mine ? <div className={styles.headRow}>
+      <button type="button" className={styles.linkBtn} onClick={() => setSettings(true)}>⚙ Settings</button>
       <button type="button" className={styles.linkBtn} onClick={() => { C.signOut(); onClose() }}>Sign out</button>
     </div> : null
   const head = phone ? <div className={styles.mHead}>
@@ -1198,19 +1363,25 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     <span className={styles.mWho}><b>{src.user.username}</b><small>{mine ? 'My binder' : 'Binder'}{st.rank ? ` · No. ${st.rank} of ${st.of}` : ''}{fav ? ` · ${env.teamInfo(fav).name}` : ''}</small></span>
     {me && <button type="button" className={styles.mCoin} onClick={onStore}>◎ {(me.coins?.balance ?? 0).toLocaleString()}</button>}
   </div> : <>
-    <div className={styles.kicker}>{mine ? 'My binder' : 'Binder'}{st.rank ? ` · No. ${st.rank} of ${st.of}` : ''}</div>
+    <div className={styles.binderTitle}><b>{mine ? 'My Binder' : 'Binder'}</b>{st.rank ? <span>No. {st.rank} of {st.of} · {n0(st.score)} pts</span> : null}</div>
     <h2 className={styles.title} style={{ color: tc }}>{src.user.username}</h2>
-    {mine ? <div className={styles.headRow}>
-      <select className={styles.favSel} value={fav || ''} onChange={e => C.saveProfile({ favoriteTeam: e.target.value || null })} aria-label="Favorite team">
-        <option value="">Favorite team…</option>
-        {CURRENT_TEAMS.map(code => <option key={code} value={code}>{env.teamInfo(code).name}</option>)}
-      </select>
-      <button type="button" className={styles.linkBtn} onClick={() => { C.signOut(); onClose() }}>Sign out</button>
-    </div> : <p className={styles.line}>{fav ? `${env.teamInfo(fav).name} fan · ` : ''}collecting since {fullDay(src.user.joined)}</p>}
+    {mine ? settingsBtns : <p className={styles.line}>{fav ? `${env.teamInfo(fav).name} fan · ` : ''}collecting since {fullDay(src.user.joined)}</p>}
   </>
   const left = <>
-    {phone && profileRow}
-    {phone && packRow}
+    {phone && settingsBtns}
+    {actions}
+    <div className={styles.boxLab}>Showcase</div>
+    <div className={styles.showcase}>
+      {[0, 1, 2].map(i => show[i]
+        ? <button key={show[i].key} type="button" className={styles.pocketBtn} onClick={() => P.pull(show[i])} aria-label="Open card"><Fit><AnyFace e={show[i]} env={env} /></Fit></button>
+        : mine ? <button key={i} type="button" className={styles.showEmpty} onClick={() => pickView('starred')} title="Choose from your starred cards"><span>+</span><small>{starred.size ? 'Pick from Starred' : 'Star cards first'}</small></button>
+          : <div key={i} className={styles.showEmpty} />)}
+    </div>
+    <div className={styles.boxLab}>Pulls by tier</div>
+    <TierTally counts={counts} />
+    {me && <div className={styles.meterBox}><Meter meter={me.meter} />{t && <span className={styles.light}>{t.streak}-day streak · {t.claimed ? `${t.untilBonus} day${t.untilBonus === 1 ? '' : 's'} to a streak bonus` : 'today’s pack is waiting'}</span>}</div>}
+    <PointsHelp />
+    <div className={styles.boxLab}>Binder stats</div>
     <div className={styles.stats}>
       <div className={styles.statWide}><b className={styles.gold}>{n0(st.score)}</b><small>Binder score</small></div>
       <div><b>{st.rank ? `#${st.rank}` : '—'}</b><small>of {st.of || 0}</small></div>
@@ -1219,25 +1390,15 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     </div>
     <ScoreHistory user={src.user.username} mine={mine} tc={tc} />
     {top && <p className={styles.line}>Most collected: <b>{top.name}</b> · {top.n} player{top.n === 1 ? '' : 's'}, {top.cards} card{top.cards === 1 ? '' : 's'}</p>}
-    {!phone && packRow}
-    {me && <div className={styles.meterBox}><Meter meter={me.meter} />{t && <span className={styles.light}>{t.streak}-day streak · {t.claimed ? `${t.untilBonus} day${t.untilBonus === 1 ? '' : 's'} to a streak bonus` : 'today’s pack is waiting'}</span>}</div>}
-    <div className={styles.boxLab}>Showcase</div>
-    <div className={styles.showcase}>
-      {[0, 1, 2].map(i => show[i]
-        ? <button key={show[i].key} type="button" className={styles.pocketBtn} onClick={() => P.pull(show[i])} aria-label="Open card"><Fit><AnyFace e={show[i]} env={env} /></Fit></button>
-        : mine ? <button key={i} type="button" className={styles.showEmpty} onClick={() => pickView('starred')} title="Choose from your starred cards"><span>+</span><small>{starred.size ? 'Pick from Starred' : 'Star cards first'}</small></button>
-          : <div key={i} className={styles.showEmpty} />)}
-    </div>
-    <Badges list={src.achievements} mine={mine} onAll={() => pickView('badges')} />
-    <div className={styles.boxLab}>Pulls by tier</div>
-    <TierTally counts={counts} />
-    <PointsHelp />
   </>
   const nBadges = (src.achievements || []).filter(a => a.earned).length
   const specials = all.filter(e => e.special || e.duel)
-  const views = [['all', 'All'], ['wishes', mine ? `Wish list · ${(C?.me?.wishes || []).length}` : 'Wish list'], ...(mine ? [['predict', 'Predictions'], ['five', 'Five challenge'], ['banner', 'Hang the Banner']] : []),
-    ['starred', `Starred · ${starred.size}`], ['team', 'Franchises'], ['decade', 'Decades'], ['specials', `Specials · ${specials.length}`], ['sets', 'Sets'], ['badges', `Achievements · ${nBadges}`]]
-  const tools = <Seg value={view} onChange={pickView} options={views} />
+  // The header: the Table of Contents (every section of the binder) and Games (predictions and the challenges)
+  const inGames = view.startsWith('predict') || view === 'games' || view === 'five' || view === 'banner'
+  const tools = <div className={styles.navBtns}>
+    <button type="button" className={view === 'toc' ? styles.navOn : ''} onClick={() => pickView('toc')}>☰ Table of Contents</button>
+    {mine && <button type="button" className={inGames ? styles.navOn : ''} onClick={() => pickView('games')}>◆ Games</button>}
+  </div>
   const sortSel = (
     <select className={styles.sortSel} value={order} onChange={e => { setOrder(e.target.value); S.reset() }} aria-label="Sort">
       <option value="new">Newest pulls</option><option value="points">Most points</option><option value="tier">Rarest first</option><option value="chrono">By game date</option><option value="name">Player A–Z (last name)</option>
@@ -1269,18 +1430,85 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       : !t.claimed ? <button type="button" className={styles.dockHot} onClick={() => C.claim()}><b>🎁</b>Open pack</button>
       : !me.week.claimed ? <button type="button" onClick={() => C.openTeam()}><b>🎁</b>Team pack</button>
       : <button type="button" disabled><b>🎁</b>Next pack</button>}
-    <button type="button" className={view === 'predict' ? styles.dockOn : ''} onClick={() => pickView(view === 'predict' ? 'all' : 'predict')}><b>🎯</b>{me.predict?.unclaimed ? 'Card to pick' : 'Predict'}</button>
+    <button type="button" className={view.startsWith('predict') ? styles.dockOn : ''} onClick={() => pickView(view.startsWith('predict') ? 'all' : 'predict:games')}><b>🎯</b>{me.predict?.unclaimed ? 'Card to pick' : 'Predict'}</button>
     {onStore && <button type="button" onClick={onStore}><b>◎</b>Store</button>}
     <button type="button" className={sellMode ? styles.dockSell : ''} onClick={() => { if (view !== 'all' && view !== 'starred' && view !== 'team' && view !== 'decade') pickView('all'); setSellMode(v => !v); setSellAsk(null) }}><b>$</b>{sellMode ? 'Done' : 'Sell'}</button>
   </>
   let right
-  if (view === 'predict' && mine) {
-    return <PredictPages env={env} phone={phone} tools={tools}>{p => <>
-      <Book tc={tc} phone={phone} onClose={onClose} head={head} left={p.left} right={p.right} summary={p.summary} dock={phone && me ? dock : null} />
-      {P.view}
+  const settingsView = settings && mine && <SettingsModal env={env} C={C} fav={fav} theme={theme} onClose={() => setSettings(false)} />
+  if (view.startsWith('predict') && mine) {
+    return <PredictPages key={view} env={env} phone={phone} tools={tools} initialTab={view.split(':')[1] || 'games'}>{p => <>
+      <Book tc={tc} theme={theme} phone={phone} onClose={onClose} head={head} left={p.left} right={p.right} summary={p.summary} dock={phone && me ? dock : null} />
+      {P.view}{settingsView}
     </>}</PredictPages>
   }
-  if (view === 'specials') {
+  if (view === 'toc') {
+    const ch = [
+      ['I', 'My Cards', 'all', `${all.length} card${all.length === 1 ? '' : 's'}`, [['all', 'Every card', all.length], ['team', 'By franchise', `${groups.team.length}`], ['decade', 'By decade', `${groups.decade.length}`], ['specials', 'Specials', specials.length]]],
+      ['II', 'Wish List', 'wishes', mine ? `${(C?.me?.wishes || []).length}` : '', null],
+      ['III', 'Starred', 'starred', `${starred.size}`, null],
+      ['IV', 'Checklists', 'checklists:fr', '', [['checklists:fr', 'Franchises', 'rosters · seasons · histories'], ['checklists:sets', 'Special Sets', `${LEAGUE_SETS.filter(d => !d.duel).length} sets`], ['checklists:rewards', 'Rewards', 'earned cards']]],
+      ['V', 'Achievements', 'badges', `${nBadges}${mine ? ` of ${(src.achievements || []).length}` : ''}`, null],
+      ...(mine ? [['VI', 'Games', 'games', '', [['predict:games', 'Predictions', ''], ['five', 'Five Challenge', ''], ['banner', 'Hang the Banner', '']]]] : []),
+    ]
+    right = (
+      <div className={styles.right}>
+        <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Contents</b><span>{mine ? 'My binder' : `${src.user.username}’s binder`}</span></div>{tools}</div>
+        <div className={styles.toc}>
+          <h3>Contents</h3>
+          {ch.map(([num, title, go, right_, subs]) => <div key={num} className={styles.tocCh}>
+            <button type="button" className={styles.tocRow} onClick={() => pickView(go)}><i>{num}</i><b>{title}</b><span className={styles.tocDots} /><em>{right_}</em></button>
+            {subs && subs.map(([v, l, r]) => <button key={v} type="button" className={`${styles.tocRow} ${styles.tocSub}`} onClick={() => pickView(v)}><i /><span>{l}</span><span className={styles.tocDots} /><em>{r}</em></button>)}
+          </div>)}
+        </div>
+      </div>
+    )
+  } else if (view === 'games' && mine) {
+    const rows = [
+      ['predict:games', 'Game Predictions', PR.games ? `${PR.picked} of ${PR.games} picked today` : 'No games today', 'Pick every game’s winner. Lock of the Day, upsets, perfect days.'],
+      ['predict:matchups', 'Matchup Predictions', PR.duels ? `${PR.duels_picked} of ${PR.duels} picked today` : 'Not set yet', 'Each game’s top player matchup: who posts the higher Game Score?'],
+      ['predict:lineup', 'Daily Lineup', 'Five players, card multipliers', 'Game Score times your card’s multiplier, plus a bonus for the Player of the Day.'],
+      ['predict:potd', 'Player of the Day', `${PR.potd ? 1 : 0} of 1 picked`, 'Call the night’s best player for that card in ruby.'],
+      ['predict:standings', 'Pick’em Standings', 'This week', 'The week’s race for the Player of the Week card.'],
+      ['predict:history', 'Prediction History', PR.unclaimed ? `${PR.unclaimed} card${PR.unclaimed === 1 ? '' : 's'} to claim` : 'Every day you’ve played', 'Your days, your picks and the cards you’ve earned.'],
+      ['five', 'Five Challenge', 'This week’s three lineups', 'Build fives for the week’s franchises, ranked against every real five.'],
+      ['banner', 'Hang the Banner', 'A ladder for every franchise', 'Beat each franchise’s best five of every season, weakest to strongest.'],
+      [null, 'King of the Court', 'Coming soon', 'Group challenges and rivalries, one player a game.'],
+    ]
+    right = (
+      <div className={styles.right}>
+        <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Games</b><span>predictions and challenges</span></div>{tools}</div>
+        <div className={styles.gamesList}>
+          {rows.map(([v, title, status, desc]) => <button key={title} type="button" className={styles.gameRow} disabled={!v} onClick={() => v && pickView(v)}>
+            <span><b>{title}</b><small>{desc}</small></span><em>{status}</em><i>›</i></button>)}
+        </div>
+      </div>
+    )
+  } else if (view === 'checklists') {
+    right = <div className={styles.right}>
+      <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Checklists</b><span>{ck === 'fr' ? 'franchises' : ck === 'sets' ? 'special sets' : 'rewards'}</span></div>{tools}</div>
+      <div className={styles.ckTabs}><Seg value={ck} onChange={setCk} options={[['fr', 'Franchises'], ['sets', 'Special Sets'], ['rewards', 'Rewards']]} /></div>
+      <div className={styles.achBody}>
+        {ck === 'fr' && <FranchiseChecklists check={check} all={all} have={have} nbaHave={nbaHave} env={env} fav={fav} mine={mine}
+          onSeasons={fc => { setView('team'); setGroup(fc); setMode('checklist'); setSeason(null); S.reset() }}
+          onPreview={setReveal} rosters={rosters} loadRoster={fc => rosters[fc] ? Promise.resolve(rosters[fc]) : env.getJSON(`/data/explorer/binders/roster/${fc.replace('@', '_')}.json`).then(r => { setRosters(x => ({ ...x, [fc]: r })); return r })} />}
+        {ck === 'sets' && <div className={styles.sets}>
+          {LEAGUE_SETS.filter(d => !d.duel).map(d => {
+            const l = league?.sets[d.id] || []
+            const n = l.filter(c => owned.has(cardRef(c))).length
+            return (
+              <button key={d.id} type="button" className={styles.setRow} style={{ '--c': d.color }} onClick={() => onLeague?.(d.id)}>
+                <i /><span><b>{d.title}</b><small>{d.desc}</small></span>
+                <span className={styles.setBar}><em style={{ width: `${l.length ? (n / l.length) * 100 : 0}%` }} /></span>
+                <strong>{n}<small>/{l.length || '—'}</small></strong>
+              </button>
+            )
+          })}
+        </div>}
+        {ck === 'rewards' && <RewardShelves all={all} have={have} honors={honors} env={env} P={P} open={allStarsOpen} setOpen={setAllStarsOpen} onPreview={setReveal} />}
+      </div>
+    </div>
+  } else if (view === 'specials') {
     const groups = [
       ['set', 'Complete Sets', 'Collect one card of every player on a team’s roster for a season: the set’s refractor, numbered by your order among collectors who finished it.'],
       ['allstar', 'All-Star Rosters', 'A game card from the season of every player named an All-Star that season. The stars light up as you collect them.'],
@@ -1470,11 +1698,12 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       </div>
     </div>}
     {reveal && <SpecialModal card={reveal.card} onClose={() => setReveal(null)}
-      locked={reveal.done ? null : reveal.set ? `${reveal.k} of ${reveal.g} players · a card of every one earns the set card` : `${reveal.k} of ${reveal.g} games · collect every one to forge his Season card`}
-      extra={!reveal.done && !reveal.set && mine && <WishBtn name={reveal.card.n} season={reveal.card.s} C={C} dark />} />}
-    <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right} dock={phone && me ? dock : null}
+      locked={reveal.done ? null : reveal.lockText ? reveal.lockText : reveal.set ? `${reveal.k} of ${reveal.g} players · a card of every one earns the set card` : `${reveal.k} of ${reveal.g} games · collect every one to forge his Season card`}
+      extra={!reveal.done && !reveal.set && reveal.card.kind === 'season' && mine && <WishBtn name={reveal.card.n} season={reveal.card.s} C={C} dark />} />}
+    {settingsView}
+    <Book tc={tc} theme={theme} phone={phone} onClose={onClose} head={head} left={left} right={right} dock={phone && me ? dock : null}
       summary={<span><b>{n0(st.score)} pts</b>{st.rank ? ` · No. ${st.rank}` : ''} · {all.length} cards</span>}
-      onKey={e => { if (P.open) return true; if (view === 'sets' || view === 'badges' || view === 'specials' || view === 'wishes' || view === 'five' || view === 'banner' || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
+      onKey={e => { if (P.open) return true; if (['sets', 'badges', 'specials', 'wishes', 'five', 'banner', 'toc', 'games', 'checklists'].includes(view) || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}
   </>
 }

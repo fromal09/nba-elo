@@ -426,6 +426,9 @@ export async function predSummary(sql, userId, today) {
   const [x] = await sql`select (select count(*)::int from pred_games where day = ${today} and state <> 'off') as games,
       (select count(*)::int from predictions where user_id = ${userId} and day = ${today}) as picked,
       (select count(*)::int from pred_games where day = ${today} and state = 'pre' and tip > now()) as open,
+      (select count(*)::int from pred_games where day = ${today} and state <> 'off' and line->'duel' is not null and coalesce(line->'duel'->>'void', '') = '') as duels,
+      (select count(*)::int from duel_picks where user_id = ${userId} and day = ${today}) as duels_picked,
+      (select count(*)::int from potd_picks where user_id = ${userId} and day = ${today}) as potd,
       (select count(*)::int from pred_days where user_id = ${userId} and reward is not null and claimed_ref is null)
         + (select count(*)::int from duel_days where user_id = ${userId} and reward in ('rare', 'legend') and claimed_ref is null) as unclaimed`
   return x

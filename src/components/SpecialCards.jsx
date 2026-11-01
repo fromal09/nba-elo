@@ -534,7 +534,7 @@ export function FHistCard({ card: c }) {
     <div className={styles.fh} style={{ '--c': c.tc || '#555b60' }} data-prog={prog ? '' : undefined}>
       <div className={styles.fhHead}><b>Franchise History</b><small>{nick(c.tn).toUpperCase()}</small></div>
       <div className={styles.fhYrs}><span>{S[0]?.slice(0, 4)}</span><span>{S.length ? endYear(S[S.length - 1]) : ''}</span></div>
-      <div className={styles.fhTiles} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+      <div className={styles.fhTiles} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${Math.max(1, Math.ceil(S.length / cols))}, 1fr)` }}>
         {S.map((x, i) => <i key={x} title={x} data-off={prog && !c.have.has(x) ? '' : undefined} data-ring={titles.has(x) ? '' : undefined} style={{ opacity: 0.7 + (i % 2) * 0.3 }} />)}
       </div>
       <div className={styles.fhPlate}><b>{prog ? `${got} of ${S.length} seasons` : 'Every Season'}</b>

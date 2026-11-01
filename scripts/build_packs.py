@@ -17,7 +17,7 @@ A row (cols): s, id, date, t, o, home, won, us, them, ot, band, honor, n, pos, m
 (gp = the player's career game number, so 1 is his debut)
 
 Also writes the personal-binder checklists, which count players (own any card of a player and he's checked off):
-  explorer/binders/checklist.json  {"franchises": {franchise: {"name": latest name, "players": all-time count,
+  explorer/binders/checklist.json  {"franchises": {franchise: {"name": latest name, "players": all-time count, "nba": [NBA seasons, NBA players],
                                      "seasons": {season: [players, team name that season]}}}, "seasons": {season: players}}
   explorer/binders/roster/<FRANCHISE>.json  {season: [[name, games, pos], ...]} most games first
   explorer/packs/days/<YYYY-MM-DD>.json  every card from one day of the current season, for prediction rewards
@@ -219,6 +219,9 @@ def main():
         f = check["franchises"][fc]
         f["name"] = f["seasons"][max(f["seasons"])][1]
         f["players"] = len(names)
+        # NBA history only (no BAA seasons, no ABA seasons), for Franchise History and Completed Franchise
+        nba_s = [s_ for s_ in out if "@" not in fc and s_ >= ("1976-77" if fc in ("DEN", "IND", "SAS", "BKN") else "1949-50")]
+        f["nba"] = [len(nba_s), len({r[0] for s_ in nba_s for r in out[s_]})]
         (EXP / "binders" / "roster" / f"{fc.replace('@', '_')}.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     (EXP / "binders" / "checklist.json").write_text(json.dumps(check, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     index["recent"] = {"date": last_day, "teams": recent_teams, "rows": recent}

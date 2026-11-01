@@ -22,7 +22,7 @@ export function db() {
 }
 
 // Bump when the schema below changes: a cold start whose database already has this version skips the ~60 statements
-export const SCHEMA_VERSION = '2026-11-01b'
+export const SCHEMA_VERSION = '2026-11-01c'
 
 export function ensureSchema() {
   if (!ready) {
@@ -122,6 +122,8 @@ function migrate(s) {
       await ensureWishSchema(t)
       await ensureChallengeSchema(t)
       await ensureBannerSchema(t)
+      // The binder's look: a preset from Settings (null = the favorite team's colors)
+      await t`alter table users add column if not exists binder_theme text`
       await applyRenames(t)
       await t`create index if not exists packs_open on packs (user_id) where status = 'open'`
       await t`create index if not exists sessions_user on sessions (user_id)`

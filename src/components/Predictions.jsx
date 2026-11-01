@@ -480,11 +480,11 @@ function RewardPicker({ day, kind, env, onClose, onDone }) {
 // ── The book ─────────────────────────────────────────────────────────────────
 // The Predictions view of My binder: its left and right pages, handed to the binder's own book (render prop),
 // so it keeps the binder's colors and header. tools = the binder's view tabs.
-export function PredictPages({ env, phone, tools, children }) {
+export function PredictPages({ env, phone, tools, children, initialTab = 'games' }) {
   const C = env.collector
   const d = C.preds
   const [err, setErr] = useState(null)
-  const [tab, setTab] = useState('games')
+  const [tab, setTab] = useState(initialTab)
   const [di, setDi] = useState('0') // '-1' yesterday, '0' today (the default), '1' tomorrow
   const [busy, setBusy] = useState(null)
   const [reward, setReward] = useState(null) // { day, kind }

@@ -98,6 +98,8 @@ async function packDay() {
 const streakNow = (u, today) => { const last = iso(u.last_claim); return last === today || last === addDays(today, -1) ? u.streak : 0 }
 
 // A pack as the client sees it
+// Binder looks (Settings): null is the favorite team's colors
+const BINDER_THEMES = ['classic', 'leather', 'midnight', 'hardwood', 'chrome', 'ivory']
 const packView = p => ({ id: p.id, kind: p.kind, team: p.team, day: iso(p.day), pity: p.pity, status: p.status, picks: p.picks, slots: p.slots })
 
 // A binder's score and rank among every binder with a card (ties share a rank)
@@ -155,7 +157,7 @@ async function me(u) {
     where user_id = ${u.id} and status = 'open' order by id`
   const [teamClaim] = await sql`select 1 from claims where user_id = ${u.id} and day = ${week} and kind = 'team'`
   return {
-    user: { username: u.username, favoriteTeam: u.favorite_team, joined: iso(u.created_at), starred: u.starred.map(Number), showcaseIds: u.showcase.map(Number),
+    user: { username: u.username, favoriteTeam: u.favorite_team, binderTheme: u.binder_theme || null, joined: iso(u.created_at), starred: u.starred.map(Number), showcaseIds: u.showcase.map(Number),
       showcase: u.showcase.map(Number).map(id => show.find(c => Number(c.id) === id)).filter(Boolean).map(c => ({ id: Number(c.id), card: c.card })) },
     // untilBonus: daily packs to open (today's included) until the next streak bonus
     // waiting: today's pack is held until last night's games are in the data (claimed is yesterday's pack then)
@@ -531,7 +533,7 @@ export default async function handler(req, res) {
       if (!o) throw fail(404, 'No binder by that name.')
       const rows = await sql`select id, card, points, pulled_at from cards where user_id = ${o.id} order by id desc`
       const ser = await serials(sql, o.id)
-      return send(200, { user: { username: o.username, favoriteTeam: o.favorite_team, joined: iso(o.created_at), showcaseIds: o.showcase.map(Number), starred: o.starred.map(Number) },
+      return send(200, { user: { username: o.username, favoriteTeam: o.favorite_team, binderTheme: o.binder_theme || null, joined: iso(o.created_at), showcaseIds: o.showcase.map(Number), starred: o.starred.map(Number) },
         standing: await standing(sql, o.id), achievements: (await achievements(sql, o.id)).filter(a => a.earned), cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at, serial: ser.get(Number(r.id)) })) })
     }
 
@@ -642,8 +644,9 @@ export default async function handler(req, res) {
     }
     if (post && action === 'profile') {
       const b = await readBody(req)
-      const team = b.favoriteTeam ? String(b.favoriteTeam).slice(0, 8) : null
-      const [fresh] = await sql`update users set favorite_team = ${team} where id = ${u.id} returning *`
+      const team = 'favoriteTeam' in b ? (b.favoriteTeam ? String(b.favoriteTeam).slice(0, 8) : null) : u.favorite_team
+      const theme = 'binderTheme' in b ? (BINDER_THEMES.includes(b.binderTheme) ? b.binderTheme : null) : u.binder_theme
+      const [fresh] = await sql`update users set favorite_team = ${team}, binder_theme = ${theme} where id = ${u.id} returning *`
       return send(200, await me(fresh))
     }
     throw fail(404, 'Unknown action.')
