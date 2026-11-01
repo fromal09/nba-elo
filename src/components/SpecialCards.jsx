@@ -495,6 +495,106 @@ export function SetBack({ card: c }) {
   )
 }
 
+// ── Reward cards: All-Star Roster, Franchise History, Completed Franchise (coins.js rewardCards) ─────────────────
+// card.have (a Set): the card in progress from a checklist, lit for what you have, dim for the rest
+const endYear = s => String(+s.slice(0, 4) + 1)
+const STAR = 'M0-6 1.7-1.9 6-1.9 2.6-.7 3.8 4 0 1.5-3.8 4-2.6-.7-6-1.9-1.7-1.9Z'
+export function AllStarCard({ card: c }) {
+  const P = c.players || [], prog = c.have instanceof Set
+  const got = prog ? P.filter(n => c.have.has(n)).length : P.length
+  // The stars trace a three-point line: straight corners up from the baseline, then the arc over the top
+  const cx = 170, cy = 290, R = 128, base = 340, L1 = base - cy, arcL = Math.PI * R, tot = 2 * L1 + arcL
+  const at = d => (d < L1 ? [cx - R, base - d] : d < L1 + arcL ? [cx - R * Math.cos((d - L1) / R), cy - R * Math.sin((d - L1) / R)] : [cx + R, cy + (d - L1 - arcL)])
+  const pts = P.map((_, i) => at(P.length > 1 ? (i / (P.length - 1)) * tot : tot / 2))
+  return (
+    <div className={styles.asc} data-prog={prog ? '' : undefined}>
+      <svg className={styles.ascSky} viewBox="0 0 340 476" aria-hidden="true">
+        {Array.from({ length: 70 }, (_, i) => <circle key={i} cx={(i * 97) % 340} cy={(i * 61) % 476} r={((i * 7) % 4) / 5 + 0.3} fill="#fff" opacity={((i * 13) % 6) / 10 + 0.15} />)}
+        <path d={`M${cx - R} ${base} L${cx - R} ${cy} A${R} ${R} 0 0 1 ${cx + R} ${cy} L${cx + R} ${base}`} fill="none" stroke="rgba(255,215,122,.22)" strokeDasharray="3 4" />
+        <line x1="24" x2="316" y1={base} y2={base} stroke="rgba(255,215,122,.2)" />
+        {pts.map(([x, y], i) => {
+          const on = !prog || c.have.has(P[i])
+          return <g key={i} transform={`translate(${x} ${y})`}><title>{baseName(P[i])}</title>
+            {on ? <><circle r="11" fill="#ffd77a" opacity=".22" /><path d={STAR} fill="#fff3c4" transform="scale(1.3)" /></>
+              : <path d={STAR} fill="none" stroke="rgba(255,255,255,.4)" strokeWidth=".8" transform="scale(1.3)" />}</g>
+        })}
+      </svg>
+      <div className={styles.ascHead}>{prog ? 'All-Star Roster · in progress' : `All-Star Roster${c.aba ? ' · ABA' : ''}`}</div>
+      <div className={styles.ascYear}>{endYear(c.s)}</div>
+      <div className={styles.ascPlate}><b>{prog ? `${got} of ${P.length}` : `${P.length} All-Stars`}</b>
+        <small>{c.s} season{prog ? ` · ${P.length - got} to go` : ` · #${c.k || 1} to complete`}</small></div>
+    </div>
+  )
+}
+export function FHistCard({ card: c }) {
+  const S = c.seasons || [], prog = c.have instanceof Set, titles = new Set(c.titles || [])
+  const got = prog ? S.filter(x => c.have.has(x)).length : S.length
+  const cols = S.length > 60 ? 12 : 10
+  return (
+    <div className={styles.fh} style={{ '--c': c.tc || '#555b60' }} data-prog={prog ? '' : undefined}>
+      <div className={styles.fhHead}><b>Franchise History</b><small>{nick(c.tn).toUpperCase()}</small></div>
+      <div className={styles.fhYrs}><span>{S[0]?.slice(0, 4)}</span><span>{S.length ? endYear(S[S.length - 1]) : ''}</span></div>
+      <div className={styles.fhTiles} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+        {S.map((x, i) => <i key={x} title={x} data-off={prog && !c.have.has(x) ? '' : undefined} data-ring={titles.has(x) ? '' : undefined} style={{ opacity: 0.7 + (i % 2) * 0.3 }} />)}
+      </div>
+      <div className={styles.fhPlate}><b>{prog ? `${got} of ${S.length} seasons` : 'Every Season'}</b>
+        <small>{S.length} {nick(c.tn)} seasons in the NBA{prog ? ` · ${S.length - got} to go` : ` · #${c.k || 1} to complete`}</small></div>
+    </div>
+  )
+}
+export function FCompCard({ card: c }) {
+  const P = c.players || [], prog = c.have instanceof Set
+  const got = prog ? P.filter(([n]) => c.have.has(n)).length : P.length
+  const mx = Math.max(1, ...P.map(([, g]) => g || 0))
+  // One dot per player, spread evenly (a Halton sequence), sized by his games with the franchise
+  const halton = (i, b) => { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b) } return r }
+  const dots = useMemo(() => P.map(([n, g], i) => ({ n, x: halton(i + 1, 2) * 340, y: halton(i + 1, 3) * 476, r: 2 + Math.sqrt((g || 0) / mx) * 11, k: i % 4 })), [P, mx])
+  return (
+    <div className={styles.fcomp} style={{ '--c': c.tc || '#c4ced4' }} data-prog={prog ? '' : undefined}>
+      <svg className={styles.fcompDots} viewBox="0 0 340 476" preserveAspectRatio="none" aria-hidden="true">
+        {dots.map(d => <circle key={d.n} cx={d.x} cy={d.y} r={d.r} data-k={d.k} data-off={prog && !c.have.has(d.n) ? '' : undefined}><title>{baseName(d.n)}</title></circle>)}
+      </svg>
+      <div className={styles.fcompTag}>{prog ? 'Completed Franchise · in progress' : `Every ${nick(c.tn)} · Ever`}</div>
+      <div className={styles.fcompMono}>{(c.fc || '').split('@')[0]}</div>
+      <div className={styles.fcompPlate}><b>{prog ? `${got} of ${P.length}` : 'Completed Franchise'}</b>
+        <small>{prog ? `${P.length - got} players to go` : `All ${P.length} players in ${nick(c.tn)} history`} · {c.from?.slice(0, 4)}–{c.to ? endYear(c.to) : ''}</small></div>
+    </div>
+  )
+}
+// Hang the Banner (banner.js): every rung of a franchise's ladder beaten. A silver banner in the team's colors
+export function BannerCard({ card: c }) {
+  const [bad, setBad] = useState(false)
+  const logo = binderLogo(c.fc)
+  return (
+    <div className={styles.bnr} style={{ '--c': c.tc || '#555b60' }}>
+      <div className={styles.bnrRings} />
+      <div className={styles.bnrHead}>Hang the Banner · Complete</div>
+      <div className={styles.bnrCloth}>
+        <div className={styles.bnrLogo}>{logo && !bad ? <img src={logo} alt="" onError={() => setBad(true)} /> : <b>{(c.fc || '').split('@')[0]}</b>}</div>
+        <b>{c.size}/{c.size}</b><small>SEASONS BEATEN</small>
+        <em>{c.from?.slice(0, 4)}–{c.to ? endYear(c.to) : ''}</em>
+      </div>
+      <div className={styles.bnrPlate}><b>Banner Hung</b><small>Every {nick(c.tn)} season beaten{c.final ? ` · final ${c.final.s}, ${r0(c.final.elo)}` : ''}</small></div>
+    </div>
+  )
+}
+export function RewardBack({ card: c }) {
+  const rows = c.kind === 'banner' ? [] : c.kind === 'allstar' ? (c.players || []).map(n => [baseName(n), ''])
+    : c.kind === 'fhist' ? (c.seasons || []).map(x => [x, '']) : (c.players || []).slice(0, 60).map(([n, g]) => [baseName(n), `${g} G`])
+  const title = c.kind === 'allstar' ? `${c.s}${c.aba ? ' ABA' : ''} All-Stars` : c.tn
+  const sub = c.kind === 'banner' ? `Hang the Banner: every rung, ${c.from} to ${c.to}` : c.kind === 'allstar' ? 'Every All-Star of the season' : c.kind === 'fhist' ? 'One card from every NBA season' : `Every player in franchise history · most games first${(c.players || []).length > 60 ? ' (top 60 shown)' : ''}`
+  return (
+    <div className={`${styles.back} ${styles.setBack}`} style={{ '--c': c.kind === 'allstar' ? '#1f3d78' : c.tc || '#173657' }}>
+      <div className={styles.backHead}><div><FitName>{title}</FitName><small>{sub}</small></div><span>{c.size}/{c.size}</span></div>
+      {c.kind === 'banner' ? <section><p className={styles.backNote}>Beat the best single-game five of all {c.size} {nick(c.tn)} NBA seasons, weakest to strongest, with five of your own cards each time, the card window narrowing from any era down to that season alone.{c.final ? ` The last rung: the ${c.final.s} five at ${r0(c.final.elo)}, beaten at ${r0(c.final.score)}.` : ''}</p></section>
+        : <div className={styles.setList} data-long={rows.length > 30 ? '' : undefined}>
+        {rows.map(([a, b], i) => <div key={i} className={styles.setRow}><b>✓</b><span>{a}</span><em>{b}</em></div>)}
+      </div>}
+      <div className={styles.backFoot}><span>{c.by ? `Completed by ${c.by}` : 'Completed'}{c.at ? ` · ${ap(c.at)}` : ''}</span><span>{ordS(c.k || 1)} to complete</span></div>
+    </div>
+  )
+}
+
 // ── Dynamic Duo ──────────────────────────────────────────────────────────────
 const yrSpan = c => { const a = c.seasons[0][0].slice(0, 4), b = String(+c.seasons[c.seasons.length - 1][0].slice(0, 4) + 1); return `${a}–${b.slice(2)}` }
 function DuoShot({ name, shot }) {
@@ -564,18 +664,21 @@ export function Serial({ k, n, flip, inline, pocket }) {
 
 // ── Any special card, anywhere: binder pockets, pack openings, showcases ─────
 
-export const SPECIAL = new Set(['peak', 'rival', 'five', 'season', 'potw', 'set', 'duo'])
+export const SPECIAL = new Set(['peak', 'rival', 'five', 'season', 'potw', 'set', 'duo', 'allstar', 'fhist', 'fcomp', 'banner'])
 export const isSpecial = c => SPECIAL.has(c?.kind)
-const KIND_NAME = { peak: 'Peak', rival: 'Rivalry', five: 'Starting Five', season: 'Season card', duel: 'Duel of the Day', potw: 'Player of the Week', set: 'Complete Set', duo: 'Dynamic Duo' }
+const KIND_NAME = { peak: 'Peak', rival: 'Rivalry', five: 'Starting Five', season: 'Season card', duel: 'Duel of the Day', potw: 'Player of the Week', set: 'Complete Set', duo: 'Dynamic Duo', allstar: 'All-Star Roster', fhist: 'Franchise History', fcomp: 'Completed Franchise', banner: 'Banner' }
 export const specialTitle = c => (c.kind === 'peak' ? `${baseName(c.row.n)} · ${c.until ? 'Former Peak' : 'Peak'}` : c.kind === 'rival' ? `${split(c.a).last} vs. ${split(c.b).last}`
   : c.kind === 'five' ? `${c.s} ${nick(c.tn)} · Starting Five` : c.kind === 'season' ? `${baseName(c.n)} · ${c.s} Season` : c.kind === 'duel' ? `${baseName(c.a.row.n)} · Duel of the Day`
-  : c.kind === 'potw' ? `${baseName(c.n)} · Player of the Week` : c.kind === 'set' ? `${c.s} ${nick(c.tn)} · Complete Set` : c.kind === 'duo' ? `${split(c.a).last} & ${split(c.b).last}` : '')
+  : c.kind === 'potw' ? `${baseName(c.n)} · Player of the Week` : c.kind === 'set' ? `${c.s} ${nick(c.tn)} · Complete Set` : c.kind === 'duo' ? `${split(c.a).last} & ${split(c.b).last}`
+  : c.kind === 'allstar' ? `${c.s}${c.aba ? ' ABA' : ''} All-Star Roster` : c.kind === 'fhist' ? `${nick(c.tn)} · Franchise History` : c.kind === 'fcomp' ? `${nick(c.tn)} · Completed Franchise` : c.kind === 'banner' ? `${nick(c.tn)} · Banner` : '')
 export const specialLabel = c => (c.kind === 'rival' ? `Rivalry · ${TIER_LABEL[c.tier] || ''}` : KIND_NAME[c.kind] || '')
 export const specialLine = c => (c.kind === 'peak' ? `Career-high Elo ${r0(c.row.post)} · ${ap(c.date)} ${c.home === false ? '@' : 'vs'} ${c.o}`
   : c.kind === 'rival' ? `${c.w}–${c.l} in ${c.w + c.l + (c.t || 0)} duels · No. ${c.rank} all-time` : c.kind === 'five' ? `Five Elo ${r0(c.elo)} · ${ap(c.date)} vs ${c.o} · ${c.won ? 'W' : 'L'} ${c.score}`
     : c.kind === 'season' ? `${c.gp} games with the ${nick(c.tn)}` : c.kind === 'potw' ? `Week of ${weekSpan(c)} · ${c.k || 1} of ${c.of || 1}`
     : c.kind === 'set' ? `All ${c.size} players · #${c.k || 1} to complete`
-      : c.kind === 'duo' ? `${r0(c.elo)} combined Elo · No. ${c.rank} all-time` : '')
+      : c.kind === 'duo' ? `${r0(c.elo)} combined Elo · No. ${c.rank} all-time`
+      : c.kind === 'allstar' ? `All ${c.size} All-Stars · #${c.k || 1} to complete` : c.kind === 'fhist' ? `All ${c.size} NBA seasons · #${c.k || 1} to complete`
+      : c.kind === 'fcomp' ? `All ${c.size} players · #${c.k || 1} to complete` : c.kind === 'banner' ? `All ${c.size} rungs beaten · #${c.k || 1} to hang it` : '')
 
 // Shared, cached lookups for Peak cards
 let peaksP = null, shotsP = null
@@ -635,13 +738,17 @@ function SpecialFaceIn({ card, owned, serial, label }) {
   if (card.kind === 'season') return <SeasonFront card={card} owned={owned} serial={serial} />
   if (card.kind === 'potw') return <PotwCard card={card} headshot={shotOf(shots, card.n)} label={label} />
   if (card.kind === 'set') return <SetCard card={card} />
+  if (card.kind === 'allstar') return <AllStarCard card={card} />
+  if (card.kind === 'fhist') return <FHistCard card={card} />
+  if (card.kind === 'fcomp') return <FCompCard card={card} />
+  if (card.kind === 'banner') return <BannerCard card={card} />
   if (card.kind === 'duo') return <DuoCard card={card} shotA={shotOf(shots, card.a)} shotB={shotOf(shots, card.b)} serial={serial} />
   return null
 }
 // Tagged for "Save card image" (right-click)
 export function SpecialFace(props) {
   const c = props.card
-  return <div style={{ display: 'contents' }} data-card-shot={c.kind === 'set' ? `${c.s} ${c.tn} complete set` : `${specialTitle(c)} ${c.row?.n || c.n || c.a || ''} ${c.s || c.date || ''}`}><SpecialFaceIn {...props} /></div>
+  return <div style={{ display: 'contents' }} data-card-shot={c.kind === 'set' ? `${c.s} ${c.tn} complete set` : c.kind === 'allstar' || c.kind === 'fhist' || c.kind === 'fcomp' || c.kind === 'banner' ? specialTitle(c) : `${specialTitle(c)} ${c.row?.n || c.n || c.a || ''} ${c.s || c.date || ''}`}><SpecialFaceIn {...props} /></div>
 }
 
 // The back of a Peak card: this game's line and every Peak of his career, this one marked
@@ -684,6 +791,7 @@ function SpecialBack({ card }) {
   if (card.kind === 'season') return <SeasonBackLoader card={card} />
   if (card.kind === 'potw') return <PotwBack card={card} />
   if (card.kind === 'set') return <SetBack card={card} />
+  if (card.kind === 'allstar' || card.kind === 'fhist' || card.kind === 'fcomp' || card.kind === 'banner') return <RewardBack card={card} />
   if (card.kind === 'duo') return <DuoBack card={card} />
   return null
 }

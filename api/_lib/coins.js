@@ -70,7 +70,7 @@ let leagueCache = null
 const rosterCache = new Map()
 async function dataJSON(origin, path) {
   const r = await fetch(`${origin}/data/explorer/${path}`, { signal: AbortSignal.timeout(10e3) }).catch(() => null)
-  return r?.ok ? r.json() : null
+  return r?.ok ? r.json().catch(() => null) : null
 }
 const MERGE = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
 
@@ -80,7 +80,7 @@ export async function warmRewards(origin, card) {
   if (!card || card.kind) return
   const fc = MERGE[card.t] || card.t
   if (!rosterCache.has(fc)) rosterCache.set(fc, dataJSON(origin, `binders/roster/${fc.replace('@', '_')}.json`))
-  await Promise.all([setRefs(origin), rosterCache.get(fc)])
+  await Promise.all([setRefs(origin), rosterCache.get(fc), honorsData(origin), rankData(origin)])
 }
 // Each league set's card refs (binders/setrefs.json; the full league.json before that file existed)
 async function setRefs(origin) {
@@ -115,6 +115,8 @@ export async function cardRewards(t, userId, day, origin, card) {
   }
   // Season card: every game of his season with this franchise
   out.push(...(await forgeSeasons(t, userId, day, origin, { s: card.s, fc, n: card.row.n })))
+  // All-Star Roster, Franchise History and Completed Franchise cards this card may finish
+  out.push(...(await rewardCards(t, userId, day, origin, { s: card.s, fc, n: card.row.n })))
   // League sets: 100 Coins at every 10% of a set
   const sets = await setRefs(origin)
   const ref = `${card.s}|${card.id}|${card.row.n}`
@@ -275,3 +277,115 @@ export async function forgeSeasons(t, userId, day, origin, only = null) {
 }
 
 export { poolJSON }
+
+
+// ── Reward cards: All-Star Roster, Franchise History, Completed Franchise ──────────────────────────────────────────
+// All-Star Roster (kind 'allstar', ref allstar|<season>[|aba]): a game card from that season of every player named an
+//   All-Star that season (binders/honors.json; ABA All-Stars are their own list).
+// Franchise History (kind 'fhist', ref fhist|<franchise>): a card from every NBA season in the franchise's history.
+// Completed Franchise (kind 'fcomp', ref fcomp|<franchise>): a card of every player in the franchise's NBA history.
+// NBA only: no BAA seasons (before 1949-50) and no ABA seasons (the four ABA teams count from 1976-77). Earned once:
+// a season or player added later becomes a new checklist item but never takes the card back.
+export const ALLSTAR_POINTS_PER = 200, FHIST_POINTS_PER = 100, FCOMP_POINTS_PER = 40
+const NBA_MERGED = new Set(Object.values(MERGE))
+export const nbaSeasonOf = (fc, s) => !!fc && !fc.includes('@') && s >= (NBA_MERGED.has(fc) ? '1976-77' : '1949-50')
+let honorsCache = null, rankCache = null
+async function rankData(origin) {
+  if (!rankCache || Date.now() - rankCache.at > 10 * 60e3) rankCache = { at: Date.now(), d: (await dataJSON(origin, 'binders/seasonrank.json')) || {} }
+  return rankCache.d
+}
+async function honorsData(origin) {
+  if (!honorsCache || Date.now() - honorsCache.at > 10 * 60e3) honorsCache = { at: Date.now(), d: (await dataJSON(origin, 'binders/honors.json')) || {} }
+  return honorsCache.d
+}
+async function franchiseRoster(origin, fc) {
+  if (!rosterCache.has(fc) || !rosterCache.get(fc)) rosterCache.set(fc, dataJSON(origin, `binders/roster/${fc.replace('@', '_')}.json`))
+  return (await rosterCache.get(fc)) || {}
+}
+// A season's All-Stars: { nba: [names], aba: [names] }
+export async function allStarsOf(origin, s) {
+  const h = (await honorsData(origin))[s] || {}
+  const out = { nba: [], aba: [] }
+  for (const [n, code] of Object.entries(h)) if (code.includes('S')) out[code.includes('A') ? 'aba' : 'nba'].push(n)
+  return out
+}
+// A franchise's NBA history from its roster file: { seasons: [s], players: [[name, games]] }
+export async function franchiseHistory(origin, fc) {
+  const R = await franchiseRoster(origin, fc)
+  const seasons = Object.keys(R).filter(s => nbaSeasonOf(fc, s)).sort()
+  const games = new Map()
+  for (const s of seasons) for (const [n, g] of R[s] || []) if (typeof n === 'string' && !n.startsWith('_')) games.set(n, (games.get(n) || 0) + (g || 0))
+  return { seasons, players: [...games].sort((a, b) => b[1] - a[1]) }
+}
+export async function newReward(t, userId, day, ref, card, label) {
+  const [has] = await t`select 1 from cards where user_id = ${userId} and ref = ${ref}`
+  if (has) return null
+  const [{ n }] = await t`select count(*)::int as n from cards where ref = ${ref}`
+  const [u] = await t`select username from users where id = ${userId}`
+  const c = { ...card, k: n + 1, at: day, by: u?.username || null }
+  const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, ${card.kind}, ${ref}, ${t.json(c)}, ${cardPoints(c).points}, 'reward')
+    on conflict (user_id, ref) do nothing returning id`
+  return row ? { kind: 'setcard', amount: 0, label } : null
+}
+const teamLook = async (t, userId, codes) => (await t`select max(card->>'tn') as tn, max(card->>'tc') as tc from cards where user_id = ${userId} and card->>'t' = any(${codes}) and card->>'kind' is null`)[0] || {}
+
+// What finishing this card ({ s, fc, n }) earns. With full = true (a one-time scan for cards kept before these existed),
+// every season and franchise the collector has cards from.
+export async function rewardCards(t, userId, day, origin, { s, fc, n }, full = false) {
+  const out = []
+  // All-Star Roster
+  const seasons = full ? (await t`select distinct card->>'s' as s from cards where user_id = ${userId} and card->>'kind' is null`).map(r => r.s) : [s]
+  for (const se of seasons) {
+    const A = await allStarsOf(origin, se)
+    for (const [lg, list] of [['nba', A.nba], ['aba', A.aba]]) {
+      if (!list.length || (!full && !list.includes(n))) continue
+      const ref = `allstar|${se}${lg === 'aba' ? '|aba' : ''}`
+      const have = new Set((await t`select distinct card->'row'->>'n' as n from cards where user_id = ${userId} and card->>'s' = ${se}
+        and card->>'kind' is null and card->'row'->>'n' = any(${list})`).map(r => r.n))
+      if (!list.every(x => have.has(x))) continue
+      const a = await newReward(t, userId, day, ref, { kind: 'allstar', tier: 'allstar', s: se, aba: lg === 'aba', size: list.length, players: [...list].sort() },
+        `All-Star Roster: every ${se}${lg === 'aba' ? ' ABA' : ''} All-Star. The card is in your binder`)
+      if (a) { out.push(a); const g = await grant(t, userId, day, 'allstar', 500, { ref, label: `Completed the ${se} All-Star checklist` }); if (g) out.push(g) }
+    }
+  }
+  // Franchise History and Completed Franchise
+  const fcs = full ? [...new Set((await t`select distinct card->>'t' as t from cards where user_id = ${userId} and card->>'kind' is null`).map(r => MERGE[r.t] || r.t))]
+    : nbaSeasonOf(fc, s) ? [fc] : []
+  for (const f of fcs) {
+    if (f.includes('@')) continue
+    const H = await franchiseHistory(origin, f)
+    if (!H.seasons.length) continue
+    const mine = await t`select distinct card->>'s' as s, card->'row'->>'n' as n from cards where user_id = ${userId} and card->>'t' = ${f}
+      and card->>'kind' is null and card->>'s' = any(${H.seasons})`
+    const look = await teamLook(t, userId, [f])
+    const haveS = new Set(mine.map(r => r.s))
+    if (H.seasons.every(x => haveS.has(x))) {
+      const ranks = (await rankData(origin)) || {}
+      const a = await newReward(t, userId, day, `fhist|${f}`, { kind: 'fhist', tier: 'fhist', fc: f, t: f, tn: look.tn || f, tc: look.tc || null,
+        size: H.seasons.length, seasons: H.seasons, titles: H.seasons.filter(x => ranks[x]?.champ === f), from: H.seasons[0], to: H.seasons[H.seasons.length - 1] },
+        `Franchise History: a card from every ${look.tn || f} season. The card is in your binder`)
+      if (a) { out.push(a); const g = await grant(t, userId, day, 'fhist', 1000, { ref: f, label: `Completed the ${look.tn || f} Franchise History` }); if (g) out.push(g) }
+    }
+    const haveP = new Set(mine.map(r => r.n))
+    if (H.players.length && H.players.every(([x]) => haveP.has(x))) {
+      const a = await newReward(t, userId, day, `fcomp|${f}`, { kind: 'fcomp', tier: 'fcomp', fc: f, t: f, tn: look.tn || f, tc: look.tc || null,
+        size: H.players.length, players: H.players, from: H.seasons[0], to: H.seasons[H.seasons.length - 1] },
+        `Completed Franchise: every player in ${look.tn || f} history. The card is in your binder`)
+      if (a) { out.push(a); const g = await grant(t, userId, day, 'fcomp', 5000, { ref: f, label: `Completed the ${look.tn || f} franchise` }); if (g) out.push(g) }
+    }
+  }
+  return out
+}
+// Once per collector: the reward cards they'd already finished before these existed
+export async function backfillRewards(sql, userId, origin, day) {
+  const [done] = await sql`select 1 from coin_ledger where user_id = ${userId} and kind = 'rewardscan' and ref = 'v1'`
+  if (done) return []
+  // Download every roster this will read first, so the transaction never waits on the network
+  const ts = (await sql`select distinct card->>'t' as t from cards where user_id = ${userId} and card->>'kind' is null`).map(r => MERGE[r.t] || r.t)
+  await Promise.all([honorsData(origin), rankData(origin), ...[...new Set(ts)].filter(f => !f.includes('@')).map(f => franchiseRoster(origin, f))])
+  return sql.begin(async t => {
+    const out = await rewardCards(t, userId, day, origin, {}, true)
+    await t`insert into coin_ledger (user_id, day, kind, ref, amount) values (${userId}, ${day}, 'rewardscan', 'v1', 0) on conflict do nothing`
+    return out
+  })
+}

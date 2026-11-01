@@ -53,6 +53,22 @@ async function run(sql, origin) {
       await rescore(sql, origin, c => c?.s === '2026-27' && !c.kind, 'bands-2026-27')
     }
   }
+  // Box Score Sweeps (row.sw): once the rebuilt pool carries the column, cards already in binders from those games
+  // gain it (and its stat-line bonus), from the Stat-line legends set
+  if (!done.has('sweep-cards')) {
+    const idx = await poolJSON(origin, 'index.json').catch(() => null)
+    const lg = idx?.cols?.includes('sw') ? await dataJSON(origin, 'binders/league.json') : null
+    const list = (lg?.sets?.stat || []).filter(c => c.row?.sw)
+    if (list.length) {
+      for (const table of ['cards', 'sold']) {
+        for (const c of list) {
+          await sql`update ${sql(table)} set card = jsonb_set(card, '{row,sw}', ${c.row.sw}::text::jsonb)
+            where (ref = ${`${c.s}|${c.id}|${c.row.n}`} or ref = ${`${c.s}|${c.id}|${c.row.n}|ruby`}) and card->>'kind' is null`
+        }
+      }
+      await rescore(sql, origin, c => !c?.kind && c?.row?.sw > 0, 'sweep-cards')
+    }
+  }
   // Starting Fives refresh again once the pool carries their tiers (Common to GOAT)
   if (!done.has('fives-tiers')) {
     const idx = await poolJSON(origin, 'special/index.json').catch(() => null)

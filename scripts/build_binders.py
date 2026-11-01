@@ -32,6 +32,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rivalries import slug   # noqa: E402
+from hol_dates import holiday_of   # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 EXP = ROOT / "public" / "data" / "explorer"
@@ -39,7 +40,7 @@ OUT = EXP / "binders"
 TIERS = [(5, 0), (20, 1), (50, 2), (125, 3)]
 # ABA teams that joined the NBA share a franchise binder with their NBA seasons
 MERGE = {"DEN@ABA": "DEN", "IND@ABA": "IND", "SAS@ABA": "SAS", "BKN@ABA": "BKN"}
-ROW_KEYS = ["n", "pos", "pts", "trb", "ast", "gs", "pre", "post", "lr", "lrp", "fx", "hs"]
+ROW_KEYS = ["n", "pos", "pts", "trb", "ast", "stl", "blk", "gs", "pre", "post", "lr", "lrp", "fx", "hs", "sw"]
 
 
 def tier(rank):
@@ -147,9 +148,9 @@ class Top:
 
 
 def stat_feat(p):
-    """Rare stat lines for the league-wide stat set: 60 points, a quadruple-double, 40 rebounds, 25 assists."""
+    """Rare stat lines for the league-wide stat set: 60 points, a quadruple-double, 40 rebounds, 25 assists, a Box Score Sweep."""
     tens = sum(1 for k in ("pts", "trb", "ast", "stl", "blk") if (p.get(k) or 0) >= 10)
-    return (p.get("pts") or 0) >= 60 or tens >= 4 or (p.get("trb") or 0) >= 40 or (p.get("ast") or 0) >= 25
+    return (p.get("sw") or 0) > 0 or (p.get("pts") or 0) >= 60 or tens >= 4 or (p.get("trb") or 0) >= 40 or (p.get("ast") or 0) >= 25
 
 
 def bands(games):
@@ -227,6 +228,7 @@ def main():
 
     players = {}                     # name -> state
     L = {"games": Top(), "swings": Top(), "slayers": Top(), "duels": Top(), "heaters": Top(), "stat": [], "crowns": []}
+    HOL = {k: Top(25) for k in ("hal", "thx", "xmas", "mlk", "val")}   # each holiday's 25 best games, by Game Score
     heat = {}    # player -> the run of straight Elo gains he's on: {"from", "e0", "card"} (its latest game's card)
     fr = defaultdict(lambda: {"seasons": [], "peak": {}, "games": defaultdict(int), "best_gs": None, "most_pts": None, "sig": {},
                               "first": None, "clinch": [], "peak_elo": None, "swing": None})
@@ -292,6 +294,9 @@ def main():
                     end_heater(L, heat.pop(p["n"]))
                 if stat_feat(p):
                     L["stat"].append(c or mk())
+                hk = holiday_of(g["date"])
+                if hk:
+                    HOL[hk].add(gs, lambda: c or mk())
                 # First time at No. 1, once he has 100 games (opening weeks of the first seasons rank tiny samples)
                 if p.get("lrp") == 1 and "crown" not in st and (p.get("gp") or 0) >= 100:
                     st["crown"] = True
@@ -401,6 +406,7 @@ def main():
                            "first": F["seasons"][0]["s"], "last": last["s"], "active": last["s"] in recent})
     league = {"franchises": sorted(franchises, key=lambda x: x["name"]),
               "sets": {"titles": titles, "debuts": debuts.items(), "games": L["games"].items(), "stat": L["stat"], "crowns": L["crowns"],
+                       "holidays": [{**c, "hol": k} for k, top in HOL.items() for c in top.items()],
                        "peaks": [st["ms"]["peak_elo"][1] for st in by_peak], "swings": L["swings"].items(),
                        "slayers": L["slayers"].items(), "duels": L["duels"].items(), "heaters": L["heaters"].items()}}
     (OUT / "league.json").write_text(json.dumps(league, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

@@ -3,6 +3,7 @@ import styles from './PlayerCard.module.css'
 import { Serial } from './SpecialCards'
 import './eraFonts.css'
 import { useCareerHistory } from '../history.js'
+import { HOLIDAYS, holidayOf } from './holidays'
 
 // Rarity by where the player stood entering this game: his pre-game Elo rank among every
 // player in that season (same tier names as the Franchise Tenures cards)
@@ -241,8 +242,12 @@ export function CardFront({ name, row, game, team, headshot }) {
     ? <img className={cls} src={headshot} alt={baseName(name)} onError={() => setImgBad(true)} />
     : <span className={monoCls}>{first[0]}{last[0]}</span>
   const [us, them] = (game.score || '').split('–')
+  // Holiday cards: a game played on Halloween, Thanksgiving, Christmas, MLK Day or Valentine's Day
+  const hol = holidayOf(game.date), H = hol && HOLIDAYS[hol]
   return (
-    <div className={styles.frame} data-front={variant} data-era={era || undefined}>
+    <div className={styles.frame} data-front={variant} data-era={era || undefined} data-hol={hol || undefined}
+      style={H ? { '--hA': H.a, '--hB': H.b, '--hC': H.c, '--hD': H.d } : undefined}>
+      {H && <div className={styles.holBand}><HolIcon k={hol} /><b>{H.name}</b><HolIcon k={hol} /></div>}
       {heat && <div className={styles.heatBand}><b>{heat.label}</b><span>{heat.n} straight Elo gains</span></div>}
       <div className={styles.photo}>
         <div className={styles.photoBg} />
@@ -310,10 +315,11 @@ export function CardFront({ name, row, game, team, headshot }) {
         {variant === 'stat' && <div className={styles.statFace}>
           {/* Honored cards carry the date in the header placard; the numeral and its unit name the feat */}
           {!game.honor && <div className={styles.statTop}><b>{fmtDay(game.date)}</b></div>}
-          <div className={styles.statBig}>
+          <div className={styles.statBig} data-sweep={feats[0].sweep ? '' : undefined}>
             <span style={{ '--fs': `${statSize(feats[0].big)}px` }}>{feats[0].big}</span>
             <small>{feats[0].unit}</small>
           </div>
+          {feats[0].sweep && <div className={styles.sweepTag} data-out={feats[0].sweep === 2 ? '' : undefined}>{feats[0].sweep === 2 ? 'Box Score Sweep · Outright' : 'Box Score Sweep · led or tied all five'}</div>}
           {feats.length > 1 && <div className={styles.statMore}>{feats.slice(1).map(f => <span key={f.key}>+ {f.label}</span>)}</div>}
           <div className={styles.statWho}>
             <span className={styles.statShot}>{shot(styles.statImg, styles.statMono)}</span>
@@ -346,6 +352,7 @@ export function CardFront({ name, row, game, team, headshot }) {
             <TeamLogo src={game.oppLogo} abbr={game.oppAbbr} color={game.oppColor} />
           </div>
         </div>}
+        {H && <HolMotif k={hol} era={era || (variant === 'std' ? 'modern' : variant)} />}
         {variant === 'std' && !era && <div className={styles.nameOver}>
           <div className={styles.first}>{first}</div>
           <div ref={lastRef} className={styles.last}>{last}</div>
@@ -382,10 +389,42 @@ const statSize = big => (big.length <= 2 ? 190 : big.length <= 3 ? 150 : big.len
 
 // Statistical feats that earn a stat-line insert, rarest first. Each: { key, label, big (the numerals), unit }
 const FEAT_CATS = [['pts', 'PTS'], ['trb', 'REB'], ['ast', 'AST'], ['stl', 'STL'], ['blk', 'BLK']]
+// ── Holiday cards: the holiday's motif, drawn the way each era would ──
+const HOL_ICONS = {
+  bat: c => <path fill={c} d="M-10 0 C-6 -6 -2 -4 0 0 C2 -4 6 -6 10 0 C7 -1 5 2 4 4 L0 1 L-4 4 C-5 2 -7 -1 -10 0Z" />,
+  pumpkin: c => <g><ellipse rx="13" ry="10" fill={c} /><ellipse rx="5" ry="10" fill="none" stroke="rgba(0,0,0,.25)" /><rect x="-1.5" y="-14" width="3" height="5" fill="#3a5a1a" /></g>,
+  leaf: c => <path fill={c} d="M0-12 L3-5 L9-7 L6 0 L11 3 L4 4 L5 11 L0 6 L-5 11 L-4 4 L-11 3 L-6 0 L-9-7 L-3-5Z" />,
+  wheat: c => <g stroke={c} strokeWidth="1.5" fill={c}><line x1="0" y1="12" x2="0" y2="-12" />{[-8, -3, 2, 7].map(y => <g key={y}><ellipse cx="-3" cy={y} rx="2.2" ry="3.6" transform={`rotate(-30 -3 ${y})`} /><ellipse cx="3" cy={y} rx="2.2" ry="3.6" transform={`rotate(30 3 ${y})`} /></g>)}</g>,
+  flake: c => <g stroke={c} strokeWidth="1.6" strokeLinecap="round">{[0, 60, 120].map(r => <g key={r} transform={`rotate(${r})`}><line x1="0" y1="-11" x2="0" y2="11" /><line x1="0" y1="-7" x2="-3" y2="-10" /><line x1="0" y1="-7" x2="3" y2="-10" /><line x1="0" y1="7" x2="-3" y2="10" /><line x1="0" y1="7" x2="3" y2="10" /></g>)}</g>,
+  ornament: c => <g><circle r="9" fill={c} /><rect x="-3" y="-13" width="6" height="4" fill="#d4af37" /><path d="M-8 -2 Q0 3 8 -2" stroke="rgba(255,255,255,.6)" fill="none" /></g>,
+  dove: c => <path fill={c} d="M-12 2 C-6 -2 -2 -1 2 2 C4 -6 10 -10 14 -10 C10 -6 9 -2 8 2 C11 2 13 3 14 5 C8 6 2 8 -4 6 C-8 5 -11 4 -12 2Z" />,
+  sun: c => <g stroke={c} strokeWidth="2">{Array.from({ length: 9 }, (_, i) => <line key={i} x1="0" y1="0" x2={Math.cos(Math.PI + (i * Math.PI) / 8) * 24} y2={Math.sin(Math.PI + (i * Math.PI) / 8) * 24} />)}<circle r="8" fill={c} /></g>,
+  heart: c => <path fill={c} d="M0 10 C-14 0 -12 -10 -6 -10 C-3 -10 -1 -8 0 -6 C1 -8 3 -10 6 -10 C12 -10 14 0 0 10Z" />,
+}
+const HOL_PAIR = { hal: ['bat', 'pumpkin'], thx: ['leaf', 'wheat'], xmas: ['flake', 'ornament'], mlk: ['dove', 'sun'], val: ['heart', 'heart'] }
+function HolIcon({ k }) {
+  const H = HOLIDAYS[k]
+  return <svg className={styles.holIcon} viewBox="-15 -15 30 30" aria-hidden="true">{HOL_ICONS[HOL_PAIR[k][1]](H.c)}</svg>
+}
+function HolMotif({ k, era }) {
+  const H = HOLIDAYS[k], [a, b] = HOL_PAIR[k].map(n => HOL_ICONS[n])
+  const at = (x, y, sc, r, icon, c, key) => <g key={key} transform={`translate(${x} ${y}) scale(${sc}) rotate(${r})`}>{icon(c)}</g>
+  let inner
+  if (era === 'classic') inner = [at(40, 60, 1.95, -15, a, H.b, 1), at(300, 60, 1.95, 15, a, H.b, 2), at(40, 230, 1.8, 0, b, H.b, 3), at(300, 230, 1.8, 0, b, H.b, 4)]
+  else if (era === 'groove') inner = [at(50, 75, 2.55, -20, a, H.b, 1), at(290, 80, 2.25, 20, a, H.b, 2), at(285, 225, 3.3, 10, b, H.b, 3)]
+  else if (era === 'stripe') inner = [0, 1, 2, 3, 4].map(i => at(48 + i * 60, 236 - i * 15, 1.6, -14, a, H.b, i))
+  else if (era === 'edge') inner = [at(285, 85, 3.9, 12, b, H.b, 1), at(55, 210, 2.25, -25, a, H.b, 2)]
+  else if (era === 'refractor') inner = Array.from({ length: 16 }, (_, i) => at((i * 83) % 320 + 10, (i * 53) % 300 + 20, 0.7 + ((i * 7) % 5) / 10, i * 25, i % 2 ? a : b, 'rgba(255,255,255,.55)', i))
+  else inner = [at(300, 300, 2.1, 0, b, H.b, 1)]
+  return <svg className={styles.holMotif} data-era={era} viewBox="0 0 340 340" preserveAspectRatio="xMidYMid slice" aria-hidden="true">{inner}</svg>
+}
+
 export function featsFor(r) {
   const out = [], v = k => r[k] || 0
   const tens = FEAT_CATS.filter(([k]) => v(k) >= 10)
   const multi = n => ({ big: tens.map(([k]) => v(k)).join('·'), unit: tens.map(([, l]) => l).join(' · ') })
+  // Box Score Sweep (row.sw, from the pipeline): he led the game in all five categories, outright (2) or with ties (1)
+  if (r.sw) out.push({ key: 'sweep', label: r.sw === 2 ? 'Box Score Sweep · outright' : 'Box Score Sweep', big: FEAT_CATS.map(([k]) => v(k)).join('·'), unit: 'PTS · REB · AST · STL · BLK', sweep: r.sw })
   if (tens.length >= 5) out.push({ key: 'x5', label: 'Quintuple-double', ...multi() })
   else if (tens.length === 4) out.push({ key: 'x4', label: 'Quadruple-double', ...multi() })
   if (v('pts') >= 50) { const t = Math.floor(v('pts') / 10) * 10; out.push({ key: 'pts', label: `${t}-point game`, big: String(v('pts')), unit: 'Points' }) }

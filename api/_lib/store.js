@@ -3,8 +3,9 @@
 // calendar date in past seasons; the same fifteen for everyone. One of them is the Card of the Day, half price.
 import { poolIndex, poolJSON, toCard, ERAS } from './packs.js'
 import { cardPoints } from './points.js'
+import { holidayNear } from './holidays.js'
 
-export const PACK_PRICES = { standard: 300, era: 400, storeteam: 400, playoff: 600, legend: 1500, goat: 10000 }
+export const PACK_PRICES = { standard: 300, era: 400, storeteam: 400, holiday: 500, playoff: 600, legend: 1500, goat: 10000 }
 export const FEATURED_MIX = [['goat', 1], ['icon', 2], ['legend', 3], ['standout', 4], ['rare', 5]]
 const COINS_PER_POINT = 3
 
@@ -12,7 +13,7 @@ const weekNo = day => Math.floor((Date.parse(day + 'T12:00:00Z') / 864e5 + 3) / 
 export const eraOfWeek = day => ERAS[weekNo(day) % ERAS.length]
 
 export function catalog(day) {
-  const era = eraOfWeek(day)
+  const era = eraOfWeek(day), H = holidayNear(day)
   return [
     { kind: 'standard', name: 'Standard Pack', price: PACK_PRICES.standard, desc: 'Five picks from all of history. The last slot is Rare or better.' },
     { kind: 'era', name: `${era.name} Pack`, price: PACK_PRICES.era, era: era.id, desc: `Five picks from ${era.years} only. The era changes every Monday.` },
@@ -20,7 +21,17 @@ export function catalog(day) {
     { kind: 'playoff', name: 'Playoff Pack', price: PACK_PRICES.playoff, desc: 'Playoff games only. The last slot comes from the Finals.' },
     { kind: 'legend', name: 'Legend Pack', price: PACK_PRICES.legend, desc: 'A guaranteed Legend or better in the last slot.' },
     { kind: 'goat', name: 'GOAT Pack', price: PACK_PRICES.goat, desc: 'A guaranteed ★ GOAT card in the last slot. Every other slot Rare or better.' },
+    ...(H ? [{ kind: 'holiday', name: `${H.name} Pack`, price: PACK_PRICES.holiday, hol: H.k,
+      desc: `Five picks from ${H.name} games in every era. The last two slots are Rare or better. In the store for the three days either side of ${H.name}.` }] : []),
   ]
+}
+
+// The catalog with the holiday pack only once the pool has that holiday's cards (build_packs.py holiday/<k>.json)
+export async function catalogFor(origin, day) {
+  const list = catalog(day)
+  if (!list.some(p => p.kind === 'holiday')) return list
+  const idx = await poolIndex(origin).catch(() => null)
+  return list.filter(p => p.kind !== 'holiday' || idx?.holidays?.[p.hol])
 }
 
 // A deterministic random stream for the day, so every collector sees the same storefront

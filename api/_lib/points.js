@@ -10,6 +10,7 @@
 //   playoffs      first round +15% · second round +20% · Conf. Finals +30% · Finals +45% · title clincher +100%
 //   stat line     the rarest one only: 40 points +30% · triple-double +40% · 25 rebounds +45% · 20-20 +60% ·
 //                 50 points or 30 rebounds +80% · 20 assists, 10 blocks, 10 steals or 10 threes +120% · 60 points +150% ·
+//                 Box Score Sweep +80% (led or tied all five) or +150% (led all five outright) ·
 //                 70 points +250% · 80 points or a quadruple-double +400% · 100 points +800%
 //   other         debut +40% · career game +25% · career-high Elo +10%
 
@@ -59,10 +60,12 @@ export function statLine(r) {
   if (tens >= 4) return ['Quadruple-double', 4]
   if (pts >= 70) return ['70-point game', 2.5]
   if (pts >= 60) return ['60-point game', 1.5]
+  if (v('sw') === 2) return ['Box Score Sweep, outright', 1.5]
   if (v('ast') >= 20) return ['20 assists', 1.2]
   if (v('blk') >= 10) return ['10 blocks', 1.2]
   if (v('stl') >= 10) return ['10 steals', 1.2]
   if (v('tp') >= 10) return ['10 threes', 1.2]
+  if (v('sw') === 1) return ['Box Score Sweep', 0.8]
   if (pts >= 50) return ['50-point game', 0.8]
   if (v('trb') >= 30) return ['30 rebounds', 0.8]
   if (twenties >= 2) return ['20-20', 0.6]
@@ -85,7 +88,7 @@ export function hasFeat(r) {
   const v = k => r[k] || 0
   const tens = ['pts', 'trb', 'ast', 'stl', 'blk'].filter(k => v(k) >= 10).length
   const twenties = ['pts', 'trb', 'ast'].filter(k => v(k) >= 20).length
-  return tens >= 3 || v('pts') >= 50 || v('trb') >= 30 || v('ast') >= 20 || v('blk') >= 10 || v('stl') >= 10 || v('tp') >= 10 || twenties >= 2
+  return v('sw') > 0 || tens >= 3 || v('pts') >= 50 || v('trb') >= 30 || v('ast') >= 20 || v('blk') >= 10 || v('stl') >= 10 || v('tp') >= 10 || twenties >= 2
 }
 
 const PLAYOFF = { r1: ['First round', 0.15], r2: ['Second round', 0.2], cf: ['Conference Finals', 0.3], finals: ['Finals', 0.45], champ: ['Title clincher', 1] }
@@ -114,7 +117,11 @@ export const DUEL_MULT = 1.25
 export const POTW_POINTS = 2500
 // Complete Set: one of every player on a team-season's roster, 100 points a player
 export const SET_POINTS_PER = 100
+// Reward cards (coins.js rewardCards): per All-Star, per franchise season, per franchise player
+export const REWARD_POINTS = { allstar: 200, fhist: 100, fcomp: 40, banner: 150 }
+const REWARD_NAME = { allstar: 'All-Star Roster', fhist: 'Franchise History', fcomp: 'Completed Franchise', banner: 'Hang the Banner' }
 export function cardPoints(card) {
+  if (REWARD_POINTS[card?.kind]) return { points: REWARD_POINTS[card.kind] * (card.size || 0), base: 0, grade: 0, bonuses: [[REWARD_NAME[card.kind], 0]] }
   if (card?.kind === 'potw') return { points: POTW_POINTS, base: 0, grade: 0, bonuses: [['Player of the Week', 0]] }
   // A Final set (the season over, every player still in your binder) is worth a quarter more than an in-season one
   if (card?.kind === 'set') return { points: Math.round(SET_POINTS_PER * (card.size || 0) * (card.final === true ? 1.25 : 1)), base: 0, grade: 0,

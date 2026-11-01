@@ -30,6 +30,8 @@
 //   GET  potw        ?day= that day's week: the Player of the Week race (top 20) or the settled card, and the pick'em race
 //   GET  challenge   this week's three Five challenges (easy, medium, hard), your lineups and their percentiles
 //   POST challengeset { level, ids } your five cards for a challenge (ids: [] clears it)
+//   GET  banner      Hang the Banner: every franchise's ladder progress; with &fc=, that ladder and its current rung
+//   POST bannerplay  { fc, ids } five cards against the current rung; a win opens a pack of the franchise's cards
 //   POST potdpick    { day, player, team } your Player of the Day nomination (player: '' takes it back), until the first tipoff
 //   GET  standings   ?scope=week|season pick'em points, and where you rank
 //   GET  predreward  ?day=&kind=games|duels the cards you can choose from for a day you earned one
@@ -44,11 +46,12 @@ import { upgradePoints, pointsStatus, seasonDetails } from './_lib/rescore.js'
 import { loadWishes, applyWishes, resetMeters, tickMeters, wishView, addWish, removeWish, wishNames, wishCards, warmWishes } from './_lib/wishes.js'
 import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS, SPECIAL_KINDS } from './_lib/packs.js'
 import { cardPoints } from './_lib/points.js'
-import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons, warmRewards, backfillSets, settleFinals } from './_lib/coins.js'
-import { catalog, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
+import { RATES, SECTIONS, grant, tryChallenge, challengeFor, cardRewards, forgeSeasons, warmRewards, backfillSets, settleFinals, backfillRewards } from './_lib/coins.js'
+import { catalog, catalogFor, featured, eraOfWeek, PACK_PRICES } from './_lib/store.js'
 import { potwWeek, potdPick, settlePotw, predDay, settle, predSummary, predView, predict, setLock, duelPick, setLineup, standings, settlePickWeek, rewardOptions, claimReward, PRED } from './_lib/predictions.js'
 import { achievements } from './_lib/achievements.js'
 import { challengeView, setChallenge, settleChallenges } from './_lib/challenge.js'
+import { bannerView, playRung } from './_lib/banner.js'
 import { slate } from './_lib/slate.js'
 
 const STREAK_EVERY = 7
@@ -327,7 +330,7 @@ async function storeView(sql, u, origin) {
     and sold_at > now() - ${RATES.buybackHours + ' hours'}::interval order by id desc`
   const mine = new Set((await sql`select ref from cards where user_id = ${u.id} and ref = any(${sold.map(r => refOf(r.card))})`).map(r => r.ref))
   return {
-    day: today, next: addDays(today, 1), era: eraOfWeek(today), packs: catalog(today),
+    day: today, next: addDays(today, 1), era: eraOfWeek(today), packs: await catalogFor(origin, today),
     featured: { random: f.random, partial: f.partial, cards: f.cards.map(x => ({ ...x, owned: owned.has(refOf(x.card)) })) },
     sold: sold.map(r => ({ id: Number(r.id), card: r.card, points: r.points, price: r.price, soldAt: r.sold_at, owned: mine.has(refOf(r.card)) })),
     rates: { ...RATES, pred: PRED },
@@ -336,7 +339,7 @@ async function storeView(sql, u, origin) {
 
 async function buyPack(u, origin, b) {
   const sql = db(), today = etDay()
-  const item = catalog(today).find(x => x.kind === b.kind)
+  const item = (await catalogFor(origin, today)).find(x => x.kind === b.kind)
   if (!item) throw fail(400, 'That pack isn’t in the store.')
   let team = null
   if (item.team) {
@@ -446,6 +449,7 @@ export default async function handler(req, res) {
         finalsTried.set(u0.id, Date.now())
         awards.push(...(await backfillSets(sql, u0.id, origin, etDay()).catch(e => { console.error('sets', e); return [] })))
         awards.push(...(await settleFinals(sql, u0.id, origin, etDay()).catch(e => { console.error('finals', e); return [] })))
+        awards.push(...(await backfillRewards(sql, u0.id, origin, etDay()).catch(e => { console.error('rewards', e); return [] })))
       }
       if (u0) for (const c of await sql`select id, card from cards where user_id = ${u0.id} and tier = 'potw' and not coalesce((card->>'seen')::boolean, false)`) {
         awards.push({ kind: 'potw', amount: 0, label: `Player of the Week: you won the week of ${new Date(c.card.week + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}. Your ${c.card.n} card is in your binder` })
@@ -554,6 +558,19 @@ export default async function handler(req, res) {
       const view = await predView(sql, u, today, addDays(today, 1), origin)
       const [fresh] = await sql`select * from users where id = ${u.id}`
       return send(200, { predictions: view, ...(await me(fresh)), awards: [...awards, ...view.awards] })
+    }
+    if (action === 'banner') return send(200, { banner: await bannerView(sql, u, origin, etDay(), q.fc ? String(q.fc) : null) })
+    if (post && action === 'bannerplay') {
+      const today = etDay(), b = await readBody(req)
+      const r = await playRung(sql, u, origin, today, b)
+      let packs = []
+      if (r.won) {
+        const [built] = await makePacks(sql, u, origin, [r.pack], String(b.fc), null)
+        const [pack] = await sql`insert into packs (user_id, kind, day, team, slots, pity) values (${u.id}, ${r.pack}, ${today}, ${String(b.fc)}, ${sql.json(built.slots)}, ${built.pity}) returning *`
+        packs = [packView(pack)]
+      }
+      const [fresh] = await sql`select * from users where id = ${u.id}`
+      return send(200, { result: r, packs, awards: r.banner ? [r.banner] : [], banner: await bannerView(sql, fresh, origin, today, String(b.fc)), ...(await me(fresh)) })
     }
     if (action === 'challenge' || (post && action === 'challengeset')) {
       if (post) await setChallenge(sql, u, origin, await readBody(req), etDay())

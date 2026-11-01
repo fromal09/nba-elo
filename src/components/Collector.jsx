@@ -6,6 +6,7 @@ import { SpecialFace, isSpecial, specialTitle, specialLabel, specialLine } from 
 import { fromIndex } from './Binders'
 import { binderTeamInfo, binderHeadshots, binderLogo } from './SeasonExplorer'
 import { norm } from './predict'
+import { holidayNear } from './holidays'
 import { cardPoints } from '../../api/_lib/points.js'
 
 /*
@@ -20,7 +21,7 @@ export const useCollector = () => useContext(Ctx) || { me: null, owned: new Set(
 
 export const TIER_NAME = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' }
 export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}` : c.kind === 'duo' ? `duo|${c.a}|${c.b}`
-  : c.kind === 'five' ? `five|${c.s}|${c.t}` : c.kind === 'season' ? `season|${c.s}|${c.t}|${c.n}` : c.kind === 'potw' ? `potw|${c.week}` : c.kind === 'set' ? `set|${c.fc}|${c.s}` : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
+  : c.kind === 'five' ? `five|${c.s}|${c.t}` : c.kind === 'season' ? `season|${c.s}|${c.t}|${c.n}` : c.kind === 'potw' ? `potw|${c.week}` : c.kind === 'set' ? `set|${c.fc}|${c.s}` : c.kind === 'banner' ? `banner|${c.fc}` : c.kind === 'allstar' ? `allstar|${c.s}${c.aba ? '|aba' : ''}` : c.kind === 'fhist' ? `fhist|${c.fc}` : c.kind === 'fcomp' ? `fcomp|${c.fc}` : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
 export const CURRENT_TEAMS = ['ATL', 'BOS', 'BKN', 'CHO', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN',
   'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
 
@@ -130,6 +131,8 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
     duelPick: guard(async (game, player) => { const d = await api('duelpick', { game, player }); take(d); setPreds(d.predictions); return d.predictions }),
     setLineup: guard(async (day, slot, card) => { const d = await api('lineup', { day, slot, card }); take(d); setPreds(d.predictions); return d.predictions }),
     loadChallenge: () => api('challenge').then(d => d.challenge),
+    loadBanner: fc => api('banner', undefined, fc ? `&fc=${encodeURIComponent(fc)}` : '').then(d => d.banner),
+    playBanner: guard(async (fc, ids) => { const d = await api('bannerplay', { fc, ids }); take(d); if (d.packs?.length) setQueue(d.packs); if (d.result?.won) loadCards(); return d }),
     setChallenge: guard(async (level, ids) => { const d = await api('challengeset', { level, ids }); return d.challenge }),
     potdPick: guard(async (day, player, team) => { const d = await api('potdpick', { day, player, team }); take(d); setPreds(d.predictions); return d.predictions }),
     predDay: day => api('predday', undefined, `&day=${day}`).then(d => d.day),
@@ -233,13 +236,14 @@ export function CardFace({ card, shots, w = 280, live }) {
 }
 
 const PACK_NAMES = { daily: 'Daily Pack', streak: 'Streak Pack', standard: 'Standard Pack', era: 'Era Pack', playoff: 'Playoff Pack', legend: 'Legend Pack', goat: 'GOAT Pack' }
-const packTitle = p => ((p.kind === 'team' || p.kind === 'storeteam') ? `${nick(binderTeamInfo(p.team).name)} Pack` : PACK_NAMES[p.kind] || 'Pack')
+const packTitle = p => ((p.kind === 'team' || p.kind === 'storeteam') ? `${nick(binderTeamInfo(p.team).name)} Pack` : p.kind === 'holiday' ? `${holidayNear(p.day)?.name || 'Holiday'} Pack` : p.kind?.startsWith('banner') ? `${nick(binderTeamInfo(p.team).name)} Banner Pack` : PACK_NAMES[p.kind] || 'Pack')
 const slotLabel = (pack, slot, lastNight) => {
   const s = pack.slots[slot]
   if (pack.pity && slot === pack.slots.length - 1) return 'Guaranteed big pull · Legend or better'
   if (s.src === 'recent') return `From last night${lastNight ? ` · ${fmtDay(lastNight)}` : ''}`
   if (s.src === 'team') return `From ${binderTeamInfo(pack.team).name} history`
   if (s.odds === 'goatOnly') return 'Guaranteed ★ GOAT'
+  if (s.src === 'holiday') { const H = holidayNear(pack.day); return `From ${H ? H.name : 'holiday'} games${s.odds === 'rarePlus' ? ' · Rare or better' : ' · every era'}` }
   if (s.src === 'finals') return 'From the Finals'
   if (s.src === 'playoff') return s.odds === 'rarePlus' ? 'From the playoffs · Rare or better' : 'From the playoffs'
   if (s.src === 'era') return s.odds === 'rarePlus' ? 'From this era · Rare or better' : 'From this era'
@@ -302,16 +306,16 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
       <div className={`${styles.opening} ${stage === 'pick' ? styles.openingWide : ''}`} role="dialog" aria-modal="true" aria-label="Open your pack">
         <button type="button" className={styles.x} onClick={onClose} aria-label="Close (your picks so far are saved)" title="Close. Your picks are saved; finish the pack later.">×</button>
         {(stage === 'sealed' || stage === 'tearing') && <>
-          <div className={styles.kick}>{kind === 'streak' ? `${me?.today?.streak}-day streak bonus` : kind === 'team' ? `Team pack · week of ${fmtDay(pack.day)}` : kind === 'daily' ? `Daily pack · ${fmtDay(pack.day)}` : 'From the store'}</div>
+          <div className={styles.kick}>{kind === 'streak' ? `${me?.today?.streak}-day streak bonus` : kind === 'team' ? `Team pack · week of ${fmtDay(pack.day)}` : kind === 'daily' ? `Daily pack · ${fmtDay(pack.day)}` : kind.startsWith('banner') ? `Hang the Banner · stage ${kind.slice(6)} reward` : 'From the store'}</div>
           <button type="button" className={`${styles.pack} ${kind === 'streak' || kind === 'legend' ? styles.packGold : ''} ${stage === 'tearing' ? styles.torn : ''}`}
-            style={kind === 'team' || kind === 'storeteam' ? { '--pc': binderTeamInfo(pack.team).color || '#173657' } : undefined} data-kind={kind === 'storeteam' ? 'team' : kind} onClick={tear} aria-label="Tear the pack open">
+            style={kind === 'team' || kind === 'storeteam' || kind.startsWith('banner') ? { '--pc': binderTeamInfo(pack.team).color || '#173657' } : kind === 'holiday' && holidayNear(pack.day) ? { '--pc': holidayNear(pack.day).b } : undefined} data-kind={kind === 'storeteam' || kind === 'holiday' || kind.startsWith('banner') ? 'team' : kind} onClick={tear} aria-label="Tear the pack open">
             <span className={styles.packTop} />
             <span className={styles.packBody}>
               <small>Floor Performance Rankings</small>
               <b>{packTitle(pack)}</b>
               <em>Pick 5 · one of three at a time</em>
               {pack.pity && <strong>★ Guaranteed big pull inside</strong>}
-              <i>{kind === 'team' || kind === 'storeteam' ? binderTeamInfo(pack.team).abbr : kind === 'goat' ? '★' : 'FPR'}</i>
+              <i>{kind === 'team' || kind === 'storeteam' || kind.startsWith('banner') ? binderTeamInfo(pack.team).abbr : kind === 'goat' ? '★' : 'FPR'}</i>
             </span>
           </button>
           <div className={styles.hintLine}>Tap the pack to tear it open</div>

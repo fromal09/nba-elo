@@ -587,3 +587,62 @@
 .duoBars i { width: 100%; background: var(--c, #173657); border-radius: 3px 3px 0 0; min-height: 4px; }
 .duoBars b { font-size: 9px; } .duoBars small { font-size: 8.5px; color: #6b7783; } .duoBars em { font-style: normal; font-size: 8px; color: #9aa4ae; }
 .duoBars[data-many] b, .duoBars[data-many] em { display: none; }
+
+/* ── Reward cards: All-Star Roster, Franchise History, Completed Franchise ── */
+.asc, .fh, .fcomp { position: relative; width: 340px; height: 476px; border-radius: 16px; overflow: hidden; isolation: isolate; font-family: 'Inter', sans-serif; color: #fff; }
+.asc { background: radial-gradient(120% 90% at 50% 10%, #1f3d78, #0b1630 60%, #050a18); box-shadow: 0 0 0 2px #ffe9a8, 0 0 0 5px #8a6a1c, 0 14px 40px rgba(0,0,0,.6); }
+.asc::after { content: ''; position: absolute; inset: 10px; border-radius: 10px; border: 1.5px solid rgba(255,215,122,.6); pointer-events: none; z-index: 4; }
+.ascSky { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+.ascHead { position: absolute; top: 22px; left: 0; right: 0; text-align: center; z-index: 3; font-size: 11px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: #ffd77a; }
+.ascYear { position: absolute; top: 40px; left: 0; right: 0; text-align: center; z-index: 3; font-family: 'Bebas Neue', 'Barlow Condensed', sans-serif; font-size: 92px; line-height: 1;
+  background: linear-gradient(180deg, #fff, #ffd77a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.asc[data-prog] .ascYear { opacity: .55; }
+.ascPlate { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; text-align: center; padding: 22px 16px 22px; background: linear-gradient(180deg, transparent, rgba(5,10,24,.95) 40%); }
+.ascPlate b { display: block; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 36px; text-transform: uppercase; letter-spacing: .5px; line-height: 1; }
+.ascPlate small { display: block; margin-top: 5px; font-size: 12px; color: #b9c8e6; font-weight: 600; }
+
+.fh { background: linear-gradient(180deg, #0e1114, #1b1f24); box-shadow: 0 0 0 2px #e8eef4, 0 0 0 5px #6d777e, 0 0 0 7px #e8eef4, 0 14px 40px rgba(0,0,0,.6); }
+.fhHead { position: absolute; top: 18px; left: 18px; right: 18px; display: flex; justify-content: space-between; align-items: baseline; z-index: 3; }
+.fhHead b { font-family: 'Oswald', 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 18px; letter-spacing: 3px; text-transform: uppercase; }
+.fhHead small { font-size: 12px; font-weight: 800; letter-spacing: 1.5px; color: #9aa4ae; }
+.fhYrs { position: absolute; top: 50px; left: 18px; right: 18px; display: flex; justify-content: space-between; font-family: 'Bebas Neue', 'Barlow Condensed', sans-serif; font-size: 30px; color: #c4ced4; z-index: 3; }
+.fhTiles { position: absolute; left: 18px; right: 18px; top: 92px; bottom: 132px; display: grid; grid-auto-rows: 1fr; gap: 4px; z-index: 2; align-content: start; }
+.fhTiles i { display: block; border-radius: 3px; background: var(--c); min-height: 14px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.fhTiles i[data-ring] { background: linear-gradient(135deg, #fff4c9, #d4a64a); box-shadow: 0 0 8px rgba(255,215,122,.6); }
+.fhTiles i[data-off] { background: transparent !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+.fhPlate { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; padding: 16px 18px 20px; border-top: 3px solid #c4ced4; background: #0e1114; }
+.fhPlate b { display: block; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 38px; text-transform: uppercase; line-height: 1; }
+.fhPlate small { display: block; margin-top: 6px; font-size: 12px; color: #9aa4ae; font-weight: 600; }
+
+.fcomp { background: #000; box-shadow: 0 0 0 2px #fff4c9, 0 0 0 4px #9a6f1c, 0 0 0 6px #ffe9a8, 0 0 0 8px #6d4c0c, 0 14px 40px rgba(0,0,0,.6); }
+.fcompDots { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+.fcompDots circle { fill: var(--c); opacity: .6; }
+.fcompDots circle[data-k='1'] { fill: #fff; opacity: .45; } .fcompDots circle[data-k='2'] { fill: color-mix(in srgb, var(--c) 50%, #fff); opacity: .5; }
+.fcompDots circle[data-k='3'] { fill: color-mix(in srgb, var(--c) 60%, #000); opacity: .7; }
+.fcompDots circle[data-off] { fill: none !important; stroke: rgba(255,255,255,.25); opacity: 1; }
+.fcomp::before { content: ''; position: absolute; inset: 0; z-index: 2; background: radial-gradient(60% 45% at 50% 40%, transparent, rgba(0,0,0,.6) 75%); }
+.fcompTag { position: absolute; z-index: 4; top: 22px; left: 0; right: 0; text-align: center; font-size: 11px; font-weight: 900; letter-spacing: 3px; color: #ffe9a8; text-transform: uppercase; }
+.fcompMono { position: absolute; inset: 0 0 18% 0; z-index: 3; display: flex; align-items: center; justify-content: center; font-family: 'Bebas Neue', 'Barlow Condensed', sans-serif;
+  font-size: 150px; letter-spacing: 3px; color: rgba(255,255,255,.92); text-shadow: 0 8px 40px rgba(0,0,0,.85); }
+.fcompPlate { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; text-align: center; padding: 22px 16px 22px; background: linear-gradient(180deg, transparent, rgba(0,0,0,.94) 40%); }
+.fcompPlate b { display: block; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 36px; text-transform: uppercase; line-height: 1;
+  background: linear-gradient(180deg, #fff4c9, #d4a64a); -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: 4px; }
+.fcompPlate small { display: block; margin-top: 6px; font-size: 12px; color: #d8d2c0; font-weight: 600; }
+
+/* Hang the Banner: a silver banner in the team's colors */
+.bnr { position: relative; width: 340px; height: 476px; border-radius: 16px; overflow: hidden; isolation: isolate; font-family: 'Inter', sans-serif; color: #fff;
+  background: linear-gradient(160deg, #e4e9ec, #8d979e 35%, #2b3035 75%, #15181b); box-shadow: 0 0 0 2px #fff, 0 0 0 5px #8d979e, 0 0 0 7px #e8eef4, 0 14px 40px rgba(0,0,0,.6); }
+.bnrRings { position: absolute; inset: 0; z-index: 1; background: repeating-radial-gradient(circle at 50% 40%, rgba(255,255,255,0) 0 16px, rgba(255,255,255,.12) 16px 17px); }
+.bnrHead { position: absolute; top: 18px; left: 0; right: 0; z-index: 3; text-align: center; font-size: 11px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: #1b1f24; }
+.bnrCloth { position: absolute; z-index: 3; left: 70px; right: 70px; top: 46px; height: 290px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 90%, #000), color-mix(in srgb, var(--c) 60%, #000)); clip-path: polygon(0 0, 100% 0, 100% 86%, 50% 100%, 0 86%);
+  box-shadow: inset 0 0 0 4px rgba(255,255,255,.75); padding-bottom: 30px; }
+.bnrCloth::before { content: ''; position: absolute; inset: 9px 9px auto; height: calc(100% - 18px); clip-path: polygon(0 0, 100% 0, 100% 86%, 50% 100%, 0 86%); border: 2px solid rgba(255,255,255,.55); pointer-events: none; }
+.bnrLogo { width: 84px; height: 84px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,.35); margin-bottom: 8px; }
+.bnrLogo img { width: 70px; height: 70px; object-fit: contain; } .bnrLogo b { color: #1b1f24; font-weight: 900; }
+.bnrCloth > b { font-family: 'Bebas Neue', 'Barlow Condensed', sans-serif; font-size: 58px; line-height: .9; letter-spacing: 1px; }
+.bnrCloth > small { font-size: 10px; font-weight: 900; letter-spacing: 2px; }
+.bnrCloth > em { font-style: normal; font-family: 'Bebas Neue', 'Barlow Condensed', sans-serif; font-size: 22px; letter-spacing: 1px; opacity: .9; }
+.bnrPlate { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; text-align: center; padding: 22px 16px 22px; background: linear-gradient(180deg, transparent, rgba(14,17,20,.95) 40%); }
+.bnrPlate b { display: block; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-weight: 800; font-style: italic; font-size: 36px; text-transform: uppercase; line-height: 1; }
+.bnrPlate small { display: block; margin-top: 6px; font-size: 12px; color: #c4ced4; font-weight: 600; }

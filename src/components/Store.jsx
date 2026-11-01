@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { HOLIDAYS } from './holidays'
 import styles from './Store.module.css'
 import { Book, Fit, Seg, usePull, useIsPhone, fromIndex } from './Binders'
 import { MiniCard } from './PlayerCard'
@@ -14,7 +15,7 @@ const fmtDay = (d, o = { month: 'long', day: 'numeric' }) => new Date(d + 'T12:0
 const n0 = v => Math.round(v || 0).toLocaleString()
 const PRED_KINDS = ['predict', 'predcorrect', 'upset', 'perfect', 'lock', 'lockloss', 'duelcorrect', 'lineup', 'pickweekly']
 const ROWS = [['goat', 1], ['icon', 2], ['legend', 3], ['standout', 4], ['rare', 5]]
-const PACK_LOOK = { standard: ['#0b3a66', '#5ec8ff'], era: ['#6d3a0c', '#f2a33a'], storeteam: ['#173657', '#c3d4e6'], playoff: ['#0b0b0b', '#e7c160'], legend: ['#6d4c0c', '#fff1c0'], goat: ['#0a0a0a', '#f5d77a'] }
+const PACK_LOOK = { holiday: ['#3a1450', '#f07c1a'], standard: ['#0b3a66', '#5ec8ff'], era: ['#6d3a0c', '#f2a33a'], storeteam: ['#173657', '#c3d4e6'], playoff: ['#0b0b0b', '#e7c160'], legend: ['#6d4c0c', '#fff1c0'], goat: ['#0a0a0a', '#f5d77a'] }
 
 function useCountdown(next) {
   const [, tick] = useState(0)
@@ -130,7 +131,7 @@ export function StoreBook({ env, onClose, onMine }) {
   } else if (tab === 'packs') {
     body = <div className={styles.packs}>
       {store.packs.map(p => {
-        const [a, b] = PACK_LOOK[p.kind] || PACK_LOOK.standard
+        const [a, b] = p.hol && HOLIDAYS[p.hol] ? [HOLIDAYS[p.hol].a, HOLIDAYS[p.hol].b] : PACK_LOOK[p.kind] || PACK_LOOK.standard
         const short = (me?.coins?.balance ?? 0) < p.price
         return (
           <div key={p.kind} className={styles.packTile} style={{ '--a': a, '--b': b }} data-kind={p.kind}>

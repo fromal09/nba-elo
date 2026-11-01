@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
+import { HOLIDAYS } from './holidays'
 import styles from './Binders.module.css'
 import { MiniCard, DuelCard, tierFor, TIERS, momentsFor } from './PlayerCard'
 import { Meter, CURRENT_TEAMS } from './Collector'
 import { PredictPages } from './Predictions'
 import FiveChallenge from './FiveChallenge'
+import HangBanner from './HangBanner'
 import { useIndex as usePlayerIndex, search as searchPlayers } from './PlayerSearch'
 import { Serial, SpecialFace, SpecialModal, isSpecial, specialTitle } from './SpecialCards'
 import { cardPoints, TIER_BASE } from '../../api/_lib/points.js'
@@ -289,7 +291,7 @@ function SmallCard({ e, name, env, onPull, title, line, sub }) {
 // Any card's identity, as the server's refOf
 export const cardRef = c => (c.kind === 'duel' ? `duel|${c.date}` : isSpecial(c) ? specialRef(c) : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
 const specialRef = c => (c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}` : c.kind === 'duo' ? `duo|${c.a}|${c.b}` : c.kind === 'five' ? `five|${c.s}|${c.t}`
-  : c.kind === 'potw' ? `potw|${c.week}` : c.kind === 'set' ? `set|${c.fc}|${c.s}` : `season|${c.s}|${c.t}|${c.n}`)
+  : c.kind === 'potw' ? `potw|${c.week}` : c.kind === 'set' ? `set|${c.fc}|${c.s}` : c.kind === 'banner' ? `banner|${c.fc}` : c.kind === 'allstar' ? `allstar|${c.s}${c.aba ? '|aba' : ''}` : c.kind === 'fhist' ? `fhist|${c.fc}` : c.kind === 'fcomp' ? `fcomp|${c.fc}` : `season|${c.s}|${c.t}|${c.n}`)
 
 // A Duel of the Day card from a binder (kind 'duel': the day's two players) in the shape a pocket needs
 export function duelEntry(env, c, extra = {}) {
@@ -301,7 +303,7 @@ export function duelEntry(env, c, extra = {}) {
 // A card from a pipeline index (career / franchise files) in the shape a pocket needs
 export function fromIndex(env, c, extra = {}) {
   if (c.kind === 'duel') return duelEntry(env, c, extra)
-  if (isSpecial(c)) return { key: specialRef(c), special: c, name: c.kind === 'set' ? c.tn : c.row?.n || c.n || c.a || '', season: c.s, id: c.id, date: c.date, tier: c.kind, gs: 0, ...extra }
+  if (isSpecial(c)) return { key: specialRef(c), special: c, name: c.kind === 'set' || c.kind === 'fhist' || c.kind === 'fcomp' || c.kind === 'banner' ? c.tn : c.kind === 'allstar' ? `${c.s} All-Stars` : c.row?.n || c.n || c.a || '', season: c.s, id: c.id, date: c.date, tier: c.kind, gs: 0, ...extra }
   const team = env.teamInfo(c.t, c.tn, c.tc), opp = env.teamInfo(c.o, c.on, c.oc)
   return {
     key: `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`, name: c.row.n, row: c.row, post: !!c.band, season: c.s, id: c.id, tier: tierOfRow(c.row), ruby: !!c.ruby,
@@ -860,7 +862,9 @@ export const LEAGUE_SETS = [
   { id: 'debuts', title: 'Greatest debuts', short: 'Debuts', color: '#173657', album: 'Debut',
     desc: 'The 125 best first games, by Game Score, graded against every debut on record. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares.', ranked: true },
   { id: 'stat', title: 'Stat-line legends', short: 'Stat lines', color: '#6b2d8a', chrono: true,
-    desc: 'Every 60-point game, quadruple-double, 40-rebound game and 25-assist game on record.' },
+    desc: 'Every 60-point game, quadruple-double, 40-rebound game, 25-assist game and Box Score Sweep (leading the game in points, rebounds, assists, steals and blocks) on record.' },
+  { id: 'holidays', title: 'Holidays', short: 'Holidays', color: '#7a3a12',
+    desc: 'The 25 best games (by Game Score) played on each holiday: Halloween, Thanksgiving, Christmas, MLK Day and Valentine’s Day. Holiday cards wear the holiday’s colors in every era.' },
   { id: 'crowns', title: 'Coronations', short: 'Coronations', color: '#9a2a2a', chrono: true,
     desc: 'The night each player first reached No. 1 in the Elo rankings (100 career games or more).' },
   { id: 'peaks', title: 'Peak Elo', short: 'Peaks', color: '#2b4c72', album: 'Peak Elo',
@@ -920,8 +924,9 @@ function leagueEntries_(env, def, list) {
     }
     const r = c.row, abbr = env.teamInfo(c.t, c.tn, c.tc).abbr
     const sub = { titles: `${c.s}`, games: `${r.gs} GmSc`, debuts: `${r.gs} GmSc`, stat: featLine(r), crowns: fullDay(c.date),
-      peaks: `Elo ${r0(r.post)}`, swings: sgn(r.post - r.pre), heaters: c.heat ? `${c.heat.n} straight · ${sgn(c.heat.e1 - c.heat.e0)}` : '' }[def.id]
-    const label = def.id === 'titles' ? `${shortName(r.n)} · ${abbr}` : def.chrono ? shortName(r.n) : `${i + 1}. ${shortName(r.n)}`
+      peaks: `Elo ${r0(r.post)}`, swings: sgn(r.post - r.pre), holidays: `${HOLIDAYS[c.hol]?.short || ''} · ${r.gs} GmSc`, heaters: c.heat ? `${c.heat.n} straight · ${sgn(c.heat.e1 - c.heat.e0)}` : '' }[def.id]
+    const label = def.id === 'titles' ? `${shortName(r.n)} · ${abbr}` : def.chrono ? shortName(r.n)
+      : def.id === 'holidays' ? `${list.slice(0, i).filter(x => x.hol === c.hol).length + 1}. ${shortName(r.n)}` : `${i + 1}. ${shortName(r.n)}`
     return fromIndex(env, c, { rank: i + 1, date: c.date, gs: r.gs || 0, label, sub, subColor: def.id === 'swings' ? '#1a7a4a' : undefined,
       owned: !!env.owned?.has(`${c.s}|${c.id}|${r.n}`) })
   })
@@ -1230,7 +1235,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   </>
   const nBadges = (src.achievements || []).filter(a => a.earned).length
   const specials = all.filter(e => e.special || e.duel)
-  const views = [['all', 'All'], ['wishes', mine ? `Wish list · ${(C?.me?.wishes || []).length}` : 'Wish list'], ...(mine ? [['predict', 'Predictions'], ['five', 'Five challenge']] : []),
+  const views = [['all', 'All'], ['wishes', mine ? `Wish list · ${(C?.me?.wishes || []).length}` : 'Wish list'], ...(mine ? [['predict', 'Predictions'], ['five', 'Five challenge'], ['banner', 'Hang the Banner']] : []),
     ['starred', `Starred · ${starred.size}`], ['team', 'Franchises'], ['decade', 'Decades'], ['specials', `Specials · ${specials.length}`], ['sets', 'Sets'], ['badges', `Achievements · ${nBadges}`]]
   const tools = <Seg value={view} onChange={pickView} options={views} />
   const sortSel = (
@@ -1278,6 +1283,10 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   if (view === 'specials') {
     const groups = [
       ['set', 'Complete Sets', 'Collect one card of every player on a team’s roster for a season: the set’s refractor, numbered by your order among collectors who finished it.'],
+      ['allstar', 'All-Star Rosters', 'A game card from the season of every player named an All-Star that season. The stars light up as you collect them.'],
+      ['fhist', 'Franchise Histories', 'A card from every NBA season in a franchise’s history (no BAA or ABA seasons). Yours for keeps as new seasons are added.'],
+      ['banner', 'Banners', 'Hang the Banner: beat every rung of a franchise’s ladder, its best five of every NBA season, weakest to strongest.'],
+      ['fcomp', 'Completed Franchises', 'A card of every player in a franchise’s NBA history. The hardest card to earn.'],
       ['potw', 'Player of the Week', 'One a week, to the week’s pick’em winner: the NBA’s best player that week, numbered. No other way to get one.'],
       ['ruby', 'Ruby Players of the Day', 'Called the night’s Player of the Day in Predictions: that card in ruby, at twice its points.'],
       ['season', 'Season cards', 'Forged by owning every game of a player’s season with a team. Track them on the franchise checklists.'],
@@ -1311,6 +1320,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     )
   } else if (view === 'five' && mine) {
     right = <FiveChallenge env={env} tools={tools} />
+  } else if (view === 'banner' && mine) {
+    right = <HangBanner env={env} tools={tools} />
   } else if (view === 'wishes') {
     right = <div className={styles.right}><WishList user={mine ? null : src.user.username} mine={mine} C={C} env={env} tools={tools} /></div>
   } else if (view === 'badges') {
@@ -1463,7 +1474,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       extra={!reveal.done && !reveal.set && mine && <WishBtn name={reveal.card.n} season={reveal.card.s} C={C} dark />} />}
     <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right} dock={phone && me ? dock : null}
       summary={<span><b>{n0(st.score)} pts</b>{st.rank ? ` · No. ${st.rank}` : ''} · {all.length} cards</span>}
-      onKey={e => { if (P.open) return true; if (view === 'sets' || view === 'badges' || view === 'specials' || view === 'wishes' || view === 'five' || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
+      onKey={e => { if (P.open) return true; if (view === 'sets' || view === 'badges' || view === 'specials' || view === 'wishes' || view === 'five' || view === 'banner' || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}
   </>
 }

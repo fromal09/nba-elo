@@ -13,7 +13,7 @@ Writes, under public/data/explorer/packs/:
   team/<FRANCHISE>/<tier>-<k>.json  the weekly team pack's pool: one franchise's cards across every season
                             {"teams": {"<season>|<code>": [name, color]}, "rows": [...]}   index.json "teams": {franchise: {tier: [[file, n]]}}
 
-A row (cols): s, id, date, t, o, home, won, us, them, ot, band, honor, n, pos, mp, pts, trb, ast, stl, blk, tp, gs, pre, post, lr, lrp, fx, gp, hs
+A row (cols): s, id, date, t, o, home, won, us, them, ot, band, honor, n, pos, mp, pts, trb, ast, stl, blk, tp, gs, pre, post, lr, lrp, fx, gp, hs, sw
 (gp = the player's career game number, so 1 is his debut)
 
 Also writes the personal-binder checklists, which count players (own any card of a player and he's checked off):
@@ -23,6 +23,7 @@ Also writes the personal-binder checklists, which count players (own any card of
   explorer/packs/days/<YYYY-MM-DD>.json  every card from one day of the current season, for prediction rewards
                                          {"date", "teams": {code: [name, color]}, "rows": [...], "duel": the Duel of the Day
                                           as in league.json ({"k", "s", "id", "date", "a": card, "b": card, "score"}) or absent}
+  explorer/packs/holiday/<k>.json          every card from a holiday's games (hol_dates.py): {"teams", "tiers": {tier: [row]}}
   explorer/packs/onthisday/<MM-DD>.json  the store's On This Day pool: the 40 best cards (by Game Score) of each tier
                                          from games on that calendar date, every year {"teams": {"season|code": [...]}, "tiers": {tier: [row, ...]}}
 band = [level, label, champ] or null; honor = "potd" | "potg" | null
@@ -35,13 +36,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_binders import honors, bands, day_duels, card   # noqa: E402  (same Player of the Game / Day, playoff and duel rules)
+from hol_dates import holiday_of   # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 EXP = ROOT / "public" / "data" / "explorer"
 OUT = EXP / "packs"
 TIERS = [("goat", 1), ("icon", 5), ("legend", 20), ("standout", 50), ("rare", 125)]
 COLS = ["s", "id", "date", "t", "o", "home", "won", "us", "them", "ot", "band", "honor", "n", "pos", "mp",
-        "pts", "trb", "ast", "stl", "blk", "tp", "gs", "pre", "post", "lr", "lrp", "fx", "gp", "hs"]
+        "pts", "trb", "ast", "stl", "blk", "tp", "gs", "pre", "post", "lr", "lrp", "fx", "gp", "hs", "sw"]
 SHARD = 3000   # cards per shard
 # ABA teams that joined the NBA count toward their franchise, as in the franchise binders
 MERGE = {"DEN@ABA": "DEN", "IND@ABA": "IND", "SAS@ABA": "SAS", "BKN@ABA": "BKN"}
@@ -67,7 +69,7 @@ def row(season, g, p, band, honor):
     home = None if g.get("home") is None else g["home"] == p["t"]
     return [season, g["id"], g["date"], p["t"], g["teams"][1 - i], home, g["pts"][i] > g["pts"][1 - i], g["pts"][i], g["pts"][1 - i],
             g.get("ot") or "", b, honor, p["n"], p.get("pos"), r1(p.get("mp")), p.get("pts"), p.get("trb"), p.get("ast"),
-            p.get("stl"), p.get("blk"), p.get("tp"), r1(p.get("gs")), r1(p["pre"]), r1(p["post"]), p.get("lr"), p.get("lrp"), p.get("fx"), p.get("gp"), p.get("hs") or 0]
+            p.get("stl"), p.get("blk"), p.get("tp"), r1(p.get("gs")), r1(p["pre"]), r1(p["post"]), p.get("lr"), p.get("lrp"), p.get("fx"), p.get("gp"), p.get("hs") or 0, p.get("sw") or 0]
 
 
 def main():
@@ -80,6 +82,7 @@ def main():
     written = set()
     otd = {}          # (MM-DD, tier) -> heap of (gs, n, row, names)
     otd_n = itertools.count()
+    hol = {}          # holiday -> {"teams", "tiers": {tier: [row, ...]}}: every card from a holiday game, for the holiday pack
     last_day, recent, recent_teams = "", [], {}
     day_pool = {}     # the newest season's cards by date
     who = {}          # player -> tier -> shard -> [row, ...]: where wish lists find a player's cards
@@ -101,6 +104,12 @@ def main():
                 by_tier.setdefault(tr, []).append(r)
                 fc = MERGE.get(p["t"], p["t"])
                 by_team.setdefault((fc, tr), []).append(json.dumps(r, ensure_ascii=False, separators=(",", ":")))
+                hk = holiday_of(g["date"])
+                if hk:
+                    hd = hol.setdefault(hk, {"teams": {}, "tiers": {}})
+                    hd["tiers"].setdefault(tr, []).append(r)
+                    for c in (r[3], r[4]):
+                        hd["teams"][f"{season}|{c}"] = teams.get(c, [c, None])
                 h = otd.setdefault((g["date"][5:], tr), [])
                 item = (p.get("gs") or 0, next(otd_n), r, {f"{season}|{c}": teams.get(c, [c, None]) for c in (r[3], r[4])})
                 if len(h) < 40:
@@ -172,6 +181,13 @@ def main():
         name = f"onthisday/{md}.json"
         (OUT / name).write_text(json.dumps(d, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         written.add(name)
+    # Holiday packs: every card from each holiday's games
+    (OUT / "holiday").mkdir(parents=True, exist_ok=True)
+    for hk, d in hol.items():
+        name = f"holiday/{hk}.json"
+        (OUT / name).write_text(json.dumps(d, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        written.add(name)
+    index["holidays"] = {hk: sum(len(v) for v in d["tiers"].values()) for hk, d in hol.items()}
     # Prediction rewards: one file per day of the newest season
     (OUT / "days").mkdir(parents=True, exist_ok=True)
     for day, d in day_pool.items():

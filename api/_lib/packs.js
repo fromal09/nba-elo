@@ -2,6 +2,8 @@
 // A pack is five slots; each slot offers three cards and the collector keeps one. Offers never repeat a
 // card the collector owns, one already on offer in another open pack, or another card in the same pack.
 import { randomInt } from 'node:crypto'
+import { holidayNear } from './holidays.js'
+const etDay = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
 export const TIER_ORDER = ['common', 'rare', 'standout', 'legend', 'icon', 'goat']
 export const BIG = new Set(['legend', 'icon', 'goat'])
@@ -13,6 +15,8 @@ const ODDS = {
   rarePlus: { rare: 6000, standout: 2400, legend: 1100, icon: 400, goat: 100 },
   legendPlus: { legend: 7500, icon: 2000, goat: 500 },
   goatOnly: { goat: 1 },
+  standoutPlus: { standout: 7000, legend: 2200, icon: 600, goat: 200 },
+  iconPlus: { icon: 8000, goat: 2000 },
 }
 // Slots: [source, odds]. recent = last night's games, vault = all of history, team = one franchise's history
 const SLOTS = {
@@ -26,6 +30,15 @@ const SLOTS = {
   playoff: [['playoff', 'base'], ['playoff', 'base'], ['playoff', 'base'], ['playoff', 'rarePlus'], ['finals', 'rarePlus']],
   legend: [['vault', 'base'], ['vault', 'base'], ['vault', 'base'], ['vault', 'rarePlus'], ['vault', 'legendPlus']],
   goat: [['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'goatOnly']],
+  // The week of a holiday (three days either side): cards from that holiday's games in every era
+  // Hang the Banner rewards: the franchise's cards, better as the stages go (banner.js)
+  banner1: [['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'base']],
+  banner2: [['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'rarePlus']],
+  banner3: [['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'rarePlus'], ['team', 'rarePlus']],
+  banner4: [['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'standoutPlus']],
+  banner5: [['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'legendPlus'], ['team', 'legendPlus']],
+  banner6: [['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'legendPlus'], ['team', 'legendPlus'], ['team', 'iconPlus']],
+  holiday: [['holiday', 'base'], ['holiday', 'base'], ['holiday', 'base'], ['holiday', 'rarePlus'], ['holiday', 'rarePlus']],
 }
 
 // The card designs' eras, by season start year (as PlayerCard eraOf); the store's Era pack rotates through them weekly
@@ -85,8 +98,9 @@ const tierOf = rank => (rank == null ? 'common' : rank <= 1 ? 'goat' : rank <= 5
 // A card's identity. Special cards: duel (Duel of the Day), peak, rival (Rivalry), five (Starting Five), season (forged Season card)
 export const refOf = c => (c.kind === 'duel' ? `duel|${c.date}` : c.kind === 'peak' ? `peak|${c.s}|${c.id}|${c.row.n}` : c.kind === 'rival' ? `rival|${c.a}|${c.b}` : c.kind === 'duo' ? `duo|${c.a}|${c.b}`
   : c.kind === 'five' ? `five|${c.s}|${c.t}` : c.kind === 'season' ? `season|${c.s}|${c.t}|${c.n}` : c.kind === 'potw' ? `potw|${c.week}`
-    : c.kind === 'set' ? `set|${c.fc}|${c.s}` : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
-export const SPECIAL_KINDS = new Set(['duel', 'peak', 'rival', 'five', 'season', 'potw', 'set', 'duo'])
+    : c.kind === 'set' ? `set|${c.fc}|${c.s}` : c.kind === 'banner' ? `banner|${c.fc}` : c.kind === 'allstar' ? `allstar|${c.s}${c.aba ? '|aba' : ''}` : c.kind === 'fhist' ? `fhist|${c.fc}` : c.kind === 'fcomp' ? `fcomp|${c.fc}`
+    : `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`)
+export const SPECIAL_KINDS = new Set(['duel', 'peak', 'rival', 'five', 'season', 'potw', 'set', 'duo', 'allstar', 'fhist', 'fcomp', 'banner'])
 
 // About one pack in 15 swaps the last slot's first offer for a special card: a Peak, a Starting Five, a Rivalry or a Dynamic Duo
 export const SPECIAL_EVERY = Number(process.env.SPECIAL_EVERY) || 15
@@ -128,7 +142,7 @@ function toCard(cols, r, teams, from) {
     s: o.s, id: o.id, date: o.date, t: o.t, tn: team(o.t)[0], tc: team(o.t)[1], o: o.o, on: team(o.o)[0], oc: team(o.o)[1],
     home: o.home, won: o.won, score: `${o.us}–${o.them}`, ot: o.ot,
     band: o.band ? { level: o.band[0], label: o.band[1], champ: o.band[2] } : null, honor: o.honor, tier: tierOf(o.lrp ?? o.lr), from,
-    row: { n: o.n, pos: o.pos, mp: o.mp, pts: o.pts, trb: o.trb, ast: o.ast, stl: o.stl, blk: o.blk, tp: o.tp, gs: o.gs, pre: o.pre, post: o.post, lr: o.lr, lrp: o.lrp, fx: o.fx, gp: o.gp, hs: o.hs || 0 },
+    row: { n: o.n, pos: o.pos, mp: o.mp, pts: o.pts, trb: o.trb, ast: o.ast, stl: o.stl, blk: o.blk, tp: o.tp, gs: o.gs, pre: o.pre, post: o.post, lr: o.lr, lrp: o.lrp, fx: o.fx, gp: o.gp, hs: o.hs || 0, sw: o.sw || 0 },
   }
 }
 
@@ -150,6 +164,20 @@ async function fromShards(origin, idx, tiers, odds, taken, from, avoid, rowOk, p
     if (!rows.length) continue
     const c = toCard(idx.cols, rows[randomInt(rows.length)], sh.teams, from)
     if (!taken.has(refOf(c)) && !(avoid?.has(c.row.n) && tries < 8)) return c
+  }
+  return null
+}
+
+// A holiday card at these odds (any tier it has when none at these odds is left)
+function fromHoliday(idx, hf, odds, taken, avoid) {
+  if (!hf) return null
+  const avail = Object.fromEntries(Object.entries(odds).filter(([t]) => hf.tiers?.[t]?.length))
+  const t = roll(avail) || roll(Object.fromEntries(Object.keys(hf.tiers || {}).map(k => [k, 1])))
+  if (!t) return null
+  const list = hf.tiers[t]
+  for (let tries = 0; tries < 12; tries++) {
+    const c = toCard(idx.cols, list[randomInt(list.length)], hf.teams, 'holiday')
+    if (!taken.has(refOf(c)) && !avoid?.has(c.row.n)) return c
   }
   return null
 }
@@ -179,9 +207,14 @@ export async function buildOffers(origin, kind, { taken, team, pity, era }) {
   const eraT = era ? eraTiers(idx, era) : null
   const poT = kind === 'playoff' ? lastShards(idx) : null
   const plan = SLOTS[kind].map(x => [...x])
+  // Holiday week: the holiday pack draws from that holiday's games, and daily packs swap one vault slot for one
+  const H = kind === 'holiday' || kind === 'daily' ? holidayNear(etDay()) : null
+  const holF = H && idx.holidays?.[H.k] ? await getJSON(origin, `holiday/${H.k}.json`).catch(() => null) : null
+  if (kind === 'holiday' && !holF) throw Object.assign(new Error('There’s no holiday pack this week.'), { status: 400 })
+  if (kind === 'daily' && holF) plan[2] = ['holiday', 'base']
   if (pity) plan[plan.length - 1] = [plan[plan.length - 1][0] === 'recent' ? 'vault' : plan[plan.length - 1][0], 'legendPlus']
   const teamTiers = team ? idx.teams?.[team] : null
-  if ((kind === 'team' || kind === 'storeteam') && !teamTiers) throw Object.assign(new Error('That team’s cards aren’t in the pool yet.'), { status: 400 })
+  if ((kind === 'team' || kind === 'storeteam' || kind.startsWith('banner')) && !teamTiers) throw Object.assign(new Error('That team’s cards aren’t in the pool yet.'), { status: 400 })
   const seen = new Set(taken)
   const slots = []
   // Roll every card's shard first and download them together (one at a time, a cold server took many seconds)
@@ -203,6 +236,7 @@ export async function buildOffers(origin, kind, { taken, team, pity, era }) {
       let c = null
       const p0 = pre[si][k]
       if (src === 'recent') c = fromRecent(idx, odds, seen, names)
+      if (src === 'holiday') c = fromHoliday(idx, holF, odds, seen, names)
       if (!c && src === 'team') c = await fromShards(origin, idx, teamTiers, odds, seen, 'team', names, null, p0)
       if (!c && src === 'era') c = await fromShards(origin, idx, eraT, odds, seen, 'era', names, null, p0)
       if (!c && src === 'playoff') c = await fromShards(origin, idx, poT, odds, seen, 'playoff', names, isPlayoff, p0)
@@ -219,7 +253,7 @@ export async function buildOffers(origin, kind, { taken, team, pity, era }) {
   // The special swap: the last slot's first (lowest) offer becomes a special card, shown last
   const last = slots[slots.length - 1]
   if (last?.cards.length && randomInt(SPECIAL_EVERY) === 0) {
-    const sp = await specialCard(origin, seen, specialFits({ team: kind === 'team' || kind === 'storeteam' ? team : null, era: kind === 'era' ? era : null })).catch(() => null)
+    const sp = await specialCard(origin, seen, specialFits({ team: kind === 'team' || kind === 'storeteam' || kind.startsWith('banner') ? team : null, era: kind === 'era' ? era : null })).catch(() => null)
     if (sp) { last.cards = [...last.cards.slice(1), sp]; last.special = true }
   }
   return { slots, pity: !!pity, recentDate: idx.recent?.date || null }

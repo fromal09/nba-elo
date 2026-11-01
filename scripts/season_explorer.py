@@ -26,13 +26,15 @@ import rivalries
 
 OUT_DIR = Path("public/data/explorer")
 COLS = ["n", "t", "st", "pos", "mp", "pts", "fg", "fga", "tp", "tpa", "ft", "fta", "orb", "drb", "trb",
-        "ast", "stl", "blk", "tov", "pf", "pm", "gs", "pre", "post", "gp", "xw", "w", "lr", "lrp", "fx", "hs"]
+        "ast", "stl", "blk", "tov", "pf", "pm", "gs", "pre", "post", "gp", "xw", "w", "lr", "lrp", "fx", "hs", "sw"]
 # lr / lrp: Elo rank before / after the game among FPR-qualified players (same league) on that date
 # fx: career-moment flags for this game, counted only once a player has 20+ career games:
 #     1 career-best Game Score, 2 career-best league rank, 4 career-high Elo
 FX_GAME, FX_RANK, FX_ELO, FX_MIN_GP = 1, 2, 4, 20
 # hs: the straight games he's gained Elo through this one (0 when this game lost Elo). A Heater is 5 or more: cards
 # light up at 5, 10, 15, 20 and 25, and the longest runs make the Longest Heaters league binder.
+# sw: Box Score Sweep: he led the game in points, rebounds, assists, steals and blocks (each above 0). 2 = led all five
+#     outright, 1 = led or tied for the lead in all five, 0 = neither (or the game has no steals and blocks)
 STAT_SRC = {"pts": "PTS", "fg": "FG", "fga": "FGA", "tp": "3P", "tpa": "3PA", "ft": "FT", "fta": "FTA",
             "orb": "ORB", "drb": "DRB", "trb": "TRB", "ast": "AST", "stl": "STL", "blk": "BLK",
             "tov": "TOV", "pf": "PF"}
@@ -106,6 +108,25 @@ HIST_COLORS = {"Seattle SuperSonics": "#00653A", "Vancouver Grizzlies": "#00B2A9
 EAST = {"ATL", "BOS", "BKN", "CHO", "CHI", "CLE", "DET", "IND", "MIA", "MIL", "NYK", "ORL", "PHI", "TOR", "WAS"}
 _PALETTE = ["#5b4a8b", "#8c564b", "#2b6f6b", "#7a5c1e", "#4a6b8a", "#8a3b52", "#3f6e2a", "#6b4a2b"]
 
+
+
+SWEEP_IX = (5, 14, 15, 16, 17)   # pts, trb, ast, stl, blk in COLS
+def box_sweep(rows):
+    """{player: 2 (led all five outright) or 1 (led or tied all five)} for a game's Box Score Sweep, if any."""
+    if not rows or any(r[k] is None for r in rows for k in (16, 17)):
+        return {}
+    out = {}
+    for r in rows:
+        tied = False
+        for k in SWEEP_IX:
+            v = r[k] or 0
+            other = max(((x[k] or 0) for x in rows if x is not r), default=0)
+            if v <= 0 or v < other:
+                break
+            tied = tied or v == other
+        else:
+            out[r[0]] = 1 if tied else 2
+    return out
 
 def _name(code, sy, lg):
     table = (ABA_NAMES if lg == "ABA" else NBA_NAMES).get(code)
@@ -417,6 +438,7 @@ def _write_season(sy, raw_games, latest=False):
                 _pool[lg_of(r[1])][r[0]] = (r[1], day, r[23])
         snap = snapshot(day)
         for g in by_date[day]:
+            sweep = box_sweep(g["rows"])
             for r in g["rows"]:
                 rp = rank_in(snap, lg_of(r[1]), r[23])
                 r.append(rp)
@@ -429,6 +451,7 @@ def _write_season(sy, raw_games, latest=False):
                 hs = _heat.get(r[0], 0) + 1 if post > r[22] else 0
                 _heat[r[0]] = hs
                 r.append(hs)
+                r.append(sweep.get(r[0], 0))
                 _career[r[0]] = [max(gs, best[0]), min(rp, best[1]), max(post, best[2])] if best else [gs, rp, post]
 
     # Head-to-head duel history: each game's notable rivalries going in, then the game's duels

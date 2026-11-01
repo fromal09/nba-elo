@@ -5,6 +5,7 @@ import { cardPoints } from './points.js'
 import { ensurePredSchema } from './predictions.js'
 import { ensureWishSchema } from './wishes.js'
 import { ensureChallengeSchema } from './challenge.js'
+import { ensureBannerSchema } from './banner.js'
 import { applyRenames } from './renames.js'
 
 let sql = null
@@ -21,7 +22,7 @@ export function db() {
 }
 
 // Bump when the schema below changes: a cold start whose database already has this version skips the ~60 statements
-export const SCHEMA_VERSION = '2026-11-01a'
+export const SCHEMA_VERSION = '2026-11-01b'
 
 export function ensureSchema() {
   if (!ready) {
@@ -120,6 +121,7 @@ function migrate(s) {
       await ensurePredSchema(t)
       await ensureWishSchema(t)
       await ensureChallengeSchema(t)
+      await ensureBannerSchema(t)
       await applyRenames(t)
       await t`create index if not exists packs_open on packs (user_id) where status = 'open'`
       await t`create index if not exists sessions_user on sessions (user_id)`
