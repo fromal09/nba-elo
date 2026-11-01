@@ -939,6 +939,9 @@ export async function predDay(sql, u, day, origin) {
   const allDays = await sql`select user_id, total, potd_bonus from lineup_days where day = ${day}`
   const split = (rows, id) => { const r = rows.filter(x => x.game_id === id); const n = r.reduce((a, x) => a + x.n, 0); return { n, by: Object.fromEntries(r.map(x => [x.pick, x.n])) } }
   const tipped = new Map(games.map(g => [g.home, g]).concat(games.map(g => [g.away, g])))
+  // Splits stay hidden until that game tips off (the PotD calls until the day's first tip), so nobody follows the crowd
+  const begun = g => g.state !== 'pre' || (g.tip && Date.parse(g.tip) <= Date.now())
+  const potdLocked = !potdOpen(games)
   const lineups = []
   for (const x of allSlots) {
     let e = lineups.find(l => l.id === x.user_id)
@@ -948,16 +951,16 @@ export async function predDay(sql, u, day, origin) {
   }
   return {
     day,
-    crowd: { potd: crowdP.map(r => ({ player: r.player, team: r.team, n: r.n })), lineups: lineups.map(({ id, ...l }) => ({ ...l, you: id === u.id })) },
+    crowd: { potd: !potdLocked ? null : crowdP.map(r => ({ player: r.player, team: r.team, n: r.n })), lineups: lineups.map(({ id, ...l }) => ({ ...l, you: id === u.id })) },
     games: games.map(g => {
       const p = picks.find(x => x.game_id === g.id)
       return { id: g.id, tip: g.tip, home: g.home, away: g.away, state: g.state, hs: g.hs, as: g.as_, winner: g.winner,
-        pHome: g.line?.pHome ?? null, pick: p?.pick || null, result: p?.result || null, lock: !!p?.lock, chance: p?.chance ?? null, bonus: p?.bonus || 0, crowd: split(crowdG, g.id) }
+        pHome: g.line?.pHome ?? null, pick: p?.pick || null, result: p?.result || null, lock: !!p?.lock, chance: p?.chance ?? null, bonus: p?.bonus || 0, crowd: begun(g) ? split(crowdG, g.id) : null }
     }),
     matchups: games.filter(g => g.line?.duel).map(g => {
       const d = g.line.duel, dp = duels.find(x => x.game_id === g.id), r = mr[g.id]
       return { id: g.id, home: g.home, away: g.away, a: d.a, b: d.b, pick: dp?.pick || null, result: dp?.result || null, ag: r?.ag ?? null, bg: r?.bg ?? null, state: g.state,
-        void: d.void || null, out: d.out || null, crowd: split(crowdD, g.id) }
+        void: d.void || null, out: d.out || null, crowd: begun(g) ? split(crowdD, g.id) : null }
     }),
     lineup: { slots: slots.map(x => ({ slot: x.slot, player: x.player, team: x.team, tier: x.tier, mult: x.mult ?? null, gs: x.gs,
       pts: x.gs == null ? null : Math.round(lineupPts(x.gs, x.mult ?? PRED.lineupMult[x.tier] ?? 1) * 10) / 10 })), graded: ld ? { total: +ld.total, coins: ld.coins } : null },

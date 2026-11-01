@@ -115,7 +115,7 @@ export default function PlayerOfWeek({ day, onSelect, ratings }) {
           </div>}
           {!settled && d.race.length > 0 && <div className={styles.box}>
             <h4>Pick’em race <small>No. 1 wins this card</small></h4>
-            <table className={styles.race}>
+            <div className={styles.raceWrap}><table className={styles.race}>
               <thead><tr><th /><th className={styles.pl}>Collector</th><th title="Pick'em points">Pts</th><th title="Game picks won–lost">Picks</th><th title="Matchups won–lost">Match</th>
                 <th title="Correct picks of the forecast's underdog">Dogs</th><th title="Correct picks minus the forecast's expected">vs FC</th></tr></thead>
               <tbody>{d.race.map(r => (
@@ -123,7 +123,7 @@ export default function PlayerOfWeek({ day, onSelect, ratings }) {
                   <td>{r.picks[0]}–{r.picks[1]}</td><td>{r.matchups[0]}–{r.matchups[1]}</td><td>{r.dogs ?? 0}</td>
                   <td className={r.over >= 0 ? styles.up : styles.down}>{sgn(r.over)}</td></tr>
               ))}</tbody>
-            </table>
+            </table></div>
           </div>}
           {card && <p className={styles.note}>Week of {weekSpan({ week: d.week, end: d.end })}</p>}
         </aside>
