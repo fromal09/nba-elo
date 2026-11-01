@@ -21,7 +21,7 @@ export function db() {
 }
 
 // Bump when the schema below changes: a cold start whose database already has this version skips the ~60 statements
-export const SCHEMA_VERSION = '2026-10-28b'
+export const SCHEMA_VERSION = '2026-11-01a'
 
 export function ensureSchema() {
   if (!ready) {

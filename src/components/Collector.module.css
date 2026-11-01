@@ -208,3 +208,7 @@ b[data-tier=special] { color: #4c7aa3; }
 
 .wishTag { position: absolute; z-index: 4; left: 50%; top: -11px; translate: -50% 0; height: 22px; padding: 0 10px; border-radius: 11px; display: inline-flex; align-items: center;
   background: linear-gradient(135deg, #ff4f8b, #ff8fb5); color: #fff; font: 800 11px Inter, sans-serif; letter-spacing: .4px; white-space: nowrap; box-shadow: 0 4px 12px rgba(255,79,139,.5); pointer-events: none; }
+/* How an offered card goes with your binder, under the tier chip */
+.fitLine { position: absolute; left: 0; right: 0; top: calc(100% + 18px); text-align: center; line-height: 1.3; font-size: 10.5px; color: rgba(255,255,255,.8); }
+.fitLine b { color: #fff; }
+.offer { padding-bottom: 40px !important; }

@@ -611,7 +611,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           {live.fetched && <span className={styles.muted}>Updated {new Date(live.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
         </div>
       )}
-      {view === 'potw' ? <PlayerOfWeek day={day} onSelect={selectPlayer} ratings={ratings} /> : view === 'picks' ? <MyPredictions day={day} /> : view === 'today' ? (
+      {view === 'potw' ? <PlayerOfWeek day={day} onSelect={selectPlayer} ratings={ratings} /> : view === 'picks' ? <MyPredictions day={day} ratings={ratings} /> : view === 'today' ? (
         <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} />
       ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (
         <OddsView odds={odds} teams={teams} sd={sdL} fc={fc} />

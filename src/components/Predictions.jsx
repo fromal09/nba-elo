@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Fragment } from 'react'
 import styles from './Predictions.module.css'
 import { Fit, Seg, fromIndex, usePull } from './Binders'
 import { MiniCard, DuelCard } from './PlayerCard'
@@ -142,7 +142,7 @@ function LineupTab({ day, dayWord, lu, env, busy, onSet, slots, R }) {
   return <>
     <div className={styles.goal}>
       <span><b>{lu.slots.length} of {slots} slots filled</b>{lu.graded ? ` · ${lu.graded.total} points · +${lu.graded.coins} Coins` : ''}</span>
-      <span className={styles.goalText}>Put five cards from your binder in your lineup, of players who play {dayWord}. Each scores its player’s Game Score times the card’s multiplier: 1 Coin a point, up to {R.lineupMax}. Each slot locks when that player’s game tips off and scores once every game of the day is final.</span>
+      <span className={styles.goalText}>Put five cards from your binder in your lineup, of players who play {dayWord}. Each scores its player’s Game Score times the card’s multiplier: 1 Coin a point, up to {R.lineupMax}. Each slot locks when that player’s game tips off and scores once every game of the day is final. Have the Player of the Day in it and it scores {R.lineupPotd ?? 10} more, Coins included.</span>
     </div>
     <div className={styles.multRow}>
       {MULT_TIERS.map(t => <span key={t} className={styles.multCell} data-tier={t}><b>{xFmt(M[t] || 1)}</b><small>{TIER_NAME[t]}{Rest[t] ? ` · ${Rest[t]}-day rest` : ''}</small></span>)}
@@ -170,12 +170,16 @@ function LineupTab({ day, dayWord, lu, env, busy, onSet, slots, R }) {
       <div className={styles.candHead}><span className={styles.boxLab}>Your players {dayWord} · {lu.candidates.length}</span>
         <input className={styles.search} value={q} onChange={e => setQ(e.target.value)} placeholder="Find a player or team" aria-label="Find a player" /></div>
       <div className={styles.cands}>
-        {list.map(c => {
+        {[...list.filter(c => !c.out), ...list.filter(c => c.out)].map((c, i, all) => {
           const cards = c.cards || [{ cardId: c.cardId, tier: c.tier, mult: c.mult, resting: c.resting }]
           const chosen = cards.find(x => x.cardId === pickCard[c.name]) || cards[0]
           const inIt = taken.has(c.name) || lu.slots.some(s => s.cardId === chosen.cardId)
+          // Ruled-out players drop into a section of their own at the bottom; a card on its rest shows red
+          const outHead = c.out && (i === 0 || !all[i - 1].out)
           return (
-            <div key={c.name} className={`${styles.cand} ${c.out ? styles.candOut : ''}`}>
+            <Fragment key={c.name}>
+            {outHead && <div className={styles.outHead}>Ruled out · {all.filter(x => x.out).length}</div>}
+            <div className={`${styles.cand} ${c.out ? styles.candOut : ''} ${chosen.resting ? styles.candResting : ''}`}>
               <Logo t={c.team} size={26} />
               <span className={styles.candText}><b>{baseName(c.name)}</b>
                 <small>{c.team} {c.home ? 'vs' : '@'} {c.opp} · {c.open ? tipTime(c.tip) : 'tipped off'} · {n0(c.elo)} Elo{c.mp ? ` · ${c.mp} min` : ''}{c.status ? ` · ${c.status}` : ''}</small>
@@ -188,6 +192,7 @@ function LineupTab({ day, dayWord, lu, env, busy, onSet, slots, R }) {
               <button type="button" className={styles.claimBtn} disabled={busy || inIt || !c.open || free == null || !!chosen.resting} onClick={() => onSet(day, free, chosen.cardId)}>
                 {inIt ? 'In lineup' : !c.open ? 'In progress' : chosen.resting ? 'Resting' : free == null ? 'Full' : 'Add'}</button>
             </div>
+            </Fragment>
           )
         })}
       </div>
@@ -213,7 +218,7 @@ function PotdTab({ dayWord, p, env, busy, onPick, R }) {
     </div>
     {pick && <div className={styles.potdMine} data-r={pick.result || (p.open ? 'open' : 'live')}>
       <Logo t={pick.team} size={34} />
-      <span className={styles.potdWho}><b>{baseName(pick.player)}</b><small>{teamName(pick.team)}</small></span>
+      <span className={styles.potdWho}><b>{baseName(pick.player)}</b><small>{teamName(pick.team)}{pick.rank ? ` · No. ${pick.rank} of ${pick.of} · ${pick.score?.toFixed(1)} PotD score` : ''}</small></span>
       <em>{pick.result === 'win' ? '✓ Called it · the ruby card is in your binder' : pick.result === 'loss' ? '✗ Not this time' : p.open ? 'Your nomination' : W ? 'Grading…' : 'In progress'}</em>
       {p.open && <button type="button" className={styles.ghostSm} disabled={busy} onClick={() => onPick(null)}>Remove</button>}
     </div>}
@@ -255,7 +260,7 @@ function StandingsTab() {
     <div key={x.username + (you ? '-you' : '')} className={`${styles.stRow} ${C.me?.user.username === x.username ? styles.stYou : ''}`}>
       <b className={styles.stRank} data-top={x.rank <= 3 ? x.rank : undefined}>{x.rank}</b>
       <span className={styles.stWho}><b>{x.username}{you ? ' (you)' : ''}</b>
-        <small>Picks {x.picks[0]}–{x.picks[1]} · matchups {x.matchups[0]}–{x.matchups[1]}{x.locks ? ` · ${x.locks} lock${x.locks === 1 ? '' : 's'}` : ''}{x.potd?.[0] ? ` · PotD ${x.potd[0]}` : ''} · {sgn(x.over)} vs forecast</small></span>
+        <small>Picks {x.picks[0]}–{x.picks[1]} · matchups {x.matchups[0]}–{x.matchups[1]}{x.locks ? ` · ${x.locks} lock${x.locks === 1 ? '' : 's'}` : ''}{x.potd?.[0] ? ` · PotD ${x.potd[0]}` : ''}{x.dogs ? ` · ${x.dogs} underdog${x.dogs === 1 ? '' : 's'}` : ''} · {sgn(x.over)} vs forecast</small></span>
       <strong>{x.score}<small>pts</small></strong>
     </div>
   )
@@ -299,7 +304,7 @@ function HistoryRow({ h, env, onReward, all }) {
         </span>
         <span className={styles.histPart}>
           <small>PotD</small>
-          {h.potd ? <><b>{shortName(h.potd.player)}</b><small>{h.potd.result === 'win' ? '✓ called it · ruby card' : h.potd.result === 'loss' ? '✗ missed' : h.day >= etToday() ? 'not decided yet' : 'graded when the day’s cards are in'}</small></> : <small>—</small>}
+          {h.potd ? <><b>{shortName(h.potd.player)}</b><small>{h.potd.result === 'win' ? '✓ called it · ruby card' : h.potd.result === 'loss' ? '✗ missed' : h.day >= etToday() ? 'not decided yet' : 'graded when the day’s cards are in'}{h.potd.rank ? ` · No. ${h.potd.rank} · ${(+h.potd.score).toFixed(1)}` : ''}</small></> : <small>—</small>}
         </span>
         <span className={styles.histPart}>
           <small>Lineup</small>
@@ -358,7 +363,7 @@ function DayDetail({ day, env }) {
       {(d.potd?.pick || d.potd?.winner) && <>
         <h4>Player of the Day</h4>
         <div className={styles.dayRow}>
-          <span className={styles.dayTeams}>{d.potd.pick ? <span><Logo t={d.potd.pick.team} size={18} />{shortName(d.potd.pick.player)}</span> : <small>No pick</small>}</span>
+          <span className={styles.dayTeams}>{d.potd.pick ? <span><Logo t={d.potd.pick.team} size={18} />{shortName(d.potd.pick.player)}{d.potd.pick.rank ? <small> · No. {d.potd.pick.rank} · {(+d.potd.pick.score).toFixed(1)}</small> : null}</span> : <small>No pick</small>}</span>
           <span className={styles.dayPick}>{d.potd.winner ? <small>Player of the Day: <b>{shortName(d.potd.winner.name)}</b> · {d.potd.winner.gs?.toFixed(1)} Game Score</small> : <small>{d.games.every(g => g.state === 'post') ? 'graded when the day’s cards are in' : 'not decided yet'}</small>}</span>
           <span className={styles.dayMark}>{d.potd.pick ? mark(d.potd.pick.result) : null}</span>
         </div>

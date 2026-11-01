@@ -41,6 +41,7 @@ export const PRED = {
   weeklyTop10: 300, weeklyTop50: 100, // pick'em standings, paid each Monday
   potd: 25,         // a correct Player of the Day call (plus the ruby card)
   potdStand: 2,     // pick'em points for a correct Player of the Day call
+  lineupPotd: 10,   // a lineup with the Player of the Day in it: this many lineup points (and Coins) on top
 }
 export const upsetBonus = p => (p == null || p >= 0.5 ? 0 : Math.max(PRED.upsetMin, Math.min(PRED.upsetMax, Math.round(((0.5 - p) * 200) / 5) * 5)))
 const LEGEND_CAP = TIER_ORDER.indexOf('legend'), RARE_CAP = TIER_ORDER.indexOf('rare')
@@ -101,6 +102,12 @@ export async function ensurePredSchema(t) {
     user_id int not null references users(id) on delete cascade, day date not null, player text not null, team text not null,
     made_at timestamptz not null default now(), result text, credited boolean not null default false, primary key (user_id, day))`
   await t`create index if not exists potd_picks_open on potd_picks (day) where result is null`
+  // Where the call finished in the Player of the Day measure (rank among the day's players, and its score)
+  await t`alter table potd_picks add column if not exists score real`
+  await t`alter table potd_picks add column if not exists rank int`
+  // The day's Player of the Day once checked against the lineup (the bonus), so it's checked once
+  await t`alter table lineup_days add column if not exists potd text`
+  await t`alter table lineup_days add column if not exists potd_bonus real`
   await t`create table if not exists potw_weeks (week date primary key, card jsonb, winners jsonb, settled_at timestamptz not null default now())`
 }
 
@@ -203,6 +210,13 @@ const potdCard = (file, day) => file?.cards.find(c => c.honor === 'potd' && c.da
 const fullDay = (file, day, games) => !!file && games.every(isDone) && games.filter(g => g.state === 'post').every(g => hasGame(file, day, g.home, g.away))
 // The Player of the Day, once the day is over and the day file has all of it
 const potdOf = (file, day, games) => (fullDay(file, day, games) ? potdCard(file, day) : null)
+// Every player of the day by the Player of the Day measure (Game Score + Elo gained ÷ 6), best first
+const nightScore = c => (c.row.gs || 0) + ((c.row.post - c.row.pre) || 0) / 6
+function potdBoard(file, day) {
+  return (file?.cards || []).filter(c => c.date === day && c.row.gs != null).map(c => ({ n: c.row.n, t: c.t, score: Math.round(nightScore(c) * 10) / 10 }))
+    .sort((a, b) => b.score - a.score)
+}
+const standingOf = (board, player) => { const i = board.findIndex(x => norm(x.n) === norm(player)); return i < 0 ? { rank: null, score: null, of: board.length } : { rank: i + 1, score: board[i].score, of: board.length } }
 const rubyOf = c => ({ ...c, ruby: true, from: 'potd' })
 
 // Each game's matchup result from its Game Scores: { id: { winner | null (void), ag, bg } }
@@ -349,11 +363,13 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
           if (row) awards.push({ kind: 'potdcard', amount: 0, label: `You called the Player of the Day: ruby ${potd.row.n} is in your binder` })
           push(await grant(t, userId, today, 'potdcorrect', PRED.potd, { ref: day, label: `Player of the Day called: ${potd.row.n}` }))
         }
-        await t`update potd_picks set result = ${win ? 'win' : 'loss'}, credited = true where user_id = ${userId} and day = ${day}`
+        const st = standingOf(potdBoard(file, day), pp.player)
+        await t`update potd_picks set result = ${win ? 'win' : 'loss'}, credited = true, score = ${st.score}, rank = ${st.rank} where user_id = ${userId} and day = ${day}`
       }
     })
   }
   awards.push(...(await repairPotd(sql, userId, today, origin)))
+  awards.push(...(await lineupPotdBonus(sql, userId, today, origin)))
   return awards
 }
 
@@ -377,6 +393,29 @@ async function repairPotd(sql, userId, today, origin) {
       if (row) out.push({ kind: 'potdcard', amount: 0, label: `You called the Player of the Day after all: ruby ${potd.row.n} is in your binder` })
       const a = await grant(t, userId, today, 'potdcorrect', PRED.potd, { ref: day, label: `Player of the Day called: ${potd.row.n}` })
       if (a) out.push(a)
+    })
+  }
+  return out
+}
+
+// A graded lineup with the day's Player of the Day in it: PRED.lineupPotd more points and Coins, once the whole day is in
+async function lineupPotdBonus(sql, userId, today, origin) {
+  if (!origin) return []
+  const out = []
+  for (const r of await sql`select day from lineup_days where user_id = ${userId} and potd is null and day >= ${addDays(today, -4)}`) {
+    const day = iso(r.day)
+    const games = await slate(sql, day, { origin }).catch(() => [])
+    const potd = potdOf(await dayFile(origin, day).catch(() => null), day, games)
+    if (!potd) continue
+    const slots = await sql`select player from lineups where user_id = ${userId} and day = ${day}`
+    const hit = slots.some(x => norm(x.player) === norm(potd.row.n))
+    await sql.begin(async t => {
+      const [x] = await t`update lineup_days set potd = ${potd.row.n}, potd_bonus = ${hit ? PRED.lineupPotd : 0},
+        total = total + ${hit ? PRED.lineupPotd : 0} where user_id = ${userId} and day = ${day} and potd is null returning 1`
+      if (x && hit) {
+        const a = await grant(t, userId, today, 'lineuppotd', PRED.lineupPotd, { ref: day, label: `Your lineup had the Player of the Day, ${potd.row.n}` })
+        if (a) out.push(a)
+      }
     })
   }
   return out
@@ -549,7 +588,7 @@ export async function predView(sql, u, today, tomorrow, origin) {
   const days = await sql`select * from pred_days where user_id = ${u.id} order by day desc`
   const duelDays = await sql`select * from duel_days where user_id = ${u.id} order by day desc`
   const lineDays = await sql`select * from lineup_days where user_id = ${u.id} order by day desc`
-  const potds = await sql`select day, player, team, result from potd_picks where user_id = ${u.id}`
+  const potds = await sql`select day, player, team, result, score, rank from potd_picks where user_id = ${u.id}`
   const [c] = await sql`select coalesce(sum(amount), 0)::int as n from coin_ledger where user_id = ${u.id}
     and kind in ('predict', 'predcorrect', 'upset', 'perfect', 'lock', 'lockloss', 'duelcorrect', 'lineup', 'pickweekly', 'potdcorrect')`
   // History: one row a day, with the picks, the matchups and the lineup
@@ -561,7 +600,7 @@ export async function predView(sql, u, today, tomorrow, origin) {
   for (const r of duels) { const h = at(r.day); h.dopen = h.dopen || { picked: 0 }; h.dopen.picked++ }
   for (const d of duelDays) at(d.day).duels = { total: d.total, picked: d.picked, correct: d.correct, reward: d.reward, claimed: d.claimed_ref ? { ref: d.claimed_ref, card: d.claimed_card } : null }
   for (const d of lineDays) at(d.day).lineup = { total: d.total, coins: d.coins }
-  for (const r of potds) at(r.day).potd = { player: r.player, team: r.team, result: r.result }
+  for (const r of potds) at(r.day).potd = { player: r.player, team: r.team, result: r.result, score: r.score, rank: r.rank }
   // Lineups set but not scored yet still make a day
   for (const r of await sql`select distinct day from lineups where user_id = ${u.id}`) { const h = at(r.day); if (!h.lineup) h.lopen = true }
   const history = [...H.values()].sort((a, b) => b.day.localeCompare(a.day))
@@ -681,16 +720,21 @@ async function refresh(sql, origin, today) {
 // Everyone's Player of the Day calls for a finished day (results only; Coins and the card come with each collector's settle)
 async function gradePotd(sql, origin, day, games) {
   if (!origin || !games.length || !games.every(isDone)) return
-  const top = potdOf(await dayFile(origin, day), day, games)
+  const file = await dayFile(origin, day)
+  const top = potdOf(file, day, games)
   if (!top) return
-  for (const r of await sql`select user_id, player from potd_picks where day = ${day} and result is null`)
-    await sql`update potd_picks set result = ${norm(r.player) === norm(top.row.n) ? 'win' : 'loss'} where user_id = ${r.user_id} and day = ${day} and result is null`
+  const board = potdBoard(file, day)
+  for (const r of await sql`select user_id, player from potd_picks where day = ${day} and result is null`) {
+    const st = standingOf(board, r.player)
+    await sql`update potd_picks set result = ${norm(r.player) === norm(top.row.n) ? 'win' : 'loss'}, score = ${st.score}, rank = ${st.rank} where user_id = ${r.user_id} and day = ${day} and result is null`
+  }
 }
 
 async function rank(sql, from, to, limit) {
   return sql`with p as (
       select user_id, count(*) filter (where result = 'win')::int as w, count(*) filter (where result in ('win', 'loss'))::int as n,
         count(*) filter (where result = 'win' and lock)::int as lw,
+        count(*) filter (where result = 'win' and chance < 0.5)::int as dogs,
         coalesce(sum(case when result in ('win', 'loss') and chance is not null then (case when result = 'win' then 1 else 0 end) - chance end), 0)::float as over
       from predictions where day between ${from} and ${to} group by user_id),
     d as (select user_id, count(*) filter (where result = 'win')::int as w, count(*) filter (where result in ('win', 'loss'))::int as n
@@ -699,7 +743,7 @@ async function rank(sql, from, to, limit) {
       from potd_picks where day between ${from} and ${to} group by user_id)
     select u.id, u.username, u.favorite_team, coalesce(p.w, 0) + coalesce(p.lw, 0) + coalesce(d.w, 0) + ${PRED.potdStand} * coalesce(o.w, 0) as score,
       coalesce(p.w, 0) as w, coalesce(p.n, 0) as n, coalesce(d.w, 0) as dw, coalesce(d.n, 0) as dn, coalesce(p.lw, 0) as lw, coalesce(p.over, 0) as over,
-      coalesce(o.w, 0) as ow, coalesce(o.n, 0) as on_
+      coalesce(o.w, 0) as ow, coalesce(o.n, 0) as on_, coalesce(p.dogs, 0) as dogs
     from users u left join p on p.user_id = u.id left join d on d.user_id = u.id left join o on o.user_id = u.id
     where coalesce(p.n, 0) + coalesce(d.n, 0) + coalesce(o.n, 0) > 0
     order by score desc, over desc, u.id limit ${limit}`
@@ -711,7 +755,7 @@ export async function standings(sql, origin, scope, today, viewer) {
   const rows = await rank(sql, from, to, 1000)
   let r = 0, prev = null
   const all = rows.map((x, i) => { if (prev !== x.score) { r = i + 1; prev = x.score } return { rank: r, username: x.username, favoriteTeam: x.favorite_team, score: x.score,
-    picks: [x.w, x.n - x.w], matchups: [x.dw, x.dn - x.dw], locks: x.lw, potd: [x.ow, x.on_ - x.ow], over: Math.round(x.over * 10) / 10, id: x.id } })
+    picks: [x.w, x.n - x.w], matchups: [x.dw, x.dn - x.dw], locks: x.lw, potd: [x.ow, x.on_ - x.ow], dogs: x.dogs, over: Math.round(x.over * 10) / 10, id: x.id } })
   const you = viewer ? all.find(x => x.id === viewer.id) || null : null
   const strip = ({ id, ...x }) => x
   return { scope, from, to, entrants: all.length, leaders: all.slice(0, 25).map(strip), you: you ? strip(you) : null,
@@ -752,9 +796,11 @@ async function potdView(sql, u, origin, day, games) {
     }
     candidates.sort((a, b) => b.elo - a.elo)
   }
-  const top = live.length && live.every(isDone) && origin ? potdOf(await dayFile(origin, day).catch(() => null), day, live) : null
-  return { pick: pp ? { player: pp.player, team: pp.team, result: pp.result } : null, open, lock: firstTip(games), candidates,
-    winner: top ? { name: top.row.n, team: top.t, gs: top.row.gs, pts: top.row.pts, trb: top.row.trb, ast: top.row.ast, card: top, ruby: pp?.result === 'win' } : null }
+  const vfile = live.length && live.every(isDone) && origin ? await dayFile(origin, day).catch(() => null) : null
+  const top = vfile ? potdOf(vfile, day, live) : null
+  const board = top ? potdBoard(vfile, day) : null
+  return { pick: pp ? { player: pp.player, team: pp.team, result: pp.result, ...(board ? standingOf(board, pp.player) : {}) } : null, open, lock: firstTip(games), candidates,
+    winner: top ? { name: top.row.n, team: top.t, gs: top.row.gs, pts: top.row.pts, trb: top.row.trb, ast: top.row.ast, score: board[0]?.score ?? null, card: top, ruby: pp?.result === 'win' } : null }
 }
 
 export async function potdPick(sql, u, b, today, origin) {
@@ -834,7 +880,7 @@ export async function potwWeek(sql, origin, day) {
     boards.set(week, { at: Date.now(), data: board })
     if (boards.size > 20) boards.delete(boards.keys().next().value)
   }
-  const race = week <= today ? (await rank(sql, week, end, 5)).map((r, i) => ({ rank: i + 1, username: r.username, score: r.score, picks: [r.w, r.n - r.w], matchups: [r.dw, r.dn - r.dw], over: Math.round(r.over * 10) / 10 })) : []
+  const race = week <= today ? (await rank(sql, week, end, 10)).map((r, i) => ({ rank: i + 1, username: r.username, score: r.score, picks: [r.w, r.n - r.w], matchups: [r.dw, r.dn - r.dw], dogs: r.dogs, potd: [r.ow, r.on_ - r.ow], over: Math.round(r.over * 10) / 10 })) : []
   return { week, end, complete: today > end, settled: done?.card ? { card: { ...done.card, k: 1 }, winners: done.card.winners || [] } : null,
     through: board.through, leader: done?.card || board.leader, top: board.top, all: done?.card ? undefined : board.all, race }
 }
@@ -880,23 +926,44 @@ export async function predDay(sql, u, day, origin) {
   const [ld] = await sql`select total, coins from lineup_days where user_id = ${u.id} and day = ${day}`
   const [pp] = await sql`select player, team, result from potd_picks where user_id = ${u.id} and day = ${day}`
   const done = games.length && games.every(g => g.state === 'post')
-  const top = done && origin ? potdOf(await dayFile(origin, day).catch(() => null), day, games) : null
+  const dfile = done && origin ? await dayFile(origin, day).catch(() => null) : null
+  const top = dfile ? potdOf(dfile, day, games) : null
+  const board = top ? potdBoard(dfile, day) : null
   const mr = done ? matchupResults(games, await gradeSource(origin, day, games).catch(() => ({ has: () => false }))) : {}
+  // Everyone's picks: each game's and matchup's split, the Player of the Day calls by how many made them, and every
+  // lineup (a slot shows once its game has tipped off, so nobody copies a lineup before it locks)
+  const crowdG = await sql`select game_id, pick, count(*)::int as n from predictions where day = ${day} group by 1, 2`
+  const crowdD = await sql`select game_id, pick, count(*)::int as n from duel_picks where day = ${day} group by 1, 2`
+  const crowdP = await sql`select player, team, count(*)::int as n from potd_picks where day = ${day} group by 1, 2 order by n desc, player`
+  const allSlots = await sql`select l.user_id, u.username, l.slot, l.player, l.team, l.tier, l.mult, l.gs from lineups l join users u on u.id = l.user_id where l.day = ${day} order by l.user_id, l.slot`
+  const allDays = await sql`select user_id, total, potd_bonus from lineup_days where day = ${day}`
+  const split = (rows, id) => { const r = rows.filter(x => x.game_id === id); const n = r.reduce((a, x) => a + x.n, 0); return { n, by: Object.fromEntries(r.map(x => [x.pick, x.n])) } }
+  const tipped = new Map(games.map(g => [g.home, g]).concat(games.map(g => [g.away, g])))
+  const lineups = []
+  for (const x of allSlots) {
+    let e = lineups.find(l => l.id === x.user_id)
+    if (!e) { const ld_ = allDays.find(d => d.user_id === x.user_id); e = { id: x.user_id, username: x.username, slots: [], total: ld_ ? +ld_.total : null, potdBonus: ld_?.potd_bonus ? +ld_.potd_bonus : 0 }; lineups.push(e) }
+    const g = tipped.get(x.team), shown = x.user_id === u.id || (g && Date.parse(g.tip) <= Date.now())
+    e.slots.push(shown ? { player: x.player, team: x.team, tier: x.tier, mult: x.mult ?? PRED.lineupMult[x.tier] ?? 1, gs: x.gs } : { hidden: true, tier: x.tier })
+  }
   return {
     day,
+    crowd: { potd: crowdP.map(r => ({ player: r.player, team: r.team, n: r.n })), lineups: lineups.map(({ id, ...l }) => ({ ...l, you: id === u.id })) },
     games: games.map(g => {
       const p = picks.find(x => x.game_id === g.id)
       return { id: g.id, tip: g.tip, home: g.home, away: g.away, state: g.state, hs: g.hs, as: g.as_, winner: g.winner,
-        pHome: g.line?.pHome ?? null, pick: p?.pick || null, result: p?.result || null, lock: !!p?.lock, chance: p?.chance ?? null, bonus: p?.bonus || 0 }
+        pHome: g.line?.pHome ?? null, pick: p?.pick || null, result: p?.result || null, lock: !!p?.lock, chance: p?.chance ?? null, bonus: p?.bonus || 0, crowd: split(crowdG, g.id) }
     }),
     matchups: games.filter(g => g.line?.duel).map(g => {
       const d = g.line.duel, dp = duels.find(x => x.game_id === g.id), r = mr[g.id]
       return { id: g.id, home: g.home, away: g.away, a: d.a, b: d.b, pick: dp?.pick || null, result: dp?.result || null, ag: r?.ag ?? null, bg: r?.bg ?? null, state: g.state,
-        void: d.void || null, out: d.out || null }
+        void: d.void || null, out: d.out || null, crowd: split(crowdD, g.id) }
     }),
     lineup: { slots: slots.map(x => ({ slot: x.slot, player: x.player, team: x.team, tier: x.tier, mult: x.mult ?? null, gs: x.gs,
       pts: x.gs == null ? null : Math.round(lineupPts(x.gs, x.mult ?? PRED.lineupMult[x.tier] ?? 1) * 10) / 10 })), graded: ld ? { total: +ld.total, coins: ld.coins } : null },
-    potd: { pick: pp ? { player: pp.player, team: pp.team, result: pp.result } : null, lock: games.length ? games.reduce((m, g) => (g.tip < m ? g.tip : m), games[0].tip) : null,
-      winner: top ? { name: top.row.n, team: top.t, gs: top.row.gs, pts: top.row.pts, card: top } : null },
+    rates: { lineupPotd: PRED.lineupPotd },
+    potd: { pick: pp ? { player: pp.player, team: pp.team, result: pp.result, ...(board ? standingOf(board, pp.player) : {}) } : null,
+      lock: games.length ? games.reduce((m, g) => (g.tip < m ? g.tip : m), games[0].tip) : null,
+      winner: top ? { name: top.row.n, team: top.t, gs: top.row.gs, pts: top.row.pts, score: board?.[0]?.score ?? null, card: top } : null },
   }
 }

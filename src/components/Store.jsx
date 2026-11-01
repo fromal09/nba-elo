@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import styles from './Store.module.css'
 import { Book, Fit, Seg, usePull, useIsPhone, fromIndex } from './Binders'
 import { MiniCard } from './PlayerCard'
-import { Coin, TIER_NAME } from './Collector'
+import { Coin, TIER_NAME, useCollector, binderFit, FitLine } from './Collector'
 
 /*
  * The store: spend Coins on packs, or on today's On This Day cards (1 GOAT, 2 Icons, 3 Legends,
@@ -29,6 +29,7 @@ function useCountdown(next) {
 }
 
 export function StoreBook({ env, onClose, onMine }) {
+  const Ccards = useCollector().cards
   const phone = useIsPhone()
   const C = env.collector
   const [store, setStore] = useState(null)
@@ -112,6 +113,7 @@ export function StoreBook({ env, onClose, onMine }) {
                         <Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit>
                       </button>
                       <span className={styles.offerMeta}>{x.points.toLocaleString()} pts{!x.onDate ? ' · random' : ''}</span>
+                      <FitLine fit={binderFit(Ccards, x.card)} className={styles.fitLine} />
                       {x.owned ? <span className={styles.owned}>✓ In your binder</span>
                         : <button type="button" className={styles.buy} disabled={short || !!busy} onClick={() => buyCard(ref)} title={short ? `You need ${n0(x.price - (me?.coins?.balance || 0))} more Coins` : ''}>
                           <Coin size={13} />{busy === ref ? '…' : n0(x.price)}{x.deal && <s>{n0(x.full)}</s>}

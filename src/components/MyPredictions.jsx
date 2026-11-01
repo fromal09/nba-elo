@@ -5,6 +5,8 @@ import { binderLogo, binderTeamInfo } from './SeasonExplorer'
 import { watchDay } from './liveFeed.js'
 import { norm } from './predict'
 import { usePoll, gamesHot } from './poll'
+import { scoreGame } from './live.js'
+import { winChance } from './predict'
 
 /*
  * My Predictions, on the Scoreboard: for one day, every game pick, every matchup and the lineup, with live
@@ -71,11 +73,20 @@ const statusText = (g, lg) => {
   return st === 'post' ? `Final${lg?.ot ? `/${lg.ot}` : ''}` : st === 'in' ? (lg?.detail || 'In progress') : tipTime(g.tip)
 }
 
-export default function MyPredictions({ day }) {
+export default function MyPredictions({ day, ratings }) {
   const C = useCollector()
   const { d, err } = useMyDay(day)
   const feed = useFeed(day)
   const L = useMemo(() => liveIndex(feed), [feed])
+  // The Player of the Day race while games are on: every player's Game Score + Elo gained ÷ 6, scored from the live
+  // feed with the current ratings (as the Scoreboard does), best first
+  const race = useMemo(() => {
+    if (!ratings) return null
+    const sy = +day.slice(0, 4) - (+day.slice(5, 7) < 8 ? 1 : 0)
+    return (feed?.games || []).filter(g => g.state !== 'pre' && g.box).map(g => scoreGame(g, ratings, day, winChance, sy)).filter(Boolean)
+      .flatMap(g => g.players.filter(p => !p.unrated && p.gs != null && (p.mp || 0) > 0).map(p => ({ name: p.n, team: p.t, gs: p.gs, score: Math.round((p.gs + (p.post - p.pre) / 6) * 10) / 10 })))
+      .sort((a, b) => b.score - a.score)
+  }, [feed, ratings, day])
 
   if (C.down) return <div className={styles.empty}>Predictions are offline right now.</div>
   if (C.me === undefined) return <div className={styles.empty}>Loading…</div>
@@ -146,8 +157,11 @@ export default function MyPredictions({ day }) {
   // also counts Elo gained, so the leader is a guide until the day's cards decide it)
   const P = d.potd || {}
   const liveRows = (feed?.games || []).filter(g => g.state !== 'pre').flatMap(g => Object.entries(g.box || {}).flatMap(([t, rows]) => rows.map(r => ({ name: r.name, team: t, gs: gmsc(r) }))))
-  const leader = liveRows.sort((a, b) => b.gs - a.gs)[0] || null
+  const leader = race?.[0] || liveRows.sort((a, b) => b.gs - a.gs)[0] || null
   const nomGs = P.pick ? (liveRows.find(r => norm(r.name) === norm(P.pick.player))?.gs ?? null) : null
+  // Your call's place in the race: final from the day's cards, live from the feed until then
+  const nomAt = P.pick && race ? race.findIndex(r => norm(r.name) === norm(P.pick.player)) : -1
+  const nom = P.pick?.rank ? { rank: P.pick.rank, score: P.pick.score, of: P.pick.of } : nomAt >= 0 ? { rank: nomAt + 1, score: race[nomAt].score, of: race.length, live: true } : null
   const anyStarted = d.games.some(g => stateOf(g, L.find(g)) !== 'pre')
   const pTone = P.pick?.result === 'win' ? 'win' : P.pick?.result === 'loss' ? 'loss' : !P.pick ? 'none' : !anyStarted ? 'wait' : leader && norm(leader.name) === norm(P.pick.player) ? 'up' : 'even'
   const nothing = !gPicked && !mPicked && !slots.length && !P.pick
@@ -177,6 +191,7 @@ export default function MyPredictions({ day }) {
               <span className={styles.mid}>
                 <small className={st === 'in' ? styles.liveTxt : ''}>{st === 'in' && <i className={styles.dot} />}{statusText(g, lg)}</small>
                 {g.pick ? <span>Your pick <b style={{ color: binderTeamInfo(g.pick)?.color }}>{g.pick}</b>{g.lock && <em className={styles.lock}>★ Lock</em>}{chance != null && <small> · {Math.round(chance * 100)}% forecast</small>}</span> : <span className={styles.muted}>No pick</span>}
+                <Crowd c={g.crowd} a={g.away} b={g.home} la={g.away} lb={g.home} />
               </span>
               <span className={styles.res}>{g.pick && line}</span>
             </div>
@@ -196,6 +211,7 @@ export default function MyPredictions({ day }) {
               <span className={styles.mid}>
                 <small className={st === 'in' ? styles.liveTxt : ''}>{st === 'in' && <i className={styles.dot} />}{statusText(d.games.find(x => x.id === m.id) || m, lg)} · {m.away} at {m.home}</small>
                 {m.pick ? <span>Your pick <b>{shortName(m.pick)}</b></span> : <span className={styles.muted}>No pick</span>}
+                <Crowd c={m.crowd} a={m.a} b={m.b} la={shortName(m.a)} lb={shortName(m.b)} />
               </span>
               <span className={styles.res}>{(m.pick || m.void) && line}</span>
             </div>
@@ -207,11 +223,11 @@ export default function MyPredictions({ day }) {
         <h3>Player of the Day <span>Game Score + Elo gained ÷ 6</span></h3>
         <div className={styles.list}>
           <div className={styles.row} data-tone={pTone}>
-            <span className={styles.teams}>{P.pick ? <span><Logo t={P.pick.team} />{baseName(P.pick.player)}{nomGs != null && <b>{f1(nomGs)}</b>}</span> : <span className={styles.muted}>No pick</span>}</span>
+            <span className={styles.teams}>{P.pick ? <span><Logo t={P.pick.team} />{baseName(P.pick.player)}{nom ? <b title="PotD score: Game Score + Elo gained ÷ 6">No. {nom.rank} · {f1(nom.score)}</b> : nomGs != null && <b>{f1(nomGs)}</b>}</span> : <span className={styles.muted}>No pick</span>}</span>
             <span className={styles.mid}>
               <small>{P.winner ? 'Final' : anyStarted ? 'In progress' : P.lock ? `Picks lock at ${tipTime(P.lock)}` : ''}</small>
-              <span>{P.winner ? <>Player of the Day <b>{baseName(P.winner.name)}</b><small> · {f1(P.winner.gs)} GmSc</small></>
-                : leader ? <>Game Score leader <b>{shortName(leader.name)}</b><small> · {f1(leader.gs)}</small></> : 'Not started'}</span>
+              <span>{P.winner ? <>Player of the Day <b>{baseName(P.winner.name)}</b><small> · {P.winner.score != null ? `${f1(P.winner.score)} PotD score · ` : ''}{f1(P.winner.gs)} GmSc</small></>
+                : leader ? <>{leader.score != null ? 'PotD leader' : 'Game Score leader'} <b>{shortName(leader.name)}</b><small> · {f1(leader.score ?? leader.gs)}</small></> : 'Not started'}</span>
             </span>
             <span className={styles.res}>{P.pick?.result === 'win' ? 'Called it · ruby card' : P.pick?.result === 'loss' ? 'Missed' : P.pick ? (P.winner ? 'Grading…' : anyStarted ? (pTone === 'up' ? 'Leading' : 'In progress') : 'Not started') : ''}</span>
           </div>
@@ -219,7 +235,7 @@ export default function MyPredictions({ day }) {
       </section>}
 
       {slots.length > 0 && <section className={styles.sec}>
-        <h3>Lineup <span>Game Score × card multiplier</span></h3>
+        <h3>Lineup <span>Game Score × card multiplier · +{d.rates?.lineupPotd ?? 10} with the Player of the Day</span></h3>
         <div className={styles.list}>
           {slots.map(({ s, g, lg, st, gs, pts }) => (
             <div key={s.slot} className={styles.row} data-tone={pts == null ? 'wait' : pts > 0 ? 'up' : 'down'}>
@@ -234,8 +250,48 @@ export default function MyPredictions({ day }) {
           <div className={styles.total}><span>{d.lineup.graded ? 'Final' : slots.some(x => x.st === 'in') ? 'Live total' : 'Total'}</span><b>{d.lineup.graded ? d.lineup.graded.total : lTotal.toFixed(1)} pts</b></div>
         </div>
       </section>}
+
+      {d.crowd?.potd?.length > 0 && <section className={styles.sec}>
+        <h3>Everyone’s Player of the Day calls <span>{d.crowd.potd.reduce((a, x) => a + x.n, 0)} calls</span></h3>
+        <div className={styles.crowdList}>
+          {d.crowd.potd.map(x => {
+            const tot = d.crowd.potd.reduce((a, y) => a + y.n, 0)
+            const won = P.winner && norm(P.winner.name) === norm(x.player)
+            return <div key={x.player + x.team} className={styles.crowdRow} data-won={won ? '' : undefined} data-you={P.pick && norm(P.pick.player) === norm(x.player) ? '' : undefined}>
+              <Logo t={x.team} /><b>{baseName(x.player)}</b>
+              <span className={styles.crowdBar}><em style={{ width: `${(x.n / tot) * 100}%` }} /></span>
+              <small>{x.n} · {Math.round((x.n / tot) * 100)}%{won ? ' · ✓ Player of the Day' : ''}</small>
+            </div>
+          })}
+        </div>
+      </section>}
+
+      {d.crowd?.lineups?.length > 0 && <section className={styles.sec}>
+        <h3>Lineup leaderboard <span>{d.crowd.lineups.length} lineup{d.crowd.lineups.length === 1 ? '' : 's'} · players show once their game tips off</span></h3>
+        <div className={styles.list}>
+          {d.crowd.lineups.map(l => {
+            // Final totals once graded; live, each shown slot's Game Score from the feed × its multiplier
+            const live = l.slots.reduce((a, x) => { if (x.hidden) return a; const g = d.games.find(y => y.home === x.team || y.away === x.team); const gs = x.gs ?? (g ? L.gsOf(L.find(g), x.team, x.player) : null); return a + (gs == null ? 0 : lineupPts(gs, x.mult)) }, 0)
+            return { ...l, score: l.total ?? Math.round(live * 10) / 10 }
+          }).sort((a, b) => b.score - a.score).map((l, i) => (
+            <div key={l.username} className={`${styles.lbRow} ${l.you ? styles.lbYou : ''}`}>
+              <b className={styles.lbRank}>{i + 1}</b>
+              <span className={styles.lbWho}><b>{l.username}{l.you ? ' (you)' : ''}</b>
+                <small>{l.slots.map((x, k) => <span key={k} className={styles.lbSlot} data-tier={x.tier}>{x.hidden ? '•••' : shortName(x.player)}</span>)}</small></span>
+              <strong>{l.score.toFixed(1)}<small>{l.total != null ? (l.potdBonus ? ` pts · +${l.potdBonus} PotD` : ' pts') : ' live'}</small></strong>
+            </div>
+          ))}
+        </div>
+      </section>}
     </div>
   )
+}
+
+// Everyone's split on a pick: each side's share
+function Crowd({ c, a, b, la, lb }) {
+  if (!c?.n) return null
+  const pa = Math.round(((c.by[a] || 0) / c.n) * 100)
+  return <span className={styles.crowd} title={`${c.n} pick${c.n === 1 ? '' : 's'}`}><i style={{ width: `${pa}%` }} /><small>{la} {pa}% · {lb} {100 - pa}% <em>of {c.n}</em></small></span>
 }
 
 // On the Games view: your lineup for the day, each player's Game Score as it happens

@@ -93,16 +93,27 @@ export const SPECIAL_EVERY = Number(process.env.SPECIAL_EVERY) || 15
 const SPECIAL_MIX = { peaks: 40, fives: 30, rivals: 15, duos: 15 }
 const RIVAL_WEIGHT = { goat: 1, icon: 2, legend: 4, standout: 8, rare: 16 }
 let specialIndex = null
-async function specialCard(origin, taken) {
+// A themed pack's special card stays on theme: a team pack's is that franchise's (a Peak, Starting Five or Dynamic Duo
+// of his time with it; no Rivalries, which span two teams), an era pack's is from that era. Other packs: any special.
+const FC_MERGE = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
+const fcOf = t => FC_MERGE[t] || t
+const yearOf = c => +String(c.s || c.seasons?.[0]?.[0] || c.first || '').slice(0, 4)
+export function specialFits({ team, era }) {
+  if (team) return c => (c.kind === 'peak' || c.kind === 'duo' ? fcOf(c.t) === team : c.kind === 'five' ? (c.fc || fcOf(c.t)) === team : false)
+  if (era) { const E = typeof era === 'string' ? ERAS.find(x => x.id === era) : era; if (E) return c => yearOf(c) >= E.from && yearOf(c) <= E.to }
+  return () => true
+}
+async function specialCard(origin, taken, fits = () => true) {
   if (!specialIndex || Date.now() - specialIndex.at > 10 * 60e3) specialIndex = { at: Date.now(), data: await getJSON(origin, 'special/index.json').catch(() => null) }
   const idx = specialIndex.data
   if (!idx) return null
-  for (let tries = 0; tries < 6; tries++) {
+  for (let tries = 0; tries < 12; tries++) {
     const kind = roll(Object.fromEntries(Object.entries(SPECIAL_MIX).filter(([k]) => idx[k]?.length)))
     if (!kind) return null
     const list = idx[kind]
     const file = list[roll(Object.fromEntries(list.map(([, n], i) => [i, n])))][0]
-    const cards = (await shard(origin, `special/${file}`)).cards
+    const cards = (await shard(origin, `special/${file}`)).cards.filter(fits)
+    if (!cards.length) continue
     const c = kind === 'rivals' || kind === 'duos' ? cards[+roll(Object.fromEntries(cards.map((x, i) => [i, RIVAL_WEIGHT[x.tier] || 1])))] : cards[randomInt(cards.length)]
     if (c && !taken.has(refOf(c))) return { ...c, from: 'special' }
   }
@@ -208,7 +219,7 @@ export async function buildOffers(origin, kind, { taken, team, pity, era }) {
   // The special swap: the last slot's first (lowest) offer becomes a special card, shown last
   const last = slots[slots.length - 1]
   if (last?.cards.length && randomInt(SPECIAL_EVERY) === 0) {
-    const sp = await specialCard(origin, seen).catch(() => null)
+    const sp = await specialCard(origin, seen, specialFits({ team: kind === 'team' || kind === 'storeteam' ? team : null, era: kind === 'era' ? era : null })).catch(() => null)
     if (sp) { last.cards = [...last.cards.slice(1), sp]; last.special = true }
   }
   return { slots, pity: !!pity, recentDate: idx.recent?.date || null }

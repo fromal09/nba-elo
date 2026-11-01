@@ -37,6 +37,28 @@ async function api(action, body, query = '') {
   return d
 }
 
+// How an offered card goes with your binder: his cards you have, the players you have from that team-season (and
+// whether he'd be new there), and your cards from the franchise. For a line under pack and store offers.
+const FC_MERGE = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
+export function binderFit(cards, c) {
+  if (!c || c.kind || !c.row) return null
+  const fcOf = t => FC_MERGE[t] || t, fc = fcOf(c.t)
+  let his = 0, fr = 0
+  const ts = new Set()
+  for (const x of cards || []) {
+    const k = x.card
+    if (!k || k.kind || !k.row) continue
+    if (k.row.n === c.row.n) his++
+    if (fcOf(k.t) === fc) { fr++; if (k.s === c.s) ts.add(k.row.n) }
+  }
+  return { his, ts: ts.size, newTs: !ts.has(c.row.n), fr, nick: nick(c.tn), s: c.s }
+}
+export function FitLine({ fit, className }) {
+  if (!fit) return null
+  return <span className={className} title={`Your binder: ${fit.his} of his card${fit.his === 1 ? '' : 's'} · ${fit.ts} player${fit.ts === 1 ? '' : 's'} from the ${fit.s} ${fit.nick} · ${fit.fr} ${fit.nick} card${fit.fr === 1 ? '' : 's'}`}>
+    <b>{fit.his ? `${fit.his} of his` : 'New player'}</b> · {fit.newTs ? '+1 ' : ''}{fit.s.slice(2)} {fit.nick} {fit.ts}{fit.newTs ? '→' + (fit.ts + 1) : ''} · {fit.fr} {fit.nick}</span>
+}
+
 export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPredict }) {
   const [me, setMe] = useState(undefined)        // undefined: loading · null: signed out
   const [cards, setCards] = useState([])         // [{ id, card, pulled, pack }]
@@ -133,7 +155,7 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
       {coinToasts.length > 0 && <div className={styles.coinToasts} role="status" aria-live="polite">
         {coinToasts.map((a, i) => <div key={i} className={styles.coinToast}><Coin /><b>+{a.amount.toLocaleString()}</b><span>{a.label}</span></div>)}
       </div>}
-      {queue && <PackOpening key={queue[0].id} pack={queue[0]} more={queue.length - 1} me={me} pick={value.pick}
+      {queue && <PackOpening key={queue[0].id} pack={queue[0]} more={queue.length - 1} me={me} pick={value.pick} cards={cards}
         onNext={() => setQueue(q => (q.length > 1 ? q.slice(1) : null))} onClose={closeQueue}
         onMine={() => { closeQueue(); onOpenMine?.() }} />}
     </Ctx.Provider>
@@ -229,7 +251,7 @@ export const tierName = c => (isSpecial(c) || c.kind === 'duel' ? specialLabel(c
 export const cardName = c => (isSpecial(c) || c.kind === 'duel' ? specialTitle(c) : c.row.n)
 const line = c => (isSpecial(c) ? specialLine(c) : null) || [c.row?.pts != null && `${c.row.pts} pts`, c.row.trb && `${c.row.trb} reb`, c.row.ast && `${c.row.ast} ast`].filter(Boolean).join(' · ')
 
-function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
+function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, cards }) {
   const shots = useShots()
   const vw = useWidth()
   const [pack, setPack] = useState(start)
@@ -309,6 +331,7 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine }) {
                 </span>
                 {i < shown && c.wish && <span className={styles.wishTag}>♥ Wish list</span>}
                 {i < shown && <span className={styles.chip} data-tier={isSpecial(c) ? 'special' : c.tier}>{tierName(c)} · {cardPoints(c).points.toLocaleString()} pts</span>}
+                {i < shown && <FitLine fit={binderFit(cards, c)} className={styles.fitLine} />}
               </button>
             ))}
           </div>

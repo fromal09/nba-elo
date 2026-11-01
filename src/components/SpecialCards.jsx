@@ -159,7 +159,9 @@ export function SeasonCard({ s, owned, headshot, serial, inSeason }) {
   const { first, last } = split(s.name)
   const N = s.gp, have = owned ? owned.size : N
   const prog = have < N
-  const live = inSeason || prog
+  // In-season (silver, sash, through a date) only for the season in progress; a checklist preview of a finished
+  // season is its Final card, dimmed, with the games you have
+  const live = !!inSeason
   const tier = s.tier || seasonTier(s.rank)
   const H_ = s.honors || {}, nba = H_.allNba || 0, po = s.po, champ = po?.champ
   const W = 300, Hh = 56

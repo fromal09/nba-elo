@@ -68,3 +68,28 @@
   .strip { flex-direction: column; align-items: stretch; gap: 6px; }
   .stripLab { flex-direction: row; justify-content: space-between; align-items: baseline; }
 }
+
+/* Green and red fills: light while a game is on (leading or trailing), stronger once it's final */
+.row[data-tone=up] { background: #f2fbf5; }
+.row[data-tone=down] { background: #fdf3f3; }
+.row[data-tone=win] { background: #dcf2e4; }
+.row[data-tone=loss] { background: #f9dcdc; }
+
+/* Everyone's picks */
+.crowd { position: relative; display: block; margin-top: 4px; height: 16px; border-radius: 8px; background: #e9edf2; overflow: hidden; }
+.crowd i { position: absolute; left: 0; top: 0; bottom: 0; background: #c9d6e6; }
+.crowd small { position: relative; display: block; padding: 0 8px; line-height: 16px; font-size: 10.5px; font-weight: 700; color: #33404e; white-space: nowrap; }
+.crowd em { font-style: normal; font-weight: 500; color: #7a8694; }
+.crowdList { display: flex; flex-direction: column; gap: 4px; padding: 6px 14px 12px; }
+.crowdRow { display: grid; grid-template-columns: 22px minmax(0, 1.2fr) minmax(0, 2fr) auto; gap: 8px; align-items: center; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
+.crowdRow b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crowdRow small { font-size: 11px; color: #6b7783; white-space: nowrap; }
+.crowdRow[data-you] { background: #eef4fb; } .crowdRow[data-won] { background: #dcf2e4; }
+.crowdBar { height: 8px; border-radius: 4px; background: #eef1f5; overflow: hidden; } .crowdBar em { display: block; height: 100%; background: #6896bd; border-radius: 4px; }
+.lbRow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid #eef1f4; font-size: 13px; }
+.lbYou { background: #eef4fb; }
+.lbRank { color: #8a95a2; text-align: center; }
+.lbWho { display: flex; flex-direction: column; min-width: 0; } .lbWho small { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.lbSlot { font-size: 10.5px; padding: 1px 6px; border-radius: 4px; background: #eef1f5; color: #33404e; }
+.lbSlot[data-tier=goat], .lbSlot[data-tier=icon] { background: #f3e8ff; } .lbSlot[data-tier=legend] { background: #fbf0d4; } .lbSlot[data-tier=rare] { background: #f6e3d3; }
+.lbRow strong { font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; } .lbRow strong small { font-size: 11px; color: #6b7783; font-weight: 600; }

@@ -317,3 +317,8 @@
   .tabRow > * { flex: none; }
   .tabRow > :last-child { margin-left: 0; }
 }
+
+/* A card on its rest (cooldown) shows red; ruled-out players sit in their own section at the bottom */
+.candResting { background: #fdeaea; box-shadow: inset 3px 0 0 #c43b3b; }
+.candResting .candRest { color: #a12a2a !important; }
+.outHead { margin: 10px 0 2px; font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; color: #a12a2a; }

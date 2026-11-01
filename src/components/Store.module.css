@@ -90,3 +90,5 @@
   .balance b { font-size: 28px; }
 }
 @media (prefers-reduced-motion: reduce) { .packArt { animation: none; } }
+.fitLine { display: block; font-size: 10.5px; color: #6b7783; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.fitLine b { color: #1d2633; }
