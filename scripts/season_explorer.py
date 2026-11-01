@@ -139,6 +139,7 @@ _team_dates = defaultdict(list)  # team -> its recent game dates
 _career = {}                     # player -> [best Game Score, best post-game rank, peak Elo] so far
 _heat = {}                       # player -> straight games gaining Elo through his last game
 _recent = defaultdict(lambda: deque(maxlen=10))  # player -> last 10 appearances (date, team, minutes)
+_rates = defaultdict(lambda: deque(maxlen=30))  # player -> last 30 lines (mp, pts, trb, ast, stl, blk, 3pm, gs) for projected box scores
 
 
 def mark_missing(df, cols):
@@ -194,7 +195,7 @@ def bind(df):
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
     OUT_DIR.mkdir(parents=True)
-    _games.clear(); _index.clear(); _final.clear(); _best.clear(); _recent.clear(); _pool.clear(); _team_dates.clear(); _career.clear(); _heat.clear(); rivalries.reset(); _cur[0] = None
+    _games.clear(); _index.clear(); _final.clear(); _best.clear(); _recent.clear(); _rates.clear(); _pool.clear(); _team_dates.clear(); _career.clear(); _heat.clear(); rivalries.reset(); _cur[0] = None
 
 
 def _v(x):
@@ -298,6 +299,11 @@ def write():
             mins = [x[2] for x in q if x[2] is not None]
             rot[n] = {"mp": round(sum(mins) / len(mins), 1) if mins else None, "n": len(q), "team": q[-1][1], "last": q[-1][0],
                       "log": [[x[0], x[1], x[2]] for x in q]}
+            # Per-36 rates over his last 30 games (either season): pts, reb, ast, stl, blk, 3PM, Game Score
+            lines = _rates.get(n) or ()
+            tmp = sum(x[0] for x in lines)
+            if tmp >= 30:
+                rot[n]["r"] = [round(sum(x[k] for x in lines) / tmp * 36, 2) for k in range(1, 8)]
     nfiles, npairs = rivalries.write(OUT_DIR, set(rot))
     print(f"  Rivalries: {nfiles:,} player files, {npairs:,} active opponent pairs")
     (OUT_DIR / "rotation.json").write_text(json.dumps({"through": last_day, "players": rot}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -400,6 +406,8 @@ def _write_season(sy, raw_games, latest=False):
                 if not b or rank < b[0]:
                     _best[r[0]] = [rank, label]
                 _recent[r[0]].append((day, r[1], r[4]))
+                if r[4]:
+                    _rates[r[0]].append((r[4], r[5] or 0, r[14] or 0, r[15] or 0, r[16] or 0, r[17] or 0, r[8] or 0, r[21] or 0))
         for g in by_date[day]:
             for t in g["teams"]:
                 if not _team_dates[t] or _team_dates[t][-1] != day:

@@ -69,12 +69,24 @@ export async function forecast(origin, games, keep = {}) {
   return out
 }
 
-// Tonight's rosters for these teams: { team: [{ name, elo, mp, out, status }] }
-export async function rosters(origin, teams, day) {
-  const { f } = await model(origin, day)
+// Tonight's rosters for these teams: { team: [{ name, elo, mp, out, status, proj }] }. With games ({ home, away }),
+// each healthy player carries his projected line (proj: { mp, pts, trb, ast, stl, blk, tp, gs }), the box score the
+// Scoreboard's preview shows, scaled to his team's projected score
+export async function rosters(origin, teams, day, games = []) {
+  const { f, proj } = await model(origin, day)
+  const lines = {}
+  for (const g of games) {
+    try {
+      const fg = f.game(g.home, g.away, day), sc = proj?.score ? proj.score({ ...fg, margin: proj.margin(fg) }) : null
+      for (const [side, pts] of [[fg.home, sc?.[0]], [fg.away, sc?.[1]]]) {
+        const b = f.box(side, pts)
+        for (const r of b?.rows || []) lines[side.team + '|' + r.name] = { mp: r.mp, pts: r.pts, trb: r.trb, ast: r.ast, stl: r.stl, blk: r.blk, tp: r.tp, gs: r.gs }
+      }
+    } catch { /* no forecast for this game */ }
+  }
   const out = {}
   for (const t of teams) {
-    try { out[t] = f.team(t, day).rows.map(r => ({ name: r.name, elo: Math.round(r.elo), mp: Math.round(r.mp || 0), out: !!r.out, status: r.status || null })) } catch { out[t] = [] }
+    try { out[t] = f.team(t, day).rows.map(r => ({ name: r.name, elo: Math.round(r.elo), mp: Math.round(r.mp || 0), out: !!r.out, status: r.status || null, proj: lines[t + '|' + r.name] || null })) } catch { out[t] = [] }
   }
   return out
 }

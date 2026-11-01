@@ -15,6 +15,7 @@ import { buildForecaster, blendWeight, norm, WP, winChance, makeProjector, normC
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
 import { watchDay, useLiveFeeds, computeLive, gameKey, liveDaysAfter } from './liveFeed.js'
 import { simulateOdds } from './odds.js'
+import { projHistory, projMoves, invPhi } from './projhist.js'
 import { raceAwards } from './awardsRace.js'
 
 // ── Team info ────────────────────────────────────────────────────────────────
@@ -40,6 +41,8 @@ const TWO_WORD = ['Trail Blazers', 'Red Skins']
 let TEAMINFO = {}
 // Projected score for a forecast game (set once the season's scoring rates load): fg -> [home, away]
 let PROJECT = null
+// Projected box score for one side of a forecast game (predict.js box): (side, pts) -> { rows, outs, pts }
+let PROJBOX = null
 const projText = (fg, homeFirst = false) => {
   const s = PROJECT?.(fg)
   return s ? (homeFirst ? `${s[0]}–${s[1]}` : `${s[1]}–${s[0]}`) : null
@@ -512,6 +515,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     return { f, upcoming, proj, through, fetched: sched.fetched, remaining, known, last, total: sched.games.length, model, project: model?.score || null }
   }, [newest, sd, sched, rotation, players, shots, teams, scoring, live])
   PROJECT = fc?.project || null
+  PROJBOX = fc?.f?.box || null
 
   // Playoff and title odds: the rest of the schedule played out many times
   const [standView, setStandView] = useState('standings')
@@ -597,9 +601,11 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           <div className={styles.standTabs}>
             <button className={standView === 'standings' ? styles.standOn : ''} onClick={() => setStandView('standings')}>Standings</button>
             <button className={standView === 'odds' ? styles.standOn : ''} onClick={() => setStandView('odds')}>Playoff odds</button>
+            <button className={standView === 'power' ? styles.standOn : ''} onClick={() => setStandView('power')}>Power rankings</button>
             <button className={standView === 'awards' ? styles.standOn : ''} onClick={() => setStandView('awards')}>Award races</button>
           </div>
           {standView === 'odds' && <span>{ODDS_N.toLocaleString()} simulated seasons · updates with every result</span>}
+          {standView === 'power' && <span>Healthy strength, form against the forecast and Elo momentum · updates with every final</span>}
           {standView === 'awards' && <span>{RACE_N.toLocaleString()} simulated seasons · this season so far plus a projection for the rest</span>}
         </div>
       )}
@@ -615,6 +621,8 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
         <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} />
       ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (
         <OddsView odds={odds} teams={teams} sd={sdL} fc={fc} />
+      ) : standView === 'power' && fc ? (
+        <PowerView sd={sdL} teams={teams} fc={fc} live={live} />
       ) : standView === 'awards' && fc ? (
         <AwardRaces race={race} shots={shots} selectPlayer={selectPlayer} />
       ) : (
@@ -630,6 +638,94 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
   )
 }
 
+// ── Power rankings ──────────────────────────────────────────────────────────
+// Power score: three parts, each a z-score across the league, weighted and scaled to 0–100 (50 = average)
+//   Healthy strength 45%: rotation Elo now, the forecaster's minutes-weighted Elo with tonight's injury report
+//   Form 35%: the last 10 games' margin minus the pre-game expected margin (σ · Φ⁻¹(win chance)), recent games weighted more
+//   Momentum 20%: change in the team's minutes-weighted lineup Elo over the last 14 days
+// Movement: the change from the ranking before the latest day of games.
+const PW = { health: 0.45, form: 0.35, mom: 0.20 }
+const PTIERS = [[75, 'Contenders'], [60, 'Threats'], [40, 'The Middle'], [-1, 'Rebuilding']]
+function powerRank(sd, teams, fc, cutDay) {
+  const ts = Object.keys(teams).filter(t => teams[t].group?.endsWith('Conference'))
+  const day = etToday() // tonight's injury report
+  const games = sd.games.filter(g => !g.post && (!cutDay || g.date < cutDay))
+  const P = {}
+  for (const t of ts) {
+    const gs = games.filter(g => g.teams.includes(t))
+    const last10 = gs.slice(-10)
+    let fw = 0, fs = 0
+    const form = last10.map((g, k) => {
+      const i = g.teams.indexOf(t), m = g.pts[i] - g.pts[1 - i]
+      const exp = 13.7 * invPhi(g.wp[t])
+      const wgt = k + 1; fw += wgt; fs += wgt * (m - exp)
+      return m > 0 ? 'W' : 'L'
+    })
+    const end = gs.at(-1), endDay = end?.date
+    const from = endDay ? gs.find(g => g.date >= addDays(endDay, -14)) : null
+    const mom = end && from ? end.elo[t].post - from.elo[t].pre : 0
+    let side = null
+    try { side = fc.f.team(t, day) } catch { /* team unknown to the forecaster */ }
+    const w = gs.filter(g => g.pts[g.teams.indexOf(t)] > g.pts[1 - g.teams.indexOf(t)]).length
+    P[t] = { t, health: side?.rot ?? end?.elo[t].post ?? 1500, form: fw ? fs / fw : 0, mom, last: form, w, l: gs.length - w,
+      outs: (side?.rows || []).filter(r => r.out).sort((a, b) => b.elo - a.elo).slice(0, 2).map(r => r.name) }
+  }
+  const z = k => { const v = ts.map(t => P[t][k]), m = v.reduce((a, x) => a + x, 0) / v.length, sdv = Math.sqrt(v.reduce((a, x) => a + (x - m) ** 2, 0) / v.length) || 1; ts.forEach(t => { P[t]['z_' + k] = (P[t][k] - m) / sdv }) }
+  Object.keys(PW).forEach(z)
+  ts.forEach(t => { const x = P[t]; x.score = Math.max(0, Math.min(100, 50 + 15 * (PW.health * x.z_health + PW.form * x.z_form + PW.mom * x.z_mom) / 0.62)) })
+  const order = [...ts].sort((a, b) => P[b].score - P[a].score)
+  order.forEach((t, i) => { P[t].rank = i + 1 })
+  const hr = [...ts].sort((a, b) => P[b].health - P[a].health)
+  hr.forEach((t, i) => { P[t].hRank = i + 1 })
+  return { order, P }
+}
+function powerWhy(x) {
+  const parts = [['health', PW.health * x.z_health], ['form', PW.form * x.z_form], ['mom', PW.mom * x.z_mom]].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+  const [k] = parts[0]
+  if (k === 'form') return `${x.form >= 0 ? 'Beating' : 'Trailing'} the forecast by ${Math.abs(x.form).toFixed(1)} points a game over the last 10.`
+  if (k === 'mom') return `Rotation Elo ${x.mom >= 0 ? 'up' : 'down'} ${Math.abs(Math.round(x.mom))} in the last two weeks.`
+  return `${ord(x.hRank)}-best healthy rotation (${r0(x.health)} Elo)${x.outs.length ? `, without ${x.outs.map(shortName).join(' and ')}` : ''}.`
+}
+function PowerView({ sd, teams, fc, live }) {
+  const now = useMemo(() => powerRank(sd, teams, fc), [sd, teams, fc])
+  const lastDay = sd.games.filter(g => !g.post).at(-1)?.date
+  const prev = useMemo(() => (lastDay ? powerRank(sd, teams, fc, lastDay) : null), [sd, teams, fc, lastDay])
+  const inprog = new Map((live?.inprog || []).flatMap(x => [[x.home, x], [x.away, x]]))
+  let tier = null
+  return (
+    <section className={styles.conf}>
+      <h2 className={styles.confHead}>Power rankings<small>Movement since before {lastDay ? fmtDate(lastDay, { month: 'short', day: 'numeric' }) : 'the latest games'}</small></h2>
+      <div className={styles.prTable}>
+        <div className={`${styles.prRow} ${styles.prHead}`}><span>Rank</span><span>Move</span><span>Team</span><span>W-L</span><span>Power score</span><span>Last 10</span><span>Why</span></div>
+        {now.order.map(t => {
+          const x = now.P[t], mv = prev ? prev.P[t].rank - x.rank : 0
+          const tr = PTIERS.find(([v]) => x.score >= v)[1]
+          const head = tr !== tier ? (tier = tr) : null
+          const lv = inprog.get(t)
+          return (
+            <Fragment key={t}>
+              {head && <div className={styles.prTier} data-tier={head}>{head}</div>}
+              <div className={styles.prRow} style={{ '--tc': tColor(t) }}
+                title={`Healthy strength ${r0(x.health)} (${sgn2(x.z_health)}σ) · form ${x.form >= 0 ? '+' : ''}${x.form.toFixed(1)} pts/g vs forecast (${sgn2(x.z_form)}σ) · momentum ${x.mom >= 0 ? '+' : ''}${Math.round(x.mom)} Elo in 14 days (${sgn2(x.z_mom)}σ)`}>
+                <span className={styles.prRank}>{x.rank}</span>
+                <span className={styles.prMove}>{mv > 0 ? <b className={styles.up}>▲{mv}</b> : mv < 0 ? <b className={styles.down}>▼{-mv}</b> : <i>—</i>}</span>
+                <span className={styles.prTeam}><TeamMark t={t} size={26} /><span><b>{tName(t)}</b>{lv && <em className={styles.prLive}><i className={styles.liveDot} />{lv.detail}</em>}
+                  <small>{r0(x.health)} healthy rotation Elo</small></span></span>
+                <span>{x.w}-{x.l}</span>
+                <span className={styles.prScore}><b>{x.score.toFixed(1)}</b><span className={styles.prMeter}><i style={{ width: `${x.score}%` }} /></span></span>
+                <span className={styles.prForm}>{x.last.map((r, i) => <i key={i} data-r={r} />)}</span>
+                <span className={styles.prWhy}>{powerWhy(x)}</span>
+              </div>
+            </Fragment>
+          )
+        })}
+      </div>
+      <p className={styles.oNote}>Power score: healthy strength 45% (rotation Elo with tonight's injury report), form 35% (last 10 games' margin against the pre-game forecast, recent games weighted more) and momentum 20% (lineup Elo change over 14 days). Each part is compared across the league, then scaled so 50 is average. Hover a team for its three parts.</p>
+    </section>
+  )
+}
+const sgn2 = v => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}`
+
 // ── Playoff and title odds ──────────────────────────────────────────────────
 const ODDS_N = 10000
 const opct = v => (v >= 0.995 ? '>99' : v < 0.0005 ? '—' : v < 0.01 ? '<1' : `${Math.round(v * 100)}`)
@@ -643,6 +739,17 @@ const ODD_COLS = [['po', 'Playoffs'], ['top6', 'Top 6'], ['pi', 'Play-In'], ['r2
 
 function OddsView({ odds, teams, sd, fc }) {
   const [open, setOpen] = useState(null)
+  // Projected final wins after every game, rebuilt from the season file (projhist.js); built once a row opens
+  const hist = useMemo(() => {
+    if (!open || !sd || !fc) return null
+    const M = fc.model
+    const schedule = [...sd.games.filter(g => !g.post).map(g => { const home = g.home || g.teams[1]; return { day: g.date, home, away: g.teams.find(x => x !== home) } }),
+      ...fc.remaining.map(g => ({ day: g.day, home: g.home, away: g.away }))]
+    // The scoring model's margin, with each team's net scoring as of that date (not today's, which knows the future)
+    const K = M?.coef
+    const pHome = (h, a, Rh, Ra, nh, na) => (K ? M.win(K.c0 + K.cElo * (Rh - Ra) + K.cNet * (nh - na)) : winChance(sd.sy, Rh, Ra, true))
+    return projHistory({ sd, schedule, pHome })
+  }, [!!open, sd, fc])
   if (!odds) return <div className={styles.empty}>Simulating {ODDS_N.toLocaleString()} seasons…</div>
   const O = odds.teams
   const confs = [['W', 'Western Conference'], ['E', 'Eastern Conference']]
@@ -674,7 +781,9 @@ function OddsView({ odds, teams, sd, fc }) {
                             <span className={styles.oBar}><i style={{ left: `${x(o.w10)}%`, width: `${x(o.w90) - x(o.w10)}%`, background: tColor(t) }} /><em style={{ left: `${x(o.w)}%`, background: tColor(t) }} /></span></span></td>
                           {ODD_COLS.map(([k]) => <td key={k} className={styles.oPct} style={oTint(o[k], k)}>{opct(o[k])}</td>)}
                         </tr>
-                        {open === t && <tr className={styles.oPanelRow}><td colSpan={12}><TeamOdds t={t} o={o} games={o.games} /></td></tr>}
+                        {open === t && <tr className={styles.oPanelRow}><td colSpan={12}>
+                          {hist?.[t]?.length > 1 && <RecordChart t={t} h={hist[t]} o={o} games={o.games} cut={O[ts[5]]?.w} />}
+                          <TeamOdds t={t} o={o} games={o.games} /></td></tr>}
                       </Fragment>
                     )
                   })}
@@ -700,6 +809,70 @@ function OddsView({ odds, teams, sd, fc }) {
         </div>
       </section>
       <p className={styles.oNote}>Each simulated season plays every remaining game from its projected margin (lineup Elo from projected minutes and the injury report, plus each team's scoring margin and back-to-backs), then the play-in and four best-of-seven rounds. Team ratings get a random shift each season, smaller as the season goes on. Ties are broken at random; the NBA's tiebreakers aren't modeled.</p>
+    </div>
+  )
+}
+
+// Projected final wins after every game, the 10th–90th percentile band, and the conference's projected 6th seed.
+// The last point is the Playoff odds simulation itself, so the chart ends where the table is.
+function RecordChart({ t, h, o, games, cut }) {
+  const [hov, setHov] = useState(null)
+  const pts = useMemo(() => {
+    const x = h.slice()
+    const last = x[x.length - 1]
+    x[x.length - 1] = { ...last, w: o.w, w10: o.w10, w90: o.w90 }
+    return x
+  }, [h, o])
+  const W = 720, H = 280, L = 36, R = 14, T = 22, B = 28, cw = W - L - R, ch = H - T - B
+  const vals = pts.flatMap(p => [p.w10, p.w90]).concat(cut ? [cut] : [])
+  const lo = Math.max(0, Math.floor((Math.min(...vals) - 2) / 5) * 5), hi = Math.min(games, Math.ceil((Math.max(...vals) + 2) / 5) * 5)
+  const x = g => L + (g / games) * cw, y = v => T + ((hi - v) / Math.max(1, hi - lo)) * ch
+  const line = k => pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.g).toFixed(1)} ${y(p[k]).toFixed(1)}`).join('')
+  const band = line('w90') + [...pts].reverse().map(p => `L${x(p.g).toFixed(1)} ${y(p.w10).toFixed(1)}`).join('') + 'Z'
+  const ticks = []; for (let v = lo; v <= hi; v += (hi - lo > 30 ? 10 : 5)) ticks.push(v)
+  const now = pts[pts.length - 1], open = pts[0], c = tColor(t)
+  const rec = w => `${Math.round(w)}-${games - Math.round(w)}`
+  const moves = projMoves(pts)
+  const label = p => p.day ? `G${p.g} · ${fmtDate(p.day, { month: 'short', day: 'numeric' })} · ${p.res} ${p.home === false ? 'at' : 'vs'} ${tShort(p.opp)} ${p.pts[0]}–${p.pts[1]}` : 'Opening night'
+  const onMove = e => {
+    const r = e.currentTarget.getBoundingClientRect(), gx = ((e.clientX - r.left) / r.width) * W
+    const g = Math.round(((gx - L) / cw) * games)
+    setHov(pts.reduce((m, p) => (Math.abs(p.g - g) < Math.abs(m.g - g) ? p : m), pts[0]))
+  }
+  const hi_ = hov && pts.indexOf(hov), prev = hi_ > 0 ? pts[hi_ - 1] : null
+  return (
+    <div className={styles.rcWrap} style={{ '--tc': c }}>
+      <div className={styles.rcMain}>
+        <div className={styles.tLab}>Record projection · after every game</div>
+        <svg viewBox={`0 0 ${W} ${H}`} className={styles.rcSvg} onMouseMove={onMove} onMouseLeave={() => setHov(null)} role="img" aria-label={`${tName(t)} projected wins after each game`}>
+          <rect x={x(now.g)} y={T} width={Math.max(0, x(games) - x(now.g))} height={ch} fill="#f1f3f6" />
+          {ticks.map(v => <g key={v}><line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="#e3e7ec" /><text x={L - 7} y={y(v) + 4} textAnchor="end" fontSize="11" fill="#7c8792">{v}</text></g>)}
+          {[0, 20, 40, 60, 80].filter(g => g <= games).map(g => <text key={g} x={x(g)} y={H - 9} textAnchor="middle" fontSize="11" fill="#7c8792">{g ? `G${g}` : 'Opening'}</text>)}
+          {cut != null && <><line x1={L} x2={W - R} y1={y(cut)} y2={y(cut)} stroke="#c9a24a" strokeDasharray="5 4" strokeWidth="1.5" />
+            <text x={W - R - 4} y={y(cut) - 5} textAnchor="end" fontSize="10.5" fill="#9a7a2a" fontWeight="700">projected 6th seed · {Math.round(cut)}</text></>}
+          <path d={band} fill={c} opacity=".18" />
+          <path d={line('w')} fill="none" stroke={c} strokeWidth="2.5" strokeLinejoin="round" />
+          {now.g < games && <text x={(x(now.g) + x(games)) / 2} y={T + ch - 8} textAnchor="middle" fontSize="10.5" fill="#9aa6b2">{games - now.g} games left</text>}
+          <circle cx={x(now.g)} cy={y(now.w)} r="5" fill={c} stroke="#fff" strokeWidth="2" />
+          {hov && <g>
+            <line x1={x(hov.g)} x2={x(hov.g)} y1={T} y2={T + ch} stroke="#9aa6b2" strokeDasharray="2 3" />
+            <circle cx={x(hov.g)} cy={y(hov.w)} r="4.5" fill="#fff" stroke={c} strokeWidth="2.5" />
+          </g>}
+        </svg>
+        <div className={styles.rcTip}>{hov
+          ? <><b>{label(hov)}</b><span>{prev ? <>{rec(prev.w)} → <b>{rec(hov.w)}</b> <em className={hov.w >= prev.w ? styles.up : styles.down}>{hov.w >= prev.w ? '+' : '−'}{Math.abs(hov.w - prev.w).toFixed(1)} wins</em></> : <b>{rec(hov.w)}</b>} · 8 in 10: {Math.round(hov.w10)}–{Math.round(hov.w90)} wins</span></>
+          : <span>Hover the line for any game. Shaded: the 10th to 90th percentile of final wins.</span>}</div>
+      </div>
+      <div className={styles.rcSide}>
+        <div className={styles.tLab}>Biggest moves</div>
+        {moves.length ? moves.map((m, i) => (
+          <div key={i} className={styles.rcMove}>{m.kind === 'run'
+            ? <>G{m.a.g + 1}–{m.b.g} · <b>{m.b.wins - m.a.wins}-{m.b.losses - m.a.losses} stretch</b></>
+            : <>{label(m.x)}</>}<br /><span className={m.d >= 0 ? styles.up : styles.down}>{m.d >= 0 ? '+' : '−'}{Math.abs(m.d).toFixed(1)} wins</span></div>
+        )) : <div className={styles.rcMove}>Nothing big yet.</div>}
+        <div className={styles.tLab} style={{ marginTop: 12 }}>Then vs now</div>
+        <div className={styles.rcMove}>Opening night <b>{rec(open.w)}</b><br />Today <b>{rec(now.w)}</b> <span className={now.w >= open.w ? styles.up : styles.down}>{now.w >= open.w ? '+' : '−'}{Math.abs(Math.round(now.w) - Math.round(open.w))}</span></div>
+      </div>
     </div>
   )
 }
@@ -1079,36 +1252,53 @@ function Preview({ g, shots, fetched, onClose }) {
             Players listed out are removed and their minutes go to the rest of the rotation{fetched ? `. Report as of ${fmtDate(fetched.slice(0, 10), { month: 'short', day: 'numeric' })}` : ''}.
           </StoryCard>
         </div>
-        {[away, home].map(x => <ProjBox key={x.team} x={x} shots={shots} />)}
+        {[away, home].map(x => <ProjBox key={x.team} x={x} shots={shots} pts={PROJECT?.(g.fg)?.[x === home ? 0 : 1]} />)}
       </div>
     </div>
   )
 }
 
-function ProjBox({ x, shots }) {
-  const rows = x.rows.filter(r => r.mp > 0.5 || r.out || r.status)
+function ProjBox({ x, shots, pts }) {
+  // Projected stats: projected minutes × each player's per-36 rates (last 30 games), points scaled to the projected score
+  const B = useMemo(() => (PROJBOX ? PROJBOX(x, pts) : null), [x, pts])
+  const line = new Map((B?.rows || []).map(r => [r.key, r]))
+  const rows = x.rows.filter(r => r.mp > 0.5 || r.out || r.status).sort((a, b) => !!a.out - !!b.out || (line.get(b.key)?.mp ?? 0) - (line.get(a.key)?.mp ?? 0))
+  const S = B ? ['pts', 'trb', 'ast', 'stl', 'blk', 'tp'] : []
+  const tot = k => (B?.rows || []).reduce((a, r) => a + r[k], 0)
   return (
     <div className={styles.teamBox} style={{ '--tc': tColor(x.team) }}>
-      <div className={styles.teamBoxHead}><TeamMark t={x.team} size={30} /><span>{tName(x.team)}</span>
+      <div className={styles.teamBoxHead}><TeamMark t={x.team} size={30} /><span>{tName(x.team)}{B && <small className={styles.projCap}>Projected box score</small>}</span>
         <span className={styles.projSum}>Rotation {r0(x.rot)} × {Math.round(x.w * 100)}% + Roster {r0(x.raw)} × {Math.round((1 - x.w) * 100)}% = <b>{r0(x.rating)}</b></span></div>
       <div className={styles.tableWrap}>
         <table className={`${styles.box} ${styles.projTable}`}>
           <thead><tr>
-            <th className={styles.sticky}>Player</th><th>Status</th><th>Current Elo</th><th>Proj MIN</th><th className={styles.swingH}>Share of rotation</th>
+            <th className={styles.sticky}>Player</th><th>Status</th><th>Current Elo</th><th>Proj MIN</th>
+            {B ? <>{['PTS', 'REB', 'AST', 'STL', 'BLK', '3PM'].map((h, i) => <th key={h} className={i === 0 ? styles.gStart : ''}>{h}</th>)}<th title="Projected Game Score: what the Daily Lineup and Player of the Day score on">GmSc</th></>
+              : <th className={styles.swingH}>Share of rotation</th>}
           </tr></thead>
           <tbody>
-            {rows.map(r => (
-              <tr key={r.key} className={r.out ? styles.outRow : ''}>
-                <td className={styles.sticky}><span className={styles.pl}><Headshot name={r.name} shots={shots} color={tColor(x.team)} />
-                  <span><b className={styles.pName}>{shortName(r.name)}</b>{!r.rated && <small>No Elo yet · 1,500</small>}</span></span></td>
-                <td>{r.status ? <span className={r.out ? styles.outTag : styles.dtdTag} title={r.detail}>{r.status}</span> : ''}</td>
-                <td className={styles.elo}><b>{r0(r.elo)}</b></td>
-                <td>{r.out ? '—' : r.mp.toFixed(1)}</td>
-                <td className={styles.swing}><span className={styles.swingIn}><span className={styles.bar}>
-                  <span className={styles.barUp} style={{ left: 0, width: `${(r.mp / 42) * 100}%` }} /></span></span></td>
-              </tr>
-            ))}
+            {rows.map(r => {
+              const l = line.get(r.key)
+              return (
+                <tr key={r.key} className={r.out ? styles.outRow : ''}>
+                  <td className={styles.sticky}><span className={styles.pl}><Headshot name={r.name} shots={shots} color={tColor(x.team)} />
+                    <span><b className={styles.pName}>{shortName(r.name)}</b>{!r.rated && <small>No Elo yet · 1,500</small>}</span></span></td>
+                  <td>{r.status ? <span className={r.out ? styles.outTag : styles.dtdTag} title={r.detail}>{r.status}</span> : ''}</td>
+                  <td className={styles.elo}><b>{r0(r.elo)}</b></td>
+                  <td>{r.out ? '—' : B ? (l?.mp ?? Math.round(r.mp)) : r.mp.toFixed(1)}</td>
+                  {B ? <>
+                    {S.map((k, i) => <td key={k} className={i === 0 ? `${styles.gStart} ${styles.projPts}` : ''}>{r.out || !l ? '—' : l[k]}</td>)}
+                    <td className={styles.projGs}>{r.out || !l ? '—' : l.gs}</td>
+                  </> : <td className={styles.swing}><span className={styles.swingIn}><span className={styles.bar}>
+                    <span className={styles.barUp} style={{ left: 0, width: `${(r.mp / 42) * 100}%` }} /></span></span></td>}
+                </tr>
+              )
+            })}
           </tbody>
+          {B && <tbody><tr className={styles.totals}>
+            <td className={styles.sticky}>Team</td><td /><td /><td>{tot('mp')}</td>
+            {S.map((k, i) => <td key={k} className={i === 0 ? `${styles.gStart} ${styles.projPts}` : ''}>{tot(k)}</td>)}<td />
+          </tr></tbody>}
         </table>
       </div>
     </div>
@@ -1116,10 +1306,13 @@ function ProjBox({ x, shots }) {
 }
 
 // ── Box score ────────────────────────────────────────────────────────────────
+const BOTH_KEY = 'fpr.boxBoth'
 function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel, lineup }) {
   const collector = useCollector() // a ✓ by each player whose card from this game is in your binder
   const [focus, setFocus] = useState(null)
-  const [side, setSide] = useState(team) // which team's table shows; starts on the team you came from
+  // which team's table shows: starts on the team you came from, or both teams side by side if that's how you left it
+  const [side, setSide_] = useState(() => { try { return localStorage.getItem(BOTH_KEY) ? 'both' : team } catch { return team } })
+  const setSide = v => { setSide_(v); try { v === 'both' ? localStorage.setItem(BOTH_KEY, '1') : localStorage.removeItem(BOTH_KEY) } catch { /* private mode */ } }
   const [stat, setStat] = useState('box') // box score view, kept when switching teams
   const P = game.players, N = P.length
   const opp = game.opp
@@ -1148,6 +1341,12 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel
   const favWon = fav === winner
   const favPct = Math.round(game.wp[fav] * 100)
   const venue = game.home == null ? '' : fav === home ? ' at home' : ' on the road'
+  // Live win chance: the lead plus the pre-game projected margin for the time left (as the scoreboard's Upset watch).
+  // Without a projected score, the margin comes from the pre-game win chance.
+  const preM = game.proj ? game.proj[home] - game.proj[away] : 7.55 * Math.log(game.wp[home] / Math.max(1e-6, game.wp[away]))
+  const lvState = st === 'in' && game.live ? { ...game.live, hs: pts[home], as: pts[away] } : null
+  const wHome = lvState ? liveWinHome(preM, lvState, 13.7) : null
+  const lf = lvState && game.proj ? liveFinal([game.proj[home], game.proj[away]], lvState, pts[home], pts[away]) : null
 
   return (
     <div className={styles.overlay} onClick={onClose}>
@@ -1164,7 +1363,23 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel
                   <span>{fmtDate(game.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
                   {game.post && <span className={styles.postTag}>Postseason</span>}
                   {game.live && <span className={styles.provTag} title="Scored from ESPN's box score. Official once the pipeline processes this game.">Provisional Elo</span>}
-                  <div className={styles.wp}>
+                  {wHome != null ? (() => {
+                    const wa = 1 - wHome, pa = game.wp[away], ch = Math.round(wa * 100) - Math.round(pa * 100)
+                    const mover = ch >= 0 ? away : home
+                    return <div className={styles.wp}>
+                      <em className={styles.wpCap}>Live win chance</em>
+                      <div className={styles.wpLab}><span>{Math.round(wa * 100)}%</span><span>{100 - Math.round(wa * 100)}%</span></div>
+                      <div className={`${styles.wpTrack} ${styles.wpLive}`}>
+                        <span style={{ width: `${wa * 100}%`, background: tColor(away) }} />
+                        <span style={{ width: `${wHome * 100}%`, background: tColor(home) }} />
+                        <i className={styles.wpGhost} style={{ left: `${pa * 100}%` }} title={`Pre-game: ${tShort(away)} ${Math.round(pa * 100)}%`} />
+                        <small className={styles.wpGhostLab} style={{ left: `${Math.min(80, Math.max(20, pa * 100))}%` }}>pre-game {Math.round(pa * 100)}%</small>
+                      </div>
+                      <div className={styles.wpSub}><span>{ch === 0 ? 'Even with tip-off' : <>{tShort(mover)} <b className={styles.wpUp}>+{Math.abs(ch)}</b> since tip</>}</span>
+                        {lf && <span>Proj. final {lf[1]}–{lf[0]}</span>}</div>
+                      {game.proj && <div className={styles.wpProj}><em>Pre-game projected score</em><b>{tShort(away)} {game.proj[away]}, {tShort(home)} {game.proj[home]}</b></div>}
+                    </div>
+                  })() : <div className={styles.wp}>
                     <em className={styles.wpCap}>Pre-game {game.fcwp ? '' : 'Elo '}win chance</em>
                     <div className={styles.wpLab}><span>{Math.round(game.wp[away] * 100)}%</span><span>{Math.round(game.wp[home] * 100)}%</span></div>
                     <div className={styles.wpTrack}>
@@ -1172,7 +1387,7 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel
                       <span style={{ width: `${game.wp[home] * 100}%`, background: tColor(home) }} />
                     </div>
                     {game.proj && <div className={styles.wpProj}><em>Projected score</em><b>{tShort(away)} {game.proj[away]}, {tShort(home)} {game.proj[home]}</b></div>}
-                  </div>
+                  </div>}
                 </div>}
                 <div className={`${styles.sbTeam} ${i ? styles.sbHome : ''} ${t === winner ? styles.sbWin : ''}`}>
                   <span className={styles.sbLogo}><TeamMark t={t} size={52} /></span>
@@ -1219,10 +1434,15 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel
               <TeamMark t={t} size={26} /><span>{tName(t)}</span><b>{pts[t]}</b>
             </button>
           ))}
+          <button type="button" role="tab" aria-selected={side === 'both'} className={`${styles.bothBtn} ${side === 'both' ? styles.bothOn : ''}`} onClick={() => setSide('both')}>⇆ <span>Both teams</span></button>
         </div>
-        <TeamBox key={side} t={side} rows={P.filter(p => p.t === side)} P={P} N={N} has={has} avail={avail} shots={shots}
-          focus={focus} setFocus={setFocus} onCard={onCard} stat={stat} setStat={setStat}
-          owns={n => !!collector.me && collector.owned.has(`${sd?.season}|${game.id}|${n}`)} lineup={lineup} />
+        <div className={side === 'both' ? styles.bothBox : undefined}>
+          {(side === 'both' ? [away, home] : [side]).map(t => (
+            <TeamBox key={t} t={t} rows={P.filter(p => p.t === t)} P={P} N={N} has={has} avail={avail} shots={shots} narrow={side === 'both'}
+              focus={focus} setFocus={setFocus} onCard={onCard} stat={stat} setStat={setStat}
+              owns={n => !!collector.me && collector.owned.has(`${sd?.season}|${game.id}|${n}`)} lineup={lineup} />
+          ))}
+        </div>
 
         <DuelGrid P={P} focus={focus} setFocus={setFocus} shots={shots} game={game} sd={sd} pinPair={pinPair} />
       </div>
@@ -1385,7 +1605,7 @@ function DuelTrack({ w, xw, n }) {
   )
 }
 
-function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, stat, setStat, owns, lineup }) {
+function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, stat, setStat, owns, lineup, narrow }) {
   const n = N - 1
   const starters = has?.has('st') && rows.some(p => p.st)
   const sorted = [...rows].sort((a, b) => (starters ? b.st - a.st : 0) || (b.mp || 0) - (a.mp || 0) || (b.pts || 0) - (a.pts || 0))
@@ -1424,7 +1644,7 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
     return m
   }, [P])
   const opp = P.filter(p => p.t !== t)
-  const wide = useWide()
+  const wide = useWide() && !narrow // side by side, each table folds its shooting columns
   const SHOTS = [F.fga && 'FG', F.tpa && '3P', F.fta && 'FT'].filter(Boolean)
   const cell = c => p => c.pair ? split(p[c.pair[0]], p[c.pair[1]], avail.has(c.pair[1]))
     : c.pct ? fmtPct(p[c.pct[0]] || 0, p[c.pct[1]] || 0) : c.v(p)
@@ -1453,7 +1673,7 @@ function TeamBox({ t, rows, P, N, has, avail, shots, focus, setFocus, onCard, st
               {mineSlot(p) && <small className={styles.mineTag}>In your lineup · {p.gs.toFixed(1)} GmSc{(mineSlot(p).mult || 1) !== 1 ? ` × ${+(mineSlot(p).mult).toFixed(2)} = ${(p.gs > 0 ? p.gs * mineSlot(p).mult : p.gs).toFixed(1)} pts` : ''}</small>}</span>
           </span>
         </td>
-        <td className={styles.rankCell}><RankCell p={p} /></td>
+        <td className={styles.rankCell}><RankCell p={p} delta={stat !== 'elo'} /></td>
         {stat === 'box' ? <FoldCells p={p} F={F} FCOLS={FCOLS} hi={hi} wide={wide} /> : stat === 'elo' ? <>
           <td className={`${styles.gStart} ${styles.eloPost}`}>{r0(p.post)}</td>
           <td className={styles.eloPre}>{r0(p.pre)}</td>
@@ -1647,13 +1867,16 @@ function MomentMarks({ p }) {
 }
 
 // League Elo rank after the game (pre-game rank on data without it), with the move; -- when unranked
-function RankCell({ p }) {
+function RankCell({ p, delta }) {
   const rank = p.unrated ? null : p.lrp ?? p.lr ?? null
-  if (rank == null) return <span className={styles.rankNone} title="Not ranked">--</span>
+  // delta: the game's Elo change under the rank
+  const d = delta && p.post != null && p.pre != null ? p.post - p.pre : null
+  const dl = d == null ? null : <small className={`${styles.rankDelta} ${d >= 0 ? styles.up : styles.down}`} title="Elo change in this game">{sgn(d)} Elo</small>
+  if (rank == null) return <span className={styles.rankNone} title="Not ranked">--{dl}</span>
   const mv = p.lrp != null && p.lr != null ? p.lr - p.lrp : 0
   return (
     <span className={styles.rankVal} title={p.lrp != null && p.lr != null ? `#${p.lr} before the game` : undefined}>
-      <b>#{rank}</b>{mv !== 0 && <i className={mv > 0 ? styles.up : styles.down}>({mv > 0 ? '▲' : '▼'}{Math.abs(mv)})</i>}
+      <b>#{rank}</b>{mv !== 0 && <i className={mv > 0 ? styles.up : styles.down}>({mv > 0 ? '▲' : '▼'}{Math.abs(mv)})</i>}{dl}
     </span>
   )
 }
@@ -2408,6 +2631,12 @@ function GameCard({ c, shots, onOpen }) {
     ? (pLiveHome != null ? (dog === home ? pLiveHome : 1 - pLiveHome) >= 0.5 && wp?.[dog] < 0.5
       : lead === dog && wp?.[dog] < 0.5 && ((st.period || 0) >= 4 || Math.abs((pts[home] || 0) - (pts[away] || 0)) >= 12))
     : c.state === 'post' && lead && wp && wp[lead] < 0.5
+  // Before tip-off: the projected box score's leaders in points, rebounds and assists, both teams
+  const leaders = c.state === 'pre' && c.fg && PROJBOX && preProj ? (() => {
+    const rows = [[c.fg.home, preProj[home]], [c.fg.away, preProj[away]]].flatMap(([side, p]) => (PROJBOX(side, p)?.rows || []).map(r => ({ ...r, t: side.team })))
+    if (!rows.length) return null
+    return [['pts', 'PTS'], ['trb', 'REB'], ['ast', 'AST']].map(([k, l]) => { const r = [...rows].sort((a, b) => b[k] - a[k] || b.elo - a.elo)[0]; return { k, l, r } })
+  })() : null
   const liveProj = c.state === 'in' && preProj ? liveFinal([preProj[home], preProj[away]], g?.live || x, pts[home] || 0, pts[away] || 0) : null
   return (
     <button type="button" className={`${styles.gCard} ${c.state === 'in' ? styles.gLive : ''}`} onClick={onOpen || undefined} disabled={!onOpen}>
@@ -2419,6 +2648,7 @@ function GameCard({ c, shots, onOpen }) {
         <div key={t} className={`${styles.gTeam} ${lead && lead !== t ? styles.gTrail : ''}`}>
           <TeamMark t={t} size={30} />
           <span className={styles.gName}>{tShort(t)}{g && <small>{r0(g.elo[t].pre)} lineup Elo</small>}{!g && c.fg && <small>{r0((t === home ? c.fg.home : c.fg.away).rating)} forecast rating</small>}</span>
+          {!started && preProj && <span className={styles.gProjPts} title="Projected score">{preProj[t]}</span>}
           <b className={styles.gPts}>{started ? pts[t] ?? '–' : wp ? `${Math.round(wp[t] * 100)}%` : ''}</b>
         </div>
       ))}
@@ -2430,7 +2660,7 @@ function GameCard({ c, shots, onOpen }) {
         {<>
           <small className={styles.gPre}>
             {wp && <span>Pre-game{g && !g.fcwp ? ' Elo' : ''}: <b className={styles.gProj}>{Math.round(wp[fav] * 100)}%</b><TeamMark t={fav} size={16} /></span>}
-            {preProj && <span>Projected score: <ScoreLine fav={fav} dog={dog} s={preProj} /></span>}
+            {preProj && started && <span>Projected score: <ScoreLine fav={fav} dog={dog} s={preProj} /></span>}
           </small>
           {liveProj && <small className={`${styles.gPre} ${styles.gLiveProj}`}><span>Live projection: <ScoreLine fav={fav} dog={dog} s={{ [home]: liveProj[0], [away]: liveProj[1] }} /></span></small>}
         </>}
@@ -2439,7 +2669,9 @@ function GameCard({ c, shots, onOpen }) {
         {top ? <>
           <span><Headshot name={top.n} shots={shots} color={tColor(top.t)} /><span><b>{shortName(top.n)}</b><small>{top.gs.toFixed(1)} GmSc · {top.pts ?? 0} PTS</small></span></span>
           {mover && <span className={styles.gMove}><small>Biggest swing</small><b className={mover.post >= mover.pre ? styles.up : styles.down}>{shortName(mover.n)} {sgn(mover.post - mover.pre)}</b></span>}
-        </> : tm?.[0] && tm?.[1] ? <span className={styles.gMatch}><small>Top player matchup</small>
+        </> : leaders ? <span className={styles.gLeaders}>{leaders.map(({ k, l, r }) => (
+          <span key={k}><small>Proj {l}</small><b>{shortName(r.name)}</b><em>{r[k]}</em></span>
+        ))}</span> : tm?.[0] && tm?.[1] ? <span className={styles.gMatch}><small>Top player matchup</small>
           <b>{shortName(tm[0].name)} {r0(tm[0].elo)} <i>vs</i> {shortName(tm[1].name)} {r0(tm[1].elo)}</b></span>
           : <span className={styles.muted}>{started ? 'Box score loading…' : 'Preview available once the forecast loads'}</span>}
       </div>

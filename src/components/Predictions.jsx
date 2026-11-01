@@ -127,6 +127,17 @@ const MULT_TIERS = ['goat', 'icon', 'legend', 'standout', 'rare', 'common']
 const xFmt = m => `${+Number(m).toFixed(2)}×`
 const shortDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 const restText = r => r.until ? `resting, can play again ${shortDay(r.until)}` : `in your ${shortDay(r.next)} lineup, needs ${r.days} days between games`
+// A candidate's projected line (the Scoreboard preview's projected box score) and the slate's projected top three
+function ProjLine({ c, mult }) {
+  const p = c.proj
+  if (!p) return null
+  return <small className={styles.candProj}>Proj {p.pts} pts · {p.trb} reb · {p.ast} ast · <b>{p.gs} GmSc</b>{mult && mult !== 1 ? <> → <b>{Math.round(p.gs * mult)} lineup pts</b></> : ''}</small>
+}
+const projTop = list => new Map([...list].filter(c => c.proj && !c.out).sort((a, b) => b.proj.gs - a.proj.gs).slice(0, 3).map((c, i) => [c.name + c.team, i + 1]))
+function SortBy({ v, set }) {
+  return <span className={styles.sortBy}>{[['elo', 'Elo'], ['proj', 'Projection']].map(([k, l]) => <button key={k} type="button" aria-pressed={v === k} onClick={() => set(k)}>{l}</button>)}</span>
+}
+
 function TierX({ tier, mult }) {
   return <span className={styles.tierX} data-tier={tier}>{TIER_NAME[tier] || tier} <b>{xFmt(mult)}</b></span>
 }
@@ -137,7 +148,10 @@ function LineupTab({ day, dayWord, lu, env, busy, onSet, slots, R }) {
   const taken = new Set(lu.slots.map(s => s.player))
   const free = [...Array(slots).keys()].find(i => !lu.slots.some(s => s.slot === i))
   const total = lu.slots.reduce((a, s) => a + (s.pts ?? 0), 0)
-  const list = lu.candidates.filter(c => !q || c.name.toLowerCase().includes(q.toLowerCase()) || c.team.toLowerCase() === q.toLowerCase())
+  const [sort, setSort] = useState('elo')
+  const list0 = lu.candidates.filter(c => !q || c.name.toLowerCase().includes(q.toLowerCase()) || c.team.toLowerCase() === q.toLowerCase())
+  const list = sort === 'proj' ? [...list0].sort((a, b) => b.open - a.open || (b.proj?.gs ?? -99) * b.mult - (a.proj?.gs ?? -99) * a.mult) : list0
+  const top3 = projTop(lu.candidates)
   const M = R.lineupMult || {}, Rest = R.lineupRest || {}
   return <>
     <div className={styles.goal}>
@@ -168,6 +182,7 @@ function LineupTab({ day, dayWord, lu, env, busy, onSet, slots, R }) {
     {lu.graded && <p className={styles.light}>Total {total.toFixed(1)} points.</p>}
     {lu.candidates.length > 0 && <>
       <div className={styles.candHead}><span className={styles.boxLab}>Your players {dayWord} · {lu.candidates.length}</span>
+        {lu.candidates.some(c => c.proj) && <SortBy v={sort} set={setSort} />}
         <input className={styles.search} value={q} onChange={e => setQ(e.target.value)} placeholder="Find a player or team" aria-label="Find a player" /></div>
       <div className={styles.cands}>
         {[...list.filter(c => !c.out), ...list.filter(c => c.out)].map((c, i, all) => {
@@ -181,8 +196,9 @@ function LineupTab({ day, dayWord, lu, env, busy, onSet, slots, R }) {
             {outHead && <div className={styles.outHead}>Ruled out · {all.filter(x => x.out).length}</div>}
             <div className={`${styles.cand} ${c.out ? styles.candOut : ''} ${chosen.resting ? styles.candResting : ''}`}>
               <Logo t={c.team} size={26} />
-              <span className={styles.candText}><b>{baseName(c.name)}</b>
+              <span className={styles.candText}><b>{baseName(c.name)}{top3.has(c.name + c.team) && <em className={styles.projTag}>Proj #{top3.get(c.name + c.team)}</em>}</b>
                 <small>{c.team} {c.home ? 'vs' : '@'} {c.opp} · {c.open ? tipTime(c.tip) : 'tipped off'} · {n0(c.elo)} Elo{c.mp ? ` · ${c.mp} min` : ''}{c.status ? ` · ${c.status}` : ''}</small>
+                {!c.out && <ProjLine c={c} mult={chosen.mult} />}
                 {chosen.resting && <small className={styles.candRest}>{TIER_NAME[chosen.tier]} card: {restText(chosen.resting)}</small>}</span>
               {cards.length > 1
                 ? <select className={styles.cardSel} value={chosen.cardId} onChange={e => setPickCard(v => ({ ...v, [c.name]: +e.target.value }))} aria-label={`Which ${baseName(c.name)} card`}>
@@ -207,7 +223,10 @@ function PotdTab({ dayWord, p, env, busy, onPick, R }) {
   const [q, setQ] = useState('')
   const [more, setMore] = useState(false)
   const pick = p.pick
-  const list = p.candidates.filter(c => !q || fold(c.name).includes(fold(q)) || c.team.toLowerCase() === q.toLowerCase())
+  const [sort, setSort] = useState('elo')
+  const list0 = p.candidates.filter(c => !q || fold(c.name).includes(fold(q)) || c.team.toLowerCase() === q.toLowerCase())
+  const list = sort === 'proj' ? [...list0].sort((a, b) => (b.proj?.gs ?? -99) - (a.proj?.gs ?? -99)) : list0
+  const top3 = projTop(p.candidates)
   const shown = q || more ? list : list.slice(0, 30)
   const W = p.winner
   const thumb = W && (() => { const e = fromIndex(env, W.ruby ? { ...W.card, ruby: true } : W.card, { key: 'potd' }); return <span className={styles.potdThumb}><Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit></span> })()
@@ -228,7 +247,8 @@ function PotdTab({ dayWord, p, env, busy, onPick, R }) {
         {W.ruby && <em>Yours in ruby</em>}</span>
     </div>}
     {p.open && p.candidates.length > 0 && <>
-      <div className={styles.candHead}><span className={styles.boxLab}>Players {dayWord} · by Elo</span>
+      <div className={styles.candHead}><span className={styles.boxLab}>Players {dayWord} · by {sort === 'proj' ? 'projected Game Score' : 'Elo'}</span>
+        {p.candidates.some(c => c.proj) && <SortBy v={sort} set={setSort} />}
         <input className={styles.search} value={q} onChange={e => setQ(e.target.value)} placeholder="Find a player or team" aria-label="Find a player" /></div>
       <div className={styles.cands}>
         {shown.map(c => {
@@ -236,8 +256,9 @@ function PotdTab({ dayWord, p, env, busy, onPick, R }) {
           return (
             <div key={c.name + c.team} className={styles.cand}>
               <Logo t={c.team} size={26} />
-              <span className={styles.candText}><b>{baseName(c.name)}</b>
-                <small>{c.team} {c.home ? 'vs' : '@'} {c.opp} · {tipTime(c.tip)} · {n0(c.elo)} Elo{c.mp ? ` · ${c.mp} min` : ''}{c.status ? ` · ${c.status}` : ''}</small></span>
+              <span className={styles.candText}><b>{baseName(c.name)}{top3.has(c.name + c.team) && <em className={styles.projTag}>Proj #{top3.get(c.name + c.team)}</em>}</b>
+                <small>{c.team} {c.home ? 'vs' : '@'} {c.opp} · {tipTime(c.tip)} · {n0(c.elo)} Elo{c.mp ? ` · ${c.mp} min` : ''}{c.status ? ` · ${c.status}` : ''}</small>
+                <ProjLine c={c} /></span>
               <button type="button" className={styles.claimBtn} disabled={busy || on} onClick={() => onPick(c)}>{on ? 'Your pick' : pick ? 'Switch' : 'Nominate'}</button>
             </div>
           )

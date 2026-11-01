@@ -322,3 +322,11 @@
 .candResting { background: #fdeaea; box-shadow: inset 3px 0 0 #c43b3b; }
 .candResting .candRest { color: #a12a2a !important; }
 .outHead { margin: 10px 0 2px; font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; color: #a12a2a; }
+
+/* Projected lines in the lineup and Player of the Day pickers */
+.candProj { color: #4a5868 !important; }
+.candProj b { color: #1a5fa8; font-weight: 800; }
+.projTag { font-style: normal; font-size: 9.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: #8a6a12; background: #fbf3df; padding: 1px 6px; border-radius: 3px; margin-left: 6px; vertical-align: 1px; }
+.sortBy { display: inline-flex; border: 1px solid #d9dfe6; border-radius: 14px; overflow: hidden; flex-shrink: 0; }
+.sortBy button { border: 0; background: #fff; font: inherit; font-size: 11.5px; font-weight: 700; color: #5b6673; padding: 4px 10px; cursor: pointer; }
+.sortBy button[aria-pressed="true"] { background: #173657; color: #fff; }

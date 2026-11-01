@@ -500,7 +500,7 @@ async function lineupView(sql, u, origin, day, games) {
   let candidates = []
   if (live.some(isOpen) && origin) {
     const teams = [...new Set(live.flatMap(g => [g.home, g.away]))]
-    const R = await rosters(origin, teams, day).catch(() => ({}))
+    const R = await rosters(origin, teams, day, live).catch(() => ({}))
     const onTeam = new Map()
     for (const [t, rows] of Object.entries(R)) for (const r of rows) onTeam.set(norm(r.name), { ...r, team: t })
     // Game cards only (special cards have no single game line), every card of each player who plays
@@ -520,7 +520,7 @@ async function lineupView(sql, u, origin, day, games) {
       cards.sort((a, b) => !!a.resting - !!b.resting || b.mult - a.mult || b.points - a.points)
       const top = cards[0]
       return { name: r.name, team: r.team, opp: g.home === r.team ? g.away : g.home, home: g.home === r.team, tip: g.tip, open: isOpen(g),
-        elo: r.elo, mp: r.mp, out: r.out, status: r.status, cardId: top.cardId, card: top.card, tier: top.tier, mult: top.mult, resting: top.resting,
+        elo: r.elo, mp: r.mp, out: r.out, status: r.status, proj: r.proj, cardId: top.cardId, card: top.card, tier: top.tier, mult: top.mult, resting: top.resting,
         cards: cards.map(({ card, points, ...x }) => x), n: cards.length }
     }).sort((a, b) => b.open - a.open || !!a.resting - !!b.resting || b.mult * b.elo - a.mult * a.elo)
   }
@@ -789,10 +789,10 @@ async function potdView(sql, u, origin, day, games) {
   const open = potdOpen(games)
   let candidates = []
   if (open && origin) {
-    const R = await rosters(origin, [...new Set(live.flatMap(g => [g.home, g.away]))], day).catch(() => ({}))
+    const R = await rosters(origin, [...new Set(live.flatMap(g => [g.home, g.away]))], day, live).catch(() => ({}))
     for (const g of live) for (const t of [g.away, g.home]) for (const r of R[t] || []) {
       if (r.out || !(r.mp > 0)) continue
-      candidates.push({ name: r.name, team: t, opp: t === g.home ? g.away : g.home, home: t === g.home, tip: g.tip, elo: r.elo, mp: r.mp, status: r.status })
+      candidates.push({ name: r.name, team: t, opp: t === g.home ? g.away : g.home, home: t === g.home, tip: g.tip, elo: r.elo, mp: r.mp, status: r.status, proj: r.proj })
     }
     candidates.sort((a, b) => b.elo - a.elo)
   }

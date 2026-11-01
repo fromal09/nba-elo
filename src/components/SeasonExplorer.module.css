@@ -358,11 +358,11 @@
 /* team switch above the box score */
 .teamSwitch { display: flex; gap: 8px; margin: 0 16px 10px; }
 .teamSwitch button { flex: 1; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; border: 1px solid #dde3ea; background: #fff; font: inherit; color: #4a5560; cursor: pointer; text-align: left; transition: box-shadow .15s, border-color .15s; }
-.teamSwitch button span { font-weight: 700; font-size: 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.teamSwitch button > span:not(.mark) { font-weight: 700; font-size: 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .teamSwitch button b { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .teamSwitch button:hover { border-color: var(--tc); }
 .teamSwitch .switchOn { border-color: var(--tc); box-shadow: inset 0 -3px 0 var(--tc), 0 2px 8px rgba(16,32,56,.08); color: #1d2633; }
-@media (max-width: 700px) { .teamSwitch { margin: 0 8px 10px; } .teamSwitch button span { display: none; } }
+@media (max-width: 700px) { .teamSwitch { margin: 0 8px 10px; } .teamSwitch button > span:not(.mark) { display: none; } }
 
 /* ── View switch (Standings / Games by day) ── */
 .viewTabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; display: inline-flex; gap: 2px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 20px; padding: 3px; margin: 2px 0 12px; }
@@ -862,3 +862,75 @@
 .box tr.rowMine td { background: #fff8e6; }
 .box tr.rowMine td.sticky { background: #fff8e6; box-shadow: inset 4px 0 0 #e7a920, 1px 0 0 #eef0f3; }
 .mineTag { display: block; color: #9a6d12 !important; font-weight: 800; }
+
+/* Live win chance: the bar is the live chance; the tick marks the pre-game chance */
+.wpLive { position: relative; overflow: visible; height: 7px; }
+.wpGhost { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: #fff; border-radius: 1px; box-shadow: 0 0 0 1px rgba(0,0,0,.35); }
+.wpGhostLab { position: absolute; top: 12px; transform: translateX(-50%); font-size: 9px; color: #9fbcd8; white-space: nowrap; font-weight: 700; letter-spacing: .4px; }
+.wpSub { display: flex; justify-content: space-between; gap: 10px; font-size: 10.5px; color: #9fbcd8; margin-top: 18px; font-variant-numeric: tabular-nums; }
+.wpUp { color: #7be0a8; }
+/* Both teams side by side */
+.bothBtn { flex: 0 0 auto !important; background: #e8f0fa !important; color: #1a5fa8 !important; font-weight: 800 !important; border-color: #cddcef !important; }
+.bothBtn span { flex: 0 0 auto !important; }
+.bothOn { background: #1a5fa8 !important; color: #fff !important; border-color: #1a5fa8 !important; box-shadow: none !important; }
+.bothBox { display: grid; grid-template-columns: 1fr; }
+@media (min-width: 1100px) { .bothBox { grid-template-columns: 1fr 1fr; gap: 0; } .bothBox > * { min-width: 0; } }
+.rankVal { flex-wrap: wrap; justify-content: center; }
+.rankDelta { flex-basis: 100%; display: block; text-align: center; font-size: 10.5px; font-weight: 800; margin-top: 1px; }
+.rankNone .rankDelta { color: inherit; }
+/* Projected box score in the preview */
+.projCap { display: block; font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #1a5fa8; }
+.projPts { font-weight: 800; color: #173657; }
+.projGs { font-weight: 800; color: #1a5fa8; }
+
+/* Scoreboard cards before tip-off: projected points beside each win chance, projected stat leaders in the footer */
+.gProjPts { margin-left: auto; font-size: 12px; font-weight: 800; color: #1a5fa8; background: #e8f0fa; border-radius: 10px; padding: 1px 7px; font-variant-numeric: tabular-nums; }
+.gProjPts + .gPts { margin-left: 8px; }
+.gFoot > .gLeaders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; }
+.gFoot > .gLeaders > span { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; text-align: left; }
+.gLeaders small { font-size: 9px; text-transform: uppercase; letter-spacing: .9px; color: #8a95a0; font-weight: 800; }
+.gLeaders b { font-size: 11.5px; color: #173657; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gLeaders em { font-style: normal; font-weight: 800; color: #1a5fa8; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* Record projection chart (Playoff odds team panel) */
+.rcWrap { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 18px; padding: 16px 18px 4px; border-left: 4px solid var(--tc, #173657); }
+.rcSvg { width: 100%; height: auto; display: block; cursor: crosshair; }
+.rcSvg text { font-family: inherit; }
+.rcTip { min-height: 34px; font-size: 12px; color: #4a5560; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 4px 0 0 36px; }
+.rcTip b { color: #173657; }
+.rcTip em { font-style: normal; font-weight: 800; }
+.rcSide { padding-top: 2px; }
+.rcMove { font-size: 12px; border-left: 3px solid #e1e5ea; padding: 3px 0 3px 9px; margin-bottom: 8px; color: #333; line-height: 1.4; }
+.rcMove b { color: #173657; }
+.rcMove span { font-weight: 800; }
+@media (max-width: 760px) { .rcWrap { grid-template-columns: 1fr; padding: 12px 10px 4px; } .rcTip { padding-left: 0; } }
+
+/* Power rankings */
+.prTable { background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(16,32,56,.08), 0 0 0 1px rgba(16,32,56,.05); }
+.prRow { display: grid; grid-template-columns: 44px 40px minmax(170px, 1.5fr) 64px minmax(120px, 1fr) 118px minmax(180px, 1.8fr); gap: 10px; align-items: center; padding: 9px 14px; border-bottom: 1px solid #f0f1f3; font-size: 12.5px; font-variant-numeric: tabular-nums; border-left: 4px solid var(--tc, transparent); }
+.prHead { font-size: 9.5px; text-transform: uppercase; letter-spacing: .9px; color: #7c8792; font-weight: 800; background: #fafbfc; padding: 7px 14px; border-left-color: transparent; }
+.prTier { padding: 5px 14px; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #fff; background: #173657; }
+.prTier[data-tier="Threats"] { background: #2f67a6; }
+.prTier[data-tier="The Middle"] { background: #6f9acb; }
+.prTier[data-tier="Rebuilding"] { background: #a9b6c4; }
+.prRank { font-size: 22px; font-weight: 800; color: #173657; text-align: center; letter-spacing: -.5px; }
+.prMove { font-size: 11px; text-align: center; } .prMove i { color: #a7b0ba; font-style: normal; }
+.prTeam { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.prTeam > span { min-width: 0; display: flex; flex-direction: column; }
+.prTeam b { color: #173657; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prTeam small { color: #8a95a0; font-size: 10.5px; font-weight: 600; }
+.prLive { font-style: normal; font-size: 10px; font-weight: 800; color: #b3261e; }
+.prScore { display: flex; align-items: center; gap: 7px; }
+.prScore b { font-size: 15px; color: #173657; min-width: 34px; }
+.prMeter { flex: 1; height: 6px; background: #eef1f4; border-radius: 3px; overflow: hidden; }
+.prMeter i { display: block; height: 100%; background: linear-gradient(90deg, #6f9acb, #173657); }
+.prForm { display: flex; gap: 2px; }
+.prForm i { width: 9px; height: 16px; border-radius: 2px; display: block; background: #d24a4a; opacity: .75; }
+.prForm i[data-r="W"] { background: #1a7a4a; opacity: .85; }
+.prWhy { font-size: 11.5px; color: #4a5545; line-height: 1.35; }
+@media (max-width: 860px) {
+  .prRow { grid-template-columns: 32px 30px minmax(0, 1.4fr) 50px minmax(90px, 1fr); gap: 8px; padding: 8px 10px; }
+  .prRow > :nth-child(6) { display: none; }
+  .prRow > :nth-child(7) { grid-column: 3 / -1; font-size: 11px; margin-top: -4px; }
+  .prHead > :nth-child(7) { display: none; }
+}

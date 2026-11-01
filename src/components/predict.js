@@ -93,7 +93,38 @@ export function buildForecaster({ players, roster, rotation, injuries, fetched, 
     return { home: h, away: a, pHome: p, pAway: 1 - p }
   }
 
-  return { team, game, reportDay }
+  // Projected box score for one side of f.game(): each healthy player's projected minutes times his per-36 rates
+  // (last 30 games, rotation.json "r"), points scaled so the team adds up to its projected score. Whole numbers;
+  // points and minutes are rounded so they still add up. Game Score moves with the points scaled in or out.
+  function box(side, pts) {
+    const on = side.rows.filter(r => !r.out && r.mp > 0)
+    // No rates until the pipeline has written them (rotation.json "r"): show nothing rather than guesses
+    if (!on.length || !on.some(r => rotBy[r.key]?.r)) return null
+    const raw = on.map(r => (rotBy[r.key]?.r || RATE_FRINGE).map(v => (v * r.mp) / 36))
+    const sum = raw.reduce((a, x) => a + x[0], 0)
+    if (pts && sum) raw.forEach(x => { const add = x[0] * (pts / sum - 1); x[0] += add; x[6] += add })
+    const P = lrRound(raw.map(x => x[0]), Math.round(pts || sum))
+    const M = lrRound(on.map(r => r.mp), Math.round(on.reduce((a, r) => a + r.mp, 0)))
+    const rows = on.map((r, i) => ({ name: r.name, key: r.key, elo: r.elo, status: r.status, mp: M[i], pts: P[i],
+      trb: Math.round(raw[i][1]), ast: Math.round(raw[i][2]), stl: Math.round(raw[i][3]), blk: Math.round(raw[i][4]), tp: Math.round(raw[i][5]),
+      gs: Math.round(raw[i][6]), rated: !!rotBy[r.key]?.r }))
+    const outs = side.rows.filter(r => r.out).map(r => ({ name: r.name, key: r.key, status: r.status, detail: r.detail }))
+    return { team: side.team, rows, outs, pts: Math.round(pts || sum) }
+  }
+
+  return { team, game, box, reportDay }
+}
+
+// Per-36 rates for a player with no recent games: pts, reb, ast, stl, blk, 3PM, Game Score (a fringe rotation player)
+const RATE_FRINGE = [13, 5.5, 2.5, 0.9, 0.5, 1.2, 7]
+// Rounds each value to a whole number so the rounded values add up to target (largest remainders round up)
+export function lrRound(vals, target) {
+  const fl = vals.map(v => Math.floor(v))
+  let left = target - fl.reduce((a, b) => a + b, 0)
+  const ord = vals.map((v, i) => [v - fl[i], i]).sort((a, b) => b[0] - a[0])
+  for (let k = 0; left > 0; k = (k + 1) % ord.length, left--) fl[ord[k][1]]++
+  for (let k = ord.length - 1, n = 0; left < 0 && n < 4 * ord.length; k = (k - 1 + ord.length) % ord.length, n++) if (fl[ord[k][1]] > 0) { fl[ord[k][1]]--; left++ }
+  return fl
 }
 
 // ── Team-level Elo win chance ───────────────────────────────────────────────
@@ -129,7 +160,7 @@ export function makeProjector(sc, sched) {
     const m = fg.margin ?? margin(fg)
     return untie(total / 2 + m / 2, total / 2 - m / 2, m)
   }
-  return { margin, score, sigma, home: c0, win: m => normCdf(m / sigma), strength: (t, rating) => cElo * rating + cNet * net(t) }
+  return { margin, score, sigma, home: c0, coef: { c0, cElo, cNet }, win: m => normCdf(m / sigma), strength: (t, rating) => cElo * rating + cNet * net(t) }
 }
 // Rounded projected scores, never a tie: when both round to the same number, the side the margin favors gets the
 // point (its score rounds up, or the other's down, whichever is nearer the unrounded value). lean: the margin's sign
