@@ -8,7 +8,7 @@ import { TIER_NAME } from './Collector'
 
 /*
  * Hang the Banner, a page of My binder (api/_lib/banner.js has the rules). Every franchise has a ladder, one rung per
- * finished NBA season, weakest best five first. Beat a rung's five (its average pre-game Elo) with five of your own
+ * finished NBA season, weakest best five first. Beat a rung's five (its combined pre-game Elo) with five of your own
  * cards of the franchise to see the next one; the card window narrows by stage. Every win opens a pack of the
  * franchise's cards; beating every rung hangs the franchise's Banner card in your binder.
  */
@@ -34,7 +34,7 @@ const seenGet = () => { try { return new Set(JSON.parse(localStorage.getItem(SEE
 const seenAdd = k => { try { const x = seenGet(); x.add(k); localStorage.setItem(SEEN, JSON.stringify([...x].slice(-400))) } catch { /* private window */ } }
 const TIER_REST = t => ({ goat: 10, icon: 8, legend: 6, standout: 4, rare: 2 })[t] || 0
 // Lineup spots on a half court, guards up top and bigs underneath
-const SPOTS = [['PG', 50, 24], ['SG', 16, 42], ['SF', 84, 42], ['PF', 31, 75], ['C', 69, 75]]
+const SPOTS = [['PG', 50, 24], ['SG', 15, 42], ['SF', 85, 42], ['PF', 37, 75], ['C', 63, 75]]
 const posRank = p => (/^PG|^G$/.test(p || '') ? 0 : /SG|G/.test(p || '') ? 1 : /SF/.test(p || '') ? 2 : /PF|F/.test(p || '') ? 3 : /C/.test(p || '') ? 4 : 2)
 
 export default function HangBanner({ env, tools }) {
@@ -77,7 +77,7 @@ export default function HangBanner({ env, tools }) {
                   <div className={styles.rung} data-st={r.status}>
                     <span className={styles.n}>{r.i}</span>
                     {r.status === 'locked' || (r.status === 'current' && !seen) ? <span><b>• • • •</b><small>{r.status === 'current' ? 'challenge it to unveil' : 'locked'}</small></span>
-                      : <span><b>{r.s}</b><small>{r.status === 'won' ? `${n0(r.score)} beat ${n0(r.target)}` : `target ${n0(r.target)}`}</small></span>}
+                      : <span><b>{r.s}</b><small>{r.status === 'won' ? `${n0(r.score * 5)} beat ${n0(r.target * 5)}` : `target ${n0(r.target * 5)}`}</small></span>}
                     <span className={styles.st}>{r.status === 'won' ? '✓' : r.status === 'current' ? 'Now' : '🔒'}</span>
                   </div>
                 </div>
@@ -88,14 +88,14 @@ export default function HangBanner({ env, tools }) {
                 <div className={styles.next} style={{ '--c': binderTeamInfo(fc)?.color || '#173657' }}>
                   <small>Rung {cur.i} of {det.rungs} · stage {cur.stage}</small>
                   <b>{cur.stageName}</b>
-                  <span>{seen ? <>The {cur.s} five · {n0(cur.elo)} average Elo</> : 'A mystery five. Challenge it to unveil the season, its strength and its cards.'}</span>
+                  <span>{seen ? <>The {cur.s} five · {n0(cur.elo * 5)} combined Elo</> : 'A mystery five. Challenge it to unveil the season, its strength and its cards.'}</span>
                   <span>Your cards: {windowText(cur)}</span>
                   <span>Win: a {teamName(fc)} pack · {cur.pack}</span>
                   <button type="button" className={fs.primary} onClick={() => { setCourt(true); setRes(null) }}>{seen ? 'Back to the court' : 'Challenge this rung'}</button>
                 </div>
                 <div className={styles.rule}><b>Rest:</b> a card in a winning five sits out the next rungs of this ladder: GOAT 10, Icon 8, Legend 6, Standout 4, Rare 2. Commons never rest.</div>
               </>}
-              {res?.won && <p className={styles.won}>Rung {res.rung} beaten, {n0(res.score)} to {n0(res.target)}. Your pack is open.{res.banner ? ' The Banner card is in your binder.' : ''}</p>}
+              {res?.won && <p className={styles.won}>Rung {res.rung} beaten, {n0(res.score * 5)} to {n0(res.target * 5)}. Your pack is open.{res.banner ? ' The Banner card is in your binder.' : ''}</p>}
             </div>
           </div>}
         </>}
@@ -149,7 +149,8 @@ function CourtModal({ env, fc, cur, rungs, resting, reveal, onSeen, onClose, onP
     for (const x of elig) { if (used.has(x.card.row.n)) continue; const k = x.card.row.n; if (!by.has(k)) by.set(k, []); by.get(k).push(x) }
     return [...by.values()].map(l => l.sort((a, b) => !!resting[Number(a.id)] - !!resting[Number(b.id)] || b.card.row.pre - a.card.row.pre))
   }, [elig, sel, resting])
-  const avg = chosen.length ? chosen.reduce((a, x) => a + x.card.row.pre, 0) / chosen.length : null
+  // Strength reads as the five's combined pre-game Elo (5 × the average the server compares)
+  const sum = chosen.length ? chosen.reduce((a, x) => a + x.card.row.pre, 0) : null, avg = sum != null ? sum / chosen.length : null
   const add = x => { if (chosen.length < 5 && !resting[Number(x.id)]) { setSel([...sel, Number(x.id)]); setOut(null) } }
   const play = async () => { setBusy(true); setErr(null); try { const r = await onPlay(sel); if (r) setOut(r) } catch (e) { setErr(e.message) } finally { setBusy(false) } }
   const face = c => { const e = fromIndex(env, c, { key: `${c.s}|${c.id}|${c.row.n}` }); return <Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit> }
@@ -161,24 +162,24 @@ function CourtModal({ env, fc, cur, rungs, resting, reveal, onSeen, onClose, onP
         <div className={styles.cmHead}>
           <small>{teamName(fc)} · rung {cur.i} of {rungs} · {cur.stageName}</small>
           <b className={shown >= 1 ? styles.in : styles.hid}>The {cur.s} {teamName(fc).split(' ').pop()}</b>
-          <span className={shown >= 1 ? styles.in : styles.hid}>{fmt(cur.date)} vs {cur.opp} · {cur.won ? 'W' : 'L'} {cur.score} · <b>{n0(cur.elo)}</b> average pre-game Elo</span>
+          <span className={shown >= 1 ? styles.in : styles.hid}>{fmt(cur.date)} vs {cur.opp} · {cur.won ? 'W' : 'L'} {cur.score} · <b>{n0(cur.elo * 5)}</b> combined pre-game Elo</span>
         </div>
         <div className={styles.courts}>
           <div className={styles.side2}>
-            <div className={styles.cTitle}><span>Their five</span><b>{n0(cur.elo)}</b></div>
+            <div className={styles.cTitle}><span>Their five</span><b>{n0(cur.elo * 5)}</b></div>
             <div className={styles.court}>
               {SPOTS.map(([p, x, y], i) => <div key={p} className={styles.spot} style={{ left: `${x}%`, top: `${y}%` }}>
-                {theirs && theirs[i] && i < shown ? <div className={styles.flipIn}>{face(theirs[i])}<em>{last(theirs[i].row.n)} · {n0(theirs[i].row.pre)}</em></div>
-                  : <div className={styles.cardBack}><i>{p}</i></div>}
+                {theirs && theirs[i] && i < shown ? <div className={styles.flipIn}>{face(theirs[i])}<em><b>{baseName(theirs[i].row.n)}</b>{n0(theirs[i].row.pre)}</em></div>
+                  : <div className={styles.cardBack}><i>?</i></div>}
               </div>)}
             </div>
           </div>
           <div className={styles.side2}>
-            <div className={styles.cTitle}><span>Your five</span><b data-win={chosen.length === 5 ? (avg > cur.elo ? 'y' : 'n') : undefined}>{avg != null ? n0(avg) : '—'}</b></div>
+            <div className={styles.cTitle}><span>Your five</span><b data-win={chosen.length === 5 ? (avg > cur.elo ? 'y' : 'n') : undefined}>{sum != null ? n0(sum) : '—'}</b></div>
             <div className={`${styles.court} ${styles.courtMine}`}>
               {SPOTS.map(([p, x, y], i) => <div key={p} className={styles.spot} style={{ left: `${x}%`, top: `${y}%` }}>
-                {chosen[i] ? <button type="button" className={styles.placed} onClick={() => setSel(sel.filter(v => v !== Number(chosen[i].id)))} title="Take him off the court">{face(chosen[i].card)}<em>{last(chosen[i].card.row.n)} · {n0(chosen[i].card.row.pre)}</em></button>
-                  : <div className={styles.empty}><i>{i === chosen.length ? '+' : p}</i></div>}
+                {chosen[i] ? <button type="button" className={styles.placed} onClick={() => setSel(sel.filter(v => v !== Number(chosen[i].id)))} title="Take him off the court">{face(chosen[i].card)}<em><b>{baseName(chosen[i].card.row.n)}</b>{n0(chosen[i].card.row.pre)}</em></button>
+                  : <div className={styles.empty}><i>{i === chosen.length ? '+' : ''}</i></div>}
               </div>)}
             </div>
           </div>
@@ -200,7 +201,7 @@ function CourtModal({ env, fc, cur, rungs, resting, reveal, onSeen, onClose, onP
         <div className={styles.cmFoot}>
           {out && !out.won && <span className={styles.lost}>Not this time: {n0(out.score)} against {n0(out.target)}.</span>}
           {err && <span className={styles.lost}>{err}</span>}
-          <span className={styles.gapTxt}>{chosen.length === 5 ? (avg > cur.elo ? `Beats it by ${n0(avg - cur.elo)}` : `${n0(cur.elo - avg + 1)} short`) : `${chosen.length} of 5 on the court`}</span>
+          <span className={styles.gapTxt}>{chosen.length === 5 ? (avg > cur.elo ? `Beats it by ${n0(sum - cur.elo * 5)}` : `${n0(Math.max(1, cur.elo * 5 - sum))} short`) : `${chosen.length} of 5 on the court`}</span>
           <button type="button" className={fs.primary} disabled={chosen.length !== 5 || busy} onClick={play}>{busy ? 'Playing…' : 'Play this rung'}</button>
         </div>
       </div>

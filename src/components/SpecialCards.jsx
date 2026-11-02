@@ -574,19 +574,19 @@ export function BannerCard({ card: c }) {
         <b>{c.size}/{c.size}</b><small>SEASONS BEATEN</small>
         <em>{c.from?.slice(0, 4)}–{c.to ? endYear(c.to) : ''}</em>
       </div>
-      <div className={styles.bnrPlate}><b>Banner Hung</b><small>Every {nick(c.tn)} season beaten{c.final ? ` · final ${c.final.s}, ${r0(c.final.elo)}` : ''}</small></div>
+      <div className={styles.bnrPlate}><b>Banner Hung</b><small>Every {nick(c.tn)} season beaten{c.final ? ` · final ${c.final.s}, ${r0(c.final.elo * 5)}` : ''}</small></div>
     </div>
   )
 }
 export function RewardBack({ card: c }) {
   const rows = c.kind === 'banner' ? [] : c.kind === 'allstar' ? (c.players || []).map(n => [baseName(n), ''])
     : c.kind === 'fhist' ? (c.seasons || []).map(x => [x, '']) : (c.players || []).slice(0, 60).map(([n, g]) => [baseName(n), `${g} G`])
-  const title = c.kind === 'allstar' ? `${c.s}${c.aba ? ' ABA' : ''} All-Stars` : c.tn
+  const title = c.kind === 'allstar' ? `${c.s}${c.aba ? ' ABA' : ''} All-Stars` : (c.tn || '').replace(/^"+|"+$/g, '')
   const sub = c.kind === 'banner' ? `Hang the Banner: every rung, ${c.from} to ${c.to}` : c.kind === 'allstar' ? 'Every All-Star of the season' : c.kind === 'fhist' ? 'One card from every NBA season' : `Every player in franchise history · most games first${(c.players || []).length > 60 ? ' (top 60 shown)' : ''}`
   return (
     <div className={`${styles.back} ${styles.setBack}`} style={{ '--c': c.kind === 'allstar' ? '#1f3d78' : c.tc || '#173657' }}>
       <div className={styles.backHead}><div><FitName>{title}</FitName><small>{sub}</small></div><span>{c.size}/{c.size}</span></div>
-      {c.kind === 'banner' ? <section><p className={styles.backNote}>Beat the best single-game five of all {c.size} {nick(c.tn)} NBA seasons, weakest to strongest, with five of your own cards each time, the card window narrowing from any era down to that season alone.{c.final ? ` The last rung: the ${c.final.s} five at ${r0(c.final.elo)}, beaten at ${r0(c.final.score)}.` : ''}</p></section>
+      {c.kind === 'banner' ? <section><p className={styles.backNote}>Beat the best single-game five of all {c.size} {nick(c.tn)} NBA seasons, weakest to strongest, with five of your own cards each time, the card window narrowing from any era down to that season alone.{c.final ? ` The last rung: the ${c.final.s} five at ${r0(c.final.elo * 5)}, beaten at ${r0(c.final.score * 5)}.` : ''}</p></section>
         : <div className={styles.setList} data-long={rows.length > 30 ? '' : undefined}>
         {rows.map(([a, b], i) => <div key={i} className={styles.setRow}><b>✓</b><span>{a}</span><em>{b}</em></div>)}
       </div>}

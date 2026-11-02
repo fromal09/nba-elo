@@ -78,11 +78,17 @@ async function run(sql, origin) {
         const rows = await sql`select id, card from ${sql(table)} where card->>'kind' in ('fhist', 'fcomp', 'banner')`
         for (const r of rows) {
           const name = check.franchises[r.card.fc]?.name
-          if (name && name !== r.card.tn) await sql`update ${sql(table)} set card = jsonb_set(card, '{tn}', ${JSON.stringify(name)}::jsonb) where id = ${r.id}`
+          if (name && name !== r.card.tn) await sql`update ${sql(table)} set card = jsonb_set(card, '{tn}', to_jsonb(${name}::text)) where id = ${r.id}`
         }
       }
       await sql`insert into migrations (id) values ('reward-names') on conflict do nothing`
     }
+  }
+  // The first rename stored the names with their JSON quotes ("Atlanta Hawks"); strip them
+  if (!done.has('reward-names-quotes')) {
+    for (const table of ['cards', 'sold'])
+      await sql`update ${sql(table)} set card = jsonb_set(card, '{tn}', to_jsonb(btrim(card->>'tn', '"'))) where card->>'kind' in ('fhist', 'fcomp', 'banner') and card->>'tn' like '"%'`
+    await sql`insert into migrations (id) values ('reward-names-quotes') on conflict do nothing`
   }
   // Starting Fives refresh again once the pool carries their tiers (Common to GOAT)
   if (!done.has('fives-tiers')) {

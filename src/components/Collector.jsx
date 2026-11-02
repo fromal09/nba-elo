@@ -340,7 +340,8 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
                 </span>
                 {i < shown && c.wish && <span className={styles.wishTag}>♥ Wish list</span>}
                 {i < shown && <span className={styles.chip} data-tier={isSpecial(c) ? 'special' : c.tier}>{tierName(c)} · {cardPoints(c).points.toLocaleString()} pts</span>}
-                {i < shown && <FitLine fit={binderFit(cards, c)} className={styles.fitLine} />}
+                {/* The chosen card's Selection Breakdown covers what this line says */}
+                {i < shown && !(sel === i && !isSpecial(c)) && <FitLine fit={binderFit(cards, c)} className={styles.fitLine} />}
               </button>
             ))}
           </div>

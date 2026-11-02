@@ -84,7 +84,9 @@
 .flipIn { animation: flipIn .6s ease-out both; }
 @keyframes flipIn { from { transform: rotateY(90deg) scale(.8); opacity: 0; } to { transform: none; opacity: 1; } }
 .flipIn > div, .placed > div { position: relative !important; width: 100%; aspect-ratio: 340 / 476; inset: auto !important; }
-.flipIn em, .placed em { font-style: normal; font-size: 10.5px; font-weight: 800; color: #fff; background: rgba(13,27,46,.8); border-radius: 8px; padding: 1px 6px; white-space: nowrap; max-width: 130%; overflow: hidden; text-overflow: ellipsis; }
+.flipIn em, .placed em { font-style: normal; font-size: 9px; font-weight: 700; color: #cfd8e3; background: rgba(13,27,46,.85); border-radius: 6px; padding: 2px 5px; margin-top: 3px;
+  display: flex; flex-direction: column; align-items: center; line-height: 1.15; text-align: center; max-width: 100%; box-sizing: border-box; }
+.flipIn em b, .placed em b { color: #fff; font-weight: 800; font-size: 9.5px; overflow-wrap: anywhere; }
 .placed { border: 0; background: none; padding: 0; cursor: pointer; animation: flipIn .35s ease-out both; }
 .cardBack, .empty { aspect-ratio: 340 / 476; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 .cardBack { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 85%, #000) 0 8px, var(--c) 8px 16px); box-shadow: 0 4px 10px rgba(0,0,0,.35), inset 0 0 0 2px rgba(255,255,255,.4); }
@@ -105,5 +107,5 @@
 @media (max-width: 760px) {
   .cmOverlay { padding: 0; align-items: flex-end; } .cm { max-height: 96dvh; border-radius: 18px 18px 0 0; padding: 14px 12px 0; }
   .courts { grid-template-columns: 1fr; } .cmHead > b { font-size: 24px; }
-  .spot { width: 21%; } .flipIn em, .placed em { font-size: 9px; }
+  .spot { width: 21%; } .flipIn em, .placed em { font-size: 8px; } .flipIn em b, .placed em b { font-size: 8.5px; }
 }
