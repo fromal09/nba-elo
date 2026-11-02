@@ -128,18 +128,33 @@ function useRungCards(env, fc, cur) {
   return cards
 }
 
+// Unveil steps: five cards, then the season and strength
+const DONE = 6
+// The strength ticks up to its value when it's first unveiled
+function CountUp({ to, run }) {
+  const [v, setV] = useState(run ? 0 : to)
+  useEffect(() => {
+    if (!run) { setV(to); return }
+    let raf, t0
+    const step = t => { t0 ??= t; const k = Math.min(1, (t - t0) / 900); setV(to * (1 - (1 - k) ** 3)); if (k < 1) raf = requestAnimationFrame(step) }
+    raf = requestAnimationFrame(step); return () => cancelAnimationFrame(raf)
+  }, [to, run])
+  return n0(v)
+}
+
 function CourtModal({ env, fc, cur, rungs, resting, reveal, onSeen, onClose, onPlay }) {
   const C = env.collector
   const theirs = useRungCards(env, fc, cur)
-  const [shown, setShown] = useState(reveal ? 0 : 5)
+  const [shown, setShown] = useState(reveal ? 0 : DONE)
   const [sel, setSel] = useState([]), [busy, setBusy] = useState(false), [out, setOut] = useState(null), [err, setErr] = useState(null)
   // Unveil their five one at a time, the first time this rung is challenged
   useEffect(() => {
-    if (!theirs || shown >= 5) return
-    const t = setTimeout(() => setShown(v => v + 1), shown === 0 ? 900 : 750)
+    if (!theirs || shown >= DONE) return
+    // The fifth card lands, a beat, then the season, the game and the strength
+    const t = setTimeout(() => setShown(v => v + 1), shown === 0 ? 900 : shown === 5 ? 1300 : 900)
     return () => clearTimeout(t)
   }, [theirs, shown])
-  useEffect(() => { if (theirs && shown >= 5) onSeen() }, [theirs, shown])
+  useEffect(() => { if (theirs && shown >= DONE) onSeen() }, [theirs, shown])
   const elig = useMemo(() => (C.cards || []).filter(x => fits(fc, cur, x.card)).sort((a, b) => b.card.row.pre - a.card.row.pre), [C.cards, fc, cur])
   const chosen = sel.map(id => elig.find(x => Number(x.id) === id)).filter(Boolean)
   const used = new Set(chosen.map(x => x.card.row.n))
@@ -161,12 +176,12 @@ function CourtModal({ env, fc, cur, rungs, resting, reveal, onSeen, onClose, onP
         <button type="button" className={fs.x} onClick={onClose} aria-label="Close">×</button>
         <div className={styles.cmHead}>
           <small>{teamName(fc)} · rung {cur.i} of {rungs} · {cur.stageName}</small>
-          <b className={shown >= 1 ? styles.in : styles.hid}>The {cur.s} {teamName(fc).split(' ').pop()}</b>
-          <span className={shown >= 1 ? styles.in : styles.hid}>{fmt(cur.date)} vs {cur.opp} · {cur.won ? 'W' : 'L'} {cur.score} · <b>{n0(cur.elo * 5)}</b> combined pre-game Elo</span>
+          {shown >= DONE ? <b className={styles.in}>The {cur.s} {teamName(fc).split(' ').pop()}</b> : <b className={styles.mystery}>A mystery five</b>}
+          <span className={shown >= DONE ? styles.in : styles.hid}>{fmt(cur.date)} vs {cur.opp} · {cur.won ? 'W' : 'L'} {cur.score} · <b>{n0(cur.elo * 5)}</b> combined pre-game Elo</span>
         </div>
         <div className={styles.courts}>
           <div className={styles.side2}>
-            <div className={styles.cTitle}><span>Their five</span><b>{n0(cur.elo * 5)}</b></div>
+            <div className={styles.cTitle}><span>Their five</span>{shown >= DONE ? <b className={styles.in}><CountUp to={cur.elo * 5} run={reveal} /></b> : <b className={styles.mystery}>?</b>}</div>
             <div className={styles.court}>
               {SPOTS.map(([p, x, y], i) => <div key={p} className={styles.spot} style={{ left: `${x}%`, top: `${y}%` }}>
                 {theirs && theirs[i] && i < shown ? <div className={styles.flipIn}>{face(theirs[i])}<em><b>{baseName(theirs[i].row.n)}</b>{n0(theirs[i].row.pre)}</em></div>
@@ -186,7 +201,7 @@ function CourtModal({ env, fc, cur, rungs, resting, reveal, onSeen, onClose, onP
         </div>
         <div className={styles.cmRule}>Your cards: {windowText(cur)}, five different players. Tap a player to put him on the court; tap him there to take him off.</div>
         <div className={styles.pool}>
-          {shown < 5 && reveal ? <p className={fs.note}>Unveiling their five…</p>
+          {shown < DONE && reveal ? <p className={fs.note}>Unveiling their five…</p>
             : !pool.length && chosen.length < 5 ? <p className={fs.note}>{chosen.length ? 'No more of your players fit this rung.' : 'None of your cards fit this rung yet. Team packs, Era packs and the store are the way in.'}</p>
             : pool.map(l => {
               const x = l[0], rest = resting[Number(x.id)]
