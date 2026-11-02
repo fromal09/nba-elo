@@ -45,7 +45,17 @@ export default function HangBanner({ env, tools }) {
   useEffect(() => { if (!fc) return; setD(null); setRes(null); C.loadBanner(fc).then(setD).catch(e => setErr(e.message)) }, [fc])
   const det = d?.detail, cur = det?.current
   const seen = cur ? seenGet().has(`${fc}|${cur.s}`) : false
-  const order = list ? [...list.franchises].sort((a, b) => (b.cleared > 0) - (a.cleared > 0) || b.cleared / b.rungs - a.cleared / a.rungs || teamName(a.fc).localeCompare(teamName(b.fc))) : []
+  // Players you could field on each ladder's next rung: cards of the franchise in its window, not resting, one per player
+  const fieldable = useMemo(() => {
+    const out = {}
+    for (const f of list?.franchises || []) {
+      if (!f.cur) continue
+      out[f.fc] = new Set((C.cards || []).filter(x => fits(f.fc, f.cur, x.card) && !f.resting?.[Number(x.id)]).map(x => x.card.row.n)).size
+    }
+    return out
+  }, [list, C.cards])
+  const ready = f => !f.cur || (fieldable[f.fc] ?? 0) >= 5
+  const order = list ? [...list.franchises].sort((a, b) => ready(b) - ready(a) || (b.cleared > 0) - (a.cleared > 0) || b.cleared / b.rungs - a.cleared / a.rungs || teamName(a.fc).localeCompare(teamName(b.fc))) : []
   return (
     <div className={fs.right}>
       <div className={fs.sheetHead}><div className={fs.sheetTitle}><b>Hang the Banner</b><span>{fc ? teamName(fc) : list ? `${list.franchises.filter(f => f.banner).length} banner${list.franchises.filter(f => f.banner).length === 1 ? '' : 's'} hung` : ''}</span></div>{tools}</div>
@@ -56,9 +66,11 @@ export default function HangBanner({ env, tools }) {
           {!list && !err && <p className={fs.note}>Loading the ladders…</p>}
           <div className={styles.grid}>
             {order.map(f => (
-              <button key={f.fc} type="button" className={styles.tile} style={{ '--c': binderTeamInfo(f.fc)?.color || '#173657' }} onClick={() => setFc(f.fc)}>
+              <button key={f.fc} type="button" className={styles.tile} data-short={ready(f) ? undefined : ''} style={{ '--c': binderTeamInfo(f.fc)?.color || '#173657' }} onClick={() => setFc(f.fc)}
+                title={ready(f) ? undefined : `You can field ${fieldable[f.fc] ?? 0} of the 5 players the next rung needs`}>
                 <Logo t={f.fc} size={36} />
-                <span className={styles.tileText}><b>{teamName(f.fc)}</b><small>{f.banner ? '★ Banner hung' : f.cleared ? `Rung ${Math.min(f.cleared + 1, f.rungs)} of ${f.rungs}` : `${f.rungs} rungs`}</small>
+                <span className={styles.tileText}><b>{teamName(f.fc)}</b><small>{f.banner ? '★ Banner hung' : f.cleared ? `Rung ${Math.min(f.cleared + 1, f.rungs)} of ${f.rungs}` : `${f.rungs} rungs`}
+                  {!ready(f) && <em className={styles.short}> · {fieldable[f.fc] ?? 0} of 5 players</em>}</small>
                   <span className={styles.meter}><i style={{ width: `${(f.cleared / f.rungs) * 100}%` }} /></span></span>
               </button>
             ))}
@@ -205,16 +217,22 @@ function CourtModal({ env, fc, cur, rungs, resting, reveal, onSeen, onClose, onP
             : !pool.length && chosen.length < 5 ? <p className={fs.note}>{chosen.length ? 'No more of your players fit this rung.' : 'None of your cards fit this rung yet. Team packs, Era packs and the store are the way in.'}</p>
             : pool.map(l => {
               const x = l[0], rest = resting[Number(x.id)]
-              return <button key={x.card.row.n} type="button" className={styles.prow} disabled={!!rest || chosen.length >= 5} onClick={() => add(x)}>
+              // His other cards: each rests on its own, so a second card of his plays while the first cools down
+              const alts = l.length > 1 && <div className={styles.alts}><span>His other cards</span>{l.slice(1).map(y => {
+                const r = resting[Number(y.id)]
+                return <button key={y.id} type="button" className={styles.alt} disabled={!!r || chosen.length >= 5} onClick={() => add(y)} title={r ? `Resting ${r} more rung${r === 1 ? '' : 's'}` : 'Put this card on the court'}>
+                  {y.card.s.slice(2)} · {fmt(y.card.date)} · <b>{n0(y.card.row.pre)}</b>{r ? <em> · rests {r}</em> : null}</button>
+              })}</div>
+              return <div key={x.card.row.n} className={styles.pgroup}><button type="button" className={styles.prow} disabled={!!rest || chosen.length >= 5} onClick={() => add(x)}>
                 <span className={styles.pcard}>{face(x.card)}</span>
-                <span className={styles.ptext}><b>{baseName(x.card.row.n)}</b><small>{x.card.s} · {fmt(x.card.date)} vs {x.card.o} · {TIER_NAME[x.card.tier] || ''}{l.length > 1 ? ` · ${l.length} cards` : ''}</small>
+                <span className={styles.ptext}><b>{baseName(x.card.row.n)}</b><small>{x.card.s} · {fmt(x.card.date)} vs {x.card.o} · {TIER_NAME[x.card.tier] || ''}</small>
                   {rest ? <em>Resting {rest} more rung{rest === 1 ? '' : 's'}</em> : TIER_REST(x.card.tier) ? <em className={styles.restNote}>Rests {TIER_REST(x.card.tier)} rungs if he wins</em> : null}</span>
                 <strong>{n0(x.card.row.pre)}<small>Elo</small></strong>
-              </button>
+              </button>{alts}</div>
             })}
         </div>
         <div className={styles.cmFoot}>
-          {out && !out.won && <span className={styles.lost}>Not this time: {n0(out.score)} against {n0(out.target)}.</span>}
+          {out && !out.won && <span className={styles.lost}>Not this time: {n0(out.score * 5)} against {n0(out.target * 5)}.</span>}
           {err && <span className={styles.lost}>{err}</span>}
           <span className={styles.gapTxt}>{chosen.length === 5 ? (avg > cur.elo ? `Beats it by ${n0(sum - cur.elo * 5)}` : `${n0(Math.max(1, cur.elo * 5 - sum))} short`) : `${chosen.length} of 5 on the court`}</span>
           <button type="button" className={fs.primary} disabled={chosen.length !== 5 || busy} onClick={play}>{busy ? 'Playing…' : 'Play this rung'}</button>

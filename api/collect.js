@@ -308,8 +308,10 @@ async function pick(u, b, origin) {
     const picks = [...p.picks, choice]
     const done = picks.length === p.slots.length
     const big = picks.some((k, i) => BIG.has(p.slots[i].cards[k]?.tier))
-    if (BIG.has(c.tier)) await t`update users set since_big = 0 where id = ${u.id}`
-    else if (done && !big) await t`update users set since_big = since_big + 1 where id = ${u.id}`
+    // Banner packs sit outside the Legend counter: they neither advance it nor reset it
+    const meter = !p.kind.startsWith('banner')
+    if (meter && BIG.has(c.tier)) await t`update users set since_big = 0 where id = ${u.id}`
+    else if (meter && done && !big) await t`update users set since_big = since_big + 1 where id = ${u.id}`
     const [np] = await t`update packs set picks = ${picks}, status = ${done ? 'done' : 'open'}, done_at = ${done ? new Date() : null}
       where id = ${p.id} returning *`
     // Coins for the pick

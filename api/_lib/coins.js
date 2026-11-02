@@ -19,9 +19,11 @@ export const SECTIONS = { scoreboard: 'Scoreboard', explorer: 'Season Explorer',
   rankings: 'Current Rankings', profile: 'a player profile', historical: 'Historical Elo', h2h: 'Head-to-Head', games: 'Game Explorer',
   daily: 'Daily Changes', seasons: 'Season by Season', franchise: 'Who’s Been Here?', bestx: 'Best Through X', tenures: 'Franchise Tenures', teams: 'Team Breakdown' }
 
+// A card's season start year; special cards without one (Rivalry, Duo, Duel) never match
+const yearOf = c => (typeof c?.s === 'string' ? +c.s.slice(0, 4) : NaN)
 // One challenge a day, the same for everyone: a test against an event
 const CHALLENGES = [
-  { id: 'nineties', text: 'Keep a card from the 1990s', on: 'card', ok: c => { const y = +c.s.slice(0, 4); return y >= 1989 && y <= 1998 } },
+  { id: 'nineties', text: 'Keep a card from the 1990s', on: 'card', ok: c => { const y = yearOf(c); return y >= 1989 && y <= 1998 } },
   { id: 'honor', text: 'Keep a Player of the Game or Player of the Day card', on: 'card', ok: c => !!c.honor },
   { id: 'playoff', text: 'Keep a playoff card', on: 'card', ok: c => !!c.band },
   { id: 'scoreboard', text: 'Check the Scoreboard', on: 'explore', ok: s => s === 'scoreboard' },
@@ -30,7 +32,7 @@ const CHALLENGES = [
   { id: 'finish', text: 'Finish a pack', on: 'pack' },
   { id: 'star', text: 'Star a card in your binder', on: 'star' },
   { id: 'hundred', text: 'Keep a card worth 100 points or more', on: 'card', ok: (c, pts) => pts >= 100 },
-  { id: 'classic', text: 'Keep a card from before 1980', on: 'card', ok: c => +c.s.slice(0, 4) < 1979 },
+  { id: 'classic', text: 'Keep a card from before 1980', on: 'card', ok: c => yearOf(c) < 1979 },
 ]
 const dayIndex = day => Math.floor(Date.parse(day + 'T12:00:00Z') / 864e5)
 export const challengeFor = day => CHALLENGES[dayIndex(day) % CHALLENGES.length]

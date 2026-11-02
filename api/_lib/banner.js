@@ -39,17 +39,25 @@ export async function ensureBannerSchema(t) {
   await t`alter table banner_wins add column if not exists step int`
   await t`alter table banner_wins add column if not exists tiers text[]`
 }
-// Cards resting on your next rung of a ladder: { cardId: rungs left }
-async function resting(sql, userId, fc) {
-  const wins = await sql`select ids, tiers, step, won_at from banner_wins where user_id = ${userId} and fc = ${fc} order by won_at`
+// Cards resting on your next rung of a ladder: { cardId: rungs left }. wins: that ladder's banner_wins rows, oldest first
+async function fillTiers(sql, wins) {
+  const need = wins.filter(w => !w.tiers).flatMap(w => w.ids)
+  if (!need.length) return
+  const m = new Map((await sql`select id, tier from cards where id = any(${need})`).map(c => [String(c.id), c.tier]))
+  for (const w of wins) if (!w.tiers) w.tiers = w.ids.map(id => m.get(String(id)) || 'common')
+}
+function restOf(wins) {
   const next = wins.length + 1, out = {}
   for (const [k, w] of wins.entries()) {
     const step = w.step || k + 1
-    let tiers = w.tiers
-    if (!tiers) { const m = new Map((await sql`select id, tier from cards where id = any(${w.ids})`).map(c => [String(c.id), c.tier])); tiers = w.ids.map(id => m.get(String(id)) || 'common') }
-    w.ids.forEach((id, i) => { const left = step + (BANNER_REST[tiers[i]] || 0) - next + 1; if (left > 0) out[Number(id)] = Math.max(out[Number(id)] || 0, left) })
+    w.ids.forEach((id, i) => { const left = step + (BANNER_REST[w.tiers[i]] || 0) - next + 1; if (left > 0) out[Number(id)] = Math.max(out[Number(id)] || 0, left) })
   }
   return out
+}
+async function resting(sql, userId, fc) {
+  const wins = await sql`select ids, tiers, step, won_at from banner_wins where user_id = ${userId} and fc = ${fc} order by won_at`
+  await fillTiers(sql, wins)
+  return restOf(wins)
 }
 
 let fivesP = null, fivesAt = 0
@@ -76,7 +84,8 @@ export async function ladder(origin, fc, day) {
 
 export async function bannerView(sql, u, origin, day, fc) {
   const F = (await fives(origin)) || {}
-  const wins = await sql`select fc, s, rung, stage, target, score, names, won_at from banner_wins where user_id = ${u.id}`
+  const wins = await sql`select fc, s, rung, stage, target, score, names, won_at, ids, tiers, step from banner_wins where user_id = ${u.id} order by won_at`
+  await fillTiers(sql, wins)
   const banners = new Set((await sql`select ref from cards where user_id = ${u.id} and ref like 'banner|%'`).map(r => r.ref.slice(7)))
   const franchises = []
   // Today's 30 franchises (the ones with a five in the newest season), with their whole history
@@ -84,8 +93,11 @@ export async function bannerView(sql, u, origin, day, fc) {
   for (const f of Object.keys(F).filter(x => !x.includes('@') && F[x][newest]).sort()) {
     const L = await ladder(origin, f, day)
     if (!L.length) continue
-    const mine = new Set(wins.filter(w => w.fc === f).map(w => w.s))
-    franchises.push({ fc: f, rungs: L.length, cleared: L.filter(r => mine.has(r.s)).length, banner: banners.has(f) })
+    const fw = wins.filter(w => w.fc === f), mine = new Set(fw.map(w => w.s))
+    // The next rung's card window and the cards resting on it, so the list can tell which ladders you can field five for
+    const next = L.find(r => !mine.has(r.s))
+    franchises.push({ fc: f, rungs: L.length, cleared: L.filter(r => mine.has(r.s)).length, banner: banners.has(f),
+      cur: next ? { s: next.s, window: windowOf(next.stage, next.s) } : null, resting: next ? restOf(fw) : {} })
   }
   let detail = null
   if (fc) {

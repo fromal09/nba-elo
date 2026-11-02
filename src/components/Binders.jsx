@@ -89,6 +89,13 @@ const ownsCard = (e, name, env) => {
   const s = e.season || e.s, id = e.id || e.g?.id, n = e.name || name
   return !!(s && id && n && env.owned.has(`${s}|${id}|${n}`))
 }
+// "Mine only": a set binder's sheets narrowed to the cards in your binder (signed in only)
+function MineToggle({ env, on, set, n, of }) {
+  if (!env.owned) return null
+  return <button type="button" className={styles.mineBtn} aria-pressed={on} onClick={() => set(!on)} title={on ? 'Show the whole set' : 'Show only the cards in your binder'}>
+    <i>{on ? '✓' : ''}</i>Mine only<span>{n}/{of}</span></button>
+}
+const mineOf = (list, name, env) => list.filter(e => ownsCard(e, name, env))
 
 function Pocket({ e, name, env, onPull, pulled, album }) {
   const out = pulled === e.key
@@ -134,7 +141,7 @@ function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, pho
     <div className={styles.right}>
       <div className={styles.sheetHead}>
         <div className={styles.sheetTitle}><b>{title}</b>{sub && <span>{sub}</span>}</div>
-        {tools}
+        {tools && <div className={styles.sheetTools}>{tools}</div>}
       </div>
       {tabs && phone && <div className={styles.chips}>{tabs}</div>}
       {filters && <div className={`${styles.chips} ${styles.filters}`}>{filters}</div>}
@@ -409,7 +416,9 @@ export function SeasonBinder({ name, sd: startSd, env, onClose, onCareer }) {
   const sorted = useMemo(() => order === 'chrono' ? cards
     : order === 'best' ? [...cards].sort((a, b) => b.gs - a.gs || !!a.duel - !!b.duel)
       : [...cards].sort((a, b) => rankOf(a.tier) - rankOf(b.tier) || b.gs - a.gs), [cards, order])
-  const S = useSheets(sorted, per)
+  const [mineOnly, setMineOnly] = useState(false)
+  const mineList = useMemo(() => mineOf(sorted, name, env), [sorted, name, env])
+  const S = useSheets(mineOnly ? mineList : sorted, per)
   const last = entries[entries.length - 1]
   const team = last?.t, tinfo = team && sd.teams[team]
   // Traded mid-season: each team he played for, in order, with its card count
@@ -464,7 +473,7 @@ export function SeasonBinder({ name, sd: startSd, env, onClose, onCareer }) {
   const right = <Sheet S={S} per={per} name={name} env={env} onPull={P.pull} pulled={P.pulled} phone={phone} tabs={tabs}
     title={`Sheet ${S.cur + 1} of ${S.sheets}`}
     sub={first && order === 'chrono' ? `${day(first.g.date)} – ${day(lastP.g.date)}` : order === 'best' ? 'best Game Score first' : order === 'tier' ? 'rarest first' : ''}
-    tools={<Seg value={order} onChange={v => { setOrder(v); S.reset() }} options={[['chrono', 'Chronological'], ['best', 'Best first'], ['tier', 'By tier']]} />} />
+    tools={<><MineToggle env={env} on={mineOnly} set={v => { setMineOnly(v); S.reset() }} n={mineList.length} of={sorted.length} /><Seg value={order} onChange={v => { setOrder(v); S.reset() }} options={[['chrono', 'Chronological'], ['best', 'Best first'], ['tier', 'By tier']]} /></>} />
   return <>
     <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right} tabs={tabs}
       summary={<span><b>{counts[0] ? `${counts[0]} ★ GOAT · ` : ''}{cards.length} cards</b>{tinfo ? ` · ${tinfo.w}–${tinfo.l}${champ ? ' · Champions' : ''}` : ''}</span>}
@@ -496,6 +505,7 @@ export function CareerBinder({ name, env, onClose, onSeason }) {
   const [sel, setSel] = useState(null)
   const [albumPage, setAlbumPage] = useState(0)
   const [albumSet, setAlbumSet] = useState('best')
+  const [albumMine, setAlbumMine] = useState(false)
   const P = usePull(env, null, name)
   useEffect(() => {
     env.getJSON(`/data/explorer/binders/p/${env.slug(name)}.json`).then(d => { setData(d); setSel(d.seasons.reduce((b, s) => (!b || s.peak > b.peak ? s : b), null)?.s) }).catch(() => setErr(true))
@@ -604,15 +614,16 @@ export function CareerBinder({ name, env, onClose, onSeason }) {
         ))}
       </div>
     </>
-    const set = albumSet === 'duels' && duels.length ? duels : bests
+    const set0 = albumSet === 'duels' && duels.length ? duels : bests
+    const set = albumMine ? mineOf(set0, name, env) : set0
     const per = phone ? 6 : 9, pages = Math.max(1, Math.ceil(set.length / per)), pg = Math.min(albumPage, pages - 1)
     const S = { cur: pg, sheets: pages, dir: 1, page: set.slice(pg * per, pg * per + per), go: k => setAlbumPage(Math.max(0, Math.min(pages - 1, pg + k))), jump: setAlbumPage }
     const nd = duels.filter(d => d.kind === 'duel').length, ns = duels.length - nd
     right = <Sheet S={S} per={per} name={name} env={env} onPull={P.pull} pulled={P.pulled} phone={phone}
-      title={set === duels ? 'Duels' : 'Best of every season'}
-      sub={set === duels ? [nd && `${nd} Duel of the Day`, ns && `${ns} Giant-Slayer of the Day`].filter(Boolean).join(' · ') : 'highest Game Score each season'}
-      album={set === duels ? null : 'Season best'}
-      tools={duels.length > 0 && <Seg value={set === duels ? 'duels' : 'best'} onChange={v => { setAlbumSet(v); setAlbumPage(0) }} options={[['best', 'Season bests'], ['duels', `Duels · ${duels.length}`]]} />} />
+      title={set0 === duels ? 'Duels' : 'Best of every season'}
+      sub={set0 === duels ? [nd && `${nd} Duel of the Day`, ns && `${ns} Giant-Slayer of the Day`].filter(Boolean).join(' · ') : 'highest Game Score each season'}
+      album={set0 === duels ? null : 'Season best'}
+      tools={<><MineToggle env={env} on={albumMine} set={v => { setAlbumMine(v); setAlbumPage(0) }} n={mineOf(set0, name, env).length} of={set0.length} />{duels.length > 0 && <Seg value={set0 === duels ? 'duels' : 'best'} onChange={v => { setAlbumSet(v); setAlbumPage(0) }} options={[['best', 'Season bests'], ['duels', `Duels · ${duels.length}`]]} />}</>} />
   }
   return <>
     <Book tc={tc} phone={phone} stack onClose={onClose} head={head} left={left} right={right}
@@ -661,7 +672,9 @@ export function TeamBinder({ team, sd: startSd, env, onClose, onFranchise }) {
   }), [sd, t, env])
   const sorted = useMemo(() => order === 'chrono' ? entries : order === 'best' ? [...entries].sort((a, b) => b.gs - a.gs)
     : [...entries].sort((a, b) => a.name.localeCompare(b.name) || a.g.date.localeCompare(b.g.date)), [entries, order])
-  const S = useSheets(sorted, per)
+  const [mineOnly, setMineOnly] = useState(false)
+  const mineList = useMemo(() => mineOf(sorted, '', env), [sorted, env])
+  const S = useSheets(mineOnly ? mineList : sorted, per)
   const tinfo = sd.teams[t] || {}
   const tc = tinfo.color || '#173657'
   const champ = env.champion(sd, t)
@@ -712,8 +725,8 @@ export function TeamBinder({ team, sd: startSd, env, onClose, onFranchise }) {
   </>
   const first = S.page[0]
   const right = <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone} tabs={tabs}
-    title={`Sheet ${S.cur + 1} of ${S.sheets}`} sub={first && order === 'chrono' ? `Games ${S.cur * per + 1}–${S.cur * per + S.page.length}` : order === 'best' ? 'best Game Score first' : order === 'player' ? 'by player' : ''}
-    tools={<Seg value={order} onChange={v => { setOrder(v); S.reset() }} options={[['chrono', 'Schedule'], ['best', 'Best first'], ['player', 'By player']]} />} />
+    title={`Sheet ${S.cur + 1} of ${S.sheets}`} sub={first && order === 'chrono' && !mineOnly ? `Games ${S.cur * per + 1}–${S.cur * per + S.page.length}` : order === 'best' ? 'best Game Score first' : order === 'player' ? 'by player' : ''}
+    tools={<><MineToggle env={env} on={mineOnly} set={v => { setMineOnly(v); S.reset() }} n={mineList.length} of={sorted.length} /><Seg value={order} onChange={v => { setOrder(v); S.reset() }} options={[['chrono', 'Schedule'], ['best', 'Best first'], ['player', 'By player']]} /></>} />
   return <>
     <Book tc={tc} phone={phone} onClose={onClose} head={head} left={left} right={right} tabs={tabs}
       summary={<span><b>{tinfo.w}–{tinfo.l}{champ ? ' · Champions' : ''}</b> · {entries.length} cards</span>}
@@ -831,7 +844,9 @@ function FranchiseAlbum({ d, env, phone, head, tc, onClose, page, setPage }) {
     M.peak_elo && mk(M.peak_elo, `Peak Elo · ${r0(M.peak_elo.row.post)}`, '#6b3fa0'),
     M.swing && mk(M.swing, `Biggest swing · ${sgn(M.swing.row.post - M.swing.row.pre)}`, '#2b4c72'),
   ].filter(Boolean)
-  const bests = d.seasons.filter(x => x.best).map(x => fromIndex(env, x.best, { label: `${x.s} · ${baseName(x.best.row.n).split(' ').slice(-1)[0]}`, sub: x.champ ? 'Champions' : x.live ? 'In progress' : `${x.w}–${x.l}`, subColor: x.champ ? '#b07d1a' : '#6a7684' }))
+  const all = d.seasons.filter(x => x.best).map(x => fromIndex(env, x.best, { label: `${x.s} · ${baseName(x.best.row.n).split(' ').slice(-1)[0]}`, sub: x.champ ? 'Champions' : x.live ? 'In progress' : `${x.w}–${x.l}`, subColor: x.champ ? '#b07d1a' : '#6a7684' }))
+  const [mineOnly, setMineOnly] = useState(false)
+  const mineList = mineOf(all, '', env), bests = mineOnly ? mineList : all
   const per = phone ? 6 : 9, pages = Math.max(1, Math.ceil(bests.length / per))
   const pg = page < 0 ? pages - 1 : Math.min(page, pages - 1)
   const page0 = bests.slice(pg * per, pg * per + per)
@@ -849,7 +864,8 @@ function FranchiseAlbum({ d, env, phone, head, tc, onClose, page, setPage }) {
     </div>
   </>
   const right = <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone} album="Season best"
-    title="Best of every season" sub={page0.length ? `${page0[0].season} – ${page0[page0.length - 1].season}` : ''} />
+    title="Best of every season" sub={page0.length ? `${page0[0].season} – ${page0[page0.length - 1].season}` : ''}
+    tools={<MineToggle env={env} on={mineOnly} set={v => { setMineOnly(v); setPage(-1) }} n={mineList.length} of={all.length} />} />
   return <>
     <Book tc={tc} phone={phone} stack onClose={onClose} head={head} left={left} right={right}
       summary={<span><b>{d.titles.length} title{d.titles.length === 1 ? '' : 's'}</b> · {d.seasons.length} seasons</span>}
@@ -951,7 +967,9 @@ export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
   const sorted = useMemo(() => order === 'set' ? entries
     : order === 'chrono' ? [...entries].sort((a, b) => a.date.localeCompare(b.date))
       : [...entries].sort((a, b) => b.gs - a.gs), [entries, order])
-  const S = useSheets(sorted, per)
+  const [mineOnly, setMineOnly] = useState(false)
+  const mineList = useMemo(() => mineOf(sorted, '', env), [sorted, env])
+  const S = useSheets(mineOnly && !def.duel ? mineList : sorted, per)
   const head = <>
     <div className={styles.kicker}>League binder</div>
     <h2 className={styles.title} style={{ color: def.color }}>{def.title}</h2>
@@ -964,6 +982,7 @@ export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
   const people = new Set(entries.map(e => (e.duel ? e.duel.a.name : e.name)))
   const most = [...entries.reduce((m, e) => { const n = e.duel ? e.duel.a.name : e.name; m.set(n, (m.get(n) || 0) + 1); return m }, new Map())].sort((a, b) => b[1] - a[1])[0]
   const switchSet = id => { setSet(id); setOrder('set'); S.reset() }
+  const listed = mineOnly && !def.duel ? mineList : sorted
   const left = <>
     <p className={styles.line}>{def.desc}{years ? ` ${years[0].slice(0, 4)}–${years[1].slice(0, 4)}.` : ''}</p>
     {!def.duel && env.owned && <div className={styles.ownLine}><b>{entries.filter(e => e.owned).length}</b> of {entries.length} in your binder</div>}
@@ -981,12 +1000,12 @@ export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
         </button>
       ))}
     </div>
-    <Checklist entries={sorted} per={per} cur={S.cur} onJump={S.jump} label={`Checklist · ${entries.length} cards`} />
+    <Checklist entries={listed} per={per} cur={S.cur} onJump={S.jump} label={`Checklist · ${entries.length} cards`} />
   </>
   const options = def.chrono ? [['set', 'Chronological'], ['best', 'Best first']] : [['set', 'Ranked'], ['chrono', 'Chronological']]
   const right = <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone}
     title={`Sheet ${S.cur + 1} of ${S.sheets}`} sub={def.chrono && order === 'set' && S.page[0] ? `${S.page[0].date.slice(0, 4)} – ${S.page[S.page.length - 1].date.slice(0, 4)}` : ''}
-    album={def.album} tools={<Seg value={order} onChange={v => { setOrder(v); S.reset() }} options={options} />} />
+    album={def.album} tools={<>{!def.duel && <MineToggle env={env} on={mineOnly} set={v => { setMineOnly(v); S.reset() }} n={mineList.length} of={sorted.length} />}<Seg value={order} onChange={v => { setOrder(v); S.reset() }} options={options} /></>} />
   return <>
     <Book tc={def.color} phone={phone} onClose={onClose} head={head} left={left} right={right}
       summary={<span><b>{entries.length} cards</b> · {def.desc}</span>}

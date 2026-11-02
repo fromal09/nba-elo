@@ -31,6 +31,8 @@
 /* Pack opening */
 .opening { position: relative; width: min(760px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box; color: #fff; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 8px; }
 .opening .x { background: rgba(255,255,255,.12); }
+/* A scrolling column: no row shrinks below its content (the pick bar shrank under the Selection Breakdown, and the kept row rode over it) */
+.opening > * { flex-shrink: 0; }
 .kick { font-size: 11.5px; font-weight: 800; letter-spacing: 2.4px; text-transform: uppercase; color: #e7c160; }
 .hintLine { font-size: 12.5px; color: rgba(255,255,255,.6); text-align: center; }
 

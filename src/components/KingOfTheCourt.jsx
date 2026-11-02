@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import styles from './KingOfTheCourt.module.css'
 import fs from './FiveChallenge.module.css'
-import { Seg } from './Binders'
+import { Seg, Fit, fromIndex } from './Binders'
+import { MiniCard } from './PlayerCard'
 import { binderLogo, binderTeamInfo } from './SeasonExplorer'
 
 /*
@@ -45,14 +46,14 @@ export default function KingOfTheCourt({ env, tools }) {
       <div className={fs.body}>
         {err && <p className={styles.err}>{err}</p>}
         {!d && !err && <p className={fs.note}>Loading the slate…</p>}
-        {d && tab === 'group' && <Group d={d} busy={busy} onPick={pick} />}
-        {d && tab === 'rivals' && <Rivals d={d} busy={busy} onPick={pick} onAct={act} onDay={setDay} />}
+        {d && tab === 'group' && <Group env={env} d={d} busy={busy} onPick={pick} />}
+        {d && tab === 'rivals' && <Rivals env={env} d={d} busy={busy} onPick={pick} onAct={act} onDay={setDay} />}
       </div>
     </div>
   )
 }
 
-function Group({ d, busy, onPick }) {
+function Group({ env, d, busy, onPick }) {
   const R = d.rules, gv = d.groupView
   const picked = Object.keys(d.group).length
   return <>
@@ -65,29 +66,58 @@ function Group({ d, busy, onPick }) {
     {d.games.length > 0 && <p className={fs.note}>{picked} of {d.games.length} games picked{gv ? ` · your group: ${gv.members.map(m => m.you ? 'you' : m.name).join(', ')}` : ''}</p>}
     {d.games.map(g => {
       const res = gv?.games.find(x => x.id === g.id)
-      return <GameBlock key={g.id} g={g} mine={d.group[g.id]} cands={d.candidates[g.id] || []} canPick={d.entryOpen && g.open} busy={busy === 'group' + g.id}
+      return <GameBlock key={g.id} env={env} g={g} mine={d.group[g.id]} cands={d.candidates[g.id] || []} canPick={d.entryOpen && g.open} busy={busy === 'group' + g.id}
         onPick={card => onPick('group', g.id, card)} court={res?.entries} potg={res?.potg} />
     })}
   </>
 }
 
-function GameBlock({ g, mine, cands, canPick, busy, onPick, court, potg, versus }) {
+function GameBlock({ env, g, mine, cands, canPick, busy, onPick, court, potg, versus }) {
   const label = g.state === 'pre' ? tipTime(g.tip) : g.state === 'post' ? `Final ${g.as}–${g.hs}` : `${g.detail || 'Live'} · ${g.as}–${g.hs}`
+  const [open, setOpen] = useState(false)
+  const ok = cands.filter(c => !c.out && !c.resting).length
   return (
     <section className={styles.game}>
       <header><Logo t={g.away} /><b>{g.away}</b><i>@</i><Logo t={g.home} /><b>{g.home}</b><span className={styles.when}>{label}</span></header>
       {canPick ? <div className={styles.pickRow}>
-        <select value={mine?.cardId || ''} disabled={busy} onChange={e => onPick(e.target.value ? Number(e.target.value) : null)} aria-label={`Your pick, ${g.away} at ${g.home}`}>
-          <option value="">{cands.length ? 'Pick a player…' : 'None of your players play in this game'}</option>
-          {cands.map(c => <option key={c.cardId} value={c.cardId} disabled={!!c.resting || c.out}>
-            {baseName(c.name)} · {c.team} · {TIER[c.tier]} ×{c.mult}{c.proj != null ? ` · proj ${f1(c.proj)}` : ''}{c.out ? ' · out' : c.resting ? ' · resting' : ''}</option>)}
-        </select>
         {mine && <span className={styles.mine}><i style={{ background: TIER_C[mine.tier] }} />{baseName(mine.player)} ×{mine.mult}</span>}
+        <button type="button" className={styles.chooseBtn} disabled={busy || !cands.length} onClick={() => setOpen(true)}>
+          {!cands.length ? 'None of your players play in this game' : busy ? 'Saving…' : mine ? 'Change your player' : `Choose your player · ${ok} available`}</button>
       </div> : mine ? <div className={styles.pickRow}><span className={styles.mine}><i style={{ background: TIER_C[mine.tier] }} />Your pick: {baseName(mine.player)} ({mine.team}) ×{mine.mult}{mine.score != null ? ` · ${f1(mine.score)}` : ''}</span></div>
         : <p className={fs.note}>{g.open ? 'No pick.' : 'No pick in this game.'}</p>}
+      {open && <PickModal env={env} g={g} label={label} cands={cands} mine={mine} onClose={() => setOpen(false)} onPick={card => { setOpen(false); onPick(card) }} />}
       {court && <Court entries={court} potg={potg} />}
       {versus}
     </section>
+  )
+}
+
+// Your players in one game, as the actual cards you'd play: tap one to pick him
+function PickModal({ env, g, label, cands, mine, onClose, onPick }) {
+  const byId = new Map((env.collector.cards || []).map(x => [Number(x.id), x.card]))
+  useEffect(() => { const k = e => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [])
+  return (
+    <div className={styles.pmOverlay} onClick={onClose}>
+      <div className={styles.pm} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Choose your player, ${g.away} at ${g.home}`}>
+        <button type="button" className={fs.x} onClick={onClose} aria-label="Close">×</button>
+        <div className={styles.pmHead}><small>{g.away} @ {g.home} · {label}</small><b>Choose your player</b>
+          <span>Your best card of each player in this game. Score = his Player of the Game score × the card’s multiplier.</span></div>
+        <div className={styles.pmGrid}>
+          {cands.map(c => {
+            const card = byId.get(c.cardId), e = card && fromIndex(env, card, { key: String(c.cardId) })
+            const off = c.out || !!c.resting, on = mine?.cardId === c.cardId
+            return <button key={c.cardId} type="button" className={styles.pmCard} data-on={on ? '' : undefined} disabled={off} onClick={() => onPick(c.cardId)}>
+              <span className={styles.pmFace}>{e ? <Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit>
+                : <i style={{ background: TIER_C[c.tier] }}>{last(c.name)}</i>}</span>
+              <b>{baseName(c.name)}</b>
+              <small><em style={{ color: TIER_C[c.tier] }}>{TIER[c.tier]} ×{c.mult}</em>{c.proj != null ? ` · proj ${f1(c.proj)}` : ''}</small>
+              {c.out ? <strong>Out tonight</strong> : c.resting ? <strong>Resting</strong> : on ? <strong data-on="">Your pick</strong> : null}
+            </button>
+          })}
+        </div>
+        {mine && <div className={styles.pmFoot}><button type="button" className={styles.clearBtn} onClick={() => onPick(null)}>Clear my pick</button></div>}
+      </div>
+    </div>
   )
 }
 
@@ -112,7 +142,7 @@ function Court({ entries, potg }) {
   )
 }
 
-function Rivals({ d, busy, onPick, onAct, onDay }) {
+function Rivals({ env, d, busy, onPick, onAct, onDay }) {
   const open = d.rivals.filter(r => r.status === 'pending'), on = d.rivals.filter(r => r.status === 'accepted'), past = d.rivals.filter(r => !['pending', 'accepted'].includes(r.status))
   const row = r => (
     <div key={r.id} className={styles.rival}>
@@ -140,7 +170,7 @@ function Rivals({ d, busy, onPick, onAct, onDay }) {
             <i>vs</i>
             <span data-win={rg?.w && rg.w !== (r.you === 'from' ? 'a' : 'b') ? '' : undefined}><small>{r.opp}</small><b>{x.theirs ? (x.theirs.hidden ? 'Picked · hidden until tip' : baseName(x.theirs.player)) : '—'}</b><em>{f1(theirs?.score ?? x.theirs?.score)}</em></span>
           </div>
-          return <GameBlock key={g.id} g={g} mine={x.mine} cands={d.candidates[g.id] || []} canPick={g.open && (r.status === 'accepted' || r.status === 'pending')} busy={busy === `r${r.id}${g.id}`}
+          return <GameBlock key={g.id} env={env} g={g} mine={x.mine} cands={d.candidates[g.id] || []} canPick={g.open && (r.status === 'accepted' || r.status === 'pending')} busy={busy === `r${r.id}${g.id}`}
             onPick={card => onPick(`r${r.id}`, g.id, card)} versus={versus} />
         })}
       </div>
