@@ -92,3 +92,8 @@
 @media (prefers-reduced-motion: reduce) { .packArt { animation: none; } }
 .fitLine { display: block; font-size: 10.5px; color: #6b7783; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .fitLine b { color: #1d2633; }
+
+.sbd { width: 100%; }
+.sbd summary { list-style: none; cursor: pointer; } .sbd summary::-webkit-details-marker { display: none; }
+.sbd summary::after { content: 'Selection Breakdown ▾'; display: block; text-align: center; font-size: 10px; font-weight: 800; letter-spacing: .6px; color: #1a5fa8; }
+.sbd[open] summary::after { content: 'Selection Breakdown ▴'; }

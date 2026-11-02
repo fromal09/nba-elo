@@ -7,6 +7,7 @@ import { fromIndex } from './Binders'
 import { binderTeamInfo, binderHeadshots, binderLogo } from './SeasonExplorer'
 import { norm } from './predict'
 import { holidayNear } from './holidays'
+import SelectionBreakdown from './SelectionBreakdown'
 import { cardPoints } from '../../api/_lib/points.js'
 
 /*
@@ -131,6 +132,10 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
     duelPick: guard(async (game, player) => { const d = await api('duelpick', { game, player }); take(d); setPreds(d.predictions); return d.predictions }),
     setLineup: guard(async (day, slot, card) => { const d = await api('lineup', { day, slot, card }); take(d); setPreds(d.predictions); return d.predictions }),
     loadChallenge: () => api('challenge').then(d => d.challenge),
+    loadKoc: day => api('koc', undefined, day ? `&day=${day}` : '').then(d => { take(d); return d.koc }),
+    kocPick: guard(async (day, mode, game, card) => { const d = await api('kocpick', { day, mode, game, card }, `&day=${day}`); take(d); return d.koc }),
+    rival: guard(async (to, day, wager) => { const d = await api('rival', { to, day, wager }, `&day=${day}`); take(d); setToast(`Challenge sent to ${to}. Your wager is held until it’s answered.`); return d.koc }),
+    rivalAct: guard(async (id, act, day) => { const d = await api('rivalact', { id, act }, day ? `&day=${day}` : ''); take(d); return d.koc }),
     loadBanner: fc => api('banner', undefined, fc ? `&fc=${encodeURIComponent(fc)}` : '').then(d => d.banner),
     playBanner: guard(async (fc, ids) => { const d = await api('bannerplay', { fc, ids }); take(d); if (d.packs?.length) setQueue(d.packs); if (d.result?.won) loadCards(); return d }),
     setChallenge: guard(async (level, ids) => { const d = await api('challengeset', { level, ids }); return d.challenge }),
@@ -313,7 +318,7 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
             <span className={styles.packBody}>
               <small>Floor Performance Rankings</small>
               <b>{packTitle(pack)}</b>
-              <em>Pick 5 · one of three at a time</em>
+              <em>Pick {pack.slots.length} · one of three at a time</em>
               {pack.pity && <strong>★ Guaranteed big pull inside</strong>}
               <i>{kind === 'team' || kind === 'storeteam' || kind.startsWith('banner') ? binderTeamInfo(pack.team).abbr : kind === 'goat' ? '★' : 'FPR'}</i>
             </span>
@@ -344,6 +349,7 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
               <div className={styles.pickWho}><b>{cardName(chosen)} · {cardPoints(chosen).points.toLocaleString()} pts</b><span>{isSpecial(chosen) ? line(chosen) : `${fmtDay(chosen.date)} · ${chosen.tn} ${chosen.home === false ? '@' : 'vs'} ${chosen.on} · ${line(chosen)}`}</span>
                 <small>{pointsWhy(chosen)}</small></div>
               <button type="button" className={styles.keepBtn} onClick={keep} disabled={busy}>{busy ? 'Keeping…' : 'Keep this card'}</button>
+              {!isSpecial(chosen) && <SelectionBreakdown cards={cards} card={chosen} dark />}
             </> : <div className={styles.hintLine}>{shown < 3 ? 'Turning them over…' : 'Choose one. The other two go back.'}</div>}
           </div>
           {err && <div className={styles.err}>{err}</div>}
@@ -355,7 +361,7 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
         </>}
 
         {stage === 'done' && <>
-          <div className={styles.kick}>{packTitle(pack)} · your five</div>
+          <div className={styles.kick}>{packTitle(pack)} · your {pack.slots.length === 5 ? "five" : pack.slots.length === 1 ? "card" : pack.slots.length}</div>
           <div className={styles.spread}>
             {kept.map(c => (
               <div key={refOf(c)} className={styles.spreadCard}>

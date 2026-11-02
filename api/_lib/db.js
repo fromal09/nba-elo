@@ -6,6 +6,7 @@ import { ensurePredSchema } from './predictions.js'
 import { ensureWishSchema } from './wishes.js'
 import { ensureChallengeSchema } from './challenge.js'
 import { ensureBannerSchema } from './banner.js'
+import { ensureKocSchema } from './koc.js'
 import { applyRenames } from './renames.js'
 
 let sql = null
@@ -22,7 +23,7 @@ export function db() {
 }
 
 // Bump when the schema below changes: a cold start whose database already has this version skips the ~60 statements
-export const SCHEMA_VERSION = '2026-11-01c'
+export const SCHEMA_VERSION = '2026-11-02a'
 
 export function ensureSchema() {
   if (!ready) {
@@ -122,6 +123,7 @@ function migrate(s) {
       await ensureWishSchema(t)
       await ensureChallengeSchema(t)
       await ensureBannerSchema(t)
+      await ensureKocSchema(t)
       // The binder's look: a preset from Settings (null = the favorite team's colors)
       await t`alter table users add column if not exists binder_theme text`
       await applyRenames(t)

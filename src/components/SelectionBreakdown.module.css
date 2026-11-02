@@ -1,0 +1,28 @@
+
+.box { width: 100%; max-width: 560px; background: #fff; border: 1px solid #e3e7ec; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; text-align: left; color: #1c2733; }
+.box[data-dark] { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.16); color: #fff; }
+.head { font-size: 10px; font-weight: 900; letter-spacing: 1.6px; text-transform: uppercase; color: #8a6414; }
+.box[data-dark] .head { color: #e7c160; }
+.row { display: grid; grid-template-columns: minmax(110px, 160px) minmax(0, 1fr); grid-template-areas: 'k c' 'k s' 'b b'; column-gap: 12px; row-gap: 1px; align-items: baseline; }
+.k { grid-area: k; font-size: 10.5px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: #6a7684; }
+.box[data-dark] .k { color: rgba(255,255,255,.6); }
+.count, .main { grid-area: c; font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.count i { font-style: normal; margin: 0 5px; color: #8a95a2; } .count em { font-style: normal; color: #1a7a4a; }
+.box[data-dark] .count em { color: #7be0a8; }
+.count small { font-size: 11.5px; font-weight: 600; color: #8a95a2; }
+.row[data-up] .main { color: #1a7a4a; } .box[data-dark] .row[data-up] .main { color: #7be0a8; }
+.sub { grid-area: s; font-size: 11.5px; color: #6a7684; } .box[data-dark] .sub { color: rgba(255,255,255,.65); }
+.bar { grid-area: b; display: flex; height: 5px; border-radius: 3px; background: rgba(127,127,127,.18); overflow: hidden; margin-top: 3px; }
+.bar i { display: block; height: 100%; background: #6f9acb; } .bar em { display: block; height: 100%; background: #1a7a4a; }
+.box[data-dark] .bar em { background: #7be0a8; }
+.box[data-compact] { padding: 6px 7px; gap: 5px; border-radius: 8px; }
+.box[data-compact] .row { grid-template-columns: 1fr; grid-template-areas: 'k' 'c' 'b'; }
+.box[data-compact] .k { font-size: 8.5px; } .box[data-compact] .count, .box[data-compact] .main { font-size: 11.5px; }
+.box[data-compact] .head { font-size: 8.5px; }
+@media (max-width: 520px) { .row { grid-template-columns: 1fr; grid-template-areas: 'k' 'c' 's' 'b'; } }
+/* In a pack: tiles side by side, so the pick bar stays short */
+.box[data-dark] { max-width: 820px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 14px; padding: 8px 12px; }
+.box[data-dark] .head { grid-column: 1 / -1; }
+.box[data-dark] .row { grid-template-columns: 1fr; grid-template-areas: 'k' 'c' 'b'; }
+.box[data-dark] .sub { display: none; }
+.box[data-dark] .main { font-size: 12.5px; }

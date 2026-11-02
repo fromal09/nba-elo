@@ -69,6 +69,21 @@ async function run(sql, origin) {
       await rescore(sql, origin, c => !c?.kind && c?.row?.sw > 0, 'sweep-cards')
     }
   }
+  // Franchise History, Completed Franchise and Banner cards named for an old team name (Tri-Cities Blackhawks for the
+  // Hawks): the franchise's current name, once
+  if (!done.has('reward-names')) {
+    const check = await dataJSON(origin, 'binders/checklist.json')
+    if (check?.franchises) {
+      for (const table of ['cards', 'sold']) {
+        const rows = await sql`select id, card from ${sql(table)} where card->>'kind' in ('fhist', 'fcomp', 'banner')`
+        for (const r of rows) {
+          const name = check.franchises[r.card.fc]?.name
+          if (name && name !== r.card.tn) await sql`update ${sql(table)} set card = jsonb_set(card, '{tn}', ${JSON.stringify(name)}::jsonb) where id = ${r.id}`
+        }
+      }
+      await sql`insert into migrations (id) values ('reward-names') on conflict do nothing`
+    }
+  }
   // Starting Fives refresh again once the pool carries their tiers (Common to GOAT)
   if (!done.has('fives-tiers')) {
     const idx = await poolJSON(origin, 'special/index.json').catch(() => null)

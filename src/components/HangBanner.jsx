@@ -19,8 +19,6 @@ const last = n => baseName(n).split(' ').slice(-1)[0]
 const fmt = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 const teamName = fc => binderTeamInfo(fc)?.name || fc
 const Logo = ({ t, size = 34 }) => <span className={styles.logo} style={{ width: size, height: size }}>{binderLogo(t) ? <img src={binderLogo(t)} alt="" /> : <b>{t}</b>}</span>
-const PACK_TEXT = ['', 'Five slots of the franchise’s cards', 'The last slot Rare or better', 'Two slots Rare or better', 'Every slot Rare or better, the last Standout or better',
-  'Two slots Legend or better', 'Two slots Legend or better, the last Icon or better']
 const yr = s => +String(s).slice(0, 4)
 const NBA_MERGED = new Set(['DEN', 'IND', 'SAS', 'BKN'])
 const nbaSeason = (fc, s) => !fc.includes('@') && s >= (NBA_MERGED.has(fc) ? '1976-77' : '1949-50')
@@ -31,19 +29,22 @@ const fits = (fc, cur, c) => {
 const windowText = cur => (!cur.window ? 'any season in franchise history' : cur.window[0] === cur.window[1] ? `the ${cur.s} season only`
   : `${cur.window[0]}-${String(cur.window[0] + 1).slice(2)} to ${cur.window[1]}-${String(cur.window[1] + 1).slice(2)}`)
 
+const SEEN = 'fpr.bannerSeen'
+const seenGet = () => { try { return new Set(JSON.parse(localStorage.getItem(SEEN) || '[]')) } catch { return new Set() } }
+const seenAdd = k => { try { const x = seenGet(); x.add(k); localStorage.setItem(SEEN, JSON.stringify([...x].slice(-400))) } catch { /* private window */ } }
+const TIER_REST = t => ({ goat: 10, icon: 8, legend: 6, standout: 4, rare: 2 })[t] || 0
+// Lineup spots on a half court, guards up top and bigs underneath
+const SPOTS = [['PG', 50, 24], ['SG', 16, 42], ['SF', 84, 42], ['PF', 31, 75], ['C', 69, 75]]
+const posRank = p => (/^PG|^G$/.test(p || '') ? 0 : /SG|G/.test(p || '') ? 1 : /SF/.test(p || '') ? 2 : /PF|F/.test(p || '') ? 3 : /C/.test(p || '') ? 4 : 2)
+
 export default function HangBanner({ env, tools }) {
   const C = env.collector
   const [list, setList] = useState(null), [fc, setFc] = useState(null), [d, setD] = useState(null), [err, setErr] = useState(null)
-  const [pick, setPick] = useState(false), [sel, setSel] = useState([]), [res, setRes] = useState(null), [busy, setBusy] = useState(false)
+  const [court, setCourt] = useState(false), [res, setRes] = useState(null)
   useEffect(() => { C.loadBanner().then(setList).catch(e => setErr(e.message)) }, [])
-  useEffect(() => { if (!fc) return; setD(null); setSel([]); setRes(null); C.loadBanner(fc).then(setD).catch(e => setErr(e.message)) }, [fc])
+  useEffect(() => { if (!fc) return; setD(null); setRes(null); C.loadBanner(fc).then(setD).catch(e => setErr(e.message)) }, [fc])
   const det = d?.detail, cur = det?.current
-  const chosen = useMemo(() => sel.map(id => (C.cards || []).find(x => Number(x.id) === id)).filter(Boolean), [sel, C.cards])
-  const score = chosen.length === 5 ? chosen.reduce((a, x) => a + x.card.row.pre, 0) / 5 : null
-  const play = async () => {
-    setBusy(true); setErr(null)
-    try { const x = await C.playBanner(fc, sel); if (x) { setRes(x.result); setD(x.banner); if (x.result.won) setSel([]) } } catch (e) { setErr(e.message) } finally { setBusy(false) }
-  }
+  const seen = cur ? seenGet().has(`${fc}|${cur.s}`) : false
   const order = list ? [...list.franchises].sort((a, b) => (b.cleared > 0) - (a.cleared > 0) || b.cleared / b.rungs - a.cleared / a.rungs || teamName(a.fc).localeCompare(teamName(b.fc))) : []
   return (
     <div className={fs.right}>
@@ -51,7 +52,7 @@ export default function HangBanner({ env, tools }) {
       <div className={fs.body}>
         {err && <p className={styles.err}>{err}</p>}
         {!fc && <>
-          <p className={fs.intro}>Every franchise has a ladder: one rung for each of its NBA seasons, its weakest best five first and its greatest last. Beat a rung’s five with five of your own cards of the franchise to see the next one. As the rungs get harder, your cards have to come from closer to that season, until the last rung takes cards from that season alone. Every win opens a pack of the franchise’s cards, better the higher you climb. Beat them all to hang its Banner.</p>
+          <p className={fs.intro}>Every franchise has a ladder: one rung for each of its NBA seasons, its weakest best five first and its greatest last. Challenge a rung to unveil the five you’re up against, then set your own five from your cards of the franchise. As the rungs get harder, your cards have to come from closer to that season, until the final stretch takes cards from that season alone. Every win opens a pack of the franchise’s cards, better the higher you climb, and a winning card rests for a few rungs by its tier. Beat them all to hang its Banner.</p>
           {!list && !err && <p className={fs.note}>Loading the ladders…</p>}
           <div className={styles.grid}>
             {order.map(f => (
@@ -70,12 +71,12 @@ export default function HangBanner({ env, tools }) {
             <div className={styles.rungs}>
               <div className={styles.ladHead}><Logo t={fc} size={30} /><span><b>{det.cleared} of {det.rungs}</b><small>{det.banner ? '★ Banner hung' : 'rungs beaten'}</small></span></div>
               {det.ladder.map((r, k) => {
-                const head = k === 0 || det.ladder[k - 1].stage !== r.stage
+                const head = k === 0 || det.ladder[k - 1].stage !== r.stage, S = d.stages[r.stage - 1]
                 return <div key={r.i}>
-                  {head && <div className={styles.stage}>{d.stages[r.stage - 1].name}<small>{d.stages[r.stage - 1].win == null ? 'any season' : d.stages[r.stage - 1].win === 0 ? 'that season only' : `within ${d.stages[r.stage - 1].win} yrs`}</small></div>}
+                  {head && <div className={styles.stage}>{S.name}<small>{S.win == null ? 'any season' : S.win === 0 ? 'that season only' : `${S.win} season${S.win === 1 ? '' : 's'} either side`}</small></div>}
                   <div className={styles.rung} data-st={r.status}>
                     <span className={styles.n}>{r.i}</span>
-                    {r.status === 'locked' ? <span><b>• • • •</b><small>locked</small></span>
+                    {r.status === 'locked' || (r.status === 'current' && !seen) ? <span><b>• • • •</b><small>{r.status === 'current' ? 'challenge it to unveil' : 'locked'}</small></span>
                       : <span><b>{r.s}</b><small>{r.status === 'won' ? `${n0(r.score)} beat ${n0(r.target)}` : `target ${n0(r.target)}`}</small></span>}
                     <span className={styles.st}>{r.status === 'won' ? '✓' : r.status === 'current' ? 'Now' : '🔒'}</span>
                   </div>
@@ -84,79 +85,123 @@ export default function HangBanner({ env, tools }) {
             </div>
             <div className={styles.board}>
               {!cur ? <div className={styles.done}><b>★ Banner hung</b><p>Every {teamName(fc)} rung beaten. New seasons join the ladder in the offseason; your Banner card stays yours.</p></div> : <>
-                <div className={styles.boardHead}><small>Rung {cur.i} of {det.rungs} · stage {cur.stage}: {cur.stageName}</small>
-                  <b>Beat the {cur.s} five</b><span>{fmt(cur.date)} vs {cur.opp} · {cur.won ? 'W' : 'L'} {cur.score}</span></div>
-                <div className={styles.vs}>
-                  <div className={styles.side}><h5>Their five <span>avg pre-game Elo</span></h5><div className={styles.avg}>{n0(cur.elo)}<small>target</small></div>
-                    {cur.five.map(n => <div key={n} className={styles.pl}><b>{baseName(n)}</b></div>)}</div>
-                  <div className={styles.side}><h5>Your five <span>avg pre-game Elo</span></h5>
-                    <div className={styles.avg} data-win={score != null ? (score > cur.elo ? 'y' : 'n') : undefined}>{score != null ? n0(score) : '—'}<small>{score == null ? `${chosen.length} of 5` : score > cur.elo ? 'beats it' : `${n0(cur.elo - score + 1)} short`}</small></div>
-                    {[0, 1, 2, 3, 4].map(i => { const x = chosen[i]; return x
-                      ? <div key={i} className={styles.slot}><b title={baseName(x.card.row.n)}>{last(x.card.row.n)}</b><em>{x.card.s}</em><span>{n0(x.card.row.pre)}</span></div>
-                      : <button key={i} type="button" className={styles.slotEmpty} onClick={() => setPick(true)}>+ Add a card</button> })}
-                  </div>
+                <div className={styles.next} style={{ '--c': binderTeamInfo(fc)?.color || '#173657' }}>
+                  <small>Rung {cur.i} of {det.rungs} · stage {cur.stage}</small>
+                  <b>{cur.stageName}</b>
+                  <span>{seen ? <>The {cur.s} five · {n0(cur.elo)} average Elo</> : 'A mystery five. Challenge it to unveil the season, its strength and its cards.'}</span>
+                  <span>Your cards: {windowText(cur)}</span>
+                  <span>Win: a {teamName(fc)} pack · {cur.pack}</span>
+                  <button type="button" className={fs.primary} onClick={() => { setCourt(true); setRes(null) }}>{seen ? 'Back to the court' : 'Challenge this rung'}</button>
                 </div>
-                <div className={styles.rule}><b>{cur.stageName}:</b> cards from {windowText(cur)}. Five different players, each a game card of the {teamName(fc)}. A card counts its pre-game Elo, the number on the card; your five’s average has to be higher than theirs.</div>
-                <div className={styles.btns}>
-                  <button type="button" className={fs.ghost} onClick={() => setPick(true)}>{chosen.length ? 'Change cards' : 'Choose five'}</button>
-                  <button type="button" className={fs.primary} disabled={chosen.length !== 5 || busy} onClick={play}>{busy ? 'Playing…' : 'Play this rung'}</button>
-                </div>
-                {res && !res.won && <p className={styles.lost}>Not this time: {n0(res.score)} against {n0(res.target)}. Try a stronger five.</p>}
-                <div className={styles.reward}><small>Win this rung</small><b>{teamName(fc)} pack</b><span>{PACK_TEXT[cur.stage]}</span></div>
+                <div className={styles.rule}><b>Rest:</b> a card in a winning five sits out the next rungs of this ladder: GOAT 10, Icon 8, Legend 6, Standout 4, Rare 2. Commons never rest.</div>
               </>}
               {res?.won && <p className={styles.won}>Rung {res.rung} beaten, {n0(res.score)} to {n0(res.target)}. Your pack is open.{res.banner ? ' The Banner card is in your binder.' : ''}</p>}
             </div>
           </div>}
         </>}
       </div>
-      {pick && cur && <Picker fc={fc} cur={cur} env={env} cards={C.cards} sel={sel} onClose={() => setPick(false)} onDone={v => { setSel(v); setPick(false); setRes(null) }} />}
+      {court && cur && <CourtModal env={env} fc={fc} cur={cur} rungs={det.rungs} resting={det.resting || {}} reveal={!seen}
+        onSeen={() => seenAdd(`${fc}|${cur.s}`)} onClose={() => setCourt(false)}
+        onPlay={async ids => { const x = await C.playBanner(fc, ids); if (x) { setD(x.banner); if (x.result.won) { setRes(x.result); setCourt(false) } } return x?.result }} />}
     </div>
   )
 }
 
-// Choose five: your cards that fit the rung, best pre-game Elo first; one card per player
-function Picker({ fc, cur, env, cards, sel: sel0, onClose, onDone }) {
-  const elig = useMemo(() => (cards || []).filter(x => fits(fc, cur, x.card)).sort((a, b) => b.card.row.pre - a.card.row.pre), [cards, fc, cur])
-  const [sel, setSel] = useState(() => sel0.filter(id => elig.some(x => Number(x.id) === id)))
+// The rung's actual five, from the season file: the cards behind its average
+function useRungCards(env, fc, cur) {
+  const [cards, setCards] = useState(null)
+  useEffect(() => {
+    let on = true
+    env.getJSON(`/data/explorer/${cur.s}.json`).then(sd => {
+      const g = sd.games.find(x => x.date === cur.date && x.teams.includes(fc))
+      if (!g) { on && setCards([]); return }
+      const C_ = sd.cols, i = g.teams.indexOf(fc), o = g.teams[1 - i]
+      const rows = (g.rows || []).map(r => Object.fromEntries(C_.map((k, j) => [k, r[j]])))
+      const tn = sd.teams?.[fc] || {}, on_ = sd.teams?.[o] || {}
+      const out = cur.five.map(n => rows.find(r => r.n === n)).filter(Boolean).map(row => ({
+        s: cur.s, id: g.id, date: g.date, t: fc, tn: tn.name || teamName(fc), tc: tn.color, o, on: on_.name || o, oc: on_.color,
+        home: g.home == null ? null : g.home === fc, won: g.pts[i] > g.pts[1 - i], score: `${g.pts[i]}–${g.pts[1 - i]}`, ot: g.ot || '', band: null, honor: null, row }))
+      on && setCards(out.sort((a, b) => posRank(a.row.pos) - posRank(b.row.pos)))
+    }).catch(() => on && setCards([]))
+    return () => { on = false }
+  }, [fc, cur.s])
+  return cards
+}
+
+function CourtModal({ env, fc, cur, rungs, resting, reveal, onSeen, onClose, onPlay }) {
+  const C = env.collector
+  const theirs = useRungCards(env, fc, cur)
+  const [shown, setShown] = useState(reveal ? 0 : 5)
+  const [sel, setSel] = useState([]), [busy, setBusy] = useState(false), [out, setOut] = useState(null), [err, setErr] = useState(null)
+  // Unveil their five one at a time, the first time this rung is challenged
+  useEffect(() => {
+    if (!theirs || shown >= 5) return
+    const t = setTimeout(() => setShown(v => v + 1), shown === 0 ? 900 : 750)
+    return () => clearTimeout(t)
+  }, [theirs, shown])
+  useEffect(() => { if (theirs && shown >= 5) onSeen() }, [theirs, shown])
+  const elig = useMemo(() => (C.cards || []).filter(x => fits(fc, cur, x.card)).sort((a, b) => b.card.row.pre - a.card.row.pre), [C.cards, fc, cur])
   const chosen = sel.map(id => elig.find(x => Number(x.id) === id)).filter(Boolean)
+  const used = new Set(chosen.map(x => x.card.row.n))
+  // One row per player you could still add: his best card that isn't resting, his others behind it
+  const pool = useMemo(() => {
+    const by = new Map()
+    for (const x of elig) { if (used.has(x.card.row.n)) continue; const k = x.card.row.n; if (!by.has(k)) by.set(k, []); by.get(k).push(x) }
+    return [...by.values()].map(l => l.sort((a, b) => !!resting[Number(a.id)] - !!resting[Number(b.id)] || b.card.row.pre - a.card.row.pre))
+  }, [elig, sel, resting])
   const avg = chosen.length ? chosen.reduce((a, x) => a + x.card.row.pre, 0) / chosen.length : null
-  const toggle = x => {
-    const id = Number(x.id)
-    if (sel.includes(id)) return setSel(sel.filter(v => v !== id))
-    const same = chosen.find(y => y.card.row.n === x.card.row.n)
-    const next = same ? sel.filter(v => v !== Number(same.id)) : sel
-    if (next.length >= 5) return
-    setSel([...next, id])
-  }
-  const auto = () => { const seen = new Set(), out = []; for (const x of elig) { if (seen.has(x.card.row.n)) continue; seen.add(x.card.row.n); out.push(Number(x.id)); if (out.length === 5) break } setSel(out) }
-  const players = new Set(elig.map(x => x.card.row.n)).size
+  const add = x => { if (chosen.length < 5 && !resting[Number(x.id)]) { setSel([...sel, Number(x.id)]); setOut(null) } }
+  const play = async () => { setBusy(true); setErr(null); try { const r = await onPlay(sel); if (r) setOut(r) } catch (e) { setErr(e.message) } finally { setBusy(false) } }
+  const face = c => { const e = fromIndex(env, c, { key: `${c.s}|${c.id}|${c.row.n}` }); return <Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit> }
+  const tc = binderTeamInfo(fc)?.color || '#173657'
   return (
-    <div className={fs.overlay} onClick={onClose}>
-      <div className={fs.picker} onClick={e => e.stopPropagation()} role="dialog" aria-label="Choose five">
+    <div className={styles.cmOverlay} onClick={onClose}>
+      <div className={styles.cm} style={{ '--c': tc }} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Challenge the rung">
         <button type="button" className={fs.x} onClick={onClose} aria-label="Close">×</button>
-        <div className={fs.pickHead}>
-          <small>{teamName(fc)} · rung {cur.i} · {windowText(cur)}</small>
-          <b>Choose five</b>
-          <span>{elig.length} card{elig.length === 1 ? '' : 's'} fit, of {players} player{players === 1 ? '' : 's'} · target {n0(cur.elo)}</span>
+        <div className={styles.cmHead}>
+          <small>{teamName(fc)} · rung {cur.i} of {rungs} · {cur.stageName}</small>
+          <b className={shown >= 1 ? styles.in : styles.hid}>The {cur.s} {teamName(fc).split(' ').pop()}</b>
+          <span className={shown >= 1 ? styles.in : styles.hid}>{fmt(cur.date)} vs {cur.opp} · {cur.won ? 'W' : 'L'} {cur.score} · <b>{n0(cur.elo)}</b> average pre-game Elo</span>
         </div>
-        <div className={fs.pickBody}>
-          {players < 5 && <p className={fs.note}>{players ? `Only ${players} of your players fit this rung. You need five.` : 'None of your cards fit this rung yet.'} Team packs, Era packs and the store are the way in.</p>}
-          {elig.map(x => {
-            const c = fromIndex(env, x.card, { key: `b${x.id}` }), on = sel.includes(Number(x.id))
-            return (
-              <button key={x.id} type="button" className={`${fs.row} ${on ? fs.rowOn : ''}`} onClick={() => toggle(x)} aria-pressed={on}>
-                <span className={fs.rowCard}><Fit><MiniCard name={c.name} row={c.row} game={c.game} team={c.team} headshot={env.headshot(c.name)} /></Fit></span>
-                <span className={fs.rowText}><b>{baseName(c.name)}</b><small>{x.card.s} · {fmt(x.card.date)} vs {x.card.o} · {TIER_NAME[x.card.tier] || ''}</small></span>
+        <div className={styles.courts}>
+          <div className={styles.side2}>
+            <div className={styles.cTitle}><span>Their five</span><b>{n0(cur.elo)}</b></div>
+            <div className={styles.court}>
+              {SPOTS.map(([p, x, y], i) => <div key={p} className={styles.spot} style={{ left: `${x}%`, top: `${y}%` }}>
+                {theirs && theirs[i] && i < shown ? <div className={styles.flipIn}>{face(theirs[i])}<em>{last(theirs[i].row.n)} · {n0(theirs[i].row.pre)}</em></div>
+                  : <div className={styles.cardBack}><i>{p}</i></div>}
+              </div>)}
+            </div>
+          </div>
+          <div className={styles.side2}>
+            <div className={styles.cTitle}><span>Your five</span><b data-win={chosen.length === 5 ? (avg > cur.elo ? 'y' : 'n') : undefined}>{avg != null ? n0(avg) : '—'}</b></div>
+            <div className={`${styles.court} ${styles.courtMine}`}>
+              {SPOTS.map(([p, x, y], i) => <div key={p} className={styles.spot} style={{ left: `${x}%`, top: `${y}%` }}>
+                {chosen[i] ? <button type="button" className={styles.placed} onClick={() => setSel(sel.filter(v => v !== Number(chosen[i].id)))} title="Take him off the court">{face(chosen[i].card)}<em>{last(chosen[i].card.row.n)} · {n0(chosen[i].card.row.pre)}</em></button>
+                  : <div className={styles.empty}><i>{i === chosen.length ? '+' : p}</i></div>}
+              </div>)}
+            </div>
+          </div>
+        </div>
+        <div className={styles.cmRule}>Your cards: {windowText(cur)}, five different players. Tap a player to put him on the court; tap him there to take him off.</div>
+        <div className={styles.pool}>
+          {shown < 5 && reveal ? <p className={fs.note}>Unveiling their five…</p>
+            : !pool.length && chosen.length < 5 ? <p className={fs.note}>{chosen.length ? 'No more of your players fit this rung.' : 'None of your cards fit this rung yet. Team packs, Era packs and the store are the way in.'}</p>
+            : pool.map(l => {
+              const x = l[0], rest = resting[Number(x.id)]
+              return <button key={x.card.row.n} type="button" className={styles.prow} disabled={!!rest || chosen.length >= 5} onClick={() => add(x)}>
+                <span className={styles.pcard}>{face(x.card)}</span>
+                <span className={styles.ptext}><b>{baseName(x.card.row.n)}</b><small>{x.card.s} · {fmt(x.card.date)} vs {x.card.o} · {TIER_NAME[x.card.tier] || ''}{l.length > 1 ? ` · ${l.length} cards` : ''}</small>
+                  {rest ? <em>Resting {rest} more rung{rest === 1 ? '' : 's'}</em> : TIER_REST(x.card.tier) ? <em className={styles.restNote}>Rests {TIER_REST(x.card.tier)} rungs if he wins</em> : null}</span>
                 <strong>{n0(x.card.row.pre)}<small>Elo</small></strong>
-                <i>{on ? '✓' : ''}</i>
               </button>
-            )
-          })}
+            })}
         </div>
-        <div className={fs.pickFoot}>
-          <span><b>{chosen.length}/5</b>{avg != null ? ` · average ${n0(avg)}${chosen.length === 5 ? (avg > cur.elo ? ' · beats it' : ' · short') : ''}` : ''}</span>
-          {players >= 5 && <button type="button" className={fs.ghost} onClick={auto}>Best five</button>}
-          <button type="button" className={fs.primary} disabled={chosen.length !== 5} onClick={() => onDone(sel)}>Use these five</button>
+        <div className={styles.cmFoot}>
+          {out && !out.won && <span className={styles.lost}>Not this time: {n0(out.score)} against {n0(out.target)}.</span>}
+          {err && <span className={styles.lost}>{err}</span>}
+          <span className={styles.gapTxt}>{chosen.length === 5 ? (avg > cur.elo ? `Beats it by ${n0(avg - cur.elo)}` : `${n0(cur.elo - avg + 1)} short`) : `${chosen.length} of 5 on the court`}</span>
+          <button type="button" className={fs.primary} disabled={chosen.length !== 5 || busy} onClick={play}>{busy ? 'Playing…' : 'Play this rung'}</button>
         </div>
       </div>
     </div>

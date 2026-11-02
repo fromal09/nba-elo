@@ -32,6 +32,9 @@
 //   POST challengeset { level, ids } your five cards for a challenge (ids: [] clears it)
 //   GET  banner      Hang the Banner: every franchise's ladder progress; with &fc=, that ladder and its current rung
 //   POST bannerplay  { fc, ids } five cards against the current rung; a win opens a pack of the franchise's cards
+//   GET  koc         King of the Court for &day=: the slate, your picks and candidates, your group, the bounty, your rivalries
+//   POST kocpick     { day, mode: 'group' | 'r<id>', game, card } a pick for one game (card: null clears it)
+//   POST rival       { to, day, wager } challenge a collector; POST rivalact { id, act: accept | decline | cancel }
 //   POST potdpick    { day, player, team } your Player of the Day nomination (player: '' takes it back), until the first tipoff
 //   GET  standings   ?scope=week|season pick'em points, and where you rank
 //   GET  predreward  ?day=&kind=games|duels the cards you can choose from for a day you earned one
@@ -52,6 +55,7 @@ import { potwWeek, potdPick, settlePotw, predDay, settle, predSummary, predView,
 import { achievements } from './_lib/achievements.js'
 import { challengeView, setChallenge, settleChallenges } from './_lib/challenge.js'
 import { bannerView, playRung } from './_lib/banner.js'
+import { kocView, kocTick, setPick as kocPick, challenge as kocChallenge, respond as kocRespond } from './_lib/koc.js'
 import { slate } from './_lib/slate.js'
 
 const STREAK_EVERY = 7
@@ -237,7 +241,7 @@ async function makePacks(sql, u, origin, kinds, team, era) {
   const wishes = await loadWishes(sql, u.id, origin).catch(e => { console.error('wishes', e); return [] })
   const granted = []
   for (const kind of kinds) {
-    const pity = u.since_big + packsAhead >= PITY_EVERY - 1
+    const pity = !kind.startsWith('banner') && u.since_big + packsAhead >= PITY_EVERY - 1
     const offers = await buildOffers(origin, kind, { taken: set, team, pity, era })
     granted.push(...await applyWishes(origin, offers.slots, wishes, { taken: set, team }).catch(e => { console.error('wish swap', e); return [] }))
     offers.slots.forEach(s => s.cards.forEach(c => set.add(refOf(c))))
@@ -444,6 +448,7 @@ export default async function handler(req, res) {
         potwTried = Date.now()
         await settlePotw(sql, origin, etDay()).catch(e => console.error('potw', e))
         await settleChallenges(sql, origin, etDay()).catch(e => console.error('challenge', e))
+        await kocTick(sql, origin, etDay()).catch(e => console.error('koc', e))
       }
       // Once an hour per collector (per instance): Complete Set cards for checklists finished before the cards existed, and
       // Season and set cards whose season has ended turning Final
@@ -560,6 +565,18 @@ export default async function handler(req, res) {
       const view = await predView(sql, u, today, addDays(today, 1), origin)
       const [fresh] = await sql`select * from users where id = ${u.id}`
       return send(200, { predictions: view, ...(await me(fresh)), awards: [...awards, ...view.awards] })
+    }
+    if (action === 'koc' || (post && ['kocpick', 'rival', 'rivalact'].includes(action))) {
+      const today = etDay()
+      if (post) {
+        const b = await readBody(req)
+        if (action === 'kocpick') await kocPick(sql, u, origin, today, b)
+        else if (action === 'rival') await kocChallenge(sql, u, origin, today, b)
+        else await kocRespond(sql, u, origin, today, b)
+        q.day = q.day || b.day
+      }
+      const [fresh] = await sql`select * from users where id = ${u.id}`
+      return send(200, { koc: await kocView(sql, fresh, origin, today, q), ...(await me(fresh)) })
     }
     if (action === 'banner') return send(200, { banner: await bannerView(sql, u, origin, etDay(), q.fc ? String(q.fc) : null) })
     if (post && action === 'bannerplay') {

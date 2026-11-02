@@ -80,7 +80,7 @@ export async function warmRewards(origin, card) {
   if (!card || card.kind) return
   const fc = MERGE[card.t] || card.t
   if (!rosterCache.has(fc)) rosterCache.set(fc, dataJSON(origin, `binders/roster/${fc.replace('@', '_')}.json`))
-  await Promise.all([setRefs(origin), rosterCache.get(fc), honorsData(origin), rankData(origin)])
+  await Promise.all([setRefs(origin), rosterCache.get(fc), honorsData(origin), rankData(origin), franchiseName(origin, fc)])
 }
 // Each league set's card refs (binders/setrefs.json; the full league.json before that file existed)
 async function setRefs(origin) {
@@ -327,7 +327,17 @@ export async function newReward(t, userId, day, ref, card, label) {
     on conflict (user_id, ref) do nothing returning id`
   return row ? { kind: 'setcard', amount: 0, label } : null
 }
-const teamLook = async (t, userId, codes) => (await t`select max(card->>'tn') as tn, max(card->>'tc') as tc from cards where user_id = ${userId} and card->>'t' = any(${codes}) and card->>'kind' is null`)[0] || {}
+// A franchise's current name (binders/checklist.json: its newest season's name) and a color from your cards of its newest season
+let checkCache = null
+export async function franchiseName(origin, fc) {
+  if (!checkCache || Date.now() - checkCache.at > 10 * 60e3) checkCache = { at: Date.now(), d: (await dataJSON(origin, 'binders/checklist.json')) || {} }
+  return checkCache.d.franchises?.[fc]?.name || null
+}
+const teamLook = async (t, userId, codes, origin) => {
+  const [x] = await t`select card->>'tn' as tn, card->>'tc' as tc from cards where user_id = ${userId} and card->>'t' = any(${codes}) and card->>'kind' is null
+    order by card->>'s' desc limit 1`
+  return { tn: (origin && await franchiseName(origin, codes[0])) || x?.tn || null, tc: x?.tc || null }
+}
 
 // What finishing this card ({ s, fc, n }) earns. With full = true (a one-time scan for cards kept before these existed),
 // every season and franchise the collector has cards from.
@@ -357,7 +367,7 @@ export async function rewardCards(t, userId, day, origin, { s, fc, n }, full = f
     if (!H.seasons.length) continue
     const mine = await t`select distinct card->>'s' as s, card->'row'->>'n' as n from cards where user_id = ${userId} and card->>'t' = ${f}
       and card->>'kind' is null and card->>'s' = any(${H.seasons})`
-    const look = await teamLook(t, userId, [f])
+    const look = await teamLook(t, userId, [f], origin)
     const haveS = new Set(mine.map(r => r.s))
     if (H.seasons.every(x => haveS.has(x))) {
       const ranks = (await rankData(origin)) || {}
@@ -382,7 +392,7 @@ export async function backfillRewards(sql, userId, origin, day) {
   if (done) return []
   // Download every roster this will read first, so the transaction never waits on the network
   const ts = (await sql`select distinct card->>'t' as t from cards where user_id = ${userId} and card->>'kind' is null`).map(r => MERGE[r.t] || r.t)
-  await Promise.all([honorsData(origin), rankData(origin), ...[...new Set(ts)].filter(f => !f.includes('@')).map(f => franchiseRoster(origin, f))])
+  await Promise.all([honorsData(origin), rankData(origin), franchiseName(origin, 'ATL'), ...[...new Set(ts)].filter(f => !f.includes('@')).map(f => franchiseRoster(origin, f))])
   return sql.begin(async t => {
     const out = await rewardCards(t, userId, day, origin, {}, true)
     await t`insert into coin_ledger (user_id, day, kind, ref, amount) values (${userId}, ${day}, 'rewardscan', 'v1', 0) on conflict do nothing`

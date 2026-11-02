@@ -1292,7 +1292,7 @@ function ProjBox({ x, shots, pts }) {
                   <td>{r.out ? '—' : B ? (l?.mp ?? Math.round(r.mp)) : r.mp.toFixed(1)}</td>
                   {B ? <>
                     {S.map((k, i) => <td key={k} className={i === 0 ? `${styles.gStart} ${styles.projPts}` : ''}>{r.out || !l ? '—' : l[k]}</td>)}
-                    <td className={styles.projGs}>{r.out || !l ? '—' : l.gs}</td>
+                    <td className={styles.projGs}>{r.out || !l ? '—' : (+l.gs).toFixed(1)}</td>
                   </> : <td className={styles.swing}><span className={styles.swingIn}><span className={styles.bar}>
                     <span className={styles.barUp} style={{ left: 0, width: `${(r.mp / 42) * 100}%` }} /></span></span></td>}
                 </tr>

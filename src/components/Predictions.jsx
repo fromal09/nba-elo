@@ -131,7 +131,7 @@ const restText = r => r.until ? `resting, can play again ${shortDay(r.until)}` :
 function ProjLine({ c, mult }) {
   const p = c.proj
   if (!p) return null
-  return <small className={styles.candProj}>Proj {p.pts} pts · {p.trb} reb · {p.ast} ast · <b>{p.gs} GmSc</b>{mult && mult !== 1 ? <> → <b>{Math.round(p.gs * mult)} lineup pts</b></> : ''}</small>
+  return <small className={styles.candProj}>Proj {p.pts} pts · {p.trb} reb · {p.ast} ast · <b>{(+p.gs).toFixed(1)} GmSc</b>{mult && mult !== 1 ? <> → <b>{(p.gs * mult).toFixed(1)} lineup pts</b></> : ''}</small>
 }
 const projTop = list => new Map([...list].filter(c => c.proj && !c.out).sort((a, b) => b.proj.gs - a.proj.gs).slice(0, 3).map((c, i) => [c.name + c.team, i + 1]))
 function SortBy({ v, set }) {

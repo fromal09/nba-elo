@@ -94,8 +94,8 @@ export function buildForecaster({ players, roster, rotation, injuries, fetched, 
   }
 
   // Projected box score for one side of f.game(): each healthy player's projected minutes times his per-36 rates
-  // (last 30 games, rotation.json "r"), points scaled so the team adds up to its projected score. Whole numbers;
-  // points and minutes are rounded so they still add up. Game Score moves with the points scaled in or out.
+  // (last 30 games, rotation.json "r"), points scaled so the team adds up to its projected score. Whole numbers
+  // (Game Score to a tenth); points and minutes are rounded so they still add up. Game Score moves with the points scaled in or out.
   function box(side, pts) {
     const on = side.rows.filter(r => !r.out && r.mp > 0)
     // No rates until the pipeline has written them (rotation.json "r"): show nothing rather than guesses
@@ -107,7 +107,7 @@ export function buildForecaster({ players, roster, rotation, injuries, fetched, 
     const M = lrRound(on.map(r => r.mp), Math.round(on.reduce((a, r) => a + r.mp, 0)))
     const rows = on.map((r, i) => ({ name: r.name, key: r.key, elo: r.elo, status: r.status, mp: M[i], pts: P[i],
       trb: Math.round(raw[i][1]), ast: Math.round(raw[i][2]), stl: Math.round(raw[i][3]), blk: Math.round(raw[i][4]), tp: Math.round(raw[i][5]),
-      gs: Math.round(raw[i][6]), rated: !!rotBy[r.key]?.r }))
+      gs: Math.round(raw[i][6] * 10) / 10, rated: !!rotBy[r.key]?.r }))
     const outs = side.rows.filter(r => r.out).map(r => ({ name: r.name, key: r.key, status: r.status, detail: r.detail }))
     return { team: side.team, rows, outs, pts: Math.round(pts || sum) }
   }

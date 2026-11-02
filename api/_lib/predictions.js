@@ -47,11 +47,11 @@ export const upsetBonus = p => (p == null || p >= 0.5 ? 0 : Math.max(PRED.upsetM
 const LEGEND_CAP = TIER_ORDER.indexOf('legend'), RARE_CAP = TIER_ORDER.indexOf('rare')
 const fail = (status, message) => Object.assign(new Error(message), { status })
 const iso = v => (v instanceof Date ? v.toISOString().slice(0, 10) : v ? String(v).slice(0, 10) : null)
-const isDone = g => g.state === 'post' || g.state === 'off'
+export const isDone = g => g.state === 'post' || g.state === 'off'
 const addDays = (day, n) => new Date(Date.parse(day + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10)
 const weekStart = day => addDays(day, -((new Date(day + 'T12:00:00Z').getUTCDay() + 6) % 7))
 const seasonStart = day => `${+day.slice(0, 4) - (+day.slice(5, 7) < 9 ? 1 : 0)}-09-01`
-const isOpen = g => g.state === 'pre' && Date.parse(g.tip) > Date.now()
+export const isOpen = g => g.state === 'pre' && Date.parse(g.tip) > Date.now()
 
 export async function ensurePredSchema(t) {
   await t`create table if not exists pred_games (
@@ -129,8 +129,8 @@ export async function dayFile(origin, day) {
   return data
 }
 // A player's card from a game between these two teams (his Game Score is card.row.gs)
-const hasGame = (file, day, home, away) => file.cards.some(c => c.date === day && c.t === home && c.o === away)
-const findRow = (file, day, team, opp, name) => file.cards.find(c => c.date === day && c.t === team && c.o === opp && norm(c.row.n) === norm(name))
+export const hasGame = (file, day, home, away) => file.cards.some(c => c.date === day && c.t === home && c.o === away)
+export const findRow = (file, day, team, opp, name) => file.cards.find(c => c.date === day && c.t === team && c.o === opp && norm(c.row.n) === norm(name))
 
 // ── ESPN box scores: Game Scores for finished games before the nightly build publishes the day ──
 const ESPN = process.env.ESPN_BASE || 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
@@ -207,11 +207,11 @@ function duelCard(d) {
 const potdCard = (file, day) => file?.cards.find(c => c.honor === 'potd' && c.date === day) || null
 // The day file covers every game the slate finished (a run during the night can publish a partial day; its Player of the
 // Day is only the best of the games in it)
-const fullDay = (file, day, games) => !!file && games.every(isDone) && games.filter(g => g.state === 'post').every(g => hasGame(file, day, g.home, g.away))
+export const fullDay = (file, day, games) => !!file && games.every(isDone) && games.filter(g => g.state === 'post').every(g => hasGame(file, day, g.home, g.away))
 // The Player of the Day, once the day is over and the day file has all of it
 const potdOf = (file, day, games) => (fullDay(file, day, games) ? potdCard(file, day) : null)
 // Every player of the day by the Player of the Day measure (Game Score + Elo gained ÷ 6), best first
-const nightScore = c => (c.row.gs || 0) + ((c.row.post - c.row.pre) || 0) / 6
+export const nightScore = c => (c.row.gs || 0) + ((c.row.post - c.row.pre) || 0) / 6
 function potdBoard(file, day) {
   return (file?.cards || []).filter(c => c.date === day && c.row.gs != null).map(c => ({ n: c.row.n, t: c.t, score: Math.round(nightScore(c) * 10) / 10 }))
     .sort((a, b) => b.score - a.score)

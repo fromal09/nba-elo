@@ -17,6 +17,9 @@ const ODDS = {
   goatOnly: { goat: 1 },
   standoutPlus: { standout: 7000, legend: 2200, icon: 600, goat: 200 },
   iconPlus: { icon: 8000, goat: 2000 },
+  // Hang the Banner packs: no upside, or upside only so far
+  commonOnly: { common: 1 }, upToRare: { common: 8000, rare: 2000 }, upToStandout: { common: 6000, rare: 2800, standout: 1200 },
+  upToLegend: { common: 5000, rare: 3000, standout: 1400, legend: 600 }, upToIcon: { common: 4500, rare: 3000, standout: 1500, legend: 750, icon: 250 },
 }
 // Slots: [source, odds]. recent = last night's games, vault = all of history, team = one franchise's history
 const SLOTS = {
@@ -32,12 +35,12 @@ const SLOTS = {
   goat: [['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'rarePlus'], ['vault', 'goatOnly']],
   // The week of a holiday (three days either side): cards from that holiday's games in every era
   // Hang the Banner rewards: the franchise's cards, better as the stages go (banner.js)
-  banner1: [['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'base']],
-  banner2: [['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'rarePlus']],
-  banner3: [['team', 'base'], ['team', 'base'], ['team', 'base'], ['team', 'rarePlus'], ['team', 'rarePlus']],
-  banner4: [['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'standoutPlus']],
-  banner5: [['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'legendPlus'], ['team', 'legendPlus']],
-  banner6: [['team', 'rarePlus'], ['team', 'rarePlus'], ['team', 'legendPlus'], ['team', 'legendPlus'], ['team', 'iconPlus']],
+  banner1: [['team', 'commonOnly']],
+  banner2: [['team', 'commonOnly'], ['team', 'commonOnly'], ['team', 'commonOnly']],
+  banner3: [['team', 'commonOnly'], ['team', 'commonOnly'], ['team', 'commonOnly'], ['team', 'commonOnly'], ['team', 'upToRare']],
+  banner4: [['team', 'commonOnly'], ['team', 'commonOnly'], ['team', 'commonOnly'], ['team', 'upToStandout'], ['team', 'upToStandout']],
+  banner5: [['team', 'upToRare'], ['team', 'upToRare'], ['team', 'upToRare'], ['team', 'upToLegend'], ['team', 'upToLegend']],
+  banner6: [['team', 'upToRare'], ['team', 'upToRare'], ['team', 'upToRare'], ['team', 'upToIcon'], ['team', 'upToIcon']],
   holiday: [['holiday', 'base'], ['holiday', 'base'], ['holiday', 'base'], ['holiday', 'rarePlus'], ['holiday', 'rarePlus']],
 }
 
@@ -252,7 +255,7 @@ export async function buildOffers(origin, kind, { taken, team, pity, era }) {
   }
   // The special swap: the last slot's first (lowest) offer becomes a special card, shown last
   const last = slots[slots.length - 1]
-  if (last?.cards.length && randomInt(SPECIAL_EVERY) === 0) {
+  if (last?.cards.length && !kind.startsWith('banner') && randomInt(SPECIAL_EVERY) === 0) {
     const sp = await specialCard(origin, seen, specialFits({ team: kind === 'team' || kind === 'storeteam' || kind.startsWith('banner') ? team : null, era: kind === 'era' ? era : null })).catch(() => null)
     if (sp) { last.cards = [...last.cards.slice(1), sp]; last.special = true }
   }
