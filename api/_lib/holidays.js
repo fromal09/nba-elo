@@ -5,7 +5,7 @@ export const HOLIDAYS = {
   hal: { name: 'Halloween', short: 'Halloween', a: '#1c0f2e', b: '#f07c1a', c: '#ffe8c4', d: '#5b2a86' },
   thx: { name: 'Thanksgiving', short: 'Thanksgiving', a: '#5a2a12', b: '#d98a2b', c: '#fff1d6', d: '#a8441c' },
   xmas: { name: 'Christmas', short: 'Christmas', a: '#0f4d2c', b: '#c8202f', c: '#fff7ea', d: '#e9c46a' },
-  mlk: { name: 'MLK Day', short: 'MLK Day', a: '#141a3a', b: '#d8b04a', c: '#fffaf0', d: '#4b3a8c' },
+  mlk: { name: 'MLK Day', short: 'MLK Day', a: '#2b1036', b: '#f2a33a', c: '#fff4e0', d: '#c2456b' },
   val: { name: "Valentine's Day", short: "Valentine's", a: '#7a0d2c', b: '#ff6f9a', c: '#fff0f4', d: '#ffd1de' },
 }
 const nth = (y, m, wd, n) => { const d = new Date(Date.UTC(y, m - 1, 1)); d.setUTCDate(1 + ((wd - d.getUTCDay() + 7) % 7) + 7 * (n - 1)); return d.getUTCDate() }

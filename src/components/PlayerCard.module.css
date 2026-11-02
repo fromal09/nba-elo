@@ -706,6 +706,10 @@
   box-shadow: inset 0 0 0 4px var(--hB), inset 0 0 0 7px var(--hA), inset 0 0 18px 6px color-mix(in srgb, var(--hB) 45%, transparent); }
 .frame[data-hol][data-front=std]:not([data-era]) .photoBg { background: radial-gradient(90% 70% at 50% 45%, color-mix(in srgb, var(--hB) 80%, #fff 10%) 0%, var(--hB) 30%, var(--hA) 85%); }
 .frame[data-hol][data-front=std]:not([data-era]) .bigNum { color: color-mix(in srgb, var(--hC) 30%, transparent); }
+.sunrise { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.frame[data-hol=mlk] .photoBg::after { display: none; }
+.holBand em { font-style: normal; font-size: 8.5px; font-weight: 800; letter-spacing: 1.3px; padding: 2px 6px; border-radius: 8px; background: var(--hB); color: var(--hA); font-family: 'Inter', sans-serif; }
+.frame[data-hol=mlk] .holBand { background: linear-gradient(90deg, var(--hA), #c2456b 30%, var(--hB) 50%, #c2456b 70%, var(--hA)); }
 .holMotif { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 .holMotif:not([data-era=modern]):not([data-era=stat]):not([data-era=debut]) { z-index: 6; }
 .holMotif[data-era=refractor] { opacity: .8; }

@@ -247,10 +247,11 @@ export function CardFront({ name, row, game, team, headshot }) {
   return (
     <div className={styles.frame} data-front={variant} data-era={era || undefined} data-hol={hol || undefined}
       style={H ? { '--hA': H.a, '--hB': H.b, '--hC': H.c, '--hD': H.d } : undefined}>
-      {H && <div className={styles.holBand}><HolIcon k={hol} /><b>{H.name}</b><HolIcon k={hol} /></div>}
+      {H && <div className={styles.holBand}><HolIcon k={hol} /><b>{H.name}</b>{hol === 'mlk' && <em>Day of Service</em>}<HolIcon k={hol} /></div>}
       {heat && <div className={styles.heatBand}><b>{heat.label}</b><span>{heat.n} straight Elo gains</span></div>}
       <div className={styles.photo}>
         <div className={styles.photoBg} />
+        {hol === 'mlk' && <Sunrise cy={205} />}
         {/* foil sits behind the player so the headshot stays crisp */}
         <div className={styles.rays} /><div className={styles.holo} /><div className={styles.glitter} /><div className={styles.shine} />
         {variant === 'std' && !era && <>
@@ -264,6 +265,7 @@ export function CardFront({ name, row, game, team, headshot }) {
           // The photo window carries the tier foil (and honor rays) in every era
           const win = cls => (
             <div className={cls}>
+              {hol === 'mlk' && <Sunrise />}
               <div className={styles.eraFoil}><div className={styles.rays} /><div className={styles.holo} /><div className={styles.glitter} /><div className={styles.shine} /></div>
               {shot(styles.eraShot, styles.eraMono)}
             </div>
@@ -406,7 +408,28 @@ function HolIcon({ k }) {
   const H = HOLIDAYS[k]
   return <svg className={styles.holIcon} viewBox="-15 -15 30 30" aria-hidden="true">{HOL_ICONS[HOL_PAIR[k][1]](H.c)}</svg>
 }
+// MLK Day: a dawn behind the player. Amber to rose sky, rays rising from a low horizon, the sun on it
+function Sunrise({ cy = 262 }) {
+  const n = 13, cx = 170, r = 460
+  return (
+    <svg className={styles.sunrise} viewBox="0 0 340 340" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+      <defs><linearGradient id="mlkSky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#3a1550" /><stop offset=".45" stopColor="#c2456b" /><stop offset=".72" stopColor="#f2a33a" /><stop offset=".77" stopColor="#ffe0a3" />
+      </linearGradient></defs>
+      <rect width="340" height="340" fill="url(#mlkSky)" />
+      {Array.from({ length: n }, (_, i) => {
+        const a = Math.PI + ((i + 0.5) * Math.PI) / n, p = t => `${cx + Math.cos(t) * r} ${cy + Math.sin(t) * r}`
+        return <path key={i} d={`M${cx} ${cy} L${p(a - 0.05)} L${p(a + 0.05)}Z`} fill="rgba(255,236,190,.2)" />
+      })}
+      <circle cx={cx} cy={cy} r="46" fill="#ffd27a" />
+      <circle cx={cx} cy={cy} r="62" fill="none" stroke="rgba(255,210,122,.35)" strokeWidth="10" />
+      <rect y={cy} width="340" height={340 - cy} fill="#1d0c26" />
+      <rect y={cy - 1} width="340" height="2" fill="#f2a33a" />
+    </svg>
+  )
+}
 function HolMotif({ k, era }) {
+  if (k === 'mlk' && era !== 'stat' && era !== 'debut') return null
   const H = HOLIDAYS[k], [a, b] = HOL_PAIR[k].map(n => HOL_ICONS[n])
   const at = (x, y, sc, r, icon, c, key) => <g key={key} transform={`translate(${x} ${y}) scale(${sc}) rotate(${r})`}>{icon(c)}</g>
   let inner
