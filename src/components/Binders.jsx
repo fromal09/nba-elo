@@ -1466,12 +1466,11 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   }
   if (view === 'toc') {
     const ch = [
-      ['I', 'My Cards', 'all', `${all.length} card${all.length === 1 ? '' : 's'}`, [['all', 'Every card', all.length], ['team', 'By franchise', `${groups.team.length}`], ['decade', 'By decade', `${groups.decade.length}`], ['specials', 'Specials', specials.length]]],
+      ['I', 'My Cards', 'all', `${all.length} card${all.length === 1 ? '' : 's'}`, [['team', 'By franchise', `${groups.team.length}`], ['decade', 'By decade', `${groups.decade.length}`], ['specials', 'Specials', specials.length]]],
       ['II', 'Wish List', 'wishes', mine ? `${(C?.me?.wishes || []).length}` : '', null],
       ['III', 'Starred', 'starred', `${starred.size}`, null],
       ['IV', 'Checklists', 'checklists:fr', '', [['checklists:fr', 'Franchises', 'rosters · seasons · histories'], ['checklists:sets', 'Special Sets', `${LEAGUE_SETS.filter(d => !d.duel).length} sets`], ['checklists:rewards', 'Rewards', 'earned cards']]],
       ['V', 'Achievements', 'badges', `${nBadges}${mine ? ` of ${(src.achievements || []).length}` : ''}`, null],
-      ...(mine ? [['VI', 'Games', 'games', '', [['predict:games', 'Predictions', ''], ['koc', 'King of the Court', ''], ['five', 'Five Challenge', ''], ['banner', 'Hang the Banner', '']]]] : []),
     ]
     right = (
       <div className={styles.right}>
@@ -1486,23 +1485,32 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       </div>
     )
   } else if (view === 'games' && mine) {
-    const rows = [
-      ['predict:games', 'Game Predictions', PR.games ? `${PR.picked} of ${PR.games} picked today` : 'No games today', 'Pick every game’s winner. Lock of the Day, upsets, perfect days.'],
-      ['predict:matchups', 'Matchup Predictions', PR.duels ? `${PR.duels_picked} of ${PR.duels} picked today` : 'Not set yet', 'Each game’s top player matchup: who posts the higher Game Score?'],
-      ['predict:lineup', 'Daily Lineup', 'Five players, card multipliers', 'Game Score times your card’s multiplier, plus a bonus for the Player of the Day.'],
-      ['predict:potd', 'Player of the Day', `${PR.potd ? 1 : 0} of 1 picked`, 'Call the night’s best player for that card in ruby.'],
-      ['predict:standings', 'Pick’em Standings', 'This week', 'The week’s race for the Player of the Week card.'],
-      ['predict:history', 'Prediction History', PR.unclaimed ? `${PR.unclaimed} card${PR.unclaimed === 1 ? '' : 's'} to claim` : 'Every day you’ve played', 'Your days, your picks and the cards you’ve earned.'],
-      ['five', 'Five Challenge', 'This week’s three lineups', 'Build fives for the week’s franchises, ranked against every real five.'],
-      ['banner', 'Hang the Banner', 'A ladder for every franchise', 'Beat each franchise’s best five of every season, weakest to strongest.'],
-      ['koc', 'King of the Court', 'Group Challenge · Rivalries', 'One player a game: a six-collector group for every slate, the bounty, and head-to-head rivalries for Coins.'],
+    // Three banners, each with its buttons: [view, title, status]
+    const secs = [
+      ['Predictions', 'Call tonight’s games and players', [
+        ['predict:games', 'Games', PR.games ? `${PR.picked} of ${PR.games} picked` : 'No games today'],
+        ['predict:matchups', 'Player Matchups', PR.duels ? `${PR.duels_picked} of ${PR.duels} picked` : 'Not set yet'],
+        ['predict:lineup', 'Daily Lineup', 'Five players'],
+        ['predict:potd', 'Player of the Day', `${PR.potd ? 1 : 0} of 1 picked`]]],
+      ['Challenges', 'Play your cards', [
+        ['banner', 'Hang the Banner', 'A ladder per franchise'],
+        ['five', 'Five Challenge', 'This week’s lineups'],
+        ['koc', 'King of the Court', 'Groups · Rivalries']]],
+      ['Results', 'How you’ve done', [
+        ['predict:standings', 'Pick’em Standings', 'This week'],
+        ['predict:history', 'Prediction History', PR.unclaimed ? `${PR.unclaimed} card${PR.unclaimed === 1 ? '' : 's'} to claim` : 'Every day you’ve played']]],
     ]
     right = (
       <div className={styles.right}>
         <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Games</b><span>predictions and challenges</span></div>{tools}</div>
         <div className={styles.gamesList}>
-          {rows.map(([v, title, status, desc]) => <button key={title} type="button" className={styles.gameRow} disabled={!v} onClick={() => v && pickView(v)}>
-            <span><b>{title}</b><small>{desc}</small></span><em>{status}</em><i>›</i></button>)}
+          {secs.map(([title, sub, btns]) => <section key={title} className={styles.gameSec}>
+            <div className={styles.gameBanner}><b>{title}</b><span>{sub}</span></div>
+            <div className={styles.gameBtns}>
+              {btns.map(([v, label, status]) => <button key={v} type="button" className={styles.gameBtn} onClick={() => pickView(v)}>
+                <b>{label}</b><small>{status}</small></button>)}
+            </div>
+          </section>)}
         </div>
       </div>
     )

@@ -15,6 +15,7 @@ const TIER = { goat: '★ GOAT', icon: 'Icon', legend: 'Legend', standout: 'Stan
 const TIER_C = { goat: '#c9a24a', icon: '#7b3fa0', legend: '#d4960a', standout: '#2f67a6', rare: '#3f8f5f', common: '#8a95a2' }
 const baseName = n => (n || '').replace(/\s*\(.*\)$/, '')
 const last = n => baseName(n).split(' ').slice(-1)[0]
+const initials = n => baseName(n).split(' ').map(w => w[0]).slice(0, 2).join('')
 const f1 = v => (v == null ? '—' : (Math.round(v * 10) / 10).toFixed(1))
 const n0 = v => Math.round(v || 0).toLocaleString()
 const addDays = (day, n) => new Date(Date.parse(day + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10)
@@ -22,8 +23,6 @@ const dayName = (d, today) => (d === today ? 'Today' : d === addDays(today, 1) ?
   : new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }))
 const tipTime = t => new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 const Logo = ({ t, size = 22 }) => <span className={styles.logo} style={{ width: size, height: size }}>{binderLogo(t) ? <img src={binderLogo(t)} alt="" /> : <b>{t}</b>}</span>
-// Six spots on a half court: the top of the key, both wings, both corners, the low post
-const SPOTS = [[50, 20], [20, 38], [80, 38], [9, 72], [91, 72], [50, 60]]
 
 export default function KingOfTheCourt({ env, tools }) {
   const C = env.collector
@@ -47,7 +46,7 @@ export default function KingOfTheCourt({ env, tools }) {
         {err && <p className={styles.err}>{err}</p>}
         {!d && !err && <p className={fs.note}>Loading the slate…</p>}
         {d && tab === 'group' && <Group env={env} d={d} busy={busy} onPick={pick} />}
-        {d && tab === 'rivals' && <Rivals env={env} d={d} busy={busy} onPick={pick} onAct={act} onDay={setDay} />}
+        {d && tab === 'rivals' && <Rivals env={env} d={d} busy={busy} onPick={pick} onAct={act} onDay={setDay} onReload={() => C.loadKoc(day).then(setD).catch(() => {})} />}
       </div>
     </div>
   )
@@ -60,19 +59,19 @@ function Group({ env, d, busy, onPick }) {
     <div className={styles.bounty}><span><small>The bounty</small><b>{n0(d.bounty)}</b><em>Coins</em></span>
       <p>Every game’s Player of the Game in your picks, on a day of {R.bountyMinGames} or more games, takes it all (split if it’s shared). It grows one Coin for every collector who enters, every day, up to {n0(R.bountyCap)}.</p></div>
     {d.bountyWon && <p className={styles.won}>The bounty went to {d.bountyWon.users.length} collector{d.bountyWon.users.length === 1 ? '' : 's'} this day: {n0(d.bountyWon.each)} Coins each.</p>}
-    <p className={fs.intro}>Pick one of your players in every game. Your group is six collectors of similar binder strength (computer binders fill a short group), set when the day’s first game tips. Each game is its own contest: the top score (Player of the Game score × your card’s multiplier) wins {R.winMin}–{R.winMax} Coins, {R.potg} more if he was that game’s Player of the Game, and leading every game is a clean sweep worth {R.sweep} more. Rest days carry over from one King of the Court day to the next.</p>
+    <p className={fs.intro}>Pick one of your players in every game. Your group is six collectors of similar binder strength (computer binders fill a short group), set when the day’s first game tips. Each game is its own contest: the top score (Player of the Game score × your card’s multiplier; a tie goes to the higher-Elo card) wins {R.winMin}–{R.winMax} Coins, {R.potg} more if he was that game’s Player of the Game, and leading every game is a clean sweep worth {R.sweep} more. Rest days carry over from one King of the Court day to the next.</p>
     {!d.entryOpen && !gv && <p className={styles.err}>Entries for this day closed at the first tipoff. Tomorrow’s slate is open.</p>}
     {!d.games.length && <p className={fs.note}>No games this day.</p>}
     {d.games.length > 0 && <p className={fs.note}>{picked} of {d.games.length} games picked{gv ? ` · your group: ${gv.members.map(m => m.you ? 'you' : m.name).join(', ')}` : ''}</p>}
     {d.games.map(g => {
       const res = gv?.games.find(x => x.id === g.id)
       return <GameBlock key={g.id} env={env} g={g} mine={d.group[g.id]} cands={d.candidates[g.id] || []} canPick={d.entryOpen && g.open} busy={busy === 'group' + g.id}
-        onPick={card => onPick('group', g.id, card)} court={res?.entries} potg={res?.potg} />
+        onPick={card => onPick('group', g.id, card)} court={res?.entries && <Court env={env} entries={res.entries} potg={res.potg} provisional={res.provisional} live={g.state === 'in'} settled={gv.settled} />} />
     })}
   </>
 }
 
-function GameBlock({ env, g, mine, cands, canPick, busy, onPick, court, potg, versus }) {
+function GameBlock({ env, g, mine, cands, canPick, busy, onPick, court, versus }) {
   const label = g.state === 'pre' ? tipTime(g.tip) : g.state === 'post' ? `Final ${g.as}–${g.hs}` : `${g.detail || 'Live'} · ${g.as}–${g.hs}`
   const [open, setOpen] = useState(false)
   const ok = cands.filter(c => !c.out && !c.resting).length
@@ -86,7 +85,7 @@ function GameBlock({ env, g, mine, cands, canPick, busy, onPick, court, potg, ve
       </div> : mine ? <div className={styles.pickRow}><span className={styles.mine}><i style={{ background: TIER_C[mine.tier] }} />Your pick: {baseName(mine.player)} ({mine.team}) ×{mine.mult}{mine.score != null ? ` · ${f1(mine.score)}` : ''}</span></div>
         : <p className={fs.note}>{g.open ? 'No pick.' : 'No pick in this game.'}</p>}
       {open && <PickModal env={env} g={g} label={label} cands={cands} mine={mine} onClose={() => setOpen(false)} onPick={card => { setOpen(false); onPick(card) }} />}
-      {court && <Court entries={court} potg={potg} />}
+      {court}
       {versus}
     </section>
   )
@@ -121,28 +120,58 @@ function PickModal({ env, g, label, cands, mine, onClose, onPick }) {
   )
 }
 
-// The group's picks for a game, on a half court; the leader glows
-function Court({ entries, potg }) {
-  const top = Math.max(...entries.map(e => e.score ?? -1e9))
-  return (
+// One pick's card: the actual card a collector played, or a stand-in for a computer binder (it has no cards)
+function PickCard({ env, e }) {
+  const x = e.card && fromIndex(env, e.card, { key: String(e.cardId) })
+  return x ? <Fit><MiniCard name={x.name} row={x.row} game={x.game} team={x.team} headshot={env.headshot(x.name)} /></Fit>
+    : <span className={styles.botCard} style={{ '--tc': TIER_C[e.tier] }}><i>{initials(e.player)}</i><b>{last(e.player)}</b><small>{TIER[e.tier]}{e.bot ? ' · cpu' : ''}</small></span>
+}
+
+// The group's picks for a game: their cards on a half court, best first (the leader at the top of the key), then the
+// standings. Scores so far until the day settles; a tie on score goes to the higher-Elo card
+const CARD_SPOTS = [[50, 25], [19, 25], [81, 25], [50, 71], [19, 71], [81, 71]]
+function Court({ env, entries, potg, provisional, live, settled }) {
+  const scored = entries.some(e => e.score != null)
+  const isLead = e => e.win || e.lead
+  return <>
     <div className={styles.court}>
-      <svg viewBox="0 0 100 62" preserveAspectRatio="none" aria-hidden="true">
-        <rect x="0" y="0" width="100" height="62" fill="#d9a066" />
-        <g fill="none" stroke="rgba(255,255,255,.75)" strokeWidth=".6">
-          <rect x=".5" y=".5" width="99" height="61" /><rect x="38" y="40" width="24" height="21.5" /><path d="M38 40 A12 12 0 0 1 62 40" />
-          <path d="M6 61.5 L6 50 A44 44 0 0 1 94 50 L94 61.5" /><circle cx="50" cy="57" r="1.4" />
+      <svg viewBox="0 0 100 78" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="0" y="0" width="100" height="78" fill="#d9a066" />
+        <g fill="none" stroke="rgba(255,255,255,.7)" strokeWidth=".6">
+          <rect x=".5" y=".5" width="99" height="77" /><rect x="38" y="52" width="24" height="25.5" /><path d="M38 52 A12 12 0 0 1 62 52" />
+          <path d="M6 77.5 L6 62 A44 44 0 0 1 94 62 L94 77.5" /><circle cx="50" cy="72" r="1.4" />
         </g>
       </svg>
       {entries.slice(0, 6).map((e, i) => {
-        const [x, y] = SPOTS[i], win = e.win || (e.score != null && e.score === top && top > 0)
-        return <div key={e.who} className={styles.spot} data-win={win ? '' : undefined} data-you={e.you || undefined} style={{ left: `${x}%`, top: `${y}%`, '--tc': TIER_C[e.tier] }}>
-          <b>{last(e.player)}{potg && baseName(potg) === baseName(e.player) ? ' ★' : ''}</b><small>{e.name}{e.bot ? ' · cpu' : ''}</small><em>{e.score != null ? f1(e.score) : `×${e.mult}`}{e.coins ? ` · +${e.coins}` : ''}</em></div>
+        const [x, y] = CARD_SPOTS[i]
+        return <div key={e.who} className={styles.cspot} data-win={scored && isLead(e) ? '' : undefined} data-you={e.you ? '' : undefined} style={{ left: `${x}%`, top: `${y}%`, '--tc': TIER_C[e.tier] }}>
+          <span className={styles.cface}><PickCard env={env} e={e} /></span>
+          <span className={styles.clab}><b>{scored ? `${e.rank}. ` : ''}{e.you ? 'You' : e.name}</b>{scored && <em>{f1(e.score)}</em>}</span>
+        </div>
       })}
     </div>
-  )
+    <div className={styles.stand}>
+      <div className={styles.standHead}><b>{!scored ? 'Picks' : settled || !provisional ? 'Final standings' : live ? 'Standings · live' : 'Standings · final box score'}</b>
+        <span>{!scored ? 'Scores come in as the game goes.' : provisional ? 'Game Score plus a sixth of the Elo swing, from the live box score. Official once the night’s data is in. Ties go to the higher-Elo card.' : 'Ties go to the higher-Elo card.'}</span></div>
+      <table>
+        <thead><tr><th>#</th><th>Collector</th><th>Player</th><th className={styles.num}>Card Elo</th><th className={styles.num}>×</th><th className={styles.num}>Score</th></tr></thead>
+        <tbody>{entries.map(e => (
+          <tr key={e.who} data-win={scored && isLead(e) ? '' : undefined} data-you={e.you ? '' : undefined}>
+            <td>{scored ? e.rank : '—'}</td>
+            <td>{e.you ? 'You' : e.name}{e.bot ? <small> · cpu</small> : null}</td>
+            <td><i style={{ background: TIER_C[e.tier] }} />{baseName(e.player)}{potg && baseName(potg) === baseName(e.player) ? ' ★' : ''}</td>
+            <td className={styles.num}>{e.elo ? n0(e.elo) : '—'}</td>
+            <td className={styles.num}>{e.mult}</td>
+            <td className={styles.num}><b>{e.score != null ? f1(e.score) : '—'}</b>{e.coins ? <small> +{e.coins}</small> : null}</td>
+          </tr>))}</tbody>
+      </table>
+      {potg && <p className={styles.potgNote}>★ Player of the Game: {baseName(potg)}</p>}
+    </div>
+  </>
 }
 
-function Rivals({ env, d, busy, onPick, onAct, onDay }) {
+function Rivals({ env, d, busy, onPick, onAct, onDay, onReload }) {
+  const [chal, setChal] = useState(false)
   const open = d.rivals.filter(r => r.status === 'pending'), on = d.rivals.filter(r => r.status === 'accepted'), past = d.rivals.filter(r => !['pending', 'accepted'].includes(r.status))
   const row = r => (
     <div key={r.id} className={styles.rival}>
@@ -155,7 +184,9 @@ function Rivals({ env, d, busy, onPick, onAct, onDay }) {
   )
   const here = [...on, ...past, ...open].filter(r => r.day === d.day && r.games)
   return <>
-    <p className={fs.intro}>Challenge another collector from their binder (the Challenge button under their name): pick a day and a wager. Yours is held when you send it; theirs when they accept, before that day’s first tipoff. Then it’s one player a game, head to head: most games won takes both wagers; a tie on games goes to the higher total score. Their picks show as each game tips off.</p>
+    <div className={styles.chalRow}><button type="button" className={styles.chooseBtn} onClick={() => setChal(true)}>⚔ Challenge a collector</button></div>
+    {chal && <ChallengeModal C={env.collector} onClose={() => { setChal(false); onReload() }} />}
+    <p className={fs.intro}>Challenge another collector here or from their binder: pick a day and a wager. Yours is held when you send it; theirs when they accept, before that day’s first tipoff. Then it’s one player a game, head to head: most games won takes both wagers; a tie on games goes to the higher total score. Their picks show as each game tips off.</p>
     {open.length > 0 && <><div className={styles.lab}>Waiting on an answer</div>{open.map(row)}</>}
     {on.length > 0 && <><div className={styles.lab}>On</div>{on.map(row)}</>}
     {here.map(r => (
@@ -166,9 +197,9 @@ function Rivals({ env, d, busy, onPick, onAct, onDay }) {
           const rg = r.result?.games?.find(y => y.id === g.id)
           const mine = r.you === 'from' ? rg?.a : rg?.b, theirs = r.you === 'from' ? rg?.b : rg?.a
           const versus = <div className={styles.vs}>
-            <span data-win={rg?.w && rg.w === (r.you === 'from' ? 'a' : 'b') ? '' : undefined}><small>You</small><b>{x.mine ? baseName(x.mine.player) : '—'}</b><em>{f1(mine?.score ?? x.mine?.score)}</em></span>
+            <span data-win={rg?.w && rg.w === (r.you === 'from' ? 'a' : 'b') ? '' : undefined}>{x.mine?.card && <span className={styles.vsCard}><PickCard env={env} e={x.mine} /></span>}<small>You</small><b>{x.mine ? baseName(x.mine.player) : '—'}</b><em>{f1(mine?.score ?? x.mine?.score)}{!rg && x.mine?.provisional ? ' so far' : ''}</em></span>
             <i>vs</i>
-            <span data-win={rg?.w && rg.w !== (r.you === 'from' ? 'a' : 'b') ? '' : undefined}><small>{r.opp}</small><b>{x.theirs ? (x.theirs.hidden ? 'Picked · hidden until tip' : baseName(x.theirs.player)) : '—'}</b><em>{f1(theirs?.score ?? x.theirs?.score)}</em></span>
+            <span data-win={rg?.w && rg.w !== (r.you === 'from' ? 'a' : 'b') ? '' : undefined}>{x.theirs?.card && <span className={styles.vsCard}><PickCard env={env} e={x.theirs} /></span>}<small>{r.opp}</small><b>{x.theirs ? (x.theirs.hidden ? 'Picked · hidden until tip' : baseName(x.theirs.player)) : '—'}</b><em>{f1(theirs?.score ?? x.theirs?.score)}{!rg && x.theirs?.provisional ? ' so far' : ''}</em></span>
           </div>
           return <GameBlock key={g.id} env={env} g={g} mine={x.mine} cands={d.candidates[g.id] || []} canPick={g.open && (r.status === 'accepted' || r.status === 'pending')} busy={busy === `r${r.id}${g.id}`}
             onPick={card => onPick(`r${r.id}`, g.id, card)} versus={versus} />
@@ -181,21 +212,31 @@ function Rivals({ env, d, busy, onPick, onAct, onDay }) {
 }
 
 // From someone else's binder: challenge them to a day, for a wager
-export function ChallengeModal({ C, to, onClose }) {
+export function ChallengeModal({ C, to: fixed, onClose }) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
   const [day, setDay] = useState(today), [wager, setWager] = useState(100), [busy, setBusy] = useState(false)
+  // From the Rivalries page: name anyone, with the leaderboard as suggestions
+  const [who, setWho] = useState(''), [names, setNames] = useState([])
+  useEffect(() => {
+    if (fixed) return
+    fetch('/api/collect?action=leaders', { credentials: 'same-origin' }).then(r => r.json())
+      .then(d => setNames((d.leaders || []).map(x => x.username).filter(n => n && n !== C.me?.username))).catch(() => {})
+  }, [fixed])
+  const to = fixed || who.trim()
   const opts = Array.from({ length: 8 }, (_, i) => addDays(today, i))
   const coins = C.me?.coins?.balance ?? 0
   return (
     <div className={fs.overlay} onClick={onClose}>
       <div className={`${fs.picker} ${styles.chal}`} onClick={e => e.stopPropagation()} role="dialog" aria-label="Challenge to a Rivalry">
         <button type="button" className={fs.x} onClick={onClose} aria-label="Close">×</button>
-        <div className={fs.pickHead}><small>King of the Court · Rivalry</small><b>Challenge {to}</b><span>One player a game, head to head. Most games won takes both wagers.</span></div>
+        <div className={fs.pickHead}><small>King of the Court · Rivalry</small><b>{fixed ? `Challenge ${fixed}` : 'Challenge a collector'}</b><span>One player a game, head to head. Most games won takes both wagers.</span></div>
         <div className={styles.chalBody}>
+          {!fixed && <label>Collector<input list="koc-names" value={who} onChange={e => setWho(e.target.value)} placeholder="Their username" autoFocus />
+            <datalist id="koc-names">{names.map(n => <option key={n} value={n} />)}</datalist></label>}
           <label>Day<select value={day} onChange={e => setDay(e.target.value)}>{opts.map(x => <option key={x} value={x}>{dayName(x, today)}</option>)}</select></label>
           <label>Wager (Coins each)<input type="number" min="10" step="10" value={wager} onChange={e => setWager(e.target.value)} /><small>You have {n0(coins)}. Yours is held now; it comes back if they decline or the day starts first.</small></label>
         </div>
-        <div className={fs.pickFoot}><span /><button type="button" className={fs.primary} disabled={busy || !(wager >= 10) || wager > coins}
+        <div className={fs.pickFoot}><span /><button type="button" className={fs.primary} disabled={busy || !to || !(wager >= 10) || wager > coins}
           onClick={async () => { setBusy(true); try { if (await C.rival(to, day, Math.floor(wager))) onClose() } finally { setBusy(false) } }}>Send challenge</button></div>
       </div>
     </div>

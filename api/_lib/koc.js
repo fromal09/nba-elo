@@ -5,7 +5,7 @@
 //
 // Group Challenge: everyone with a pick in before the day's first tipoff is grouped, six to a group, with collectors of
 // similar binder strength (binder score, shuffled a little). Computer-made binders fill out a short group. Each game is
-// its own contest among the group's picks: the leading pick (ties share) pays its owner Coins for the performance
+// its own contest among the group's picks: the leading pick (a tie on score goes to the higher-Elo card) pays its owner Coins for the performance
 // (3 a point, 20 to 150), 50 more if he was that game's Player of the Game, and 250 more for leading every game of a
 // slate of three or more (a clean sweep). The bounty: one Coin for every collector who enters, every day, up to 20,000;
 // it goes (split if shared) to whoever has every game's Player of the Game in their picks on a day of five or more games.
@@ -18,7 +18,8 @@ import { grant } from './coins.js'
 import { rosters } from './forecast.js'
 import { dayFile, fullDay, findRow, nightScore, lineupPts, isOpen, isDone, PRED } from './predictions.js'
 import { TIER_ORDER } from './packs.js'
-import { norm } from '../../src/components/predict.js'
+import { norm, winChance } from '../../src/components/predict.js'
+import { buildRatings, scoreGame } from '../../src/components/live.js'
 
 export const KOC = { perPoint: 3, winMin: 20, winMax: 150, potg: 50, sweep: 250, sweepMin: 3, bountyCap: 20000, bountyMinGames: 5, group: 6,
   wagerMin: 10, rivalDays: 7 }
@@ -29,6 +30,52 @@ const gap = (a, b) => Math.round((Date.parse(a + 'T12:00:00Z') - Date.parse(b + 
 const multOf = tier => PRED.lineupMult[tier] || 1
 const restOf = tier => PRED.lineupRest[tier] || 0
 const r1 = v => Math.round(v * 10) / 10
+// A card's Elo (the number on its face), the tiebreaker when two picks score the same
+const cardElo = c => Math.round(c?.row?.post ?? c?.row?.pre ?? 0)
+// Picks in order: score, then the card's Elo. The winners: the first, and anyone level with it on both
+const ranked = list => [...list].sort((a, b) => (b.score ?? -1e9) - (a.score ?? -1e9) || (b.elo || 0) - (a.elo || 0))
+const leaders = list => {
+  const r = ranked(list), top = r[0]
+  return top && top.score != null && top.score > 0 ? r.filter(e => e.score === top.score && (e.elo || 0) === (top.elo || 0)) : []
+}
+async function cardsById(sql, ids) {
+  const want = [...new Set(ids.filter(Boolean).map(Number))]
+  if (!want.length) return new Map()
+  return new Map((await sql`select id, card from cards where id = any(${want})`).map(r => [Number(r.id), r.card]))
+}
+
+// Scores so far for games in progress or final but not yet in the nightly data: the same Player of the Game score
+// (Game Score plus a sixth of the Elo change), from ESPN's live box scores and the players' Elo before the day.
+// { gameId: { state, score(team, player) } }; cached for 30 seconds
+const liveMemo = new Map()
+let eloMemo = null
+export async function liveScores(origin, day, games) {
+  const want = games.filter(g => g.state === 'in' || g.state === 'post')
+  if (!want.length) return {}
+  const hit = liveMemo.get(day)
+  if (hit && Date.now() - hit.at < 30e3) return hit.out
+  const api = process.env.API_ORIGIN || origin
+  const get = u => fetch(u, { signal: AbortSignal.timeout(10e3) }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+  if (!eloMemo || Date.now() - eloMemo.at > 10 * 60e3) {
+    const d = await get(`${origin}/data/players.json`)
+    if (d) eloMemo = { at: Date.now(), R: buildRatings(d.players || d) }
+  }
+  const feed = await get(`${api}/api/live?date=${day}`)
+  const out = {}
+  if (feed?.games && eloMemo) {
+    const sy = +day.slice(0, 4) - (+day.slice(5, 7) < 9 ? 1 : 0)
+    for (const g of want) {
+      const x = feed.games.find(y => y.home === g.home && y.away === g.away)
+      const sc = x?.box ? scoreGame(x, eloMemo.R, day, winChance, sy) : null
+      if (!sc) continue
+      const by = new Map(sc.players.map(p => [p.t + '|' + norm(p.n), r1(p.gs + (p.post - p.pre) / 6)]))
+      out[g.id] = { state: x.state, score: (team, player) => by.get(team + '|' + norm(player)) ?? null }
+    }
+  }
+  liveMemo.set(day, { at: Date.now(), out })
+  return out
+}
+
 const winCoins = score => Math.max(KOC.winMin, Math.min(KOC.winMax, Math.round(score * KOC.perPoint)))
 
 export async function ensureKocSchema(t) {
@@ -148,7 +195,7 @@ async function botPicks(origin, day, games, strength, seed) {
     if (!pool.length) continue
     const p = pool[Math.floor(r() * r() * pool.length)] // leans to the best
     const ti = Math.max(0, Math.min(tiers.length - 1, Math.round(strength + (r() - 0.5) * 1.6)))
-    picks[g.id] = { player: p.name, team: p.team, tier: tiers[ti], mult: multOf(tiers[ti]) }
+    picks[g.id] = { player: p.name, team: p.team, tier: tiers[ti], mult: multOf(tiers[ti]), elo: Math.round(p.elo || 0) }
   }
   return picks
 }
@@ -209,20 +256,20 @@ export async function settleDay(sql, origin, day, today) {
     const names = Object.fromEntries((await sql`select id, username from users where id = any(${grp.members})`).map(x => [x.id, x.username]))
     const won = new Map() // user -> games led
     const result = { games: [] }
+    const cards = await cardsById(sql, picks.map(p => p.card_id))
     await sql.begin(async t => {
       for (const g of done) {
         const entries = []
         for (const p of picks.filter(x => x.game_id === g.id)) {
           const raw = S[g.id].score(p.team, p.player), score = r1(lineupPts(raw, p.mult))
-          entries.push({ who: p.user_id, name: names[p.user_id], player: p.player, team: p.team, tier: p.tier, mult: p.mult, score })
+          entries.push({ who: p.user_id, name: names[p.user_id], player: p.player, team: p.team, tier: p.tier, mult: p.mult, score, cardId: Number(p.card_id) || null, elo: cardElo(cards.get(Number(p.card_id))) })
           await t`update koc_picks set score = ${score} where user_id = ${p.user_id} and day = ${day} and mode = 'group' and game_id = ${g.id}`
         }
         for (const b of grp.bots) {
           const p = b.picks[g.id]; if (!p) continue
-          entries.push({ who: b.id, name: b.name, bot: true, player: p.player, team: p.team, tier: p.tier, mult: p.mult, score: r1(lineupPts(S[g.id].score(p.team, p.player), p.mult)) })
+          entries.push({ who: b.id, name: b.name, bot: true, player: p.player, team: p.team, tier: p.tier, mult: p.mult, elo: p.elo || 0, score: r1(lineupPts(S[g.id].score(p.team, p.player), p.mult)) })
         }
-        const top = Math.max(0, ...entries.map(e => e.score))
-        const winners = top > 0 ? entries.filter(e => e.score === top) : []
+        const winners = leaders(entries)
         for (const w of winners) {
           w.win = true
           if (w.bot) continue
@@ -271,15 +318,18 @@ export async function settleDay(sql, origin, day, today) {
     const picks = await sql`select * from koc_picks where day = ${day} and mode = ${mode}`
     const side = { [r.from_id]: { won: 0, total: 0 }, [r.to_id]: { won: 0, total: 0 } }
     const games_ = []
+    const rc = await cardsById(sql, picks.map(p => p.card_id))
     for (const g of done) {
       const a = picks.find(p => p.user_id === r.from_id && p.game_id === g.id), b = picks.find(p => p.user_id === r.to_id && p.game_id === g.id)
       const sa = a ? r1(lineupPts(S[g.id].score(a.team, a.player), a.mult)) : null, sb = b ? r1(lineupPts(S[g.id].score(b.team, b.player), b.mult)) : null
       if (a) await sql`update koc_picks set score = ${sa} where user_id = ${a.user_id} and day = ${day} and mode = ${mode} and game_id = ${g.id}`
       if (b) await sql`update koc_picks set score = ${sb} where user_id = ${b.user_id} and day = ${day} and mode = ${mode} and game_id = ${g.id}`
-      const w = (sa ?? -1e9) > (sb ?? -1e9) ? 'a' : (sb ?? -1e9) > (sa ?? -1e9) ? 'b' : null // a: the challenger
+      // a: the challenger. Level on score: the higher-Elo card
+      const ea = a ? cardElo(rc.get(Number(a.card_id))) : 0, eb = b ? cardElo(rc.get(Number(b.card_id))) : 0
+      const w = (sa ?? -1e9) > (sb ?? -1e9) ? 'a' : (sb ?? -1e9) > (sa ?? -1e9) ? 'b' : sa != null && ea !== eb ? (ea > eb ? 'a' : 'b') : null
       if (w) side[w === 'a' ? r.from_id : r.to_id].won++
       side[r.from_id].total += sa || 0; side[r.to_id].total += sb || 0
-      games_.push({ id: g.id, home: g.home, away: g.away, a: a && { player: a.player, team: a.team, tier: a.tier, score: sa }, b: b && { player: b.player, team: b.team, tier: b.tier, score: sb }, w })
+      games_.push({ id: g.id, home: g.home, away: g.away, a: a && { player: a.player, team: a.team, tier: a.tier, score: sa, elo: ea }, b: b && { player: b.player, team: b.team, tier: b.tier, score: sb, elo: eb }, w })
     }
     const A = side[r.from_id], B = side[r.to_id]
     const winner = A.won !== B.won ? (A.won > B.won ? r.from_id : r.to_id) : Math.abs(A.total - B.total) > 0.05 ? (A.total > B.total ? r.from_id : r.to_id) : null
@@ -383,14 +433,28 @@ export async function kocView(sql, u, origin, today, q) {
     const names = Object.fromEntries((await sql`select id, username from users where id = any(${grp.members})`).map(x => [x.id, x.username]))
     const all = await sql`select * from koc_picks where day = ${day} and mode = 'group' and user_id = any(${grp.members})`
     const members = [...grp.members.map(id => ({ id, name: names[id], you: id === u.id })), ...grp.bots.map(b => ({ id: b.id, name: b.name, bot: true }))]
+    const pc = await cardsById(sql, all.map(p => p.card_id))
+    // Before the day settles, games in progress or final carry scores so far from the live box scores
+    const L = grp.settled_at ? {} : await liveScores(origin, day, games).catch(() => ({}))
+    const withCard = (e, cid) => { const c = cid ? pc.get(cid) || null : null; return { ...e, cardId: cid || null, card: c, elo: e.elo ?? (c ? cardElo(c) : 0) } }
     groupView = { members, settled: !!grp.settled_at, result: grp.result,
       games: games.map(g => {
-        const shown = !isOpen(g)
         const res = grp.result?.games?.find(x => x.id === g.id)
-        if (res) return { id: g.id, entries: res.entries, potg: res.potg }
-        if (!shown) return { id: g.id, entries: null }
-        return { id: g.id, entries: [...all.filter(p => p.game_id === g.id).map(p => ({ who: p.user_id, name: names[p.user_id], player: p.player, team: p.team, tier: p.tier, mult: p.mult, score: p.score })),
-          ...grp.bots.filter(b => b.picks[g.id]).map(b => ({ who: b.id, name: b.name, bot: true, ...b.picks[g.id], score: null }))] }
+        let entries, provisional = false
+        if (res) entries = res.entries.map(e => withCard(e, e.bot ? null : e.cardId ?? (Number(all.find(p => p.user_id === e.who && p.game_id === g.id)?.card_id) || null)))
+        else if (isOpen(g)) return { id: g.id, entries: null }
+        else {
+          entries = [...all.filter(p => p.game_id === g.id).map(p => withCard({ who: p.user_id, name: names[p.user_id], player: p.player, team: p.team, tier: p.tier, mult: p.mult, score: p.score }, Number(p.card_id))),
+            ...grp.bots.filter(b => b.picks[g.id]).map(b => ({ who: b.id, name: b.name, bot: true, ...b.picks[g.id], elo: b.picks[g.id].elo || 0, score: null, card: null }))]
+          const Lg = L[g.id]
+          if (Lg) {
+            provisional = true
+            for (const e of entries) e.score = r1(lineupPts(Lg.score(e.team, e.player) ?? 0, e.mult))
+            for (const e of leaders(entries)) e.lead = true
+          }
+        }
+        entries = ranked(entries).map((e, i) => ({ ...e, rank: i + 1, you: !e.bot && e.who === u.id }))
+        return { id: g.id, entries, potg: res?.potg || null, provisional, state: g.state }
       }) }
   }
   const [kd] = await sql`select * from koc_days where day = ${day}`
@@ -398,6 +462,14 @@ export async function kocView(sql, u, origin, today, q) {
   const rivals = await sql`select r.*, a.username as from_name, b.username as to_name from koc_rivals r join users a on a.id = r.from_id join users b on b.id = r.to_id
     where (r.from_id = ${u.id} or r.to_id = ${u.id}) and r.day >= ${addDays(today, -7)} order by r.day desc, r.id desc limit 40`
   const rivalPicks = rivals.length ? await sql`select * from koc_picks where day = ${day} and mode = any(${rivals.map(r => `r${r.id}`)})` : []
+  const rpc = await cardsById(sql, rivalPicks.map(p => p.card_id))
+  const RL = rivalPicks.some(p => p.score == null) ? await liveScores(origin, day, games).catch(() => ({})) : {}
+  // A rivalry pick with its card, and its score so far until the day settles
+  const rivalPick = (p, g) => {
+    if (!p) return null
+    const c = rpc.get(Number(p.card_id)) || null, live = p.score == null && RL[g.id]
+    return { ...pickView(p), card: c, elo: cardElo(c), score: live ? r1(lineupPts(live.score(p.team, p.player) ?? 0, p.mult)) : p.score, provisional: !!live }
+  }
   const rivalView = r => {
     const you = r.from_id === u.id ? 'from' : 'to', oppId = you === 'from' ? r.to_id : r.from_id
     const v = { id: r.id, day: iso(r.day), wager: r.wager, status: r.status, you, opp: you === 'from' ? r.to_name : r.from_name, winner: r.winner == null ? null : r.winner === u.id ? 'you' : 'opp', result: r.result }
@@ -406,7 +478,7 @@ export async function kocView(sql, u, origin, today, q) {
       v.games = games.map(g => {
         const mine = rivalPicks.find(p => p.mode === mode && p.user_id === u.id && p.game_id === g.id)
         const theirs = rivalPicks.find(p => p.mode === mode && p.user_id === oppId && p.game_id === g.id)
-        return { id: g.id, mine: pickView(mine), theirs: !isOpen(g) ? pickView(theirs) : theirs ? { hidden: true } : null }
+        return { id: g.id, mine: rivalPick(mine, g), theirs: !isOpen(g) ? rivalPick(theirs, g) : theirs ? { hidden: true } : null }
       })
     }
     return v
