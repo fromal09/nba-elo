@@ -128,7 +128,7 @@ function PlayerPick({ list, value, onPick }) {
   )
 }
 
-export default function CardDatabase({ league, shots, onOpen, onClose, covered }) {
+export default function CardDatabase({ league, shots, onOpen, onClose, covered, focus }) {
   const C = useCollector()
   const [index, setIndex] = useState(null)
   const [plist, setPlist] = useState(null)
@@ -159,6 +159,15 @@ export default function CardDatabase({ league, shots, onOpen, onClose, covered }
     window.addEventListener('keydown', esc)
     return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', esc); files.clear() }
   }, [])
+
+  // Opened from a card-catalog drawer: that filter takes the focus once its options are in
+  const focused = useRef(false)
+  useEffect(() => {
+    if (focused.current || !focus || !index || (focus === 'player' && !plist)) return
+    const sel = { player: 'input[aria-label=Player]', franchise: '#db-fc', season: '#db-from', set: '#db-set', special: '#db-type', tier: '[aria-label=Tiers] button' }[focus]
+    const el = sel && boxRef.current?.querySelector(sel)
+    if (el) { focused.current = true; setTimeout(() => el.focus(), 30) }
+  }, [focus, index, plist])
 
   const seasons = useMemo(() => (index ? [...new Set(Object.values(index.tiers).flat().map(([f]) => f.split('/')[1].replace(/-\d+\.json$/, '')))].sort() : []), [index])
   const franchises = useMemo(() => (league?.franchises || []).slice().sort((a, b) => (b.active - a.active) || a.name.localeCompare(b.name)), [league])
@@ -271,7 +280,7 @@ export default function CardDatabase({ league, shots, onOpen, onClose, covered }
             </label>
             <label className={styles.field}>
               <span>Franchise</span>
-              <select value={fc} onChange={e => setFc(e.target.value)}>
+              <select id="db-fc" value={fc} onChange={e => setFc(e.target.value)}>
                 <option value="">Every team</option>
                 <optgroup label="Current teams">{franchises.filter(f => f.active).map(f => <option key={f.code} value={f.code}>{f.name}</option>)}</optgroup>
                 <optgroup label="Past franchises">{franchises.filter(f => !f.active).map(f => <option key={f.code} value={f.code}>{f.name}{f.code.includes('@') ? ' (ABA)' : ''}</option>)}</optgroup>
@@ -280,7 +289,7 @@ export default function CardDatabase({ league, shots, onOpen, onClose, covered }
             <div className={styles.field} data-full="">
               <span id="db-seasons">Seasons</span>
               <div className={styles.pair} role="group" aria-labelledby="db-seasons">
-                <select value={s0} onChange={e => { setS0(e.target.value); if (!s1 || e.target.value > s1) setS1(e.target.value) }} aria-label="From season">
+                <select id="db-from" value={s0} onChange={e => { setS0(e.target.value); if (!s1 || e.target.value > s1) setS1(e.target.value) }} aria-label="From season">
                   <option value="">From</option>{seasons.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
                 <span aria-hidden="true">–</span>
@@ -293,14 +302,14 @@ export default function CardDatabase({ league, shots, onOpen, onClose, covered }
           <div className={styles.fRow}>
             <label className={styles.field}>
               <span>Card type</span>
-              <select value={type} onChange={e => setType(e.target.value)}>
+              <select id="db-type" value={type} onChange={e => setType(e.target.value)}>
                 <optgroup label="Game cards">{TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</optgroup>
                 <optgroup label="Special cards">{Object.entries(SPECIALS).map(([v, [, l]]) => <option key={v} value={v}>{l}</option>)}</optgroup>
               </select>
             </label>
             <label className={styles.field}>
               <span>League set</span>
-              <select value={set} onChange={e => setSet(e.target.value)}>
+              <select id="db-set" value={set} onChange={e => setSet(e.target.value)}>
                 <option value="">Any set</option>
                 {LEAGUE_SETS.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
               </select>

@@ -1,48 +1,85 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import styles from './BinderRoom.module.css'
-import { MiniCard, DuelCard } from './PlayerCard'
-import { LEAGUE_SETS, leagueEntries, AnyFace, cardRef } from './Binders'
+import shelf from './TrophyRoom.module.css'
+import { LEAGUE_SETS, cardRef } from './Binders'
 import { BinderHost, primeBinders, binderJSON, binderHeadshots, binderTeamInfo, binderLogo } from './SeasonExplorer'
 import PlayerSearch from './PlayerSearch'
-import { norm } from './predict'
-import { useCollector, CardFace, Meter, Coin } from './Collector'
-import TrophyRoom from './TrophyRoom'
+import { useCollector, Meter, Coin } from './Collector'
+import TrophyRoom, { FaceFit, Plate } from './TrophyRoom'
 import CardDatabase from './CardDatabase'
 
 /*
- * The Binders page: every binder in one room. League-wide sets (title clinchers, greatest debuts...),
- * franchise binders (which open each season's team binder), and any player's career binder.
+ * The Binders page: the Binder Room, one bookcase. Your binder lies open on the desk in front of it; the shelves hold
+ * the trophy case (leaderboards), the league sets, the franchise binders and the legends' career binders; the card
+ * catalog at the bottom opens the card database, beside the week's Pick'em board.
  */
 
 const baseName = n => n.replace(/\s*\(.*\)$/, '')
+// A franchise's spine name: the nickname ("Trail Blazers" stays whole)
+const nickOf = name => { const w = name.replace(/\s*\(.*\)$/, '').split(' '); return w.length > 2 && ['Trail', 'Golden'].includes(w[w.length - 2]) ? w.slice(-2).join(' ') : w[w.length - 1] }
+const SHELVES = [['br-desk', 'Your desk'], ['br-trophy', 'Trophy case'], ['br-sets', 'League sets'], ['br-teams', 'Franchises'], ['br-legends', 'Legends'], ['br-catalog', 'Card catalog']]
+const DRAWERS = [['player', 'Players'], ['franchise', 'Franchises'], ['season', 'Seasons'], ['set', 'Sets'], ['special', 'Specials'], ['tier', 'Tiers']]
 
-// A card drawn at full size and scaled down to a fixed width
-function Thumb({ children, w }) {
-  const k = w / 340
-  return <span className={styles.thumb} data-still="" style={{ width: w, height: 476 * k }}><span style={{ transform: `scale(${k})` }}>{children}</span></span>
-}
-
-function Cover({ def, list, env, onOpen, owned }) {
-  const peek = useMemo(() => leagueEntries(env, def, (list || []).slice(0, 3)), [list, def, env])
+function Desk({ C, shots, setOpen }) {
+  if (!C.me) return (
+    <div className={styles.binder} data-out="">
+      <div className={styles.page1}>
+        <div className={styles.who}>
+          <span className={styles.avatar}>★</span>
+          <div><small>Start collecting</small><b>A free pack every day</b></div>
+        </div>
+        <p className={styles.pitch}>Pick five cards, one of three at a time, from last night’s games and 80 years of history. Plus a weekly pack for the team you choose.</p>
+        <div className={styles.deskBtns}>
+          <button type="button" className={styles.goldBtn} onClick={() => C.openAuth('signup')}>Create an account</button>
+          <button type="button" className={styles.navyBtn} onClick={() => C.openAuth('login')}>Sign in</button>
+        </div>
+      </div>
+      <div className={styles.rings} aria-hidden="true"><i /><i /><i /></div>
+      <div className={styles.page2} data-out="">
+        <small className={styles.pageKick}>YOUR SHOWCASE</small>
+        <div className={styles.pockets}>{[0, 1, 2].map(i => <span key={i} className={styles.pocket} data-empty="" />)}</div>
+      </div>
+    </div>
+  )
+  const me = C.me
+  const show = me.user.showcase.length ? me.user.showcase.map(x => x.card) : me.stats.best ? [me.stats.best.card] : []
   return (
-    <button type="button" className={styles.cover} style={{ '--c': def.color }} onClick={onOpen}>
-      <span className={styles.coverText}>
-        <small>League binder</small>
-        <b>{def.title}</b>
-        <span>{def.desc}</span>
-        <em>{list ? `${list.length} cards` : 'Loading…'}{list && owned && !def.duel ? ` · you have ${list.filter(c => owned.has(cardRef(c))).length}` : ''}</em>
-      </span>
-      <span className={styles.fan} aria-hidden="true">
-        {peek.map((e, i) => (
-          <span key={e.key} className={styles.fanCard} style={{ '--i': i }}>
-            <Thumb w={92}><AnyFace e={e} env={env} /></Thumb>
-          </span>
-        ))}
-      </span>
-    </button>
+    <div className={styles.binder}>
+      <div className={styles.page1}>
+        <div className={styles.who}>
+          <span className={styles.avatar}>{me.user.username[0].toUpperCase()}</span>
+          <div><small>My binder</small><b>{me.user.username}</b></div>
+        </div>
+        <div className={styles.stats}>
+          <div><b>{(me.standing?.score || 0).toLocaleString()}</b><small>points</small></div>
+          <div><b>{me.standing?.rank ? `No. ${me.standing.rank}` : '—'}</b><small>{me.standing?.of ? `of ${me.standing.of} binders` : 'rank'}</small></div>
+          <div><b>{me.stats.cards.toLocaleString()}</b><small>cards</small></div>
+          <div><b>{me.today.streak} day{me.today.streak === 1 ? '' : 's'}</b><small>streak</small></div>
+        </div>
+        <Meter meter={me.meter} />
+        <div className={styles.deskBtns}>
+          {me.open?.length > 0
+            ? <button type="button" className={styles.goldBtn} onClick={() => C.resume(me.open[0].id)}>Finish your pack · {me.open[0].picked}/{me.open[0].total}</button>
+            : !me.today.claimed && <button type="button" className={styles.goldBtn} onClick={() => C.claim()}>{me.today.bonusToday ? 'Open 2 packs' : 'Open today’s pack'}</button>}
+          {!me.week.claimed && <button type="button" className={styles.teamBtn} onClick={() => C.openTeam()}>Weekly team pack</button>}
+          <button type="button" className={styles.predictBtn} onClick={() => setOpen({ kind: 'predict' })}>{me.predict?.unclaimed ? `Choose your prediction card${me.predict.unclaimed > 1 ? 's' : ''}` : me.predict?.open ? `Predict today’s games · ${me.predict.picked}/${me.predict.games}` : 'Predictions'}</button>
+          <button type="button" className={styles.storeBtn} onClick={() => setOpen({ kind: 'store' })}><Coin size={18} />Store · {(me.coins?.balance ?? 0).toLocaleString()}</button>
+          <button type="button" className={styles.navyBtn} onClick={() => setOpen({ kind: 'mine' })}>Open my binder</button>
+        </div>
+      </div>
+      <div className={styles.rings} aria-hidden="true"><i /><i /><i /></div>
+      <div className={styles.page2}>
+        <small className={styles.pageKick}>SHOWCASE</small>
+        <div className={styles.pockets}>
+          {[0, 1, 2].map(i => show[i]
+            ? <button key={i} type="button" className={styles.pocket} onClick={() => setOpen({ kind: 'card', card: show[i] })} title="Open the card"><FaceFit card={show[i]} shots={shots} /></button>
+            : <span key={i} className={styles.pocket} data-empty="" />)}
+        </div>
+        {me.user.showcase.length < 3 && <small className={styles.pageNote}>Star cards in your binder to show them here.</small>}
+      </div>
+    </div>
   )
 }
-
 
 export default function BinderRoom({ players, onSelectPlayer, start }) {
   const [index, setIndex] = useState(null)
@@ -54,8 +91,8 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
   const [open, setOpenRaw] = useState(null)
   const setOpen = b => setOpenRaw(b ? { ...b, n: Date.now() + Math.random() } : null)
   const [past, setPast] = useState(false)
+  const [db, setDb] = useState(null) // the card database, open: { focus }
   const C = useCollector()
-  const [db, setDb] = useState(false)
   const [picks, setPicks] = useState(null)
   useEffect(() => { if (!C.down && C.me !== undefined) C.loadStandings?.('week').then(setPicks).catch(() => {}) }, [C.down, C.me === undefined])
   // Asked from elsewhere (the account bar, a /binders?open= link): open my binder, the store or Predictions once signed in
@@ -78,128 +115,133 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
     binderHeadshots().then(setShots)
   }, [])
   primeBinders(players, index, best)
-  const env = useMemo(() => ({ teamInfo: binderTeamInfo, headshot: n => shots?.[norm(n)]?.headshot }), [shots])
   const legends = useMemo(() => [...(players || [])].sort((a, b) => b.peak_elo - a.peak_elo).slice(0, 30), [players])
   const teams = (league?.franchises || []).filter(f => f.active === !past)
   const cards = useMemo(() => (league ? Object.values(league.sets).reduce((n, l) => n + l.length, 0) : 0), [league])
+  const owned = C.me ? C.owned : null
+  const setsHave = useMemo(() => Object.fromEntries(LEAGUE_SETS.map(d => [d.id, owned && !d.duel ? (league?.sets[d.id] || []).filter(c => owned.has(cardRef(c))).length : 0])), [league, owned])
+  const started = Object.values(setsHave).filter(n => n > 0).length
+  const goTo = id => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const ready = !C.down && C.me !== undefined
+  const lo = legends.length ? legends[legends.length - 1].peak_elo : 0, hi = legends.length ? legends[0].peak_elo : 1
 
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div className={styles.kicker}>Binders</div>
-        <h1>The Binder Room</h1>
-        <p>Every game on record is a card. Open a player’s career, a franchise’s history, or a league-wide set.</p>
+        <div className={styles.plaque}>
+          <span>EST. 1946</span>
+          <h1>The Binder Room</h1>
+        </div>
+        <p>Every game on record is a card. One bookcase holds them all: your binder, the leaders, every set, every franchise and every legend.</p>
         <PlayerSearch players={players} variant="hero" label="Find any player’s career binder" action="to open the career binder"
           onSelect={p => setOpen({ kind: 'career', name: p.name })} />
+        <nav className={styles.jump} aria-label="Shelves">
+          {SHELVES.filter(([id]) => id !== 'br-desk' || ready).map(([id, label]) => <button key={id} type="button" onClick={() => goTo(id)}>{label}</button>)}
+        </nav>
       </header>
 
-      {!C.down && C.me !== undefined && <section className={styles.section}>
-        {C.me ? <div className={styles.mine}>
-          <div className={styles.mineWho}>
-            <span className={styles.avatar}>{C.me.user.username[0].toUpperCase()}</span>
-            <div>
-              <small>My binder</small>
-              <b>{C.me.user.username}</b>
-              <span>{(C.me.standing?.score || 0).toLocaleString()} pts{C.me.standing?.rank ? ` · No. ${C.me.standing.rank} of ${C.me.standing.of}` : ''} · {C.me.stats.cards} cards · {C.me.today.streak}-day streak</span>
+      {ready && <section id="br-desk" className={styles.desk} aria-label="Your desk"><Desk C={C} shots={shots} setOpen={setOpen} /></section>}
+
+      <div className={styles.caseWrap}>
+        <div className={styles.bookcase}>
+          <TrophyRoom id="br-trophy" shots={shots} onOpen={setOpen} />
+
+          <section id="br-sets" className={shelf.bay} aria-labelledby="br-sets-h">
+            <div className={shelf.bayHead}>
+              <Plate id="br-sets-h">League sets · {LEAGUE_SETS.length}</Plate>
+              <span className={shelf.lede}>{league ? `${cards.toLocaleString()} cards${owned ? ` · a gold ribbon marks the ${started === 1 ? 'set' : `${started} sets`} you’ve started` : ''}` : ''}</span>
             </div>
-          </div>
-          <div className={styles.mineShow}>
-            {C.me.user.showcase.length ? C.me.user.showcase.map(x => <CardFace key={x.id} card={x.card} shots={shots} w={74} />)
-              : C.me.stats.best ? <CardFace card={C.me.stats.best.card} shots={shots} w={74} /> : null}
-          </div>
-          <div className={styles.mineBtns}>
-            {C.me.open?.length > 0
-              ? <button type="button" className={styles.goldBtn} onClick={() => C.resume(C.me.open[0].id)}>Finish your pack · {C.me.open[0].picked}/{C.me.open[0].total}</button>
-              : !C.me.today.claimed && <button type="button" className={styles.goldBtn} onClick={() => C.claim()}>{C.me.today.bonusToday ? 'Open 2 packs' : 'Open today’s pack'}</button>}
-            {!C.me.week.claimed && <button type="button" className={styles.teamBtn2} onClick={() => C.openTeam()}>Weekly team pack</button>}
-            <button type="button" className={styles.predictBtn} onClick={() => setOpen({ kind: 'predict' })}>{C.me.predict?.unclaimed ? `Choose your prediction card${C.me.predict.unclaimed > 1 ? 's' : ''}` : C.me.predict?.open ? `Predict today’s games · ${C.me.predict.picked}/${C.me.predict.games}` : 'Predictions'}</button>
-            <button type="button" className={styles.storeBtn} onClick={() => setOpen({ kind: 'store' })}><Coin size={18} />Store · {(C.me.coins?.balance ?? 0).toLocaleString()}</button>
-            <button type="button" className={styles.navyBtn} onClick={() => setOpen({ kind: 'mine' })}>Open my binder</button>
-          </div>
-          <div className={styles.mineMeter}><Meter meter={C.me.meter} /></div>
-        </div> : <div className={`${styles.mine} ${styles.mineOut}`}>
-          <div className={styles.mineWho}>
-            <span className={styles.avatar}>★</span>
-            <div><small>Start collecting</small><b>A free pack every day</b><span>Pick five cards, one of three at a time, from last night’s games and 80 years of history. Plus a weekly pack for the team you choose.</span></div>
-          </div>
-          <div className={styles.mineBtns}>
-            <button type="button" className={styles.goldBtn} onClick={() => C.openAuth('signup')}>Create an account</button>
-            <button type="button" className={styles.navyBtn} onClick={() => C.openAuth('login')}>Sign in</button>
-          </div>
-        </div>}
-      </section>}
+            {err ? <p className={styles.note}>The league binders aren’t built yet. They appear after the next data update.</p>
+            : <div className={styles.row} data-tall="">
+              {LEAGUE_SETS.map((def, i) => {
+                const n = league?.sets[def.id]?.length, have = setsHave[def.id]
+                return (
+                  <button key={def.id} type="button" className={styles.lspine} style={{ '--c': def.color, '--h': `${86 + ((i * 37) % 4) * 4}%`, '--fs': def.title.length > 14 ? 18 : 21 }}
+                    onClick={() => setOpen({ kind: 'league', set: def.id })} title={def.desc} aria-label={`${def.title}: ${n ?? '…'} cards${have ? `, you have ${have}` : ''}`}>
+                    {have > 0 && <span className={styles.ribbon} aria-hidden="true" />}
+                    <span className={styles.band} />
+                    <b>{def.title}</b>
+                    <span className={styles.lfoot}><small>{have > 0 ? `${have}/${n}` : n ?? ''}</small><span className={styles.band} /></span>
+                  </button>
+                )
+              })}
+              <span className={styles.bookend} aria-hidden="true" />
+            </div>}
+            <div className={shelf.plank} />
+          </section>
 
-      <TrophyRoom shots={shots} onOpen={setOpen} onBrowse={() => setDb(true)} />
+          <section id="br-teams" className={shelf.bay} aria-labelledby="br-teams-h">
+            <div className={shelf.bayHead}>
+              <Plate id="br-teams-h">Franchises · {teams.length || ''}</Plate>
+              <span className={shelf.lede}>Every season on a shelf, each opening that year’s team binder · stars are titles</span>
+              <div className={shelf.seg} role="group" aria-label="Franchises">
+                <button type="button" aria-pressed={!past} data-on={!past ? '' : undefined} onClick={() => setPast(false)}>Current teams</button>
+                <button type="button" aria-pressed={past} data-on={past ? '' : undefined} onClick={() => setPast(true)}>Past franchises</button>
+              </div>
+            </div>
+            <div className={styles.row} data-teams="">
+              {teams.map(f => {
+                const logo = f.active ? binderLogo(f.code) : null
+                return (
+                  <button key={f.code} type="button" className={styles.tspine} style={{ '--c': f.color || '#173657' }} onClick={() => setOpen({ kind: 'franchise', code: f.code })}
+                    title={`${f.name}${f.code.includes('@') ? ' (ABA)' : ''} · ${f.active ? `since ${f.first}` : `${f.first} – ${f.last}`}`}
+                    aria-label={`${f.name}${f.code.includes('@') ? ' (ABA)' : ''}${f.titles ? `, ${f.titles} title${f.titles === 1 ? '' : 's'}` : ''}`}>
+                    <em>{logo ? <img src={logo} alt="" loading="lazy" /> : f.code.split('@')[0]}</em>
+                    <b>{nickOf(f.name)}{f.code.includes('@') ? ' · ABA' : ''}</b>
+                    <small>{f.titles > 0 ? `${f.titles}★` : ''}</small>
+                  </button>
+                )
+              })}
+            </div>
+            <div className={shelf.plank} />
+          </section>
 
-      {picks && picks.leaders.length > 0 && <section className={styles.section}>
-        <div className={styles.head}><h2>Pick’em this week</h2><span>{picks.entrants} collector{picks.entrants === 1 ? '' : 's'} · correct picks, matchups and locks · top 10 win {picks.payouts?.top10} Coins</span></div>
-        <div className={styles.board}>
-          {picks.leaders.slice(0, 5).map(l => (
-            <button key={l.username} type="button" className={`${styles.boardRow} ${C.me?.user.username === l.username ? styles.boardYou : ''}`} onClick={() => C.openPredict()}>
-              <b className={styles.boardRank} data-top={l.rank <= 3 ? l.rank : undefined}>{l.rank}</b>
-              <span className={styles.boardWho}><b>{l.username}</b><small>Picks {l.picks[0]}–{l.picks[1]} · matchups {l.matchups[0]}–{l.matchups[1]} · {l.over > 0 ? '+' : ''}{l.over.toFixed(1)} vs forecast</small></span>
-              <strong>{l.score}<small>pts</small></strong>
-            </button>
-          ))}
-          {picks.you?.rank > 5 && <button type="button" className={`${styles.boardRow} ${styles.boardYou}`} onClick={() => C.openPredict()}>
-            <b className={styles.boardRank}>{picks.you.rank}</b>
-            <span className={styles.boardWho}><b>{picks.you.username} (you)</b><small>Picks {picks.you.picks[0]}–{picks.you.picks[1]}</small></span>
-            <strong>{picks.you.score}<small>pts</small></strong>
-          </button>}
+          <section id="br-legends" className={shelf.bay} aria-labelledby="br-legends-h">
+            <div className={shelf.bayHead}>
+              <Plate id="br-legends-h">Legends · top 30 peak Elo</Plate>
+              <span className={shelf.lede}>Spine height follows peak Elo</span>
+            </div>
+            <div className={styles.row} data-tall="">
+              {legends.map((p, i) => (
+                <button key={p.name} type="button" className={styles.gspine} data-gold={i < 5 ? '' : undefined} onClick={() => setOpen({ kind: 'career', name: p.name })}
+                  style={{ '--h': `${Math.round(74 + (p.peak_elo - lo) / (hi - lo || 1) * 26)}%` }} title={`${p.name} · peak Elo ${Math.round(p.peak_elo).toLocaleString()}`}>
+                  <i>{i + 1}</i><span>{baseName(p.name)}</span><small>{Math.round(p.peak_elo).toLocaleString()}</small>
+                </button>
+              ))}
+            </div>
+            <div className={shelf.plank} />
+          </section>
+
+          <section id="br-catalog" className={`${shelf.bay} ${styles.lastBay}`} aria-label="Card catalog and Pick’em">
+            <div className={styles.cabinets}>
+              <div className={styles.catalog}>
+                <Plate as="h2">Card catalog</Plate>
+                <div className={styles.drawers}>
+                  {DRAWERS.map(([k, l]) => <button key={k} type="button" className={styles.drawer} onClick={() => setDb({ focus: k })}><span>{l}</span><i aria-hidden="true" /></button>)}
+                </div>
+                <small className={styles.cabNote}>Every card on record, searchable. Each drawer opens the card database ready to filter that way.</small>
+              </div>
+              {picks && picks.leaders.length > 0 && <div className={styles.chalk}>
+                <Plate as="h2">Pick’em this week</Plate>
+                <div className={styles.board}>
+                  {picks.leaders.slice(0, 5).map(l => (
+                    <button key={l.username} type="button" data-you={C.me?.user.username === l.username ? '' : undefined} onClick={() => C.openPredict()}>
+                      <b>{l.rank}</b><span>{l.username}</span><small>{l.picks[0]}–{l.picks[1]}</small><strong>{l.score}</strong>
+                    </button>
+                  ))}
+                  {picks.you?.rank > 5 && <button type="button" data-you="" onClick={() => C.openPredict()}>
+                    <b>{picks.you.rank}</b><span>{picks.you.username} (you)</span><small>{picks.you.picks[0]}–{picks.you.picks[1]}</small><strong>{picks.you.score}</strong>
+                  </button>}
+                  <small className={styles.chalkNote}>{picks.entrants} collector{picks.entrants === 1 ? '' : 's'} · top 10 win {picks.payouts?.top10} Coins</small>
+                </div>
+              </div>}
+            </div>
+          </section>
         </div>
-      </section>}
+        <div className={styles.base} />
+      </div>
 
-      <section className={styles.section}>
-        <div className={styles.head}><h2>League binders</h2><span>{league ? `${LEAGUE_SETS.length} sets · ${cards.toLocaleString()} cards` : ''}</span></div>
-        {err ? <p className={styles.note}>The league binders aren’t built yet. They appear after the next data update.</p>
-          : <div className={styles.covers}>
-            {LEAGUE_SETS.map(def => <Cover key={def.id} def={def} list={league?.sets[def.id]} env={env} owned={C.me ? C.owned : null} onOpen={() => setOpen({ kind: 'league', set: def.id })} />)}
-          </div>}
-      </section>
-
-      <section className={styles.section}>
-        <div className={styles.head}>
-          <h2>Franchise binders</h2>
-          <div className={styles.seg} role="tablist">
-            <button type="button" role="tab" aria-selected={!past} className={!past ? styles.segOn : ''} onClick={() => setPast(false)}>Current teams</button>
-            <button type="button" role="tab" aria-selected={past} className={past ? styles.segOn : ''} onClick={() => setPast(true)}>Past franchises</button>
-          </div>
-        </div>
-        <p className={styles.sub}>Every season on a shelf, each one opening that year’s team binder: Player of the Game, every game.</p>
-        <div className={styles.teams}>
-          {teams.map(f => {
-            const logo = f.active ? binderLogo(f.code) : null
-            return (
-              <button key={f.code} type="button" className={styles.team} style={{ '--c': f.color || '#173657' }} onClick={() => setOpen({ kind: 'franchise', code: f.code })}>
-                <span className={styles.teamMark}>{logo ? <img src={logo} alt="" loading="lazy" /> : <b>{f.code.split('@')[0]}</b>}</span>
-                <span className={styles.teamText}>
-                  <b>{f.name}{f.code.includes('@') ? ' (ABA)' : ''}</b>
-                  <small>{f.active ? `Since ${f.first}` : `${f.first} – ${f.last}`}</small>
-                </span>
-                {f.titles > 0 && <span className={styles.rings} title={`${f.titles} title${f.titles === 1 ? '' : 's'}`}>{f.titles}<i>★</i></span>}
-              </button>
-            )
-          })}
-        </div>
-      </section>
-
-      <section className={styles.section}>
-        <div className={styles.head}><h2>Legends’ career binders</h2><span>the 30 highest peak Elo ratings</span></div>
-        <div className={styles.shelf}>
-          <div className={styles.spines}>
-            {legends.map((p, i) => (
-              <button key={p.name} type="button" className={styles.spine} onClick={() => setOpen({ kind: 'career', name: p.name })}
-                style={{ '--h': `${Math.round(78 + (p.peak_elo - legends[legends.length - 1].peak_elo) / (legends[0].peak_elo - legends[legends.length - 1].peak_elo || 1) * 22)}%` }}
-                title={`${p.name} · peak Elo ${Math.round(p.peak_elo).toLocaleString()}`}>
-                <i>{i + 1}</i><span>{baseName(p.name)}</span><b>{Math.round(p.peak_elo).toLocaleString()}</b>
-              </button>
-            ))}
-          </div>
-          <div className={styles.plank} />
-        </div>
-      </section>
-
-      {db && <CardDatabase league={league} shots={shots} covered={!!open} onOpen={setOpen} onClose={() => setDb(false)} />}
+      {db && <CardDatabase league={league} shots={shots} focus={db.focus} covered={!!open} onOpen={setOpen} onClose={() => setDb(null)} />}
       {open && <BinderHost key={open.n} start={open} shots={shots} onClose={() => setOpen(null)}
         onProfile={n => { const p = players?.find(x => x.name === n); setOpen(null); if (p) onSelectPlayer?.(p) }} />}
     </div>
