@@ -214,3 +214,42 @@ b[data-tier=special] { color: #4c7aa3; }
 .fitLine { position: absolute; left: 0; right: 0; top: calc(100% + 18px); text-align: center; line-height: 1.3; font-size: 10.5px; color: rgba(255,255,255,.8); }
 .fitLine b { color: #fff; }
 .offer { padding-bottom: 40px !important; }
+
+/* Pack opening on the desk: lit wood, a crimped foil pack you tear, cards you turn over yourself, and light in the
+   card's tier color when it lands (rays for an Icon, a GOAT or a special) */
+.deskLayer { backdrop-filter: none; background: radial-gradient(55% 60% at 50% 18%, rgba(255,214,150,.36), rgba(255,214,150,0) 70%),
+  repeating-linear-gradient(90deg, rgba(0,0,0,0) 0 46px, rgba(0,0,0,.07) 46px 48px, rgba(0,0,0,0) 48px 113px, rgba(255,255,255,.04) 113px 115px),
+  linear-gradient(180deg, #6e4628, #5a3820 55%, #3e2412); }
+.deskLayer .packBody { clip-path: polygon(0 0, 100% 0, 100% 97%, 95% 100%, 90% 97%, 85% 100%, 80% 97%, 75% 100%, 70% 97%, 65% 100%, 60% 97%, 55% 100%, 50% 97%, 45% 100%, 40% 97%, 35% 100%, 30% 97%, 25% 100%, 20% 97%, 15% 100%, 10% 97%, 5% 100%, 0 97%); }
+.deskLayer .packTop::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: 2px; border-bottom: 2px dashed rgba(255,255,255,.55); }
+.deskLayer .torn .packTop { transition: none; animation: stripOff .6s cubic-bezier(.3,.6,.4,1) forwards; }
+@keyframes stripOff { 0% { transform: none; } 35% { transform: translate(18px, -18px) rotate(-8deg); } 100% { transform: translate(480px, -260px) rotate(-40deg); opacity: 0; } }
+.deskLayer .torn .packBody { animation: wrapperDrop .5s .45s ease-in forwards; }
+@keyframes wrapperDrop { to { transform: translateY(560px) rotate(10deg); opacity: 0; } }
+.deskLayer .choice { animation: dealIn .55s cubic-bezier(.2,.9,.3,1.1) var(--d, 0ms) backwards; }
+@keyframes dealIn { from { transform: translateY(220px) scale(.6); opacity: 0; } }
+.deskLayer .choice:not(.isFlipped) { cursor: pointer; }
+.deskLayer .choice:not(.isFlipped):hover .flipInner { transform: rotateY(-8deg) translateY(-6px); }
+.aura { position: absolute; inset: -6px; border-radius: 18px; pointer-events: none; z-index: -1; opacity: 0; animation: auraIn .5s .45s ease-out forwards; }
+@keyframes auraIn { to { opacity: 1; } }
+.aura[data-tier=rare] { box-shadow: 0 0 34px 6px rgba(208,138,82,.5); }
+.aura[data-tier=standout] { box-shadow: 0 0 40px 8px rgba(201,210,220,.55); }
+.aura[data-tier=legend] { box-shadow: 0 0 52px 12px rgba(231,193,96,.7); }
+.aura[data-tier=icon] { animation: auraIn .5s .45s ease-out forwards, rainbowAura 2.4s linear .45s infinite; }
+.aura[data-tier=goat] { box-shadow: 0 0 70px 18px rgba(255,214,110,.85); animation: auraIn .5s .45s ease-out forwards, goatPulse 2s ease-in-out 1s infinite; }
+.aura[data-tier=special] { animation: auraIn .5s .45s ease-out forwards, rainbowAura 2.4s linear .45s infinite; }
+@keyframes rainbowAura { 0% { box-shadow: 0 0 56px 12px rgba(255,45,149,.6); } 33% { box-shadow: 0 0 56px 12px rgba(45,255,180,.6); } 66% { box-shadow: 0 0 56px 12px rgba(45,155,255,.6); } 100% { box-shadow: 0 0 56px 12px rgba(255,45,149,.6); } }
+@keyframes goatPulse { 50% { box-shadow: 0 0 90px 26px rgba(255,226,140,1); } }
+.rays { position: absolute; left: 50%; top: 50%; width: 260%; aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; z-index: -2; border-radius: 50%; opacity: 0;
+  background: repeating-conic-gradient(rgba(255,226,140,.3) 0 6deg, rgba(255,226,140,0) 6deg 18deg);
+  -webkit-mask: radial-gradient(circle, #000 0, rgba(0,0,0,.6) 30%, transparent 62%); mask: radial-gradient(circle, #000 0, rgba(0,0,0,.6) 30%, transparent 62%);
+  animation: raysIn .6s .6s ease-out forwards, raysSpin 12s linear .6s infinite; }
+.rays[data-tier=icon], .rays[data-tier=special] { background: repeating-conic-gradient(rgba(190,150,255,.26) 0 6deg, rgba(190,150,255,0) 6deg 18deg); }
+@keyframes raysIn { to { opacity: 1; } }
+@keyframes raysSpin { from { transform: translate(-50%, -50%) rotate(0); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+.choice { isolation: isolate; }
+.flipRow { display: flex; align-items: center; gap: 14px; }
+.flipAll { min-height: 40px; padding: 0 16px; border-radius: 8px; border: 0; background: rgba(255,255,255,.12); color: #fff; font: 800 13px 'Inter', sans-serif; cursor: pointer; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.3); }
+.flipAll:hover { background: rgba(255,255,255,.2); }
+.flipAll:focus-visible { outline: 2px solid #e7c160; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .deskLayer .torn .packTop, .deskLayer .torn .packBody, .deskLayer .choice, .aura, .rays { animation: none; opacity: 1; } }

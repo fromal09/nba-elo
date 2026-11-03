@@ -265,7 +265,7 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
   const vw = useWidth()
   const [pack, setPack] = useState(start)
   const [stage, setStage] = useState(start.picks.length ? 'pick' : 'sealed') // sealed | tearing | pick | done
-  const [shown, setShown] = useState(0)     // cards of this slot turned face up (they flip one after another)
+  const [up, setUp] = useState([false, false, false]) // cards of this slot turned face up: you flip them yourself
   const [sel, setSel] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
@@ -274,14 +274,17 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
   const kept = pack.picks.map((k, i) => pack.slots[i].cards[k])
   const W = vw < 520 ? Math.floor((vw - 64) / 3) : vw < 900 ? 190 : 230
 
-  // Deal face down, then turn them over left to right
+  // Deal face down; you turn each one over (or all at once)
   useEffect(() => {
     if (stage !== 'pick') return
-    setShown(0); setSel(null)
-    const ts = [380, 620, 860].map((ms, i) => setTimeout(() => setShown(i + 1), ms))
-    return () => ts.forEach(clearTimeout)
+    setUp([false, false, false]); setSel(null)
   }, [stage, slot])
-  const tear = () => { setStage('tearing'); setTimeout(() => setStage('pick'), 700) }
+  const n = offer ? offer.cards.length : 3
+  const shown = up.slice(0, n).filter(Boolean).length
+  const all = shown >= n
+  const flip = i => setUp(u => { const v = [...u]; v[i] = true; return v })
+  const flipAll = () => setUp([true, true, true])
+  const tear = () => { if (stage !== 'sealed') return; setStage('tearing'); setTimeout(() => setStage('pick'), 1000) }
   const keep = async () => {
     if (sel == null || busy) return
     setBusy(true); setErr(null)
@@ -295,7 +298,8 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
     const k = e => {
       if (e.key === 'Escape') onClose()
       else if (stage === 'sealed' && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); tear() }
-      else if (stage === 'pick' && shown === 3) {
+      else if (stage === 'pick' && !all && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); const i = up.findIndex(x => !x); if (i >= 0) flip(i) }
+      else if (stage === 'pick' && all) {
         if (['1', '2', '3'].includes(e.key)) setSel(+e.key - 1)
         else if (e.key === 'ArrowLeft') setSel(s => (s == null ? 0 : Math.max(0, s - 1)))
         else if (e.key === 'ArrowRight') setSel(s => (s == null ? 0 : Math.min(2, s + 1)))
@@ -307,7 +311,7 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
   const kind = pack.kind
   const chosen = sel != null && offer?.cards[sel]
   return (
-    <div className={styles.overlay}>
+    <div className={`${styles.overlay} ${styles.deskLayer}`}>
       <div className={`${styles.opening} ${stage === 'pick' ? styles.openingWide : ''}`} role="dialog" aria-modal="true" aria-label="Open your pack">
         <button type="button" className={styles.x} onClick={onClose} aria-label="Close (your picks so far are saved)" title="Close. Your picks are saved; finish the pack later.">×</button>
         {(stage === 'sealed' || stage === 'tearing') && <>
@@ -331,17 +335,19 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
           <div className={`${styles.slotLab} ${pack.pity && slot === pack.slots.length - 1 ? styles.slotPity : ''}`}>{slotLabel(pack, slot, me?.lastNight)}</div>
           <div className={styles.offer} key={slot}>
             {offer.cards.map((c, i) => (
-              <button key={refOf(c)} type="button" className={`${styles.choice} ${i < shown ? styles.isFlipped : ''} ${sel === i ? styles.chosen : ''} ${sel != null && sel !== i ? styles.passed : ''}`}
-                data-tier={isSpecial(c) ? 'special' : c.tier} style={{ width: W, height: W * 1.4, '--d': `${i * 80}ms` }} disabled={i >= shown || busy}
-                onClick={() => setSel(i)} onDoubleClick={() => { setSel(i); }} aria-pressed={sel === i} aria-label={`${cardName(c)}, ${tierName(c)}`}>
+              <button key={refOf(c)} type="button" className={`${styles.choice} ${up[i] ? styles.isFlipped : ''} ${sel === i ? styles.chosen : ''} ${sel != null && sel !== i ? styles.passed : ''}`}
+                data-tier={isSpecial(c) ? 'special' : c.tier} style={{ width: W, height: W * 1.4, '--d': `${i * 120}ms` }} disabled={busy}
+                onClick={() => (up[i] ? all && setSel(i) : flip(i))} aria-pressed={up[i] ? sel === i : undefined} aria-label={up[i] ? `${cardName(c)}, ${tierName(c)}` : `Card ${i + 1}, face down: turn it over`}>
+                {up[i] && (c.tier === 'goat' || c.tier === 'icon' || isSpecial(c)) && <span className={styles.rays} data-tier={isSpecial(c) ? 'special' : c.tier} aria-hidden="true" />}
+                {up[i] && <span className={styles.aura} data-tier={isSpecial(c) ? 'special' : c.tier} aria-hidden="true" />}
                 <span className={styles.flipInner}>
                   <span className={styles.back}><span className={styles.backMark} style={{ width: W * 0.4, height: W * 0.4, fontSize: W * 0.16 }}>FPR</span></span>
                   <span className={styles.frontSide}><CardFace card={c} shots={shots} w={W} live /></span>
                 </span>
-                {i < shown && c.wish && <span className={styles.wishTag}>♥ Wish list</span>}
-                {i < shown && <span className={styles.chip} data-tier={isSpecial(c) ? 'special' : c.tier}>{tierName(c)} · {cardPoints(c).points.toLocaleString()} pts</span>}
+                {up[i] && c.wish && <span className={styles.wishTag}>♥ Wish list</span>}
+                {up[i] && <span className={styles.chip} data-tier={isSpecial(c) ? 'special' : c.tier}>{c.tier === 'goat' && !isSpecial(c) ? '★ GOAT pull' : tierName(c)} · {cardPoints(c).points.toLocaleString()} pts</span>}
                 {/* The chosen card's Selection Breakdown covers what this line says */}
-                {i < shown && !(sel === i && !isSpecial(c)) && <FitLine fit={binderFit(cards, c)} className={styles.fitLine} />}
+                {up[i] && !(sel === i && !isSpecial(c)) && <FitLine fit={binderFit(cards, c)} className={styles.fitLine} />}
               </button>
             ))}
           </div>
@@ -351,7 +357,8 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
                 <small>{pointsWhy(chosen)}</small></div>
               <button type="button" className={styles.keepBtn} onClick={keep} disabled={busy}>{busy ? 'Keeping…' : 'Keep this card'}</button>
               {!isSpecial(chosen) && <SelectionBreakdown cards={cards} card={chosen} dark />}
-            </> : <div className={styles.hintLine}>{shown < 3 ? 'Turning them over…' : 'Choose one. The other two go back.'}</div>}
+            </> : !all ? <div className={styles.flipRow}><span className={styles.hintLine}>Turn them over · tap a card{shown ? '' : ' or press space'}</span><button type="button" className={styles.flipAll} onClick={flipAll}>Flip all</button></div>
+              : <div className={styles.hintLine}>Choose one. The other two go back.</div>}
           </div>
           {err && <div className={styles.err}>{err}</div>}
           <div className={styles.keptRow} aria-label="Kept so far">
