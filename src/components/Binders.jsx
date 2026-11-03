@@ -9,7 +9,7 @@ import HangBanner from './HangBanner'
 import KingOfTheCourt, { ChallengeModal } from './KingOfTheCourt'
 import { useIndex as usePlayerIndex, search as searchPlayers } from './PlayerSearch'
 import { Serial, SpecialFace, SpecialModal, isSpecial, specialTitle } from './SpecialCards'
-import { cardPoints, TIER_BASE } from '../../api/_lib/points.js'
+import { cardPoints } from '../../api/_lib/points.js'
 
 /*
  * Binders: a player's season (A), a player's career (C shelf + D album), a team's season (F) and a franchise (G).
@@ -1088,14 +1088,17 @@ function PointsHelp() {
   return (
     <details className={styles.help}>
       <summary>How points work</summary>
-      <p><b>10 × tier × performance × (1 + bonuses).</b> Everything is priced by how rare it is. Tier: {Object.entries(TIER_BASE).map(([t, v]) => `${TIER_LABEL[t].replace('★ ', '')} ${v}`).join(' · ')}.
-        Performance: how rare the Game Score is, with no ceiling: ×1.5 for a top-5% game, ×2.2 for 1 in 1,000, ×3.5 for Wilt’s 100 (debuts against debuts).</p>
-      <p>Bonuses: Player of the Game +25%, Player of the Day +60%. Playoffs: first round +15%, second round +20%, Conference Finals +30%, Finals +45%, title clincher +100%.
-        The rarest stat line on the card: 40 points +30%, triple-double +40%, 25 rebounds +45%, 20-20 +60%, 50 points or 30 rebounds +80%, 20 assists or 10 blocks, steals or threes +120%,
-        60 points +150%, 5x5 +200%, 70 points +250%, 80 points or a quadruple-double +400%, 100 points +800%. Debut +40%, career game +25%, career-high Elo +10%.</p>
-      <p>Special cards: Peak, the game’s card +50%. Duel of the Day, both cards +25%. Rivalry, 360 × its tier (GOAT 5,400, Rare 180) and up to +50% at the top of its tier.
-        Starting Five, the five players’ cards from that game added up, +40% for a title team. Season card, 80 × his final tier by the share of a season he played,
-        plus All-Star +25%, All-League +60/45/30%, MVP +100%, title +50%.</p>
+      <p><b>Points = how hard the card was to get × how notable it is.</b> A pulled card is 10 × scarcity × significance × occasion.</p>
+      <p><b>Scarcity</b> comes from the pack odds: the square root of how many times rarer the card is to pull than a Common.
+        Game cards: Common ×1, Rare ×1.3, Standout ×2, Legend ×2.8, Icon ×5, GOAT ×9.1. Special cards are rarer: a Peak ×30–150, a Starting Five ×20–690,
+        a Rivalry or Dynamic Duo ×31 (Rare) to ×1,060 (GOAT).</p>
+      <p><b>Significance</b> is how rare the night was in NBA history, 1 player-game in N: every 10× rarer doubles it. The rarest thing about the game sets it
+        (a Game Score, 40 points, a triple-double, Player of the Day, a 5x5, 100 points), and the next two add a quarter of their weight, so one big night isn’t paid three times.</p>
+      <p><b>Occasion</b>: playoffs ×1.15 to ×1.45 by round, a title clincher ×2, a debut ×1.4, a holiday game ×1.1.</p>
+      <p><b>Contest cards</b> are won, not pulled, and pay by how hard the win was: 2 × √(1 ÷ the chance of winning). Called It adds the call to the card’s own points,
+        priced by his pre-game chance of being Player of the Day, so calling a long shot pays more than calling a star. Duel of the Day is priced by the matchups you got right;
+        Player of the Week by how many collectors entered.</p>
+      <p>Season cards, Complete Sets, All-Star Rosters, Franchise History, Completed Franchise and Banners keep their current prices for now.</p>
     </details>
   )
 }

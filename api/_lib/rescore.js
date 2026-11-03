@@ -2,7 +2,7 @@
 import { cardPoints } from './points.js'
 import { poolJSON, refOf } from './packs.js'
 
-export const POINTS_VERSION = 'points2'   // change to rescore every card again after a points change
+export const POINTS_VERSION = 'points3'   // A+ (Nov. 3, 2026): scarcity × significance × occasion, contest cards   // change to rescore every card again after a points change
 
 let cache = null
 async function dataJSON(origin, path) {
@@ -37,6 +37,12 @@ async function run(sql, origin) {
   const done = new Set((await sql`select id from migrations`).map(r => r.id))
   const seasonsReady = Object.keys((await seasonData(origin)).rank).length > 0
   // Game cards, Peaks, Duels, Rivalries and Starting Fives rescore right away; Season cards wait for the Season data
+  // A+ prices a Duel of the Day card by the matchups it took to earn: the count, from the day it was won
+  if (!done.has('duel-matchups')) {
+    for (const table of ['cards', 'sold']) await sql`update ${sql(table)} x set card = x.card || jsonb_build_object('n', d.total)
+      from duel_days d where x.card->>'kind' = 'duel' and x.card->>'n' is null and d.user_id = x.user_id and d.claimed_ref = x.ref and d.total > 0`
+    await sql`insert into migrations (id) values ('duel-matchups') on conflict do nothing`
+  }
   if (!done.has(POINTS_VERSION)) await rescore(sql, origin, c => c?.kind !== 'season', POINTS_VERSION)
   if (!done.has(POINTS_VERSION + '-seasons') && seasonsReady) await rescore(sql, origin, c => c?.kind === 'season', POINTS_VERSION + '-seasons')
   // A build on Oct. 29, 2026 marked that day's regular-season games as playoff games (scripts/season_explorer.py's

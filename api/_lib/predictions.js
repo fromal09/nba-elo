@@ -105,6 +105,8 @@ export async function ensurePredSchema(t) {
   // Where the call finished in the Player of the Day measure (rank among the day's players, and its score)
   await t`alter table potd_picks add column if not exists score real`
   await t`alter table potd_picks add column if not exists rank int`
+  // The call's chance when it was made: his pre-game chance of being Player of the Day (prices the Called It card)
+  await t`alter table potd_picks add column if not exists p real`
   // The day's Player of the Day once checked against the lineup (the bonus), so it's checked once
   await t`alter table lineup_days add column if not exists potd text`
   await t`alter table lineup_days add column if not exists potd_bonus real`
@@ -217,7 +219,7 @@ function potdBoard(file, day) {
     .sort((a, b) => b.score - a.score)
 }
 const standingOf = (board, player) => { const i = board.findIndex(x => norm(x.n) === norm(player)); return i < 0 ? { rank: null, score: null, of: board.length } : { rank: i + 1, score: board[i].score, of: board.length } }
-const rubyOf = c => ({ ...c, ruby: true, from: 'potd' })
+const rubyOf = (c, p) => ({ ...c, ruby: true, from: 'potd', ...(p != null ? { win: Math.round(p * 10000) / 10000 } : {}) })
 
 // Each game's matchup result from its Game Scores: { id: { winner | null (void), ag, bg } }
 function matchupResults(games, src) {
@@ -324,7 +326,7 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
         if (reward === 'duel' && !fullDay(file, day, games)) break duels // the Duel of the Day card comes with the whole day's file: close the day then
         if (reward === 'duel') {
           if (file.duel) {
-            const c = duelCard(file.duel)
+            const c = { ...duelCard(file.duel), n: total }
             const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, 'duel', ${refOf(c)}, ${t.json(c)}, ${cardPoints(c).points}, 'matchups')
               on conflict (user_id, ref) do nothing returning id`
             claimed = c
@@ -357,7 +359,7 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
       if (pp && !pp.credited && potd) {
         const win = norm(potd.row.n) === norm(pp.player)
         if (win) {
-          const c = rubyOf(potd)
+          const c = rubyOf(potd, pp.p)
           const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, ${c.tier}, ${refOf(c)}, ${t.json(c)}, ${cardPoints(c).points}, 'potd')
             on conflict (user_id, ref) do nothing returning id`
           if (row) awards.push({ kind: 'potdcard', amount: 0, label: `You called the Player of the Day: ruby ${potd.row.n} is in your binder` })
@@ -379,7 +381,7 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
 async function repairPotd(sql, userId, today, origin) {
   if (!origin) return []
   const out = []
-  for (const r of await sql`select day, player from potd_picks where user_id = ${userId} and result = 'loss' and day >= ${addDays(today, -4)}`) {
+  for (const r of await sql`select day, player, p from potd_picks where user_id = ${userId} and result = 'loss' and day >= ${addDays(today, -4)}`) {
     const day = iso(r.day)
     const games = await slate(sql, day, { origin }).catch(() => [])
     const potd = potdOf(await dayFile(origin, day).catch(() => null), day, games)
@@ -387,7 +389,7 @@ async function repairPotd(sql, userId, today, origin) {
     await sql.begin(async t => {
       const [x] = await t`update potd_picks set result = 'win', credited = true where user_id = ${userId} and day = ${day} and result = 'loss' returning 1`
       if (!x) return
-      const c = rubyOf(potd)
+      const c = rubyOf(potd, r.p)
       const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, ${c.tier}, ${refOf(c)}, ${t.json(c)}, ${cardPoints(c).points}, 'potd')
         on conflict (user_id, ref) do nothing returning id`
       if (row) out.push({ kind: 'potdcard', amount: 0, label: `You called the Player of the Day after all: ruby ${potd.row.n} is in your binder` })
@@ -813,8 +815,32 @@ export async function potdPick(sql, u, b, today, origin) {
   if (!potdOpen(games)) throw fail(409, 'The day’s first game has tipped off, so the Player of the Day pick is in.')
   if (!player) { await sql`delete from potd_picks where user_id = ${u.id} and day = ${day} and result is null`; return }
   if (!games.some(g => g.state !== 'off' && (g.home === team || g.away === team))) throw fail(400, 'That player’s team doesn’t play that day.')
-  await sql`insert into potd_picks (user_id, day, player, team) values (${u.id}, ${day}, ${player}, ${team})
-    on conflict (user_id, day) do update set player = excluded.player, team = excluded.team, made_at = now() where potd_picks.result is null`
+  const p = await potdChance(origin, day, games, player, team).catch(() => null)
+  await sql`insert into potd_picks (user_id, day, player, team, p) values (${u.id}, ${day}, ${player}, ${team}, ${p})
+    on conflict (user_id, day) do update set player = excluded.player, team = excluded.team, p = excluded.p, made_at = now() where potd_picks.result is null`
+}
+
+// Each player's pre-game chance of being the day's Player of the Day: the forecast's projected Game Score for everyone
+// on the slate, played out 4,000 times with game-to-game spread. Cached per day for 10 minutes. The chance prices the
+// Called It card (points.js): a long shot called is worth more than a star called.
+const chanceMemo = new Map()
+async function potdChance(origin, day, games, player, team) {
+  const live = games.filter(g => g.state !== 'off')
+  let hit = chanceMemo.get(day)
+  if (!hit || Date.now() - hit.at > 10 * 60e3) {
+    const R = await rosters(origin, [...new Set(live.flatMap(g => [g.home, g.away]))], day, live)
+    const pool = Object.entries(R).flatMap(([t, rows]) => rows.filter(r => !r.out && (r.mp || 0) > 0).map(r => ({ key: t + '|' + norm(r.name), mu: r.proj?.gs ?? Math.max(0, (r.mp || 0) * 0.3) })))
+    const wins = new Map(pool.map(x => [x.key, 0])), N = 4000
+    const gauss = () => { let u = 0; while (!u) u = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random()) }
+    for (let i = 0; i < N; i++) {
+      let best = null, top = -1e9
+      for (const x of pool) { const v = x.mu + gauss() * (4 + 0.3 * Math.max(0, x.mu)); if (v > top) { top = v; best = x.key } }
+      if (best) wins.set(best, wins.get(best) + 1)
+    }
+    hit = { at: Date.now(), p: new Map([...wins].map(([k, w]) => [k, Math.max(1, w) / N])) }
+    chanceMemo.set(day, hit)
+  }
+  return hit.p.get(team + '|' + norm(player)) ?? 1 / 4000
 }
 
 // ── Player of the Week ───────────────────────────────────────────────────────
