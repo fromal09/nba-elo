@@ -178,7 +178,16 @@ async function me(u) {
     predict: await predSummary(sql, u.id, today),
     achievements: await achievements(sql, u.id),
     wishes: (await wishNames(sql, u.id)).map(w => ({ id: w.id, name: w.name, season: w.season, tier: w.tier || null })),
+    // Rivalries: challenges waiting on your answer, and accepted ones still to play (the binder's Rivalries button)
+    rivals: await rivalCounts(sql, u.id, today),
   }
+}
+async function rivalCounts(sql, userId, today) {
+  const [r] = await sql`select count(*) filter (where status = 'pending' and to_id = ${userId})::int as waiting,
+      count(*) filter (where status = 'pending' and from_id = ${userId})::int as sent,
+      count(*) filter (where status = 'accepted' and day >= ${today})::int as live
+    from koc_rivals where (from_id = ${userId} or to_id = ${userId}) and day >= ${today}`.catch(() => [{}])
+  return { waiting: r?.waiting || 0, sent: r?.sent || 0, live: r?.live || 0 }
 }
 
 // Today's Coins by kind, against the caps, and the day's challenge

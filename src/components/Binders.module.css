@@ -566,6 +566,7 @@
 .lBtn:disabled small { color: #a9b0b8; }
 .lGold:not(:disabled) { background: linear-gradient(180deg, #ffe39a, #e2b04a); border-color: #c99a32; color: #2a1a00; } .lGold:not(:disabled) small { color: #5a3f08; }
 .lTeam:not(:disabled) { background: var(--tc); border-color: var(--tc); color: #fff; } .lTeam:not(:disabled) small { color: rgba(255,255,255,.8); }
+.lRival { background: #a8243b !important; border-color: #a8243b !important; color: #fff !important; box-shadow: 0 0 0 3px rgba(168, 36, 59, .18); } .lRival small { color: #ffd9df !important; }
 .lClaim:not(:disabled) { background: #1a7a4a; border-color: #1a7a4a; color: #fff; } .lClaim:not(:disabled) small { color: #d6f1e2; }
 .lStore { background: #1d2633 !important; border-color: #1d2633 !important; color: #f6d77e !important; } .lStore small { color: #c9d2dc !important; }
 .navBtns { display: flex; gap: 6px; }

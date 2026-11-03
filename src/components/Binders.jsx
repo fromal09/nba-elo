@@ -1365,6 +1365,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const t = me?.today, open = me?.open?.[0]
   const PR = me?.predict || {}
   // The binder's buttons: packs, rewards, the store, today's predictions. Greyed out when there's nothing to do
+  const RV = me?.rivals || {}
   const lBtn = (key, label, sub, on, onClick, cls) => <button key={key} type="button" className={`${styles.lBtn} ${cls || ''}`} disabled={!on} onClick={onClick}><b>{label}</b>{sub && <small>{sub}</small>}</button>
   const actions = me && <div className={styles.lBtns}>
     {open ? lBtn('daily', `Finish your ${open.kind === 'team' ? 'weekly ' : ''}pack`, `${open.picked} of ${open.total} picked`, true, () => C.resume(open.id), styles.lGold)
@@ -1375,6 +1376,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     {lBtn('games', 'Game Predictions', PR.games ? `${PR.picked} of ${PR.games} picked` : 'No games today', true, () => pickView('predict:games'))}
     {lBtn('match', 'Matchup Predictions', PR.duels ? `${PR.duels_picked} of ${PR.duels} picked` : 'Not set yet', true, () => pickView('predict:matchups'))}
     {lBtn('potd', 'Player of the Day', `${PR.potd ? 1 : 0} of 1 picked`, true, () => pickView('predict:potd'))}
+    {lBtn('rivals', 'Rivalries', RV.waiting ? `${RV.waiting} challenge${RV.waiting === 1 ? '' : 's'} waiting on you` : RV.live ? `${RV.live} on${RV.sent ? ` · ${RV.sent} sent` : ''}` : RV.sent ? `${RV.sent} sent · waiting` : 'Challenge a collector', true, () => pickView('koc:rivals'), RV.waiting ? styles.lRival : '')}
   </div>
   const theme = src.user.binderTheme || null
   const settingsBtns = mine ? <div className={styles.headRow}>
@@ -1418,7 +1420,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const nBadges = (src.achievements || []).filter(a => a.earned).length
   const specials = all.filter(e => e.special || e.duel)
   // The header: the Table of Contents (every section of the binder) and Games (predictions and the challenges)
-  const inGames = view.startsWith('predict') || view === 'games' || view === 'five' || view === 'banner' || view === 'koc'
+  const inGames = view.startsWith('predict') || view === 'games' || view === 'five' || view === 'banner' || view.startsWith('koc')
   const tools = <div className={styles.navBtns}>
     <button type="button" className={view === 'toc' ? styles.navOn : ''} onClick={() => pickView('toc')}>☰ Table of Contents</button>
     {mine && <button type="button" className={inGames ? styles.navOn : ''} onClick={() => pickView('games')}>◆ Games</button>}
@@ -1582,8 +1584,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     right = <FiveChallenge env={env} tools={tools} />
   } else if (view === 'banner' && mine) {
     right = <HangBanner env={env} tools={tools} />
-  } else if (view === 'koc' && mine) {
-    right = <KingOfTheCourt env={env} tools={tools} />
+  } else if (view.startsWith('koc') && mine) {
+    right = <KingOfTheCourt key={view} env={env} tools={tools} initialTab={view === 'koc:rivals' ? 'rivals' : 'group'} />
   } else if (view === 'wishes') {
     right = <div className={styles.right}><WishList user={mine ? null : src.user.username} mine={mine} C={C} env={env} tools={tools} /></div>
   } else if (view === 'badges') {
@@ -1738,7 +1740,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     {chal && <ChallengeModal C={C} to={src.user.username} onClose={() => setChal(false)} />}
     <Book tc={tc} theme={theme} phone={phone} onClose={onClose} head={head} left={left} right={right} dock={phone && me ? dock : null}
       summary={<span><b>{n0(st.score)} pts</b>{st.rank ? ` · No. ${st.rank}` : ''} · {all.length} cards</span>}
-      onKey={e => { if (P.open) return true; if (['sets', 'badges', 'specials', 'wishes', 'five', 'banner', 'koc', 'toc', 'games', 'checklists'].includes(view) || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
+      onKey={e => { if (P.open) return true; if (['sets', 'badges', 'specials', 'wishes', 'five', 'banner', 'koc', 'koc:rivals', 'toc', 'games', 'checklists'].includes(view) || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}
   </>
 }

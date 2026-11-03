@@ -24,9 +24,9 @@ const dayName = (d, today) => (d === today ? 'Today' : d === addDays(today, 1) ?
 const tipTime = t => new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 const Logo = ({ t, size = 22 }) => <span className={styles.logo} style={{ width: size, height: size }}>{binderLogo(t) ? <img src={binderLogo(t)} alt="" /> : <b>{t}</b>}</span>
 
-export default function KingOfTheCourt({ env, tools }) {
+export default function KingOfTheCourt({ env, tools, initialTab = 'group' }) {
   const C = env.collector
-  const [tab, setTab] = useState('group')
+  const [tab, setTab] = useState(initialTab)
   const [day, setDay] = useState(null)
   const [d, setD] = useState(null), [err, setErr] = useState(null), [busy, setBusy] = useState(null)
   useEffect(() => { setErr(null); C.loadKoc(day).then(setD).catch(e => setErr(e.message)) }, [day])
