@@ -141,7 +141,7 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
     setChallenge: guard(async (level, ids) => { const d = await api('challengeset', { level, ids }); return d.challenge }),
     potdPick: guard(async (day, player, team) => { const d = await api('potdpick', { day, player, team }); take(d); setPreds(d.predictions); return d.predictions }),
     predDay: day => api('predday', undefined, `&day=${day}`).then(d => d.day),
-    loadStandings: scope => api('standings', undefined, `&scope=${scope}`).then(d => d.standings),
+    loadStandings: scope => api('standings', undefined, `&scope=${scope}${me ? '' : '&pub=1'}`).then(d => d.standings),
     predReward: (day, kind = 'games') => api('predreward', undefined, `&day=${day}&kind=${kind}`).then(d => d.reward),
     claimPred: guard(async (day, ref, kind = 'games') => { const d = await api('claimpred', { day, ref, kind }); take(d); setPreds(d.predictions); loadCards(); setToast('Added to your binder.'); return d.predictions }),
     openPredict: () => (me ? onOpenPredict?.() : setAuth('signup')),

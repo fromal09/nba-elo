@@ -44,7 +44,7 @@
 //   POST wish        { name, season?, tier? } wish for a player: any card, or one season's, or one tier's (three at a time)
 //   POST unwish      { id } take a wish off
 import { db, ensureSchema } from './_lib/db.js'
-import { USERNAME, hashPassword, checkPassword, startSession, endSession, currentUser } from './_lib/auth.js'
+import { USERNAME, hashPassword, checkPassword, startSession, endSession, currentUser, hasSession } from './_lib/auth.js'
 import { upgradePoints, pointsStatus, seasonDetails } from './_lib/rescore.js'
 import { loadWishes, applyWishes, resetMeters, tickMeters, wishView, addWish, removeWish, wishNames, wishCards, warmWishes } from './_lib/wishes.js'
 import { buildOffers, recentDate, teamCodes, refOf, BIG, PITY_EVERY, TIER_ORDER, ERAS, SPECIAL_KINDS } from './_lib/packs.js'
@@ -426,15 +426,28 @@ async function buyback(u, origin, b) {
   return { store: await storeView(sql, fresh, origin), ...(await me(fresh)) }
 }
 
+// Neon bills for every minute the database is awake, and any query wakes it for at least five. So a visitor who isn't
+// signed in never touches it: "me" answers without a lookup, and the signed-in actions refuse before connecting. The
+// public reads (the leaderboards, top cards, Player of the Week, public binders) are cached at Vercel's edge, so most
+// visits are served without the database. Signed-in requests for the same boards stay uncached (they carry "you").
+const PUBLIC = new Set(['me', 'signup', 'login', 'logout', 'leaders', 'status', 'potw', 'topcards', 'wishes', 'history', 'binder', 'standings'])
+const EDGE = { leaders: 60, topcards: 120, potw: 120, binder: 60, wishes: 120, history: 300, standings: 60 } // seconds
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   const q = req.query || Object.fromEntries(new URL(req.url, 'http://x').searchParams)
   const action = q.action
   const send = (status, body) => { res.statusCode = status; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(body)) }
+  // Public boards asked for as public (pub=1, sent only by signed-out pages) or that never depend on the viewer: cached at the edge
+  const pub = !!q.pub || action === 'topcards' || action === 'potw' || action === 'binder' || (action === 'wishes' && q.user) || (action === 'history' && q.user)
+  const cache = () => { if (pub && EDGE[action] && req.method !== 'POST') res.setHeader('Cache-Control', `public, s-maxage=${EDGE[action]}, stale-while-revalidate=${EDGE[action] * 5}`) }
   try {
+    const origin = ORIGIN = process.env.DATA_ORIGIN || `${(req.headers['x-forwarded-proto'] || 'https').split(',')[0]}://${req.headers['x-forwarded-host'] || req.headers.host}`
+    if (!hasSession(req)) {
+      if (action === 'me') return send(200, { user: null, awards: [], lastNight: await recentDate(origin).catch(() => null) })
+      if (!PUBLIC.has(action)) throw fail(401, 'Sign in first.')
+    }
     await ensureSchema()
     const sql = db()
-    const origin = ORIGIN = process.env.DATA_ORIGIN || `${(req.headers['x-forwarded-proto'] || 'https').split(',')[0]}://${req.headers['x-forwarded-host'] || req.headers.host}`
     const post = req.method === 'POST'
     // Once after a points change, every card is rescored. Reads wait for it; packs, picks and purchases never do.
     // A read waits up to 5 seconds for it, then goes ahead (the rescore carries on)
@@ -446,7 +459,7 @@ export default async function handler(req, res) {
       // Picks on games that finished since the last visit: grade them (only touches ESPN when one is due)
       if (u0) awards.push(...(await settle(sql, u0.id, etDay(), { onlyStale: true, origin }).catch(e => { console.error('settle', e); return [] })))
       // Last week's Player of the Week card, once the week's data is in (tried every 10 minutes per instance until it is)
-      if (Date.now() - potwTried > 10 * 60e3) {
+      if (u0 && Date.now() - potwTried > 10 * 60e3) {
         potwTried = Date.now()
         await settlePotw(sql, origin, etDay()).catch(e => console.error('potw', e))
         await settleChallenges(sql, origin, etDay()).catch(e => console.error('challenge', e))
@@ -492,7 +505,8 @@ export default async function handler(req, res) {
 
     if (action === 'leaders') {
       // One pass over cards: totals, rank and count together; best card only for the rows returned
-      const viewer = await currentUser(req)
+      cache()
+      const viewer = pub ? null : await currentUser(req)
       const vid = viewer ? viewer.id : -1
       const rows = await sql`with s as (select user_id, sum(points)::int as score, count(*)::int as cards,
             count(distinct card->'row'->>'n')::int as players from cards group by user_id),
@@ -511,8 +525,9 @@ export default async function handler(req, res) {
     }
     if (action === 'status') return send(200, { points: await pointsStatus(sql, origin) })
     // Player of the Week for any day's week: the top 20 so far, the pick'em race, and the card once the week is settled
-    if (action === 'potw') return send(200, await potwWeek(sql, origin, String(q.day || '')))
+    if (action === 'potw') { cache(); return send(200, await potwWeek(sql, origin, String(q.day || ''))) }
     if (action === 'topcards') {
+      cache()
       // The most valuable cards anyone holds (one row a card, with how many binders have it), and the best pulls of the last day
       const top = await sql`select c.ref, max(c.points)::int as points, count(distinct c.user_id)::int as owners,
           (array_agg(c.card order by c.pulled_at))[1] as card, (array_agg(u.username order by c.pulled_at))[1] as first
@@ -525,17 +540,20 @@ export default async function handler(req, res) {
       })
     }
     if (action === 'wishes' && q.user) {
+      cache()
       const [o] = await sql`select * from users where username_key = ${String(q.user).toLowerCase()}`
       if (!o) throw fail(404, 'No binder by that name.')
       return send(200, await wishView(sql, o, origin))
     }
     if (action === 'history') {
       const name = String(q.user || '').toLowerCase()
+      if (name) cache()
       const [o] = name ? await sql`select id from users where username_key = ${name}` : [await currentUser(req)]
       if (!o) throw fail(404, 'No binder by that name.')
       return send(200, { history: await scoreHistory(sql, o.id) })
     }
     if (action === 'binder') {
+      cache()
       const [o] = await sql`select * from users where username_key = ${String(q.user || '').toLowerCase()}`
       if (!o) throw fail(404, 'No binder by that name.')
       const rows = await sql`select id, card, points, pulled_at from cards where user_id = ${o.id} order by id desc`
@@ -544,7 +562,7 @@ export default async function handler(req, res) {
         standing: await standing(sql, o.id), achievements: (await achievements(sql, o.id)).filter(a => a.earned), cards: rows.map(r => ({ id: Number(r.id), card: r.card, points: r.points, pulled: r.pulled_at, serial: ser.get(Number(r.id)) })) })
     }
 
-    if (action === 'standings') return send(200, { standings: await standings(sql, origin, q.scope === 'season' ? 'season' : 'week', etDay(), await currentUser(req)) })
+    if (action === 'standings') { cache(); return send(200, { standings: await standings(sql, origin, q.scope === 'season' ? 'season' : 'week', etDay(), pub ? null : await currentUser(req)) }) }
 
     const u = await currentUser(req)
     if (!u) throw fail(401, 'Sign in first.')
@@ -671,6 +689,7 @@ export default async function handler(req, res) {
     throw fail(404, 'Unknown action.')
   } catch (e) {
     const status = e.status || 500
+    res.setHeader('Cache-Control', 'no-store') // an error is never cached at the edge
     if (status === 500) console.error(e)
     // A 500 carries a short reason too, so a failure can be read from the browser's network panel
     return send(status, status === 500 ? { error: 'Something went wrong. Try again.', detail: String(e?.message || e).slice(0, 300) } : { error: e.message })

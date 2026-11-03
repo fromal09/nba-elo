@@ -47,6 +47,9 @@ export async function currentUser(req) {
   return u || null
 }
 
+// Whether the request carries a session cookie at all (no database needed to tell)
+export const hasSession = req => !!readCookie(req)
+
 function readCookie(req) {
   const m = (req.headers.cookie || '').match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`))
   return m ? decodeURIComponent(m[1]) : null

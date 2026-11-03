@@ -61,7 +61,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
   useEffect(() => {
     if (C.down || C.me === undefined) return
     let live = true
-    const get = (n = 0) => fetch('/api/collect?action=leaders', { credentials: 'same-origin', cache: 'no-store' })
+    const get = (n = 0) => fetch(`/api/collect?action=leaders${C.me ? '' : '&pub=1'}`, { credentials: 'same-origin', cache: 'no-store' })
       .then(r => r.json()).then(d => { if (d.error) throw new Error(d.error); return d })
       .then(d => live && setLeaders(d))
       .catch(e => { if (!live) return; if (n < 2) setTimeout(() => live && get(n + 1), 1500 * (n + 1)); else setLeaders(v => v && !v.failed ? v : { failed: String(e?.message || e) }) })
