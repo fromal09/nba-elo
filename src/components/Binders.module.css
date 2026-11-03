@@ -659,3 +659,23 @@
 .gameBtn b { font-size: 14px; font-weight: 800; color: #1c2733; line-height: 1.2; }
 .gameBtn small { font-size: 11.5px; color: #6a7684; }
 @media (max-width: 600px) { .gameBtns { grid-template-columns: 1fr 1fr; } .gameBtn { min-height: 58px; } }
+
+/* Sleeve pages: the right page is a clear nine-pocket sheet on the rings. Punched holes down the ring edge, a glare
+   across the plastic, and welded pockets with an open lip at the top that the card slides into */
+.right { position: relative; background: linear-gradient(115deg, #f1f4f7, #e3e9ef 55%, #edf1f5); }
+.right::before { content: ""; position: absolute; left: 5px; top: 0; bottom: 0; width: 14px; pointer-events: none; z-index: 4;
+  background: radial-gradient(circle, color-mix(in srgb, var(--tc) 70%, #0b1626) 4.5px, rgba(16,32,56,.25) 5.5px, transparent 6.5px) 50% 14% / 14px 14px no-repeat,
+    radial-gradient(circle, color-mix(in srgb, var(--tc) 70%, #0b1626) 4.5px, rgba(16,32,56,.25) 5.5px, transparent 6.5px) 50% 50% / 14px 14px no-repeat,
+    radial-gradient(circle, color-mix(in srgb, var(--tc) 70%, #0b1626) 4.5px, rgba(16,32,56,.25) 5.5px, transparent 6.5px) 50% 86% / 14px 14px no-repeat; }
+.right::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 4;
+  background: linear-gradient(118deg, rgba(255,255,255,0) 18%, rgba(255,255,255,.22) 30%, rgba(255,255,255,0) 44%, rgba(255,255,255,0) 70%, rgba(255,255,255,.12) 80%, rgba(255,255,255,0) 90%); }
+.book[data-theme] .right { background: linear-gradient(115deg, color-mix(in srgb, var(--paper) 35%, #f1f4f7), color-mix(in srgb, var(--paper) 35%, #e3e9ef)); }
+.pockets { gap: 14px 14px; padding: 4px; }
+.pocketBtn { border-radius: 3px; background: linear-gradient(180deg, rgba(255,255,255,.62), rgba(222,229,237,.5));
+  box-shadow: inset 0 0 0 1px rgba(16,32,56,.18), 0 0 0 4px rgba(255,255,255,.5), 0 0 0 5px rgba(16,32,56,.1); }
+.pocketBtn::before { left: 0; right: 0; top: 0; height: 8px; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,.25)); border-bottom: 1px solid rgba(16,32,56,.18); z-index: 3; }
+.pocketPo .pocketBtn { box-shadow: inset 0 0 0 1.5px #c9a24a, 0 0 0 4px rgba(255,255,255,.5), 0 0 0 5px rgba(16,32,56,.1); }
+.pocketEmpty .pocketBtn { background: linear-gradient(180deg, rgba(255,255,255,.45), rgba(222,229,237,.35)); }
+.fit { inset: 9px 6px 5px; }
+.pocket[data-settier] .pocketBtn::after { border-radius: 3px; }
+@media (max-width: 760px) { .right::before { display: none; } }

@@ -20,6 +20,10 @@ const nickOf = name => { const w = name.replace(/\s*\(.*\)$/, '').split(' '); re
 const SHELVES = [['br-desk', 'Your desk'], ['br-trophy', 'Trophy case'], ['br-sets', 'League sets'], ['br-teams', 'Franchises'], ['br-legends', 'Legends'], ['br-catalog', 'Card catalog']]
 const DRAWERS = [['player', 'Players'], ['franchise', 'Franchises'], ['season', 'Seasons'], ['set', 'Sets'], ['special', 'Specials'], ['tier', 'Tiers']]
 
+// Album spine hardware: raised bands, and brass caps on the four corners
+const Hubs = () => <span className={styles.hubs} aria-hidden="true"><i className={styles.hub} /><i className={styles.hub} /></span>
+const Corners = () => <span className={styles.corners} aria-hidden="true"><i /><i /><i /><i /></span>
+
 function Desk({ C, shots, setOpen }) {
   if (!C.me) return (
     <div className={styles.binder} data-out="">
@@ -156,12 +160,13 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
               {LEAGUE_SETS.map((def, i) => {
                 const n = league?.sets[def.id]?.length, have = setsHave[def.id]
                 return (
-                  <button key={def.id} type="button" className={styles.lspine} style={{ '--c': def.color, '--h': `${86 + ((i * 37) % 4) * 4}%`, '--fs': def.title.length > 14 ? 18 : 21 }}
+                  <button key={def.id} type="button" className={styles.lspine} style={{ '--c': def.color, '--h': `${86 + ((i * 37) % 4) * 4}%`, '--fs': def.title.length > 14 ? 17 : def.title.length > 11 ? 20 : 23 }}
                     onClick={() => setOpen({ kind: 'league', set: def.id })} title={def.desc} aria-label={`${def.title}: ${n ?? '…'} cards${have ? `, you have ${have}` : ''}`}>
                     {have > 0 && <span className={styles.ribbon} aria-hidden="true" />}
-                    <span className={styles.band} />
-                    <b>{def.title}</b>
-                    <span className={styles.lfoot}><small>{have > 0 ? `${have}/${n}` : n ?? ''}</small><span className={styles.band} /></span>
+                    <Hubs />
+                    <span className={styles.frame}><b>{def.title}</b></span>
+                    <span className={styles.foot}><i className={styles.hub} aria-hidden="true" /><small>{have > 0 ? `${have}/${n}` : n ?? ''}</small></span>
+                    <Corners />
                   </button>
                 )
               })}
@@ -186,9 +191,12 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
                   <button key={f.code} type="button" className={styles.tspine} style={{ '--c': f.color || '#173657' }} onClick={() => setOpen({ kind: 'franchise', code: f.code })}
                     title={`${f.name}${f.code.includes('@') ? ' (ABA)' : ''} · ${f.active ? `since ${f.first}` : `${f.first} – ${f.last}`}`}
                     aria-label={`${f.name}${f.code.includes('@') ? ' (ABA)' : ''}${f.titles ? `, ${f.titles} title${f.titles === 1 ? '' : 's'}` : ''}`}>
+                    <i className={styles.hub} aria-hidden="true" />
                     <em>{logo ? <img src={logo} alt="" loading="lazy" /> : f.code.split('@')[0]}</em>
-                    <b>{nickOf(f.name)}{f.code.includes('@') ? ' · ABA' : ''}</b>
+                    <span className={styles.frame}><b>{nickOf(f.name)}{f.code.includes('@') ? ' · ABA' : ''}</b></span>
                     <small>{f.titles > 0 ? `${f.titles}★` : ''}</small>
+                    <i className={styles.hub} aria-hidden="true" />
+                    <Corners />
                   </button>
                 )
               })}
@@ -205,7 +213,12 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
               {legends.map((p, i) => (
                 <button key={p.name} type="button" className={styles.gspine} data-gold={i < 5 ? '' : undefined} onClick={() => setOpen({ kind: 'career', name: p.name })}
                   style={{ '--h': `${Math.round(74 + (p.peak_elo - lo) / (hi - lo || 1) * 26)}%` }} title={`${p.name} · peak Elo ${Math.round(p.peak_elo).toLocaleString()}`}>
-                  <i>{i + 1}</i><span>{baseName(p.name)}</span><small>{Math.round(p.peak_elo).toLocaleString()}</small>
+                  <i className={styles.hub} aria-hidden="true" />
+                  <em>{i + 1}</em>
+                  <span className={styles.frame}><b>{baseName(p.name)}</b></span>
+                  <small>{Math.round(p.peak_elo).toLocaleString()}</small>
+                  <i className={styles.hub} aria-hidden="true" />
+                  <Corners />
                 </button>
               ))}
             </div>
