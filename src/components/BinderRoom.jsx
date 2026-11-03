@@ -4,7 +4,7 @@ import shelf from './TrophyRoom.module.css'
 import { LEAGUE_SETS, cardRef, leagueEntries } from './Binders'
 import { BinderHost, primeBinders, binderJSON, binderHeadshots, binderTeamInfo, binderLogo } from './SeasonExplorer'
 import PlayerSearch from './PlayerSearch'
-import { useCollector, Meter, Coin } from './Collector'
+import { useCollector, Coin } from './Collector'
 import TrophyRoom, { FaceFit, Plate } from './TrophyRoom'
 import CardDatabase from './CardDatabase'
 import { useShelf } from './ShelfFx'
@@ -26,62 +26,67 @@ const DRAWERS = [['player', 'Players'], ['franchise', 'Franchises'], ['season', 
 const Hubs = () => <span className={styles.hubs} aria-hidden="true"><i className={styles.hub} /><i className={styles.hub} /></span>
 const Corners = () => <span className={styles.corners} aria-hidden="true"><i /><i /><i /><i /></span>
 
+// Your desk: your binder lying closed under the lamp (your best card showing through its cover window), and the
+// things you use every day as objects beside it: today's foil pack, the coin stack (Store), the Pick'em notepad
+// (Predictions), a brass nameplate with your standing and the punch card toward the next big pull
+function Foil({ label, sub, tone }) {
+  return <span className={styles.foil} data-tone={tone}><span>FPR</span><b>{label}</b><span>{sub}</span></span>
+}
+
 function Desk({ C, shots, setOpen }) {
-  if (!C.me) return (
-    <div className={styles.binder} data-out="">
-      <div className={styles.page1}>
-        <div className={styles.who}>
-          <span className={styles.avatar}>★</span>
-          <div><small>Start collecting</small><b>A free pack every day</b></div>
-        </div>
-        <p className={styles.pitch}>Pick five cards, one of three at a time, from last night’s games and 80 years of history. Plus a weekly pack for the team you choose.</p>
-        <div className={styles.deskBtns}>
-          <button type="button" className={styles.goldBtn} onClick={() => C.openAuth('signup')}>Create an account</button>
-          <button type="button" className={styles.navyBtn} onClick={() => C.openAuth('login')}>Sign in</button>
-        </div>
-      </div>
-      <div className={styles.rings} aria-hidden="true"><i /><i /><i /></div>
-      <div className={styles.page2} data-out="">
-        <small className={styles.pageKick}>YOUR SHOWCASE</small>
-        <div className={styles.pockets}>{[0, 1, 2].map(i => <span key={i} className={styles.pocket} data-empty="" />)}</div>
-      </div>
-    </div>
-  )
   const me = C.me
-  const show = me.user.showcase.length ? me.user.showcase.map(x => x.card) : me.stats.best ? [me.stats.best.card] : []
+  const lc = (me?.user.favoriteTeam && binderTeamInfo(me.user.favoriteTeam)?.color) || '#173657'
+  const show = me ? (me.user.showcase.length ? me.user.showcase[0].card : me.stats.best?.card) : null
+  const pack = !me ? null : me.open?.length ? { label: 'Your pack', sub: `${me.open[0].picked} OF ${me.open[0].total}`, tag: `Finish your pack · ${me.open[0].picked}/${me.open[0].total}`, go: () => C.resume(me.open[0].id) }
+    : !me.today.claimed ? { label: me.today.bonusToday ? 'Two packs' : 'Daily pack', sub: '5 PICKS', tag: me.today.bonusToday ? 'Tear open 2 packs' : 'Tear open today’s pack', go: () => C.claim() }
+    : null
+  const p = me?.predict
+  const pad = !me ? null : p?.unclaimed ? ['Cards waiting', `Choose your prediction card${p.unclaimed > 1 ? 's' : ''}`] : p?.open ? [`Tonight · ${p.games} games`, `${p.picked} of ${p.games} picked`] : ['Predictions', 'Make tonight’s picks']
   return (
-    <div className={styles.binder}>
-      <div className={styles.page1}>
-        <div className={styles.who}>
-          <span className={styles.avatar}>{me.user.username[0].toUpperCase()}</span>
-          <div><small>My binder</small><b>{me.user.username}</b></div>
+    <div className={styles.scene}>
+      <button type="button" className={styles.albumBtn} style={{ '--lc': lc }} onClick={() => (me ? setOpen({ kind: 'mine' }) : C.openAuth('signup'))} aria-label={me ? 'Open my binder' : 'Create an account to start a binder'}>
+        <span className={styles.album}>
+          <span className={styles.aSpine} aria-hidden="true"><i /><i /><i /><i /></span>
+          <span className={styles.aWindow}>{show ? <FaceFit card={show} shots={shots} /> : <span className={styles.aEmpty}>Your best card shows here</span>}</span>
+          <span className={styles.aLabel}><small>{me ? 'MY BINDER' : 'YOUR BINDER'}</small><b>{me ? me.user.username : 'START ONE'}</b></span>
+          <span className={styles.aStrap} aria-hidden="true" />
+          <span className={styles.aCorner} data-c="tr" aria-hidden="true" /><span className={styles.aCorner} data-c="br" aria-hidden="true" />
+        </span>
+        <span className={styles.tag}>{me ? 'Open my binder' : 'Start your binder'}</span>
+      </button>
+
+      <div className={styles.props}>
+        <div className={styles.nameplate}>
+          {me ? <>
+            <span>{me.standing?.rank ? `NO. ${me.standing.rank} OF ${me.standing.of}` : 'UNRANKED'} · {me.stats.cards.toLocaleString()} CARDS · {me.today.streak}-DAY STREAK</span>
+            <b>{(me.standing?.score || 0).toLocaleString()} POINTS</b>
+          </> : <>
+            <span>PICK FIVE CARDS, ONE OF THREE AT A TIME</span>
+            <b>A FREE PACK EVERY DAY</b>
+          </>}
         </div>
-        <div className={styles.stats}>
-          <div><b>{(me.standing?.score || 0).toLocaleString()}</b><small>points</small></div>
-          <div><b>{me.standing?.rank ? `No. ${me.standing.rank}` : '—'}</b><small>{me.standing?.of ? `of ${me.standing.of} binders` : 'rank'}</small></div>
-          <div><b>{me.stats.cards.toLocaleString()}</b><small>cards</small></div>
-          <div><b>{me.today.streak} day{me.today.streak === 1 ? '' : 's'}</b><small>streak</small></div>
+        <div className={styles.objects}>
+          {!me ? <>
+            <button type="button" className={styles.obj} onClick={() => C.openAuth('signup')}><Foil label="Daily pack" sub="FREE" /><span className={styles.tag}>Create an account</span></button>
+            <button type="button" className={styles.obj} onClick={() => C.openAuth('login')}><span className={styles.key} aria-hidden="true"><i /><b /></span><span className={styles.tag}>Sign in</span></button>
+          </> : <>
+            {pack ? <button type="button" className={styles.obj} onClick={pack.go}><Foil label={pack.label} sub={pack.sub} /><span className={styles.tag}>{pack.tag}</span></button>
+              : <div className={styles.obj} data-done=""><span className={styles.wrapper} aria-hidden="true" /><span className={styles.tag}>Today’s pack is open · next one tomorrow</span></div>}
+            {!me.week.claimed && <button type="button" className={styles.obj} onClick={() => C.openTeam()}><Foil label="Team pack" sub="WEEKLY" tone="team" /><span className={styles.tag}>Weekly team pack</span></button>}
+            <button type="button" className={styles.obj} onClick={() => setOpen({ kind: 'store' })}>
+              <span className={styles.coins} aria-hidden="true">{[0, 1, 2, 3, 4].map(i => <i key={i} style={{ '--i': i }} />)}</span>
+              <span className={styles.tag}><Coin size={14} />Store · {(me.coins?.balance ?? 0).toLocaleString()}</span>
+            </button>
+            <button type="button" className={styles.obj} onClick={() => setOpen({ kind: 'predict' })}>
+              <span className={styles.pad}><b>{pad[0]}</b><span>{pad[1]}</span></span>
+              <span className={styles.tag}>Predictions</span>
+            </button>
+          </>}
         </div>
-        <Meter meter={me.meter} />
-        <div className={styles.deskBtns}>
-          {me.open?.length > 0
-            ? <button type="button" className={styles.goldBtn} onClick={() => C.resume(me.open[0].id)}>Finish your pack · {me.open[0].picked}/{me.open[0].total}</button>
-            : !me.today.claimed && <button type="button" className={styles.goldBtn} onClick={() => C.claim()}>{me.today.bonusToday ? 'Open 2 packs' : 'Open today’s pack'}</button>}
-          {!me.week.claimed && <button type="button" className={styles.teamBtn} onClick={() => C.openTeam()}>Weekly team pack</button>}
-          <button type="button" className={styles.predictBtn} onClick={() => setOpen({ kind: 'predict' })}>{me.predict?.unclaimed ? `Choose your prediction card${me.predict.unclaimed > 1 ? 's' : ''}` : me.predict?.open ? `Predict today’s games · ${me.predict.picked}/${me.predict.games}` : 'Predictions'}</button>
-          <button type="button" className={styles.storeBtn} onClick={() => setOpen({ kind: 'store' })}><Coin size={18} />Store · {(me.coins?.balance ?? 0).toLocaleString()}</button>
-          <button type="button" className={styles.navyBtn} onClick={() => setOpen({ kind: 'mine' })}>Open my binder</button>
-        </div>
-      </div>
-      <div className={styles.rings} aria-hidden="true"><i /><i /><i /></div>
-      <div className={styles.page2}>
-        <small className={styles.pageKick}>SHOWCASE</small>
-        <div className={styles.pockets}>
-          {[0, 1, 2].map(i => show[i]
-            ? <button key={i} type="button" className={styles.pocket} onClick={() => setOpen({ kind: 'card', card: show[i] })} title="Open the card"><FaceFit card={show[i]} shots={shots} /></button>
-            : <span key={i} className={styles.pocket} data-empty="" />)}
-        </div>
-        {me.user.showcase.length < 3 && <small className={styles.pageNote}>Star cards in your binder to show them here.</small>}
+        {me?.meter && <div className={styles.punch} title="At most ten packs between Legend-or-better pulls">
+          <span>{me.meter.until === 1 ? 'NEXT PACK GUARANTEES A LEGEND OR BETTER' : `LEGEND OR BETTER WITHIN ${me.meter.until} PACKS`}</span>
+          <span className={styles.holes} aria-hidden="true">{Array.from({ length: me.meter.every }, (_, i) => <i key={i} data-on={i < me.meter.since ? '' : undefined} />)}</span>
+        </div>}
       </div>
     </div>
   )
