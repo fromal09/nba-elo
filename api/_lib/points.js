@@ -141,6 +141,7 @@ export const SET_POINTS_PER = 100
 // Reward cards (coins.js rewardCards): per All-Star, per franchise season, per franchise player
 export const REWARD_POINTS = { allstar: 200, fhist: 100, fcomp: 40, banner: 150 }
 const REWARD_NAME = { allstar: 'All-Star Roster', fhist: 'Franchise History', fcomp: 'Completed Franchise', banner: 'Hang the Banner' }
+const TIER_WORD = { goat: 'GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' }
 const x1 = v => `×${v >= 10 ? Math.round(v) : v.toFixed(1)}`
 
 // A game card's three parts. { S, E, O, list: callouts, occ: [[label, factor]] }
@@ -211,5 +212,5 @@ export function cardPoints(card) {
   }
   // Game card
   const tier = card.tier || rankTier(card.row), S = scarcity(null, tier), parts = gameParts(card, tier)
-  return { points: Math.round(10 * S * parts.E * parts.O), bonuses: breakdown(S, `${tier[0].toUpperCase()}${tier.slice(1)} pull`, parts), S, E: parts.E, O: parts.O }
+  return { points: Math.round(10 * S * parts.E * parts.O), bonuses: breakdown(S, `${TIER_WORD[tier] || 'Common'} pull`, parts), S, E: parts.E, O: parts.O }
 }
