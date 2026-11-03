@@ -1339,6 +1339,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     })
     if (order === 'tier') l = [...l].sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier] || b.gs - a.gs)
     else if (order === 'points') l = [...l].sort((a, b) => b.pts - a.pts)
+    // The Elo on the card's face (after the game); cards without one (sets, rivalries, collection cards) go last
+    else if (order === 'elo') { const elo = e => e.row?.post ?? e.row?.pre ?? e.special?.row?.post ?? -1; l = [...l].sort((a, b) => elo(b) - elo(a) || b.pts - a.pts) }
     else if (order === 'chrono') l = [...l].sort((a, b) => a.date.localeCompare(b.date))
     else if (order === 'name') l = [...l].sort((a, b) => lastFirst(a.name).localeCompare(lastFirst(b.name)) || a.date.localeCompare(b.date))
     return l
@@ -1430,7 +1432,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   </div>
   const sortSel = (
     <select className={styles.sortSel} value={order} onChange={e => { setOrder(e.target.value); S.reset() }} aria-label="Sort">
-      <option value="new">Newest pulls</option><option value="points">Most points</option><option value="tier">Rarest first</option><option value="chrono">By game date</option><option value="name">Player A–Z (last name)</option>
+      <option value="new">Newest pulls</option><option value="points">Most points</option><option value="elo">Highest Elo</option><option value="tier">Rarest first</option><option value="chrono">By game date</option><option value="name">Player A–Z (last name)</option>
     </select>
   )
   const findBox = (
