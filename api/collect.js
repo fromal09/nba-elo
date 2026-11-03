@@ -13,8 +13,9 @@
 //   POST star        { id, on } add a card to (or take it out of) your Starred binder
 //   POST showcase    { id, on } put a starred card in (or take it out of) your three-card showcase
 //   POST profile     { favoriteTeam }
-//   GET  leaders     the top binders by score, and where yours ranks
-//   GET  topcards    the highest-point cards in anyone's binder, and the best pulls of the last 24 hours
+//   GET  leaders     the top binders by score (by=cards|players to rank on those), and where yours ranks
+//   GET  topcards    the highest-point cards in anyone's binder (kind=player|contest|special|collection), and the best
+//                    pulls of the last 24 hours (h=168: the last 7 days)
 //   GET  binder      ?user= anyone's binder, read-only: profile, score, rank, showcase, cards
 //   POST explore     { section } Coins for visiting a part of the site (10 each, 60 a day)
 //   GET  store       the catalog, today's On This Day cards, your Coins, today's earnings, recent sales
@@ -517,20 +518,21 @@ export default async function handler(req, res) {
       cache()
       const viewer = pub ? null : await currentUser(req)
       const vid = viewer ? viewer.id : -1
+      const by = ['cards', 'players'].includes(q.by) ? q.by : 'score'
       const rows = await sql`with s as (select user_id, sum(points)::int as score, count(*)::int as cards,
             count(distinct card->'row'->>'n')::int as players from cards group by user_id),
-          r as (select s.*, rank() over (order by score desc)::int as rk, count(*) over ()::int as n from s)
+          r as (select s.*, rank() over (order by ${sql(by)} desc)::int as rk, count(*) over ()::int as n from s)
         select r.*, u.username, u.favorite_team,
           (select c.card from cards c where c.user_id = r.user_id order by c.points desc nulls last limit 1) as best
         from r join users u on u.id = r.user_id
         where r.rk <= 50 or r.user_id = ${vid}
-        order by r.score desc, r.cards desc, u.id`
+        order by r.rk, r.score desc, r.cards desc, u.id`
       const leaders = rows.filter(r => r.rk <= 50).slice(0, 50).map(r => ({ rank: r.rk, username: r.username, favoriteTeam: r.favorite_team, score: r.score, cards: r.cards, players: r.players, best: r.best }))
       const mine = rows.find(r => r.user_id === vid)
       const n = rows[0]?.n || 0
-      const you = !viewer ? null : mine ? { username: viewer.username, score: mine.score, cards: mine.cards, players: mine.players, rank: mine.score > 0 ? mine.rk : null, of: n }
+      const you = !viewer ? null : mine ? { username: viewer.username, score: mine.score, cards: mine.cards, players: mine.players, rank: mine[by] > 0 ? mine.rk : null, of: n }
         : { username: viewer.username, score: 0, cards: 0, players: 0, rank: null, of: n }
-      return send(200, { leaders, binders: n, you })
+      return send(200, { leaders, binders: n, you, by })
     }
     if (action === 'status') return send(200, { points: await pointsStatus(sql, origin) })
     // Player of the Week for any day's week: the top 20 so far, the pick'em race, and the card once the week is settled
@@ -538,14 +540,25 @@ export default async function handler(req, res) {
     if (action === 'topcards') {
       cache()
       // The most valuable cards anyone holds (one row a card, with how many binders have it), and the best pulls of the last day
+      // kind: player cards (game cards from packs), contest wins (Called It, Duels, Player of the Week), specials, collection rewards
+      const KIND = {
+        player: sql`c.card->>'kind' is null and coalesce(c.card->>'ruby', '') <> 'true'`,
+        contest: sql`(c.card->>'ruby' = 'true' or c.card->>'kind' in ('duel', 'potw'))`,
+        special: sql`c.card->>'kind' in ('peak', 'five', 'rival', 'duo')`,
+        collection: sql`c.card->>'kind' in ('set', 'season', 'allstar', 'fhist', 'fcomp', 'banner')`,
+      }
+      const kind = KIND[q.kind] ? q.kind : 'all'
+      const hours = Number(q.h) === 168 ? 168 : 24
       const top = await sql`select c.ref, max(c.points)::int as points, count(distinct c.user_id)::int as owners,
           (array_agg(c.card order by c.pulled_at))[1] as card, (array_agg(u.username order by c.pulled_at))[1] as first
-        from cards c join users u on u.id = c.user_id group by c.ref order by points desc, owners desc limit 10`
+        from cards c join users u on u.id = c.user_id where ${KIND[kind] || sql`true`}
+        group by c.ref order by points desc, owners desc limit 10`
       const recent = await sql`select c.card, c.points, c.pulled_at, c.source, u.username from cards c join users u on u.id = c.user_id
-        where c.pulled_at > now() - interval '24 hours' order by c.points desc, c.pulled_at desc limit 10`
+        where c.pulled_at > now() - make_interval(hours => ${hours}) order by c.points desc, c.pulled_at desc limit 8`
       return send(200, {
         top: top.map(r => ({ card: r.card, points: r.points, owners: r.owners, first: r.first })),
         recent: recent.map(r => ({ card: r.card, points: r.points, at: r.pulled_at, username: r.username, forged: r.card?.kind === 'season' })),
+        kind, hours,
       })
     }
     if (action === 'wishes' && q.user) {

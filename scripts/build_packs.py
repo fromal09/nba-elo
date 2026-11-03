@@ -24,6 +24,11 @@ Also writes the personal-binder checklists, which count players (own any card of
                                          {"date", "teams": {code: [name, color]}, "rows": [...], "duel": the Duel of the Day
                                           as in league.json ({"k", "s", "id", "date", "a": card, "b": card, "score"}) or absent}
   explorer/packs/holiday/<k>.json          every card from a holiday's games (hol_dates.py): {"teams", "tiers": {tier: [row]}}
+  explorer/packs/players/<hash>.json      the card database: every card of one player, career order (hash = sha1 of the name, 12 hex)
+                                         {"teams": {"<season>|<code>": [name, color]}, "rows": [...]}
+  explorer/packs/players.json            the card database's player list: [[name, hash, first season, last season, cards, [franchises]]]
+  explorer/packs/top.json                the card database's front page: the 3,000 best cards on record by points (A+, points.js)
+                                         {"teams": {"<season>|<code>": [...]}, "rows": [...]}
   explorer/packs/onthisday/<MM-DD>.json  the store's On This Day pool: the 40 best cards (by Game Score) of each tier
                                          from games on that calendar date, every year {"teams": {"season|code": [...]}, "tiers": {tier: [row, ...]}}
 band = [level, label, champ] or null; honor = "potd" | "potg" | null
@@ -31,7 +36,7 @@ band = [level, label, champ] or null; honor = "potd" | "potg" | null
 Run after build_binders.py (it calls this at the end):  python3 scripts/build_packs.py
 """
 import hashlib
-import heapq, itertools, json, sys
+import heapq, itertools, json, math, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -72,6 +77,69 @@ def row(season, g, p, band, honor):
             p.get("stl"), p.get("blk"), p.get("tp"), r1(p.get("gs")), r1(p["pre"]), r1(p["post"]), p.get("lr"), p.get("lrp"), p.get("fx"), p.get("gp"), p.get("hs") or 0, p.get("sw") or 0]
 
 
+# A+ points for a game card (api/_lib/points.js), to rank the card database's front page. The site rescores every card
+# itself; this only has to pick the right 3,000. Keep the tables in step with points.js.
+GMSC_TAIL = [[2, 6.6], [3, 10.3], [5, 14.3], [7, 16.7], [10, 19.1], [15, 21.6], [20, 23.3], [30, 25.6], [50, 28.3], [70, 30.1],
+             [100, 31.9], [150, 34.0], [200, 35.4], [300, 37.5], [500, 40.1], [700, 42.0], [1000, 43.8], [1500, 46.0], [2000, 47.5], [3000, 49.4],
+             [5000, 52.0], [7000, 53.8], [10000, 55.6], [15000, 57.8], [20000, 59.8], [30000, 62.0], [50000, 64.0], [70000, 66.1], [100000, 68.7],
+             [150000, 70.4], [200000, 71.2], [300000, 72.3], [500000, 72.5], [1500000, 86.8]]
+SCARCITY = {"common": 1.0, "rare": 1.294, "standout": 2.033, "legend": 2.828, "icon": 4.98, "goat": 9.092}
+OCCASION = {"r1": 1.15, "r2": 1.2, "cf": 1.3, "finals": 1.45, "champ": 2.0}
+
+
+def gs_rarity(gs):
+    if gs is None:
+        return 1
+    T = GMSC_TAIL
+    if gs <= T[0][1]:
+        return 1 + max(0, gs + 3) / (T[0][1] + 3)
+    if gs >= T[-1][1]:
+        return T[-1][0]
+    i = 0
+    while T[i + 1][1] <= gs:
+        i += 1
+    (n0, g0), (n1, g1) = T[i], T[i + 1]
+    f = 1 if g1 == g0 else (gs - g0) / (g1 - g0)
+    return 10 ** (math.log10(n0) + f * (math.log10(n1) - math.log10(n0)))
+
+
+def proxy_points(p, band, honor, date=None):
+    v = lambda k: p.get(k) or 0
+    tens = sum(1 for k in ("pts", "trb", "ast", "stl", "blk") if v(k) >= 10)
+    tw = sum(1 for k in ("pts", "trb", "ast") if v(k) >= 20)
+    pts = v("pts")
+    L = [gs_rarity(p.get("gs"))]
+    for ok, n in ((pts >= 100, 1080000), (pts >= 80, 540000), (pts >= 70, 120000), (pts >= 60, 13500), (pts >= 50, 1800), (pts >= 40, 200)):
+        if ok:
+            L.append(n); break
+    if v("trb") >= 30: L.append(7000)
+    elif v("trb") >= 25: L.append(2500)
+    if tens >= 5: L.append(1080000)
+    elif tens == 4: L.append(270000)
+    elif tens == 3: L.append(350)
+    if tw >= 2: L.append(1500)
+    if v("ast") >= 20: L.append(3000)
+    if v("blk") >= 10: L.append(5000)
+    if v("stl") >= 10: L.append(40000)
+    if v("tp") >= 10: L.append(1500)
+    if v("sw") == 2: L.append(8000)
+    elif v("sw") == 1: L.append(2000)
+    if all(v(k) >= 5 for k in ("pts", "trb", "ast", "stl", "blk")): L.append(30000)
+    if honor == "potd": L.append(300)
+    elif honor == "potg": L.append(20)
+    if (v("fx") & 1) and v("gp") >= 20: L.append(v("gp"))
+    L.sort(reverse=True)
+    E = max(1, L[0]) ** 0.3
+    for n in L[1:3]:
+        E *= max(1, n) ** 0.075
+    O = OCCASION.get(band["level"], 1.15) if band else 1
+    if p.get("gp") == 1:
+        O *= 1.4
+    if date and holiday_of(date):
+        O *= 1.1
+    return 10 * SCARCITY[tier(p)] * E * O
+
+
 def main():
     files = sorted(EXP.glob("[12][0-9][0-9][0-9]-[0-9][0-9].json"))
     index = {"cols": COLS, "tiers": {}, "total": 0, "teams": {}}
@@ -86,6 +154,11 @@ def main():
     last_day, recent, recent_teams = "", [], {}
     day_pool = {}     # the newest season's cards by date
     who = {}          # player -> tier -> shard -> [row, ...]: where wish lists find a player's cards
+    db_rows = {}      # player -> [row as JSON text]: the card database, one file per player
+    db_names = {}     # player -> {"season|code": [name, color]}
+    db_meta = {}      # player -> [first season, last season, cards, {franchises}]
+    top = []          # heap of (points, n, row, names): the card database's front page
+    top_n = itertools.count()
     for f in files:
         d = json.loads(f.read_text(encoding="utf-8"))
         C, season = d["cols"], d["season"]
@@ -103,7 +176,20 @@ def main():
                 tr = tier(p)
                 by_tier.setdefault(tr, []).append(r)
                 fc = MERGE.get(p["t"], p["t"])
-                by_team.setdefault((fc, tr), []).append(json.dumps(r, ensure_ascii=False, separators=(",", ":")))
+                line = json.dumps(r, ensure_ascii=False, separators=(",", ":"))
+                by_team.setdefault((fc, tr), []).append(line)
+                db_rows.setdefault(p["n"], []).append(line)
+                dn = db_names.setdefault(p["n"], {})
+                for c in (r[3], r[4]):
+                    dn.setdefault(f"{season}|{c}", teams.get(c, [c, None]))
+                m = db_meta.setdefault(p["n"], [season, season, 0, set()])
+                m[1] = season; m[2] += 1; m[3].add(fc)
+                band_ = bnd.get((g["id"], p["t"]))
+                item = (proxy_points(p, band_, hon.get((g["id"], p["n"])), g["date"]), next(top_n), r, {f"{season}|{c}": teams.get(c, [c, None]) for c in (r[3], r[4])})
+                if len(top) < 3000:
+                    heapq.heappush(top, item)
+                elif item[0] > top[0][0]:
+                    heapq.heapreplace(top, item)
                 hk = holiday_of(g["date"])
                 if hk:
                     hd = hol.setdefault(hk, {"teams": {}, "tiers": {}})
@@ -203,6 +289,27 @@ def main():
         if not f_.exists() or f_.read_text(encoding="utf-8") != body:   # unchanged files keep their date, so the sync skips them
             f_.write_text(body, encoding="utf-8")
         written.add(name)
+    # The card database: every card of each player (written only when it changed, so the sync skips the rest), the player
+    # list for search, and the 3,000 best cards on record
+    (OUT / "players").mkdir(parents=True, exist_ok=True)
+    plist = []
+    for n, lines in db_rows.items():
+        h = hashlib.sha1(n.encode("utf-8")).hexdigest()[:12]
+        name = f"players/{h}.json"
+        body = '{"teams":' + json.dumps(db_names[n], ensure_ascii=False, separators=(",", ":")) + ',"rows":[' + ",".join(lines) + "]}"
+        f_ = OUT / name
+        if not f_.exists() or f_.read_text(encoding="utf-8") != body:
+            f_.write_text(body, encoding="utf-8")
+        written.add(name)
+        m = db_meta[n]
+        plist.append([n, h, m[0], m[1], m[2], sorted(m[3])])
+    plist.sort(key=lambda x: -x[4])
+    (OUT / "players.json").write_text(json.dumps(plist, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    best = sorted(top, key=lambda x: -x[0])
+    tnames = {}
+    for _, _, _, nm in best:
+        tnames.update(nm)
+    (OUT / "top.json").write_text(json.dumps({"teams": tnames, "rows": [x[2] for x in best]}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     # Shards from an older cut that this build didn't write
     for old in list(OUT.glob("*/*.json")) + list(OUT.glob("team/*/*.json")):
         if old.relative_to(OUT).as_posix() not in written and not old.relative_to(OUT).as_posix().startswith("special/"):

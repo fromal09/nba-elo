@@ -5,7 +5,9 @@ import { LEAGUE_SETS, leagueEntries, AnyFace, cardRef } from './Binders'
 import { BinderHost, primeBinders, binderJSON, binderHeadshots, binderTeamInfo, binderLogo } from './SeasonExplorer'
 import PlayerSearch from './PlayerSearch'
 import { norm } from './predict'
-import { useCollector, CardFace, Meter, Coin, cardName, tierName } from './Collector'
+import { useCollector, CardFace, Meter, Coin } from './Collector'
+import TrophyRoom from './TrophyRoom'
+import CardDatabase from './CardDatabase'
 
 /*
  * The Binders page: every binder in one room. League-wide sets (title clinchers, greatest debuts...),
@@ -41,8 +43,6 @@ function Cover({ def, list, env, onOpen, owned }) {
   )
 }
 
-const shortDate = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-const ago = t => { const m = Math.max(1, Math.round((Date.now() - Date.parse(t)) / 60e3)); return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} hr ago` }
 
 export default function BinderRoom({ players, onSelectPlayer, start }) {
   const [index, setIndex] = useState(null)
@@ -55,24 +55,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
   const setOpen = b => setOpenRaw(b ? { ...b, n: Date.now() + Math.random() } : null)
   const [past, setPast] = useState(false)
   const C = useCollector()
-  const [leaders, setLeaders] = useState(null)
-  const meScore = C.me?.standing?.score
-  const [lbTry, setLbTry] = useState(0)
-  useEffect(() => {
-    if (C.down || C.me === undefined) return
-    let live = true
-    const get = (n = 0) => fetch(`/api/collect?action=leaders${C.me ? '' : '&pub=1'}`, { credentials: 'same-origin', cache: 'no-store' })
-      .then(r => r.json()).then(d => { if (d.error) throw new Error(d.error); return d })
-      .then(d => live && setLeaders(d))
-      .catch(e => { if (!live) return; if (n < 2) setTimeout(() => live && get(n + 1), 1500 * (n + 1)); else setLeaders(v => v && !v.failed ? v : { failed: String(e?.message || e) }) })
-    get()
-    return () => { live = false }
-  }, [C.down, C.me === undefined, meScore, lbTry])
-  const [tops, setTops] = useState(null)
-  useEffect(() => {
-    if (C.down || C.me === undefined) return
-    fetch('/api/collect?action=topcards', { credentials: 'same-origin', cache: 'no-store' }).then(r => r.json()).then(d => !d.error && setTops(d)).catch(() => {})
-  }, [C.down, C.me === undefined, meScore])
+  const [db, setDb] = useState(false)
   const [picks, setPicks] = useState(null)
   useEffect(() => { if (!C.down && C.me !== undefined) C.loadStandings?.('week').then(setPicks).catch(() => {}) }, [C.down, C.me === undefined])
   // Asked from elsewhere (the account bar, a /binders?open= link): open my binder, the store or Predictions once signed in
@@ -146,53 +129,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
         </div>}
       </section>}
 
-      {!C.down && C.me !== undefined && <section className={`${styles.section} ${styles.boards}`}>
-        {(!leaders || leaders.failed || leaders.leaders.length > 0) && <div className={styles.boardCol}>
-        <div className={styles.head}><h2>Top binders</h2><span>{leaders?.leaders ? `${leaders.binders.toLocaleString()} binder${leaders.binders === 1 ? '' : 's'} · ranked by binder score` : ''}</span></div>
-        {!leaders ? <div className={`${styles.board} ${styles.boardWait}`}>{[0, 1, 2].map(i => <span key={i} />)}</div>
-        : leaders.failed ? <div className={`${styles.board} ${styles.boardFail}`}><span>The leaderboard didn’t load.</span><button type="button" onClick={() => { setLeaders(null); setLbTry(t => t + 1) }}>Try again</button></div>
-        : <div className={styles.board}>
-          {leaders.leaders.slice(0, 10).map(l => (
-            <button key={l.username} type="button" className={`${styles.boardRow} ${C.me?.user.username === l.username ? styles.boardYou : ''}`} onClick={() => setOpen({ kind: 'public', name: l.username })}>
-              <b className={styles.boardRank} data-top={l.rank <= 3 ? l.rank : undefined}>{l.rank}</b>
-              <span className={styles.boardWho}><b>{l.username}</b><small>{l.cards} cards · {l.players} players{l.favoriteTeam ? ` · ${binderTeamInfo(l.favoriteTeam).name}` : ''}</small></span>
-              {l.best && <span className={styles.boardBest}><CardFace card={l.best} shots={shots} w={38} /></span>}
-              <strong>{l.score.toLocaleString()}<small>pts</small></strong>
-            </button>
-          ))}
-          {leaders.you?.rank > 10 && <button type="button" className={`${styles.boardRow} ${styles.boardYou}`} onClick={() => setOpen({ kind: 'mine' })}>
-            <b className={styles.boardRank}>{leaders.you.rank}</b>
-            <span className={styles.boardWho}><b>{leaders.you.username} (you)</b><small>{leaders.you.cards} cards · {leaders.you.players} players</small></span>
-            <strong>{leaders.you.score.toLocaleString()}<small>pts</small></strong>
-          </button>}
-        </div>}
-        </div>}
-        {tops?.top?.length > 0 && <div className={styles.boardCol}>
-          <div className={styles.head}><h2>Top cards in binders</h2><span>by points</span></div>
-          <div className={styles.board}>
-            {tops.top.map((x, i) => (
-              <button key={i} type="button" className={styles.boardRow} onClick={() => setOpen({ kind: 'card', card: x.card })} title="Open the card">
-                <b className={styles.boardRank} data-top={i < 3 ? i + 1 : undefined}>{i + 1}</b>
-                <span className={styles.cardThumb}><CardFace card={x.card} shots={shots} w={34} /></span>
-                <span className={styles.boardWho}><b>{cardName(x.card)}</b><small>{tierName(x.card)}{x.card.date ? ` · ${shortDate(x.card.date)}` : x.card.s ? ` · ${x.card.s}` : ''} · {x.owners > 1 ? `${x.first} + ${x.owners - 1} more` : x.first}</small></span>
-                <strong>{x.points.toLocaleString()}<small>pts</small></strong>
-              </button>
-            ))}
-          </div>
-        </div>}
-        {tops && <div className={styles.boardCol}>
-          <div className={styles.head}><h2>Top pulls, last 24 hours</h2></div>
-          {tops.recent.length ? <div className={styles.board}>
-            {tops.recent.map((x, i) => (
-              <button key={i} type="button" className={styles.boardRow} onClick={() => setOpen({ kind: 'card', card: x.card })} title="Open the card">
-                <span className={styles.cardThumb}><CardFace card={x.card} shots={shots} w={34} /></span>
-                <span className={styles.boardWho}><b>{cardName(x.card)}</b><small>{tierName(x.card)} · {x.forged ? 'forged by' : 'pulled by'} {x.username} · {ago(x.at)}</small></span>
-                <strong>{x.points.toLocaleString()}<small>pts</small></strong>
-              </button>
-            ))}
-          </div> : <div className={`${styles.board} ${styles.boardFail}`}><span>No pulls in the last day yet.</span></div>}
-        </div>}
-      </section>}
+      <TrophyRoom shots={shots} onOpen={setOpen} onBrowse={() => setDb(true)} />
 
       {picks && picks.leaders.length > 0 && <section className={styles.section}>
         <div className={styles.head}><h2>Pick’em this week</h2><span>{picks.entrants} collector{picks.entrants === 1 ? '' : 's'} · correct picks, matchups and locks · top 10 win {picks.payouts?.top10} Coins</span></div>
@@ -262,6 +199,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
         </div>
       </section>
 
+      {db && <CardDatabase league={league} shots={shots} covered={!!open} onOpen={setOpen} onClose={() => setDb(false)} />}
       {open && <BinderHost key={open.n} start={open} shots={shots} onClose={() => setOpen(null)}
         onProfile={n => { const p = players?.find(x => x.name === n); setOpen(null); if (p) onSelectPlayer?.(p) }} />}
     </div>
