@@ -157,3 +157,17 @@
   .drawers { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; gap: 8px; }
   .drawer { min-height: 72px; }
 }
+
+/* Lighting: warm light from the top of the bay reaches the albums; a hovered album tips out of the row */
+.lspine, .tspine, .gspine { background-image: linear-gradient(180deg, rgba(255,210,150,.2), rgba(255,210,150,0) 38%), linear-gradient(90deg, rgba(255,255,255,.2), rgba(255,255,255,0) 28%, rgba(0,0,0,0) 62%, rgba(0,0,0,.38)), radial-gradient(rgba(0,0,0,.1) 1px, transparent 1.6px);
+  background-size: auto, auto, 4px 4px; transform-origin: 50% 100%; transition: transform .25s cubic-bezier(.2,.9,.3,1.2), box-shadow .25s; }
+.lspine[data-up], .tspine[data-up], .gspine[data-up] { transform: translateY(-26px) rotate(-5deg); box-shadow: 0 22px 30px rgba(0,0,0,.6); z-index: 2; }
+.lspine:hover, .tspine:hover, .gspine:hover { transform: translateY(-8px); }
+.lspine[data-up]:hover, .tspine[data-up]:hover, .gspine[data-up]:hover { transform: translateY(-26px) rotate(-5deg); }
+.row { position: relative; }
+@media (prefers-reduced-motion: reduce) { .lspine[data-up], .tspine[data-up], .gspine[data-up] { transform: none; } }
+/* Phones: the shelves snap album to album, the next one peeking in */
+@media (max-width: 760px) {
+  .row { scroll-snap-type: x mandatory; scroll-padding-left: 2px; padding-right: 40px; }
+  .lspine, .tspine, .gspine { scroll-snap-align: start; }
+}

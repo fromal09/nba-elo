@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import styles from './BinderRoom.module.css'
 import shelf from './TrophyRoom.module.css'
-import { LEAGUE_SETS, cardRef } from './Binders'
+import { LEAGUE_SETS, cardRef, leagueEntries } from './Binders'
 import { BinderHost, primeBinders, binderJSON, binderHeadshots, binderTeamInfo, binderLogo } from './SeasonExplorer'
 import PlayerSearch from './PlayerSearch'
 import { useCollector, Meter, Coin } from './Collector'
 import TrophyRoom, { FaceFit, Plate } from './TrophyRoom'
 import CardDatabase from './CardDatabase'
+import { useShelf } from './ShelfFx'
+import { norm } from './predict'
 
 /*
  * The Binders page: the Binder Room, one bookcase. Your binder lies open on the desk in front of it; the shelves hold
@@ -125,6 +127,10 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
   const owned = C.me ? C.owned : null
   const setsHave = useMemo(() => Object.fromEntries(LEAGUE_SETS.map(d => [d.id, owned && !d.duel ? (league?.sets[d.id] || []).filter(c => owned.has(cardRef(c))).length : 0])), [league, owned])
   const started = Object.values(setsHave).filter(n => n > 0).length
+  // Hover previews, the flight off the shelf and the phone preview sheet; the binder opens when they finish
+  const env = useMemo(() => ({ teamInfo: binderTeamInfo, headshot: n => shots?.[norm(n)]?.headshot }), [shots])
+  const fx = useShelf(setOpen, env)
+  const fans = useMemo(() => Object.fromEntries(LEAGUE_SETS.map(d => [d.id, league?.sets[d.id] ? leagueEntries(env, d, league.sets[d.id].slice(0, 3)) : []])), [league, env])
   const goTo = id => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   const ready = !C.down && C.me !== undefined
   const lo = legends.length ? legends[legends.length - 1].peak_elo : 0, hi = legends.length ? legends[0].peak_elo : 1
@@ -161,7 +167,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
                 const n = league?.sets[def.id]?.length, have = setsHave[def.id]
                 return (
                   <button key={def.id} type="button" className={styles.lspine} style={{ '--c': def.color, '--h': `${86 + ((i * 37) % 4) * 4}%`, '--fs': def.title.length > 14 ? 17 : def.title.length > 11 ? 20 : 23 }}
-                    onClick={() => setOpen({ kind: 'league', set: def.id })} title={def.desc} aria-label={`${def.title}: ${n ?? '…'} cards${have ? `, you have ${have}` : ''}`}>
+                    {...fx.bind({ key: `l-${def.id}`, kind: 'League binder', title: def.title, color: def.color, ink: def.color, desc: def.desc, meta: n != null ? `${n} cards${owned ? ` · you have ${have}` : ''}` : '', fan: fans[def.id], target: { kind: 'league', set: def.id } })} aria-label={`${def.title}: ${n ?? '…'} cards${have ? `, you have ${have}` : ''}`}>
                     {have > 0 && <span className={styles.ribbon} aria-hidden="true" />}
                     <Hubs />
                     <span className={styles.frame}><b>{def.title}</b></span>
@@ -172,6 +178,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
               })}
               <span className={styles.bookend} aria-hidden="true" />
             </div>}
+            {fx.peekIn('br-sets')}
             <div className={shelf.plank} />
           </section>
 
@@ -188,8 +195,10 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
               {teams.map(f => {
                 const logo = f.active ? binderLogo(f.code) : null
                 return (
-                  <button key={f.code} type="button" className={styles.tspine} style={{ '--c': f.color || '#173657' }} onClick={() => setOpen({ kind: 'franchise', code: f.code })}
-                    title={`${f.name}${f.code.includes('@') ? ' (ABA)' : ''} · ${f.active ? `since ${f.first}` : `${f.first} – ${f.last}`}`}
+                  <button key={f.code} type="button" className={styles.tspine} style={{ '--c': f.color || '#173657' }}
+                    {...fx.bind({ key: `f-${f.code}`, kind: f.active ? 'Franchise binder' : 'Past franchise', title: `${f.name}${f.code.includes('@') ? ' (ABA)' : ''}`, color: f.color || '#173657', ink: f.color || '#173657',
+                      desc: `${f.active ? `Since ${f.first}` : `${f.first} – ${f.last}`}. Every season on a shelf, each opening that year’s team binder.`, meta: f.titles ? `${f.titles} title${f.titles === 1 ? '' : 's'}` : '',
+                      logo, initials: f.code.split('@')[0], target: { kind: 'franchise', code: f.code } })}
                     aria-label={`${f.name}${f.code.includes('@') ? ' (ABA)' : ''}${f.titles ? `, ${f.titles} title${f.titles === 1 ? '' : 's'}` : ''}`}>
                     <i className={styles.hub} aria-hidden="true" />
                     <em>{logo ? <img src={logo} alt="" loading="lazy" /> : f.code.split('@')[0]}</em>
@@ -201,6 +210,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
                 )
               })}
             </div>
+            {fx.peekIn('br-teams')}
             <div className={shelf.plank} />
           </section>
 
@@ -211,8 +221,10 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
             </div>
             <div className={styles.row} data-tall="">
               {legends.map((p, i) => (
-                <button key={p.name} type="button" className={styles.gspine} data-gold={i < 5 ? '' : undefined} onClick={() => setOpen({ kind: 'career', name: p.name })}
-                  style={{ '--h': `${Math.round(74 + (p.peak_elo - lo) / (hi - lo || 1) * 26)}%` }} title={`${p.name} · peak Elo ${Math.round(p.peak_elo).toLocaleString()}`}>
+                <button key={p.name} type="button" className={styles.gspine} data-gold={i < 5 ? '' : undefined} aria-label={`${p.name}, peak Elo ${Math.round(p.peak_elo).toLocaleString()}`}
+                  {...fx.bind({ key: `g-${p.name}`, kind: 'Career binder', title: baseName(p.name), color: i < 5 ? '#b8902e' : '#173657', ink: '#173657',
+                    desc: `Peak Elo ${Math.round(p.peak_elo).toLocaleString()}, No. ${i + 1} on record. Every game of his career, season by season.`, meta: '', initials: baseName(p.name).split(' ').map(w => w[0]).join('').slice(0, 3), target: { kind: 'career', name: p.name } })}
+                  style={{ '--h': `${Math.round(74 + (p.peak_elo - lo) / (hi - lo || 1) * 26)}%` }}>
                   <i className={styles.hub} aria-hidden="true" />
                   <em>{i + 1}</em>
                   <span className={styles.frame}><b>{baseName(p.name)}</b></span>
@@ -222,6 +234,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
                 </button>
               ))}
             </div>
+            {fx.peekIn('br-legends')}
             <div className={shelf.plank} />
           </section>
 
@@ -254,6 +267,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
         <div className={styles.base} />
       </div>
 
+      {fx.layers}
       {db && <CardDatabase league={league} shots={shots} focus={db.focus} covered={!!open} onOpen={setOpen} onClose={() => setDb(null)} />}
       {open && <BinderHost key={open.n} start={open} shots={shots} onClose={() => setOpen(null)}
         onProfile={n => { const p = players?.find(x => x.name === n); setOpen(null); if (p) onSelectPlayer?.(p) }} />}

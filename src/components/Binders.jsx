@@ -97,12 +97,24 @@ function MineToggle({ env, on, set, n, of }) {
 }
 const mineOf = (list, name, env) => list.filter(e => ownsCard(e, name, env))
 
+// The shine on the sleeve follows the pointer and the card tilts toward it (set straight on the element: no re-render)
+const glareMove = ev => {
+  if (ev.pointerType !== 'mouse') return
+  const el = ev.currentTarget, r = el.getBoundingClientRect()
+  const x = (ev.clientX - r.left) / r.width, y = (ev.clientY - r.top) / r.height
+  el.style.setProperty('--gx', `${Math.round(x * 100)}%`); el.style.setProperty('--gy', `${Math.round(y * 100)}%`)
+  el.style.setProperty('--ry', `${((x - 0.5) * 14).toFixed(1)}deg`); el.style.setProperty('--rx', `${((0.5 - y) * 14).toFixed(1)}deg`)
+  el.dataset.hot = ''
+}
+const glareOut = ev => { delete ev.currentTarget.dataset.hot }
+const REDUCE = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
 function Pocket({ e, name, env, onPull, pulled, album }) {
   const out = pulled === e.key
   const owned = ownsCard(e, name, env)
   return (
     <div className={`${styles.pocket} ${e.post ? styles.pocketPo : ''}`} data-settier={e.setTier}>
-      <button type="button" className={styles.pocketBtn} disabled={out} onClick={() => onPull(e)} aria-label={`${e.label}: open card`}>
+      <button type="button" className={styles.pocketBtn} disabled={out} onClick={() => onPull(e)} aria-label={`${e.label}: open card`} onPointerMove={glareMove} onPointerLeave={glareOut}>
         {out ? <span className={styles.pulledOut}><b>Pulled out</b><small>Close the card to put it back</small></span>
           : e.special ? <Fit><SpecialFace card={e.special} serial={e.serial && <Serial k={e.serial[0]} n={e.serial[1]} inline />} owned={e.owned_} /></Fit>
           : e.duel ? <Fit><DuelCard {...e.duel} />{e.serial && <Serial k={e.serial[0]} n={e.serial[1]} pocket />}</Fit>
@@ -137,6 +149,26 @@ function useSheets(list, per) {
 
 function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, phone, album, filters, bar }) {
   const touch = useRef(null)
+  // Turning a sheet: the sleeve lifts off the rings and swings over. Forward, the old sheet swings away over the new
+  // one; back, the earlier sheet swings in over the one you're leaving
+  const last = useRef({ cur: S.cur, page: S.page })
+  const [leaf, setLeaf] = useState(null)
+  const timer = useRef(null)
+  useEffect(() => {
+    const was = last.current
+    if (was.cur !== S.cur && !REDUCE) {
+      setLeaf({ dir: S.dir, old: was.page, neu: S.page, k: `${was.cur}-${S.cur}` })
+      clearTimeout(timer.current); timer.current = setTimeout(() => setLeaf(null), 720)
+    }
+    last.current = { cur: S.cur, page: S.page }
+  }, [S.cur])
+  useEffect(() => () => clearTimeout(timer.current), [])
+  const cols = { '--cols': phone && per < 9 ? 2 : 3 }
+  const fill = (list, live) => <>
+    {list.map(e => <Pocket key={e.key} e={e} name={name} env={env} onPull={live ? onPull : () => {}} pulled={pulled} album={album} />)}
+    {Array.from({ length: Math.max(0, per - list.length) }, (_, i) => <div key={`x${i}`} className={`${styles.pocket} ${styles.pocketEmpty}`}><div className={styles.pocketBtn} /></div>)}
+  </>
+  const under = leaf && leaf.dir < 0 ? leaf.old : S.page
   return (
     <div className={styles.right}>
       <div className={styles.sheetHead}>
@@ -149,10 +181,14 @@ function Sheet({ S, per, name, env, onPull, pulled, title, sub, tools, tabs, pho
       <div className={styles.sheetBody}
         onTouchStart={ev => { touch.current = ev.touches[0].clientX }}
         onTouchEnd={ev => { if (touch.current == null) return; const dx = ev.changedTouches[0].clientX - touch.current; if (Math.abs(dx) > 50) S.go(dx < 0 ? 1 : -1); touch.current = null }}>
-        <div key={S.cur} className={`${styles.pockets} ${S.dir > 0 ? styles.turnNext : styles.turnPrev}`} style={{ '--cols': phone && per < 9 ? 2 : 3 }}>
-          {S.page.map(e => <Pocket key={e.key} e={e} name={name} env={env} onPull={onPull} pulled={pulled} album={album} />)}
-          {Array.from({ length: per - S.page.length }, (_, i) => <div key={`x${i}`} className={`${styles.pocket} ${styles.pocketEmpty}`}><div className={styles.pocketBtn} /></div>)}
+        <div key={REDUCE ? S.cur : 'sheet'} className={`${styles.pockets} ${REDUCE ? (S.dir > 0 ? styles.turnNext : styles.turnPrev) : ''}`} style={cols}>
+          {fill(under, true)}
         </div>
+        {leaf && <div key={leaf.k} className={styles.leaf} data-dir={leaf.dir > 0 ? 'next' : 'prev'} aria-hidden="true">
+          <div className={`${styles.pockets} ${styles.leafFace}`} style={cols}>{fill(leaf.dir > 0 ? leaf.old : leaf.neu, false)}</div>
+          <div className={styles.leafBack} />
+          <span className={styles.leafShade} />
+        </div>}
       </div>
       <div className={styles.pager}>
         <button type="button" aria-label="Previous sheet" disabled={S.cur === 0} onClick={() => S.go(-1)}>‹</button>

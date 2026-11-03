@@ -679,3 +679,39 @@
 .fit { inset: 9px 6px 5px; }
 .pocket[data-settier] .pocketBtn::after { border-radius: 3px; }
 @media (max-width: 760px) { .right::before { display: none; } }
+
+/* Turning a sheet: the leaf swings on the ring edge, with light rolling across it */
+.sheetBody { position: relative; perspective: 2200px; }
+.leaf { position: absolute; inset: 0; z-index: 6; transform-origin: 0 50%; transform-style: preserve-3d; pointer-events: none; }
+.leaf[data-dir=next] { animation: leafNext .7s cubic-bezier(.45,.05,.25,1) both; }
+.leaf[data-dir=prev] { animation: leafPrev .7s cubic-bezier(.45,.05,.25,1) both; }
+@keyframes leafNext { from { transform: rotateY(0); } to { transform: rotateY(-180deg); } }
+@keyframes leafPrev { from { transform: rotateY(-180deg); } to { transform: rotateY(0); } }
+.leafFace { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 4px; background: linear-gradient(115deg, #f1f4f7, #e3e9ef 55%, #edf1f5); box-shadow: 0 0 0 4px #eef2f6; }
+.leafBack { position: absolute; inset: 0; transform: rotateY(180deg); backface-visibility: hidden; border-radius: 4px; background: linear-gradient(245deg, #f1f4f7, #dce3ea); box-shadow: 0 0 0 4px #e8edf2; }
+.leafShade { position: absolute; inset: 0; border-radius: 4px; pointer-events: none; animation: leafShade .7s ease-in-out both; }
+@keyframes leafShade { 0%, 100% { background: transparent; } 50% { background: linear-gradient(90deg, rgba(0,0,0,.26), rgba(255,255,255,.32) 60%, rgba(0,0,0,.12)); } }
+
+/* The shine follows the pointer; the card tilts toward it */
+.pocketBtn[data-hot] .glare { background: radial-gradient(circle at var(--gx) var(--gy), rgba(255,255,255,.5), rgba(255,255,255,.12) 28%, rgba(255,255,255,0) 55%); }
+.pocketBtn[data-hot] .fit { transform: perspective(700px) rotateY(var(--ry)) rotateX(var(--rx)); }
+.fit { transition: transform .1s ease-out; }
+@media (prefers-reduced-motion: reduce) { .pocketBtn[data-hot] .fit { transform: none; } }
+
+/* The left page in the Binder Room's style: brass plate, a gold-on-black label, brass-framed tiles, leather buttons,
+   mini album spines */
+.kicker { align-self: flex-start; display: inline-flex; align-items: center; padding: 5px 12px; border-radius: 5px; background: linear-gradient(180deg, #f0d58c, #c9a24a 55%, #a07c2c); color: #3a2808;
+  font-weight: 800; font-size: 10.5px; letter-spacing: 2px; box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 1px 3px rgba(0,0,0,.25); }
+.title { filter: none; padding: 10px 14px; border: 2px solid #c9a24a; background: #14110c; border-radius: 3px; box-shadow: inset 0 0 0 2px #14110c, inset 0 0 0 3px rgba(201,162,74,.55);
+  -webkit-text-fill-color: #e7c160; color: #e7c160; text-shadow: 0 1px 0 #6d521a; }
+.line { font-family: Georgia, serif; font-size: 14px; line-height: 1.55; color: #3b4652; }
+.ownLine { color: #6a4c10; background: rgba(226,176,74,.18); box-shadow: inset 0 0 0 1px rgba(201,162,74,.45); }
+.stats > div, .box { border: 0; border-radius: 4px; background: linear-gradient(180deg, #fffdf6, #f3ead6); box-shadow: inset 0 0 0 1px #c9a24a, inset 0 0 0 3px #fffdf6, inset 0 0 0 4px rgba(201,162,74,.45); }
+.stats b { font-family: 'Barlow Condensed', 'Inter', sans-serif; font-style: italic; font-size: 22px; color: #173657; }
+.stats small, .boxHead, .boxLab { color: #8a6414; }
+.linkBtn { border-radius: 8px; background: #5a3820; background-image: linear-gradient(180deg, rgba(255,255,255,.12), rgba(0,0,0,.2)); color: #f5d98e; box-shadow: inset 0 0 0 1.5px #c9a24a; }
+.linkBtn:hover { background: #6b4325; color: #fff3c8; }
+.primary { border-radius: 8px; background: linear-gradient(180deg, #f0d58c, #c9a24a); color: #2a1c06; }
+.setList button { border-radius: 4px; border-bottom: 1px dotted #d6cbb0; }
+.setList button i { width: 12px; height: 22px; background-image: linear-gradient(90deg, rgba(255,255,255,.2), rgba(0,0,0,.35)); box-shadow: inset 0 5px 0 -3px rgba(201,162,74,.9), inset 0 -5px 0 -3px rgba(201,162,74,.9); }
+.setList .setOn { background: rgba(226,176,74,.2); box-shadow: none; }
