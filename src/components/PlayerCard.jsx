@@ -317,10 +317,11 @@ export function CardFront({ name, row, game, team, headshot }) {
         {variant === 'stat' && <div className={styles.statFace}>
           {/* Honored cards carry the date in the header placard; the numeral and its unit name the feat */}
           {!game.honor && <div className={styles.statTop}><b>{fmtDay(game.date)}</b></div>}
-          <div className={styles.statBig} data-sweep={feats[0].sweep ? '' : undefined}>
+          <div className={styles.statBig} data-sweep={feats[0].sweep || feats[0].fives ? '' : undefined}>
             <span style={{ '--fs': `${statSize(feats[0].big)}px` }}>{feats[0].big}</span>
             <small>{feats[0].unit}</small>
           </div>
+          {feats[0].fives && <div className={styles.sweepTag} data-five="">5x5 · five or more of all five</div>}
           {feats[0].sweep && <div className={styles.sweepTag} data-out={feats[0].sweep === 2 ? '' : undefined}>{feats[0].sweep === 2 ? 'Box Score Sweep · Outright' : 'Box Score Sweep · led or tied all five'}</div>}
           {feats.length > 1 && <div className={styles.statMore}>{feats.slice(1).map(f => <span key={f.key}>+ {f.label}</span>)}</div>}
           <div className={styles.statWho}>
@@ -450,6 +451,8 @@ export function featsFor(r) {
   if (r.sw) out.push({ key: 'sweep', label: r.sw === 2 ? 'Box Score Sweep · outright' : 'Box Score Sweep', big: FEAT_CATS.map(([k]) => v(k)).join('·'), unit: 'PTS · REB · AST · STL · BLK', sweep: r.sw })
   if (tens.length >= 5) out.push({ key: 'x5', label: 'Quintuple-double', ...multi() })
   else if (tens.length === 4) out.push({ key: 'x4', label: 'Quadruple-double', ...multi() })
+  // 5x5: five or more of all five
+  if (FEAT_CATS.every(([k]) => v(k) >= 5)) out.push({ key: 'x5x5', label: '5x5', big: FEAT_CATS.map(([k]) => v(k)).join('·'), unit: 'PTS · REB · AST · STL · BLK', fives: true })
   if (v('pts') >= 50) { const t = Math.floor(v('pts') / 10) * 10; out.push({ key: 'pts', label: `${t}-point game`, big: String(v('pts')), unit: 'Points' }) }
   if (v('trb') >= 30) out.push({ key: 'reb', label: `${Math.floor(v('trb') / 10) * 10}-rebound game`, big: String(v('trb')), unit: 'Rebounds' })
   if (v('ast') >= 20) out.push({ key: 'ast', label: `${Math.floor(v('ast') / 10) * 10}-assist game`, big: String(v('ast')), unit: 'Assists' })

@@ -11,7 +11,7 @@
 //   stat line     the rarest one only: 40 points +30% · triple-double +40% · 25 rebounds +45% · 20-20 +60% ·
 //                 50 points or 30 rebounds +80% · 20 assists, 10 blocks, 10 steals or 10 threes +120% · 60 points +150% ·
 //                 Box Score Sweep +80% (led or tied all five) or +150% (led all five outright) ·
-//                 70 points +250% · 80 points or a quadruple-double +400% · 100 points +800%
+//                 5x5 (five or more of all five) +200% · 70 points +250% · 80 points or a quadruple-double +400% · 100 points +800%
 //   other         debut +40% · career game +25% · career-high Elo +10%
 
 export const TIER_BASE = { common: 1, rare: 3, standout: 6, legend: 12, icon: 25, goat: 60 }
@@ -55,10 +55,13 @@ export function statLine(r) {
   const tens = ['pts', 'trb', 'ast', 'stl', 'blk'].filter(k => v(k) >= 10).length
   const twenties = ['pts', 'trb', 'ast'].filter(k => v(k) >= 20).length
   const pts = v('pts')
+  // 5x5: five or more points, rebounds, assists, steals and blocks (steals and blocks are on record from 1973-74)
+  const fives = ['pts', 'trb', 'ast', 'stl', 'blk'].every(k => v(k) >= 5)
   if (pts >= 100) return ['100-point game', 8]
   if (pts >= 80) return ['80-point game', 4]
   if (tens >= 4) return ['Quadruple-double', 4]
   if (pts >= 70) return ['70-point game', 2.5]
+  if (fives) return ['5x5', 2]
   if (pts >= 60) return ['60-point game', 1.5]
   if (v('sw') === 2) return ['Box Score Sweep, outright', 1.5]
   if (v('ast') >= 20) return ['20 assists', 1.2]
@@ -88,7 +91,8 @@ export function hasFeat(r) {
   const v = k => r[k] || 0
   const tens = ['pts', 'trb', 'ast', 'stl', 'blk'].filter(k => v(k) >= 10).length
   const twenties = ['pts', 'trb', 'ast'].filter(k => v(k) >= 20).length
-  return v('sw') > 0 || tens >= 3 || v('pts') >= 50 || v('trb') >= 30 || v('ast') >= 20 || v('blk') >= 10 || v('stl') >= 10 || v('tp') >= 10 || twenties >= 2
+  const fives = ['pts', 'trb', 'ast', 'stl', 'blk'].every(k => v(k) >= 5)
+  return v('sw') > 0 || fives || tens >= 3 || v('pts') >= 50 || v('trb') >= 30 || v('ast') >= 20 || v('blk') >= 10 || v('stl') >= 10 || v('tp') >= 10 || twenties >= 2
 }
 
 const PLAYOFF = { r1: ['First round', 0.15], r2: ['Second round', 0.2], cf: ['Conference Finals', 0.3], finals: ['Finals', 0.45], champ: ['Title clincher', 1] }

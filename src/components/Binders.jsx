@@ -883,7 +883,7 @@ export const LEAGUE_SETS = [
   { id: 'debuts', title: 'Greatest debuts', short: 'Debuts', color: '#173657', album: 'Debut',
     desc: 'The 125 best first games, by Game Score, graded against every debut on record. One GOAT, four Icons, 15 Legends, 30 Standouts and 75 Rares.', ranked: true },
   { id: 'stat', title: 'Stat-line legends', short: 'Stat lines', color: '#6b2d8a', chrono: true,
-    desc: 'Every 60-point game, quadruple-double, 40-rebound game, 25-assist game and Box Score Sweep (leading the game in points, rebounds, assists, steals and blocks) on record.' },
+    desc: 'Every 60-point game, quadruple-double, 40-rebound game, 25-assist game, 5x5 (five or more points, rebounds, assists, steals and blocks) and Box Score Sweep (leading the game in all five) on record.' },
   { id: 'holidays', title: 'Holidays', short: 'Holidays', color: '#7a3a12',
     desc: 'The 25 best games (by Game Score) played on each holiday: Halloween, Thanksgiving, Christmas, MLK Day and Valentine’s Day. Holiday cards wear the holiday’s colors in every era.' },
   { id: 'crowns', title: 'Coronations', short: 'Coronations', color: '#9a2a2a', chrono: true,
@@ -914,6 +914,8 @@ const featLine = r => {
   if (tens >= 4) return `${tens === 5 ? 'Quintuple' : 'Quadruple'}-double`
   if (v('pts') >= 60) return `${v('pts')} points`
   if (v('trb') >= 40) return `${v('trb')} rebounds`
+  if (v('ast') < 25 && ['pts', 'trb', 'ast', 'stl', 'blk'].every(k => v(k) >= 5)) return '5x5'
+  if (v('ast') < 25 && r.sw) return 'Box Score Sweep'
   return `${v('ast')} assists`
 }
 
@@ -1090,7 +1092,7 @@ function PointsHelp() {
         Performance: how rare the Game Score is, with no ceiling: ×1.5 for a top-5% game, ×2.2 for 1 in 1,000, ×3.5 for Wilt’s 100 (debuts against debuts).</p>
       <p>Bonuses: Player of the Game +25%, Player of the Day +60%. Playoffs: first round +15%, second round +20%, Conference Finals +30%, Finals +45%, title clincher +100%.
         The rarest stat line on the card: 40 points +30%, triple-double +40%, 25 rebounds +45%, 20-20 +60%, 50 points or 30 rebounds +80%, 20 assists or 10 blocks, steals or threes +120%,
-        60 points +150%, 70 points +250%, 80 points or a quadruple-double +400%, 100 points +800%. Debut +40%, career game +25%, career-high Elo +10%.</p>
+        60 points +150%, 5x5 +200%, 70 points +250%, 80 points or a quadruple-double +400%, 100 points +800%. Debut +40%, career game +25%, career-high Elo +10%.</p>
       <p>Special cards: Peak, the game’s card +50%. Duel of the Day, both cards +25%. Rivalry, 360 × its tier (GOAT 5,400, Rare 180) and up to +50% at the top of its tier.
         Starting Five, the five players’ cards from that game added up, +40% for a title team. Season card, 80 × his final tier by the share of a season he played,
         plus All-Star +25%, All-League +60/45/30%, MVP +100%, title +50%.</p>

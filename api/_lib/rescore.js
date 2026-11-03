@@ -69,6 +69,8 @@ async function run(sql, origin) {
       await rescore(sql, origin, c => !c?.kind && c?.row?.sw > 0, 'sweep-cards')
     }
   }
+  // 5x5 games (five or more of all five): the stat-line bonus for cards already in binders
+  if (!done.has('five-by-five')) await rescore(sql, origin, c => !c?.kind && c?.row && ['pts', 'trb', 'ast', 'stl', 'blk'].every(k => (c.row[k] || 0) >= 5), 'five-by-five')
   // Franchise History, Completed Franchise and Banner cards named for an old team name (Tri-Cities Blackhawks for the
   // Hawks): the franchise's current name, once
   if (!done.has('reward-names')) {

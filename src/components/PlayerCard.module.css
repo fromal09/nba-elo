@@ -694,6 +694,7 @@
 /* Box Score Sweep: the stat-line insert for leading the game in all five categories */
 .sweepTag { align-self: center; margin: 4px auto 0; font-size: 9.5px; font-weight: 900; letter-spacing: 1.4px; text-transform: uppercase;
   padding: 3px 9px; border-radius: 3px; background: #e6d0f2; color: #3a1150; position: relative; z-index: 4; }
+.sweepTag[data-five] { background: linear-gradient(180deg, #c8f0dc, #6fc79b); color: #0f3b26; box-shadow: 0 0 12px rgba(111, 199, 155, .45); }
 .sweepTag[data-out] { background: linear-gradient(180deg, #ffe39a, #d9a93a); color: #3a1150; box-shadow: 0 0 12px rgba(255, 215, 122, .5); }
 
 /* ── Holiday cards (holidays.js): a header band in the holiday's colors, its motif in the photo, a holiday frame ── */

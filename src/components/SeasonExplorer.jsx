@@ -1788,7 +1788,7 @@ const GLOSSARY = [
     ['Duel %', 'Share of duels won over the season.'],
     ['Giant-Slayer', 'The least likely duel win by a player with real minutes (12+ each, a 10+ Game Score from the winner): of the game, and of the day across every game.'],
     ['Duel of the Game', 'The best head-to-head between two opponents: both need 20+ minutes and a 10+ Game Score, and the pair is scored on its weaker side, the lower Game Score × the lower pre-game Elo ÷ 2,500, so one superstar’s big night can’t carry it. The Duel of the Day is the best of these across every game.'],
-    ['Stat-line inserts', 'Feats get their own card: 50-, 60- and 70-point games, triple-, quadruple- and quintuple-doubles, 20/20s, 30+ rebounds, 20+ assists, 10+ threes, blocks or steals.'],
+    ['Stat-line inserts', 'Feats get their own card: 50-, 60- and 70-point games, triple-, quadruple- and quintuple-doubles, 5x5s, 20/20s, 30+ rebounds, 20+ assists, 10+ threes, blocks or steals.'],
     ['Upset', 'A win by the side with less than a 50% pre-game chance, whether a team or a player in a duel.'],
   ]],
   ['Teams and forecasts', [

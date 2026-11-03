@@ -148,9 +148,11 @@ class Top:
 
 
 def stat_feat(p):
-    """Rare stat lines for the league-wide stat set: 60 points, a quadruple-double, 40 rebounds, 25 assists, a Box Score Sweep."""
+    """Rare stat lines for the league-wide stat set: 60 points, a quadruple-double, 40 rebounds, 25 assists, a 5x5 (five
+    or more of all five), a Box Score Sweep."""
     tens = sum(1 for k in ("pts", "trb", "ast", "stl", "blk") if (p.get(k) or 0) >= 10)
-    return (p.get("sw") or 0) > 0 or (p.get("pts") or 0) >= 60 or tens >= 4 or (p.get("trb") or 0) >= 40 or (p.get("ast") or 0) >= 25
+    fives = all((p.get(k) or 0) >= 5 for k in ("pts", "trb", "ast", "stl", "blk"))
+    return fives or (p.get("sw") or 0) > 0 or (p.get("pts") or 0) >= 60 or tens >= 4 or (p.get("trb") or 0) >= 40 or (p.get("ast") or 0) >= 25
 
 
 def bands(games):
