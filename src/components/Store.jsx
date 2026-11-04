@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { HOLIDAYS } from './holidays'
 import styles from './Store.module.css'
 import { Fit, usePull, fromIndex } from './Binders'
@@ -6,19 +6,22 @@ import { MiniCard } from './PlayerCard'
 import { Coin, TIER_NAME, useCollector, binderFit, FitLine } from './Collector'
 
 /*
- * The Store, as a shop counter that slides in over the Binder Room from the coin stack on your desk. Packs hang on
- * the wall shelves with their prices on tags; today's On This Day singles (1 GOAT, 2 Icons, 3 Legends, 4 Standouts,
- * 5 Rares from games on this date, the same for everyone, new at midnight Eastern) sit in the glass counter on velvet;
- * the brass till is your Coins, and its receipt is today's earnings. Recent sales wait on the returns shelf.
+ * The Store, a card shop that opens over the Binder Room from the coin stack on your desk. Packs hang on pegboard
+ * hooks under track lights with shelf tags for prices; the brass register is your Coins (its receipt: today's
+ * earnings); today's On This Day singles (1 GOAT, 2 Icons, 3 Legends, 4 Standouts, 5 Rares from games on this date,
+ * the same for everyone, new at midnight Eastern) stand in a lit glass case, one row you scroll sideways. Recent
+ * sales wait on the returns shelf.
  */
 
 const fmtDay = (d, o = { month: 'long', day: 'numeric' }) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', o)
 const n0 = v => Math.round(v || 0).toLocaleString()
 const PRED_KINDS = ['predict', 'predcorrect', 'upset', 'perfect', 'lock', 'lockloss', 'duelcorrect', 'lineup', 'pickweekly']
-const ROWS = [['goat', 1], ['icon', 2], ['legend', 3], ['standout', 4], ['rare', 5]]
-// Foil colors by pack: [dark, light, ink]
+const TIER_ORDER = ['goat', 'icon', 'legend', 'standout', 'rare']
+// Foil by pack: [dark, light, ink]
 const FOIL = { holiday: ['#3a1450', '#f07c1a', '#fff3c8'], standard: ['#8e98a2', '#f6f7f8', '#173657'], era: ['#6d3a0c', '#f2a33a', '#2a1404'], storeteam: ['#173657', '#c3d4e6', '#0b1d33'],
   playoff: ['#0b0b0b', '#e7c160', '#f5d98e'], legend: ['#8a6414', '#fff3c8', '#3a2808'], goat: ['#1a1405', '#ffe48a', '#1a1405'] }
+const TAG = { standard: 'RARE+ LAST', era: 'ERA · THIS WEEK', storeteam: 'YOU PICK', playoff: 'FINALS LAST', legend: 'LEGEND+', goat: '★ GUARANTEED', holiday: 'HOLIDAY' }
+const LAMPS = [10, 30, 50, 70, 90]
 
 function useCountdown(next) {
   const [, tick] = useState(0)
@@ -32,21 +35,39 @@ function useCountdown(next) {
   return `${h}h ${m}m`
 }
 
+// A sideways row with arrows, fading edges and page pips; where you are in it (0 to 1)
+function useRail() {
+  const ref = useRef(null)
+  const [p, setP] = useState(0)
+  const [fits, setFits] = useState(false)
+  const measure = () => { const el = ref.current; if (!el) return; const max = el.scrollWidth - el.clientWidth; setFits(max <= 2); setP(max > 0 ? el.scrollLeft / max : 1) }
+  useEffect(() => { measure(); const ro = new ResizeObserver(measure); if (ref.current) ro.observe(ref.current); return () => ro.disconnect() }, [])
+  const by = d => ref.current?.scrollBy({ left: d * Math.max(200, ref.current.clientWidth * 0.8), behavior: 'smooth' })
+  return { ref, p, fits, onScroll: measure, by, measure }
+}
+
+function Pips({ p, n = 3 }) {
+  const on = Math.min(n - 1, Math.floor(p * n * 0.999))
+  return <span className={styles.pips} aria-hidden="true">{Array.from({ length: n }, (_, i) => <i key={i} data-on={i === on ? '' : undefined} />)}</span>
+}
+
 export function StoreBook({ env, onClose, onMine }) {
   const Ccards = useCollector().cards
   const C = env.collector
   const [store, setStore] = useState(null)
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(null)
-  const [pick, setPick] = useState(null) // the pack taken down off the shelf
+  const [pick, setPick] = useState(null) // the pack taken off its hook
   const [receipt, setReceipt] = useState(false)
   const P = usePull(env, null)
+  const wall = useRail(), rail = useRail()
   const load = () => C.loadStore().then(setStore).catch(e => setErr(e.message))
   useEffect(() => { load() }, [])
   useEffect(() => { if (store && C.me?.coins?.balance !== undefined) load() }, [C.me?.stats?.cards])
   useEffect(() => { document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = '' } }, [])
+  useEffect(() => { wall.measure(); rail.measure() }, [store])
   useEffect(() => {
-    const k = e => { if (e.key === 'Escape' && !P.open) { if (pick) setPick(null); else onClose() } }
+    const k = e => { if (e.key === 'Escape' && !P.open) { if (pick) setPick(null); else if (receipt) setReceipt(false); else onClose() } }
     addEventListener('keydown', k); return () => removeEventListener('keydown', k)
   })
   const left0 = useCountdown(store?.next || '2099-01-01')
@@ -72,96 +93,128 @@ export function StoreBook({ env, onClose, onMine }) {
   const ch = coins.challenge
   const f = store?.featured
   const pk = pick && store?.packs.find(p => p.kind === pick)
+  const singles = f ? [...f.cards].sort((a, b) => TIER_ORDER.indexOf(a.card.tier) - TIER_ORDER.indexOf(b.card.tier) || b.points - a.points) : []
+  const deal = singles.find(x => x.deal)
+  const foilOf = p => (p.hol && HOLIDAYS[p.hol] ? [HOLIDAYS[p.hol].a, HOLIDAYS[p.hol].b, HOLIDAYS[p.hol].c] : FOIL[p.kind] || FOIL.standard)
+  const short = name => name.replace(/ Pack$/, '')
+  const fs = name => (n => (n > 8 ? 14 : n > 7 ? 16 : n > 5 ? 19 : 21))(short(name).length)
 
   return (
     <div className={styles.layer} role="dialog" aria-modal="true" aria-label="The Store">
+      <div className={styles.ceiling} aria-hidden="true"><span className={styles.track} />{LAMPS.map(x => <i key={x} className={styles.lamp} style={{ left: `${x}%` }} />)}</div>
       <div className={styles.shop}>
         <header className={styles.top}>
           <div className={styles.sign}><small>BINDERS · COINS ONLY</small><b>The Store</b></div>
+          <button type="button" className={styles.mini} onClick={() => setReceipt(r => !r)} aria-label={`Your Coins: ${n0(bal)}. Show today’s receipt`}><Coin size={14} />{n0(bal)}</button>
           <button type="button" className={styles.close} onClick={onClose} aria-label="Back to your desk">×</button>
         </header>
 
         {!store ? <p className={styles.wait}>{err || 'Opening the store…'}</p> : <>
           <div className={styles.upper}>
-            <section className={styles.wall} aria-labelledby="st-packs">
-              <h2 id="st-packs" className={styles.plate}>PACKS{store.era ? ` · ${store.era.name.toUpperCase()} THIS WEEK` : ''}</h2>
-              <div className={styles.shelf}>
+            <section className={styles.peg} aria-labelledby="st-packs">
+              {LAMPS.slice(0, 4).map(x => <i key={x} className={styles.cone} style={{ left: `${x + 3}%` }} aria-hidden="true" />)}
+              <h2 id="st-packs" className={styles.plate}>PACKS · PULL ONE OFF THE HOOK</h2>
+              <div className={styles.hooks} ref={wall.ref} onScroll={wall.onScroll}>
                 {store.packs.map(p => {
-                  const [a, b, ink] = p.hol && HOLIDAYS[p.hol] ? [HOLIDAYS[p.hol].a, HOLIDAYS[p.hol].b, HOLIDAYS[p.hol].c] : FOIL[p.kind] || FOIL.standard
+                  const [a, b, ink] = foilOf(p)
                   return (
-                    <button key={p.kind} type="button" className={styles.item} data-on={pick === p.kind ? '' : undefined} onClick={() => setPick(k => (k === p.kind ? null : p.kind))}
+                    <button key={p.kind} type="button" className={styles.col} data-on={pick === p.kind ? '' : undefined} onClick={() => setPick(k => (k === p.kind ? null : p.kind))}
                       aria-pressed={pick === p.kind} aria-label={`${p.name}, ${n0(p.price)} Coins`}>
-                      <span className={styles.foil} style={{ '--a': a, '--b': b, '--ink': ink }}><span>FPR</span><b style={{ fontSize: (n => (n > 8 ? 13 : n > 7 ? 15.5 : n > 5 ? 18 : 20))(p.name.replace(/ Pack$/, '').length) }}>{p.name.replace(/ Pack$/, '')}</b>{p.kind === 'goat' && <i>★</i>}</span>
-                      <span className={styles.price}><Coin size={11} />{n0(p.price)}</span>
+                      <span className={styles.hook} aria-hidden="true" />
+                      <span className={styles.stack} style={{ '--a': a, '--b': b, '--ink': ink }}>
+                        <span className={styles.pk} data-back="2" /><span className={styles.pk} data-back="1" />
+                        <span className={styles.pk}><span>FPR</span><b style={{ fontSize: fs(p.name) }}>{short(p.name)}</b>{p.kind === 'goat' && <i>★</i>}</span>
+                      </span>
+                      <span className={styles.talker}><small>{p.kind === 'era' ? `${(store.era?.years || '').toUpperCase()}` : TAG[p.kind] || 'PACK'}</small><Coin size={11} />{n0(p.price)}</span>
                     </button>
                   )
                 })}
               </div>
-              <div className={styles.plank} />
-              {pk && <div className={styles.pickCard}>
-                <span><b>{pk.name}</b>{pk.desc}</span>
-                <button type="button" className={styles.buy} disabled={bal < pk.price || !!busy} onClick={() => buyPack(pk.kind)}>
-                  <Coin size={14} />{busy === pk.kind ? 'Opening…' : `Buy · ${n0(pk.price)}`}
-                </button>
-                {bal < pk.price && <small>{n0(pk.price - bal)} more Coins</small>}
+              {!wall.fits && <>
+                <span className={styles.wallFade} data-off={wall.p >= 0.99 ? '' : undefined} aria-hidden="true" />
+                <span className={styles.swipe} aria-hidden="true">{store.packs.length} PACKS · SWIPE <Pips p={wall.p} /></span>
+              </>}
+              {pk && <div className={styles.sheetDim} onClick={() => setPick(null)}>
+                <div className={styles.pickCard} role="dialog" aria-label={pk.name} onClick={e => e.stopPropagation()}>
+                  <span className={styles.grab} aria-hidden="true" />
+                  <span className={styles.pickPack} style={{ '--a': foilOf(pk)[0], '--b': foilOf(pk)[1], '--ink': foilOf(pk)[2] }}><span className={styles.pk}><span>FPR</span><b style={{ fontSize: fs(pk.name) }}>{short(pk.name)}</b></span></span>
+                  <span className={styles.pickText}><small>{TAG[pk.kind] || 'PACK'}</small><b>{pk.name}</b>{pk.desc}</span>
+                  <span className={styles.pickBuy}>
+                    <button type="button" className={styles.buy} disabled={bal < pk.price || !!busy} onClick={() => buyPack(pk.kind)}>
+                      <Coin size={14} />{busy === pk.kind ? 'Opening…' : `Buy · ${n0(pk.price)}`}
+                    </button>
+                    {bal < pk.price && <small>{n0(pk.price - bal)} more Coins to go</small>}
+                  </span>
+                </div>
               </div>}
             </section>
 
-            <aside className={styles.tillBox} aria-label="Your Coins">
-              <button type="button" className={styles.till} onClick={() => setReceipt(r => !r)} aria-expanded={receipt}>
-                <span className={styles.screen}><small>YOUR COINS</small><b>{n0(bal)}</b></span>
-                <span className={styles.keys} aria-hidden="true">{Array.from({ length: 10 }, (_, i) => <i key={i} />)}</span>
-                <span className={styles.tillLab}>{receipt ? 'Tear off the receipt' : `${n0(coins.earned)} earned today · see how`}</span>
-              </button>
-              {receipt && <div className={styles.receipt}>
+            <aside className={styles.side}>
+              <div className={styles.neon} aria-hidden="true">OPEN</div>
+              <div className={styles.board}>
+                <small>TODAY ON THE BOARD</small>
+                <span>{fmtDay(store.day, { month: 'short', day: 'numeric' })} singles · new in {left0}</span>
+                {deal && <span>Card of the Day ½ price</span>}
+                {store.era && <span>{store.era.name} packs all week</span>}
+              </div>
+            </aside>
+          </div>
+
+          <section className={styles.counter} aria-labelledby="st-otd">
+            <div className={styles.register}>
+              {receipt && <div className={styles.receipt} role="region" aria-label="Today’s Coins">
                 <b>TODAY’S COINS · {n0(coins.earned)}</b>
                 {ch && <p className={ch.done ? styles.done : ''}>{ch.done ? '✓ ' : ''}Challenge: {ch.text} · {ch.coins}</p>}
                 {earnRows.map(([l, v, done]) => <p key={l} className={done ? styles.done : ''}><span>{l}</span><span>{v}</span></p>)}
                 <p className={styles.small}>Sell any card a day after you get it, for {Math.round(rates.sellRate * 100)}% of its points (up to {rates.sellCap} a day). Buy it back within {rates.buybackHours} hours.</p>
                 <button type="button" className={styles.sellBtn} onClick={onMine}>Sell cards from My binder</button>
               </div>}
-            </aside>
-          </div>
-
-          <section className={styles.counter} aria-labelledby="st-otd">
-            <div className={styles.counterTop} />
-            <div className={styles.glass}>
-              <div className={styles.glassHead}>
-                <h2 id="st-otd">{f.random ? 'Today’s singles' : `${fmtDay(store.day)} in league history`}</h2>
-                <span>{f.random ? `No games were ever played on ${fmtDay(store.day)}, so today’s cards come from anywhere.` : `${f.partial ? 'A few are random where a tier had no game on this date. ' : ''}Fifteen cards from games played on this date.`} New cards in {left0}.</span>
-              </div>
-              {ROWS.map(([tier]) => {
-                const row = f.cards.filter(x => x.card.tier === tier)
-                if (!row.length) return null
-                return (
-                  <div key={tier} className={styles.tray}>
-                    <span className={styles.trayLab} data-tier={tier}>{TIER_NAME[tier]}</span>
-                    <div className={styles.trayRow}>
-                      {row.map(x => {
-                        const ref = `${x.card.s}|${x.card.id}|${x.card.row.n}`
-                        const e = fromIndex(env, x.card, { key: ref })
-                        const short = bal < x.price
-                        return (
-                          <div key={ref} className={styles.single} data-deal={x.deal ? '' : undefined}>
-                            {x.deal && <span className={styles.dealTag}>Card of the Day · ½ price</span>}
-                            <button type="button" className={styles.slab} onClick={() => P.pull(e)} aria-label={`${x.card.row.n}: preview`}>
-                              <Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit>
-                            </button>
-                            <span className={styles.meta}>{x.points.toLocaleString()} pts{!x.onDate ? ' · random' : ''}</span>
-                            <FitLine fit={binderFit(Ccards, x.card)} className={styles.fitLine} />
-                            {x.owned ? <span className={styles.owned}>✓ In your binder</span>
-                              : <button type="button" className={styles.buy} disabled={short || !!busy} onClick={() => buyCard(ref)} title={short ? `You need ${n0(x.price - bal)} more Coins` : ''}>
-                                <Coin size={13} />{busy === ref ? '…' : n0(x.price)}{x.deal && <s>{n0(x.full)}</s>}
-                              </button>}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
+              <button type="button" className={styles.till} onClick={() => setReceipt(r => !r)} aria-expanded={receipt}>
+                <span className={styles.disp}><small>YOUR COINS</small><b>{n0(bal)}</b></span>
+                <span className={styles.keys} aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} />)}</span>
+                <span className={styles.tillLab}>{receipt ? 'Tear off the receipt' : `${n0(coins.earned)} earned today · receipt`}</span>
+              </button>
             </div>
-            <div className={styles.counterFront} />
+            <div className={styles.ctop} />
+            <div className={styles.case}>
+              <div className={styles.caseHead}>
+                <h2 id="st-otd">{f.random ? 'Today’s singles' : `${fmtDay(store.day, { month: 'short', day: 'numeric' }).toUpperCase()} IN LEAGUE HISTORY`}</h2>
+                <span className={styles.count}>{singles.length} SINGLES{rail.fits ? '' : ' · SCROLL FOR MORE'}{!rail.fits && <Pips p={rail.p} />}</span>
+              </div>
+              <div className={styles.rail} ref={rail.ref} onScroll={rail.onScroll} aria-label="Today’s singles">
+                {singles.map(x => {
+                  const ref = `${x.card.s}|${x.card.id}|${x.card.row.n}`
+                  const e = fromIndex(env, x.card, { key: ref })
+                  const poor = bal < x.price
+                  return (
+                    <div key={ref} className={styles.single} data-tier={x.card.tier}>
+                      {x.deal && <span className={styles.dealTag}>CARD OF THE DAY · ½ PRICE</span>}
+                      <button type="button" className={styles.slab} onClick={() => P.pull(e)} aria-label={`${x.card.row.n}, ${TIER_NAME[x.card.tier]}: preview`}>
+                        <Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit>
+                      </button>
+                      <span className={styles.stand} aria-hidden="true" />
+                      <span className={styles.sticker} data-deal={x.deal ? '' : undefined}>{n0(x.price)}</span>
+                      <span className={styles.under}>
+                        <span className={styles.meta}>{TIER_NAME[x.card.tier]} · {x.points.toLocaleString()} pts{!x.onDate ? ' · random' : ''}</span>
+                        {x.owned ? <span className={styles.owned}>✓ In your binder</span>
+                          : <button type="button" className={styles.buy} data-small="" disabled={poor || !!busy} onClick={() => buyCard(ref)} title={poor ? `You need ${n0(x.price - bal)} more Coins` : ''}>
+                            <Coin size={12} />{busy === ref ? '…' : n0(x.price)}{x.deal && <s>{n0(x.full)}</s>}
+                          </button>}
+                        <FitLine fit={binderFit(Ccards, x.card)} className={styles.fitLine} />
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              {!rail.fits && <>
+                <span className={styles.fadeL} data-off={rail.p <= 0.01 ? '' : undefined} aria-hidden="true" />
+                <span className={styles.fadeR} data-off={rail.p >= 0.99 ? '' : undefined} aria-hidden="true" />
+                <button type="button" className={styles.arrow} data-side="l" onClick={() => rail.by(-1)} disabled={rail.p <= 0.01} aria-label="Scroll singles left">‹</button>
+                <button type="button" className={styles.arrow} data-side="r" onClick={() => rail.by(1)} disabled={rail.p >= 0.99} aria-label="Scroll singles right">›</button>
+              </>}
+              <span className={styles.glare} aria-hidden="true" />
+            </div>
+            <div className={styles.base} />
           </section>
 
           {store.sold.length > 0 && <section className={styles.returns} aria-labelledby="st-sold">
@@ -175,7 +228,7 @@ export function StoreBook({ env, onClose, onMine }) {
                     <span className={styles.soldCard}><Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit></span>
                     <span className={styles.soldText}><b>{x.card.row.n}</b><small>{TIER_NAME[x.card.tier]} · sold for {x.price} · {Math.floor(hrs)}h {Math.floor((hrs % 1) * 60)}m left</small>
                       {x.owned ? <em>Back in your binder</em>
-                        : <button type="button" className={styles.buy} disabled={!!busy || bal < x.price} onClick={() => undo(x.id)}><Coin size={13} />Buy back · {x.price}</button>}</span>
+                        : <button type="button" className={styles.buy} data-small="" disabled={!!busy || bal < x.price} onClick={() => undo(x.id)}><Coin size={12} />Buy back · {x.price}</button>}</span>
                   </div>
                 )
               })}
