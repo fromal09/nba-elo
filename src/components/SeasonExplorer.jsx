@@ -11,6 +11,7 @@ import predStyles from './Predictions.module.css'
 import MyPredictions, { LineupStrip, useMyDay } from './MyPredictions'
 import PlayerOfWeek from './PlayerOfWeek'
 import { GameScreen } from './GameRoom'
+import { SportsbookDay, SportsbookFrame, ScoreModeChooser, ScoreModeSwitch, useScoreMode } from './Sportsbook'
 import { hrefFor, linkTo } from '../nav.js'
 import { buildForecaster, blendWeight, norm, WP, winChance, makeProjector, normCdf, untie } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
@@ -349,6 +350,9 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
   const [rotation, setRotation] = useState(null) // recent minutes per player
   const [best, setBest] = useState({})           // best rank among active players, per player
   const [careers, setCareers] = useState({})     // career bests through the latest data, for live career moments
+  // Classic or Sportsbook (src/components/Sportsbook.jsx), remembered on this device; first visit asks
+  const [scoreMode, setScoreMode] = useScoreMode()
+  const book = scoreMode === 'book'
   // 'standings' | 'today' | 'picks'; App owns it, so each tab has its own address under /scoreboard
   const view = mode === 'today' ? 'today' : mode === 'picks' ? 'picks' : mode === 'potw' ? 'potw' : 'standings'
   const setView = v => onMode?.(v)
@@ -555,6 +559,52 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
   const groups = GROUP_ORDER.filter(g => Object.values(teams).some(t => t.group === g))
   const league = s.leagues?.length ? ['BAA', 'NBA', 'ABA'].filter(l => s.leagues.includes(l)).join(' & ') : 'NBA'
 
+  const body = <>
+      {view === 'standings' && fc && sd && (
+        <div className={styles.standBar} data-sb="standbar">
+          <div className={styles.standTabs} data-sb="standtabs">
+            <button data-on={standView === 'standings' ? '' : undefined} className={standView === 'standings' ? styles.standOn : ''} onClick={() => setStandView('standings')}>Standings</button>
+            <button data-on={standView === 'odds' ? '' : undefined} className={standView === 'odds' ? styles.standOn : ''} onClick={() => setStandView('odds')}>Playoff odds</button>
+            <button data-on={standView === 'power' ? '' : undefined} className={standView === 'power' ? styles.standOn : ''} onClick={() => setStandView('power')}>Power rankings</button>
+            <button data-on={standView === 'awards' ? '' : undefined} className={standView === 'awards' ? styles.standOn : ''} onClick={() => setStandView('awards')}>Award races</button>
+          </div>
+          {standView === 'odds' && <span>{ODDS_N.toLocaleString()} simulated seasons · updates with every result</span>}
+          {standView === 'power' && <span>Healthy strength and recent results · updates with every final</span>}
+          {standView === 'awards' && <span>{RACE_N.toLocaleString()} simulated seasons · this season so far plus a projection for the rest</span>}
+        </div>
+      )}
+      {view === 'standings' && newest && live && (live.finals.length > 0 || live.inprog.length > 0) && (
+        <div className={styles.liveBar}>
+          {live.inprog.length > 0 && <span className={styles.liveTxt}><i className={styles.liveDot} />{live.inprog.length} game{live.inprog.length === 1 ? '' : 's'} in progress</span>}
+          {live.finals.length > 0 && <span>{live.finals.length} final{live.finals.length === 1 ? '' : 's'} since the nightly update counted in records, Elo and races</span>}
+          {live.inprog.length > 0 && <span>Projections and odds use live win chances</span>}
+          {live.fetched && <span className={styles.muted}>Updated {new Date(live.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
+        </div>
+      )}
+      {view === 'potw' ? <PlayerOfWeek day={day} onSelect={selectPlayer} ratings={ratings} /> : view === 'picks' ? <MyPredictions day={day} ratings={ratings} /> : view === 'today' ? (
+        <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} book={book} onView={setView} />
+      ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (
+        <OddsView odds={odds} teams={teams} sd={sdL} fc={fc} />
+      ) : standView === 'power' && fc ? (
+        <PowerView sd={sdL} teams={teams} fc={fc} live={live} />
+      ) : standView === 'awards' && fc ? (
+        <AwardRaces race={race} shots={shots} selectPlayer={selectPlayer} />
+      ) : (
+        <div className={styles.confs}>
+          {groups.map(g => (
+            <Standings key={g} label={GROUP_LABEL[g] || g} group={g} sd={sdL} teams={teams} open={open} fc={fc} liveNow={liveNow}
+              setOpen={t => setOpen(o => (o === t ? null : t))}
+              shots={shots} selectPlayer={selectPlayer} goDay={goDay} />
+          ))}
+        </div>
+      )}
+  </>
+  if (book) return (
+    <SportsbookFrame view={view} setView={setView} day={day} setDay={setDay} weekOf={weekOf} addDays={addDays} etToday={etToday} hrefFor={hrefFor} linkTo={linkTo}
+      seasons={index.seasons} season={s.season} setSeason={setSeason} onMode={setScoreMode}>
+      {body}
+    </SportsbookFrame>
+  )
   return (
     <div className={styles.page}>
       <div className={styles.hero}>
@@ -595,46 +645,10 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
             {(view === 'potw' ? weekOf(day) !== weekOf(etToday()) : day !== etToday()) && <button className={styles.todayBtn} onClick={() => setDay(etToday())}>{view === 'potw' ? 'This week' : 'Today'}</button>}
           </div>
         )}
+        <ScoreModeSwitch mode="classic" onChange={setScoreMode} />
       </div>
-
-      {view === 'standings' && fc && sd && (
-        <div className={styles.standBar}>
-          <div className={styles.standTabs}>
-            <button className={standView === 'standings' ? styles.standOn : ''} onClick={() => setStandView('standings')}>Standings</button>
-            <button className={standView === 'odds' ? styles.standOn : ''} onClick={() => setStandView('odds')}>Playoff odds</button>
-            <button className={standView === 'power' ? styles.standOn : ''} onClick={() => setStandView('power')}>Power rankings</button>
-            <button className={standView === 'awards' ? styles.standOn : ''} onClick={() => setStandView('awards')}>Award races</button>
-          </div>
-          {standView === 'odds' && <span>{ODDS_N.toLocaleString()} simulated seasons · updates with every result</span>}
-          {standView === 'power' && <span>Healthy strength and recent results · updates with every final</span>}
-          {standView === 'awards' && <span>{RACE_N.toLocaleString()} simulated seasons · this season so far plus a projection for the rest</span>}
-        </div>
-      )}
-      {view === 'standings' && newest && live && (live.finals.length > 0 || live.inprog.length > 0) && (
-        <div className={styles.liveBar}>
-          {live.inprog.length > 0 && <span className={styles.liveTxt}><i className={styles.liveDot} />{live.inprog.length} game{live.inprog.length === 1 ? '' : 's'} in progress</span>}
-          {live.finals.length > 0 && <span>{live.finals.length} final{live.finals.length === 1 ? '' : 's'} since the nightly update counted in records, Elo and races</span>}
-          {live.inprog.length > 0 && <span>Projections and odds use live win chances</span>}
-          {live.fetched && <span className={styles.muted}>Updated {new Date(live.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
-        </div>
-      )}
-      {view === 'potw' ? <PlayerOfWeek day={day} onSelect={selectPlayer} ratings={ratings} /> : view === 'picks' ? <MyPredictions day={day} ratings={ratings} /> : view === 'today' ? (
-        <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} />
-      ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (
-        <OddsView odds={odds} teams={teams} sd={sdL} fc={fc} />
-      ) : standView === 'power' && fc ? (
-        <PowerView sd={sdL} teams={teams} fc={fc} live={live} />
-      ) : standView === 'awards' && fc ? (
-        <AwardRaces race={race} shots={shots} selectPlayer={selectPlayer} />
-      ) : (
-        <div className={styles.confs}>
-          {groups.map(g => (
-            <Standings key={g} label={GROUP_LABEL[g] || g} group={g} sd={sdL} teams={teams} open={open} fc={fc} liveNow={liveNow}
-              setOpen={t => setOpen(o => (o === t ? null : t))}
-              shots={shots} selectPlayer={selectPlayer} goDay={goDay} />
-          ))}
-        </div>
-      )}
+      {body}
+      {!scoreMode && <ScoreModeChooser onPick={setScoreMode} />}
     </div>
   )
 }
@@ -2252,7 +2266,7 @@ function Progression({ team, games, selectPlayer }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Games by day: scoreboard, leaderboards, box scores. Days already in the data use the
 // pipeline's Elo; later days (and games the data doesn't have yet) are scored live from ESPN.
-function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
+function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer, book, onView }) {
   const asof = index.seasons[0]?.last || '0000-00-00'
   const wantsLive = day >= asof
   const [feed, setFeed] = useState(null)
@@ -2428,8 +2442,8 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
   const openAction = r => (r.g ? openCard(r.g, r.p) : selectPlayer?.(r.n))
 
   // Every table on the day page. Desktop lays them out in grids; phones show one at a time with a picker
-  const sideNode = <>
-          {side.picks.map(([label, x, kind]) => kind ? (
+  // The day's honors as cards: the Classic sidebar and the Sportsbook's display cases show the same ones
+  const pickCard = ([label, x, kind]) => kind ? (
             <div key={label} className={styles.sideCard}>
               <div className={styles.sideLab}>{label}<span>{shortName(x.a.n)} over {shortName(x.b.n)}{kind === 'slayer' ? ` · ${Math.max(1, Math.round(x.wc * 100))}%` : ''}</span></div>
               <button type="button" className={styles.sideMini} onClick={() => setDuelPick({ kind, scope: 'day', an: x.a.n, bn: x.b.n, id: x.g.id })} aria-label={`${label}: ${x.a.n} over ${x.b.n}, open card`}>
@@ -2449,7 +2463,9 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
                 </span>
               </button>
             </div>
-          ))(x))}
+          ))(x)
+  const sideNode = <>
+          {side.picks.map(pickCard)}
           <section className={styles.sideList}>
             <h4><span className={styles.markStar}>★</span> Career games</h4>
             {side.careerGames.length ? side.careerGames.map(({ g, p }) => (
@@ -2549,6 +2565,9 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
 
   return (
     <div className={styles.dayPage}>
+      {book ? <SportsbookDay kit={{ gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor }} day={day} cards={cards} scored={scored} side={side} tables={tables}
+        pickCard={pickCard} openBox={openBox} openCard={openCard} onPreview={c => setPreview({ day, fg: c.fg })} shots={shots} predLive={predLive} myDay={myDay}
+        phone={phone} loading={loading} feedErr={feedErr} unmatched={unmatched} provisional={provisional} onView={onView} /> : <>
       <div className={styles.dayBar}>
         <span><b>{cards.length || 'No'}</b> game{cards.length === 1 ? '' : 's'}{liveN ? <> · <span className={styles.liveTxt}><i className={styles.liveDot} />{liveN} live</span></> : ''}</span>
         {provisional && <span className={styles.muted}>Live and unprocessed games use ratings through {fmtDate(ratings.asof || asof, { month: 'short', day: 'numeric' })}. Elo is provisional until the next data update.</span>}
@@ -2584,6 +2603,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer }) {
         </div>
         {scored.length > 0 && !phone && <aside className={styles.daySide}>{sideNode}</aside>}
         </div>}
+      </>}
 
       {preview && <Preview g={preview} shots={shots} fetched={fc?.fetched} onClose={() => setPreview(null)} />}
       {boxView && <BoxScore key={box.id} team={box.team} game={boxView} has={boxGame.live ? FULL_STATS : sd?.has} shots={shots} sd={daySd} pinPair={box.pin} lineup={lineup}
@@ -2607,7 +2627,8 @@ const safeGame = (f, home, away, day) => { try { return f.game(home, away, day) 
 const ScoreLine = ({ fav, dog, s }) => (
   <b className={styles.scoreLine}><TeamMark t={fav} size={16} />{s[fav]}<i>–</i><TeamMark t={dog} size={16} />{s[dog]}</b>
 )
-function GameCard({ c, shots, onOpen }) {
+// What a game card shows, worked out once: the Classic card and the Sportsbook's TV both draw from it
+function gameFacts(c) {
   const g = c.g, x = c.x
   const home = g ? (g.home || g.teams[1]) : x.home
   const away = g ? g.teams.find(t => t !== home) : x.away
@@ -2643,6 +2664,10 @@ function GameCard({ c, shots, onOpen }) {
     return [['pts', 'PTS'], ['trb', 'REB'], ['ast', 'AST']].map(([k, l]) => { const r = [...rows].sort((a, b) => b[k] - a[k] || b.elo - a.elo)[0]; return { k, l, r } })
   })() : null
   const liveProj = c.state === 'in' && preProj ? liveFinal([preProj[home], preProj[away]], g?.live || x, pts[home] || 0, pts[away] || 0) : null
+  return { g, x, home, away, pts, started, lead, wp, status, top, mover, tm, preProj, fav, dog, upset, leaders, liveProj }
+}
+function GameCard({ c, shots, onOpen }) {
+  const { g, x, home, away, pts, started, lead, wp, status, top, mover, tm, preProj, fav, dog, upset, leaders, liveProj } = gameFacts(c)
   return (
     <button type="button" className={`${styles.gCard} ${c.state === 'in' ? styles.gLive : ''}`} onClick={onOpen || undefined} disabled={!onOpen}>
       <div className={styles.gHead}>

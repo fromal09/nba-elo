@@ -1,0 +1,271 @@
+import { useState, useEffect } from 'react'
+import sb from './Sportsbook.module.css'
+import { momentsFor } from './PlayerCard'
+import { PickBar } from './Predictions'
+import { LineupStrip } from './MyPredictions'
+import { goTo } from '../nav.js'
+
+/*
+ * The Sportsbook Scoreboard: the same Scoreboard, dressed as a casino sportsbook. Every piece comes from the Classic one
+ * (src/components/SeasonExplorer.jsx): the TVs read the game cards' facts (gameFacts), the display cases hold the day's
+ * honor cards, the board shows the Classic tables one category at a time, and Standings, My Predictions and Player of
+ * the Week render in full on a lit monitor. Box scores, previews and cards open exactly as they do in Classic.
+ * A switch at the top of both picks the look; the first visit asks, and the choice is kept on the device.
+ */
+
+const MODE_KEY = 'fpr.scoreboard'
+const ASKED_KEY = 'fpr.scoreboardAsked'
+export function useScoreMode() {
+  const [mode, setMode] = useState(() => { try { return localStorage.getItem(MODE_KEY) } catch { return 'classic' } })
+  const set = m => { setMode(m); try { localStorage.setItem(MODE_KEY, m) } catch { /* private mode */ } }
+  return [mode === 'book' || mode === 'classic' ? mode : null, set]
+}
+
+export function ScoreModeSwitch({ mode, onChange }) {
+  return (
+    <div className={sb.switch} data-mode={mode} role="group" aria-label="Scoreboard style">
+      {[['classic', 'Classic'], ['book', 'Sportsbook']].map(([m, l]) => (
+        <button key={m} type="button" aria-pressed={mode === m} onClick={() => onChange(m)}>{l}</button>
+      ))}
+    </div>
+  )
+}
+
+// First visit: both looks side by side, pick one (or decide later, which asks again next visit)
+export function ScoreModeChooser({ onPick }) {
+  const [later, setLater] = useState(() => { try { return sessionStorage.getItem(ASKED_KEY) === '1' } catch { return false } })
+  useEffect(() => {
+    if (later) return
+    const k = e => { if (e.key === 'Escape') dismiss() }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [later])
+  if (later) return null
+  const dismiss = () => { setLater(true); try { sessionStorage.setItem(ASKED_KEY, '1') } catch { /* private mode */ } }
+  return (
+    <div className={sb.chooser} role="dialog" aria-modal="true" aria-labelledby="sb-choose">
+      <div className={sb.chooseBox}>
+        <h2 id="sb-choose">Pick your Scoreboard</h2>
+        <p>Same games, same numbers, two looks. You can switch any time from the top of the Scoreboard.</p>
+        <div className={sb.choices}>
+          <button type="button" className={sb.choice} onClick={() => onPick('classic')}>
+            <span className={sb.prevClassic} aria-hidden="true">
+              <i className={sb.pcHero} />
+              <span className={sb.pcGrid}>{Array.from({ length: 6 }, (_, k) => <i key={k}><b /><b /><u /></i>)}</span>
+              <span className={sb.pcSide}><i /><i /></span>
+            </span>
+            <b>Classic</b><small>Game cards, tables and a sidebar of the night’s honors</small>
+          </button>
+          <button type="button" className={sb.choice} onClick={() => onPick('book')}>
+            <span className={sb.prevBook} aria-hidden="true">
+              <i className={sb.pbMarquee}>THE SCOREBOARD</i>
+              <span className={sb.pbWall}><i className={sb.pbBig} />{Array.from({ length: 6 }, (_, k) => <i key={k} />)}</span>
+              <span className={sb.pbBoard}><u /><u /><u /></span>
+            </span>
+            <b>Sportsbook</b><small>Every game on a wall of TVs, the night’s cards in display cases, the tables on one big board</small>
+          </button>
+        </div>
+        <button type="button" className={sb.later} onClick={dismiss}>Decide later</button>
+      </div>
+    </div>
+  )
+}
+
+const fmtDay = (d, o) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', o)
+
+// The room around every tab: marquee, date (or season), the four tabs, the switch
+const FONTS = 'https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=VT323&display=swap'
+export function SportsbookFrame({ view, setView, day, setDay, weekOf, addDays, etToday, hrefFor, linkTo, seasons, season, setSeason, onMode, children }) {
+  useEffect(() => {
+    if (document.getElementById('sb-fonts')) return
+    const l = document.createElement('link'); l.id = 'sb-fonts'; l.rel = 'stylesheet'; l.href = FONTS
+    document.head.appendChild(l)
+  }, [])
+  const potw = view === 'potw'
+  const tabs = [['today', 'Tonight’s games', 'scoreboard'], ['standings', 'Standings', 'explorer'], ['picks', 'My predictions', 'mypicks'], ['potw', 'Player of the Week', 'potw']]
+  return (
+    <div className={sb.book}>
+      <div className={sb.ceil} aria-hidden="true"><i /><i /><i /><i /><i /><i /></div>
+      <div className={sb.top}>
+        <div className={sb.marquee}><b>The Scoreboard</b><small>Every game · every screen</small></div>
+        <div className={sb.topSwitch}><ScoreModeSwitch mode="book" onChange={onMode} /></div>
+      </div>
+      {view === 'standings' ? (
+        <div className={sb.nav}>
+          <label className={sb.season}><span>Season</span>
+            <select value={season} onChange={e => setSeason(e.target.value)}>
+              {seasons.map(x => <option key={x.season} value={x.season}>{x.season}{x.leagues?.includes('ABA') ? ' · NBA & ABA' : x.leagues?.includes('BAA') ? ' · BAA' : ''}</option>)}
+            </select>
+          </label>
+        </div>
+      ) : (
+        <div className={sb.nav}>
+          <button type="button" onClick={() => setDay(d => addDays(d, potw ? -7 : -1))} aria-label={potw ? 'Previous week' : 'Previous day'}>◀ <span>{fmtDay(addDays(day, potw ? -7 : -1), { weekday: potw ? undefined : 'short', month: 'short', day: 'numeric' })}</span></button>
+          <label className={sb.dateLab}>
+            <strong>{potw ? `Week of ${fmtDay(weekOf(day), { month: 'long', day: 'numeric' })}` : fmtDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}</strong>
+            <input type="date" value={day} onChange={e => e.target.value && setDay(e.target.value)} aria-label="Pick a day" />
+          </label>
+          <button type="button" onClick={() => setDay(d => addDays(d, potw ? 7 : 1))} aria-label={potw ? 'Next week' : 'Next day'}><span>{fmtDay(addDays(day, potw ? 7 : 1), { weekday: potw ? undefined : 'short', month: 'short', day: 'numeric' })}</span> ▶</button>
+          {(potw ? weekOf(day) !== weekOf(etToday()) : day !== etToday()) && <button type="button" className={sb.today} onClick={() => setDay(etToday())}>{potw ? 'This week' : 'Today'}</button>}
+        </div>
+      )}
+      <nav className={sb.tabs} role="tablist">
+        {tabs.map(([v, l, nv]) => <a key={v} role="tab" aria-selected={view === v} data-on={view === v ? '' : undefined} {...linkTo(hrefFor(nv), () => setView(v))}>{l}</a>)}
+      </nav>
+      {view === 'today' ? <div className={sb.floor}>{children}</div> : <div className={sb.monitorWrap}><div className={sb.monitor}>{children}</div></div>}
+      <div className={sb.carpet} aria-hidden="true" />
+    </div>
+  )
+}
+
+const BOARD_KEY = 'fpr.sbBoard'
+
+// Tonight's games: the moments crawl, the wall of TVs, the cards of the day, the board, the windows
+export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard, openBox, openCard, onPreview, shots, predLive, myDay, phone, loading, feedErr, unmatched, provisional, onView }) {
+  const { gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor } = kit
+  const [boardId, setBoardId] = useState(() => { try { return localStorage.getItem(BOARD_KEY) || 'perf' } catch { return 'perf' } })
+  const pickBoard = id => { setBoardId(id); try { localStorage.setItem(BOARD_KEY, id) } catch { /* private mode */ } }
+  if (loading) return <div className={sb.msg}>Warming up the screens…</div>
+  if (feedErr && !cards.length) return <div className={sb.msg}>Couldn’t load the games: {feedErr}</div>
+  if (!cards.length) return <div className={sb.msg}>No games on {fmtDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}.</div>
+
+  const F = cards.map(c => ({ c, f: gameFacts(c) }))
+  // The jumbotron: a game going down to the wire, else the night's biggest upset, else the tightest forecast
+  const pick = () => {
+    const live = F.filter(x => x.c.state === 'in')
+    if (live.length) return live.sort((a, b) => Math.abs(a.f.pts[a.f.home] - a.f.pts[a.f.away]) - Math.abs(b.f.pts[b.f.home] - b.f.pts[b.f.away]))[0]
+    const ups = F.filter(x => x.c.state === 'post' && x.f.upset && x.f.wp)
+    if (ups.length) return ups.sort((a, b) => a.f.wp[a.f.lead] - b.f.wp[b.f.lead])[0]
+    const pre = F.filter(x => x.c.state === 'pre' && x.f.wp)
+    if (pre.length) return pre.sort((a, b) => Math.abs(a.f.wp[a.f.home] - 0.5) - Math.abs(b.f.wp[b.f.home] - 0.5))[0]
+    return F[0]
+  }
+  const feat = pick()
+  const why = feat.c.state === 'in' ? 'Closest game on now' : feat.c.state === 'post' && feat.f.upset ? 'Biggest upset of the night' : feat.c.state === 'pre' ? 'Tightest forecast on the slate' : 'Featured'
+  const marks = g => {
+    if (!g) return { car: 0, mil: 0 }
+    let car = 0, mil = 0
+    for (const p of g.players) { const m = momentsFor(p); if (m.career) car++; if (m.stamps.length) mil++ }
+    return { car, mil }
+  }
+  const open = c => (c.g ? () => openBox(c.g) : c.fg ? () => onPreview(c) : null)
+
+  const tv = ({ c, f }, big) => {
+    const { g, home, away, pts, started, lead, wp, status, top, mover, tm, preProj, fav, upset, leaders, liveProj } = f
+    const m = marks(g)
+    const go = open(c)
+    return (
+      <div key={c.key} className={`${sb.cell} ${big ? sb.bigCell : ''}`}>
+        <button type="button" className={`${sb.tv} ${c.state === 'in' ? sb.tvLive : ''}`} onClick={go || undefined} disabled={!go}
+          aria-label={`${tShort(away)} at ${tShort(home)}${go ? (c.g ? ', box score' : ', preview') : ''}`}>
+          <span className={sb.scr}>
+            <span className={sb.bug}>
+              <span className={sb.marks}>{m.car > 0 && <span title="Career games in this game">★{m.car > 1 ? m.car : ''}</span>}{m.mil > 0 && <u title="Milestones in this game">◆{m.mil}</u>}</span>
+              <span className={sb.tags}>{(g || c.x)?.post && <em className={sb.po}>Playoffs</em>}{upset && <em className={sb.up}>{c.state === 'in' ? 'Upset watch' : `Upset${wp && lead ? ` · ${Math.round(wp[lead] * 100)}%` : ''}`}</em>}<i data-state={c.state}>{status}</i></span>
+            </span>
+            {big && <span className={sb.why}>Featured · {why}</span>}
+            {[away, home].map(t => (
+              <span key={t} className={sb.row} style={{ '--c': tColor(t) }} data-trail={started && lead && lead !== t ? '' : undefined}>
+                <TeamMark t={t} size={big ? 44 : 26} />
+                <b>{tCode(t)}</b>
+                <span className={sb.nm}>{tShort(t)}</span>
+                {!started && preProj && <small className={sb.proj} title="Projected score">{preProj[t]}</small>}
+                <strong data-wp={!started ? '' : undefined}>{started ? pts[t] ?? '–' : wp ? `${Math.round(wp[t] * 100)}%` : ''}</strong>
+              </span>
+            ))}
+            {wp && <span className={sb.wp}><i style={{ width: `${wp[away] * 100}%`, background: tColor(away) }} /><i style={{ flex: 1, background: tColor(home) }} /></span>}
+            <span className={sb.tick}>
+              {top ? <><b>{shortName(top.n)}</b> {top.pts ?? 0} pts · {top.trb ?? 0} reb · {top.ast ?? 0} ast · {top.gs.toFixed(1)} GmSc</>
+                : leaders ? <>Proj {leaders.map(({ l, r, k }) => <span key={k}> {l} <b>{shortName(r.name)}</b> {r[k]}</span>)}</>
+                : tm?.[0] && tm?.[1] ? <>Top matchup <b>{shortName(tm[0].name)}</b> {r0(tm[0].elo)} vs <b>{shortName(tm[1].name)}</b> {r0(tm[1].elo)}</>
+                : started ? 'Box score loading…' : 'Preview once the forecast loads'}
+            </span>
+            {big && <span className={sb.tick2}>
+              {wp && <span>Pre-game{g && !g.fcwp ? ' Elo' : ''} forecast: {Math.round(wp[fav] * 100)}% {tCode(fav)}</span>}
+              {preProj && started && <span>Projected {preProj[away]}–{preProj[home]}</span>}
+              {liveProj && <span>Live projection {liveProj[1]}–{liveProj[0]}</span>}
+              {mover && <span>Biggest swing <b className={mover.post >= mover.pre ? sb.upTxt : sb.dnTxt}>{shortName(mover.n)} {sgn(mover.post - mover.pre)}</b></span>}
+            </span>}
+            {go && <span className={sb.open}>▶ {c.g ? 'Box score' : 'Preview'}</span>}
+          </span>
+        </button>
+        {predLive && <div className={sb.slip}><PickBar day={day} home={home} away={away} state={c.state} tip={c.tip} /></div>}
+      </div>
+    )
+  }
+
+  const rest = F.filter(x => x !== feat)
+  const ups = F.filter(x => x.c.state === 'post' && x.f.upset).length
+  const liveN = F.filter(x => x.c.state === 'in').length
+  const moments = [
+    ...side.careerGames.map(({ g, p }) => ({ g, p, star: true, text: `Career game · ${p.gs.toFixed(1)} GmSc · ${p.pts}-${p.trb}-${p.ast}` })),
+    ...side.milestones.map(({ g, p, m }) => ({ g, p, text: m.stamps.map(x => x.text).join(' · ') })),
+  ]
+  // Fill the wall's last row with the night's numbers and moments
+  const fill = phone ? 0 : (4 - ((rest.length + 4) % 4)) % 4
+  const tiles = [
+    <div key="n" className={sb.tile}><h6>Tonight in numbers</h6>
+      <p><b>{F.length}</b> game{F.length === 1 ? '' : 's'}{liveN ? <> · <b>{liveN}</b> live</> : ''}{scored.length ? <> · <b>{ups}</b> upset{ups === 1 ? '' : 's'}</> : ''}</p>
+      {side.picks[0]?.[1]?.p && <p>Player of the Day <b>{shortName(side.picks[0][1].p.n)}</b></p>}
+      {side.picks.find(x => x[0] === 'Biggest Elo riser')?.[1]?.p && (x => <p>Top riser <b>{shortName(x.n)} {sgn(x.post - x.pre)}</b></p>)(side.picks.find(x => x[0] === 'Biggest Elo riser')[1].p)}
+    </div>,
+    <button key="m" type="button" className={sb.tile} onClick={() => { pickBoard('moments'); document.getElementById('sb-board')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>
+      <h6>★ Career games · ◆ Milestones</h6>
+      {side.careerGames.slice(0, 3).map(({ g, p }) => <p key={g.id + p.n}><span className={sb.star}>★</span> {shortName(p.n)} <b>{p.gs.toFixed(1)}</b></p>)}
+      <p><span className={sb.dia}>◆</span> {side.milestones.length} milestone{side.milestones.length === 1 ? '' : 's'} →</p>
+    </button>,
+  ].slice(0, fill)
+
+  // The board: every Classic table, one at a time, plus career games and milestones
+  const momentsNode = (
+    <div className={sb.moments}>
+      <header><h3>Career games &amp; milestones</h3><span>★ a career-best Game Score (20+ career games) · ◆ tier moves, the Top 100, a new #1, career-high rank or Elo</span></header>
+      {moments.length ? moments.map(x => (
+        <button key={x.g.id + x.p.n + (x.star ? '*' : '')} type="button" onClick={() => openCard(x.g, x.p)}>
+          <span className={x.star ? sb.star : sb.dia}>{x.star ? '★' : '◆'}</span><b>{x.p.n}</b><small>{tCode(x.p.t)}</small><em>{x.text}</em>
+        </button>
+      )) : <p>No career games or milestones yet.</p>}
+    </div>
+  )
+  const board = [...tables.filter(t => t.id !== 'honors'), ...(scored.length ? [{ id: 'moments', g: 'Moments', title: 'Career games & milestones', lead: moments[0] ? `${shortName(moments[0].p.n)}` : '—', node: momentsNode }] : [])]
+  const cur = board.find(t => t.id === boardId) || board[0]
+
+  return (
+    <div className={sb.day}>
+      <div className={sb.bar}>
+        <span><b>{F.length}</b> game{F.length === 1 ? '' : 's'}{liveN ? <> · <span className={sb.liveTxt}><i />{liveN} live</span></> : ''}</span>
+        {provisional && <span>Live games use ratings through the last data update; Elo is provisional until the next one.</span>}
+      </div>
+      {moments.length > 0 && <div className={sb.crawl}><span className={sb.crawlLab}>Moments</span>
+        <div className={sb.run} style={{ animationDuration: `${Math.max(30, moments.length * 7)}s` }}>
+          {moments.map(x => <button key={x.g.id + x.p.n + (x.star ? '*' : '')} type="button" onClick={() => openCard(x.g, x.p)}>
+            <span className={x.star ? sb.star : sb.dia}>{x.star ? '★' : '◆'}</span> {x.p.n.toUpperCase()} · {x.text.toUpperCase()}</button>)}
+        </div></div>}
+      <LineupStrip d={myDay} games={scored} />
+      <div className={sb.wallF}><div className={sb.wall}>{tv(feat, true)}{rest.map(x => tv(x))}{tiles}</div></div>
+
+      {side.picks.length > 0 && <>
+        <div className={sb.lab}><b>Cards of the Day</b><span>The night’s featured cards · tap one to open it</span></div>
+        <div className={sb.reel}>{side.picks.map(pickCard)}</div>
+      </>}
+
+      {board.length > 0 && <>
+        <div className={sb.lab} id="sb-board"><b>The Board</b><span>Every table from the night, one board · pick a category</span></div>
+        <div className={sb.board}>
+          <div className={sb.cats} role="tablist">
+            {board.map(t => <button key={t.id} type="button" role="tab" aria-selected={t.id === cur.id} data-on={t.id === cur.id ? '' : undefined} onClick={() => pickBoard(t.id)}>
+              <b>{t.title}</b><small>{t.lead || '—'}</small></button>)}
+          </div>
+          <div className={sb.screen}>{cur.node}</div>
+        </div>
+      </>}
+
+      <div className={sb.windows}>
+        <button type="button" className={sb.win} onClick={() => goTo('gameroom', { open: 'predict' })}><small>Window 1</small><b>Make your picks</b><span>Every winner and matchup · in the Game Room</span></button>
+        <button type="button" className={sb.win} onClick={() => goTo('gameroom', { open: 'potd' })}><small>Window 2</small><b>Player of the Day</b><span>One ticket a day · the ruby card if you call it</span></button>
+        <button type="button" className={sb.win} onClick={() => onView?.('picks')}><small>Window 3</small><b>My tickets</b><span>The day’s picks and how they’re doing</span></button>
+      </div>
+      {unmatched.length > 0 && <p className={sb.note}>Rated as new players (no ratings match): {unmatched.join(', ')}</p>}
+    </div>
+  )
+}
