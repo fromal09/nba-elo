@@ -638,7 +638,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
         ) : (
           <div className={styles.dayNav}>
             <button onClick={() => setDay(d => addDays(d, view === 'potw' ? -7 : -1))} aria-label={view === 'potw' ? 'Previous week' : 'Previous day'}>‹</button>
-            <input type="date" value={day} onChange={e => e.target.value && setDay(e.target.value)} />
+            <input type="date" value={day} min="1946-11-01" max={addDays(etToday(), 240)} onChange={e => e.target.value && setDay(e.target.value)} />
             <button onClick={() => setDay(d => addDays(d, view === 'potw' ? 7 : 1))} aria-label={view === 'potw' ? 'Next week' : 'Next day'}>›</button>
             {(view === 'potw' ? weekOf(day) !== weekOf(etToday()) : day !== etToday()) && <button className={styles.todayBtn} onClick={() => setDay(etToday())}>{view === 'potw' ? 'This week' : 'Today'}</button>}
           </div>

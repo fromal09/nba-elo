@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import sb from './Sportsbook.module.css'
 import { momentsFor } from './PlayerCard'
 import { lineupPts } from './MyPredictions'
@@ -72,6 +72,7 @@ export function ScoreModeChooser({ onPick }) {
   )
 }
 
+const FIRST_DAY = '1946-11-01'
 const fmtDay = (d, o) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', o)
 
 // The room around every tab: marquee, date (or season), the four tabs, the switch
@@ -83,6 +84,10 @@ export function SportsbookFrame({ view, setView, day, setDay, weekOf, addDays, e
     document.head.appendChild(l)
   }, [])
   const potw = view === 'potw'
+  // The calendar: any day from the first night of the BAA (November 1, 1946) through the end of the schedule
+  const cal = useRef(null)
+  const openCal = () => { const el = cal.current; if (!el) return; try { el.showPicker() } catch { el.focus(); el.click() } }
+  const yr = d => (d.slice(0, 4) !== etToday().slice(0, 4) ? { year: 'numeric' } : {})
   const tabs = [['today', 'Tonight’s games', 'scoreboard'], ['standings', 'Standings', 'explorer'], ['picks', 'My predictions', 'mypicks'], ['potw', 'Player of the Week', 'potw']]
   return (
     <div className={sb.book}>
@@ -102,12 +107,18 @@ export function SportsbookFrame({ view, setView, day, setDay, weekOf, addDays, e
       ) : (
         <div className={sb.nav}>
           <button type="button" onClick={() => setDay(d => addDays(d, potw ? -7 : -1))} aria-label={potw ? 'Previous week' : 'Previous day'}>◀ <span>{fmtDay(addDays(day, potw ? -7 : -1), { weekday: potw ? undefined : 'short', month: 'short', day: 'numeric' })}</span></button>
-          <label className={sb.dateLab}>
-            <strong>{potw ? `Week of ${fmtDay(weekOf(day), { month: 'long', day: 'numeric' })}` : fmtDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}</strong>
-            <input type="date" value={day} onChange={e => e.target.value && setDay(e.target.value)} aria-label="Pick a day" />
-          </label>
+          <button type="button" className={sb.dateLab} onClick={openCal} aria-label="Pick any day in NBA history">
+            <strong>{potw ? `Week of ${fmtDay(weekOf(day), { month: 'long', day: 'numeric', ...yr(weekOf(day)) })}` : fmtDay(day, { weekday: 'long', month: 'long', day: 'numeric', ...yr(day) })}</strong>
+          </button>
           <button type="button" onClick={() => setDay(d => addDays(d, potw ? 7 : 1))} aria-label={potw ? 'Next week' : 'Next day'}><span>{fmtDay(addDays(day, potw ? 7 : 1), { weekday: potw ? undefined : 'short', month: 'short', day: 'numeric' })}</span> ▶</button>
           {(potw ? weekOf(day) !== weekOf(etToday()) : day !== etToday()) && <button type="button" className={sb.today} onClick={() => setDay(etToday())}>{potw ? 'This week' : 'Today'}</button>}
+          <span className={sb.cal}>
+            <button type="button" onClick={openCal} aria-label="Pick any day in NBA history" title="Pick any day in NBA history">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /><path d="M8 14h2M14 14h2M8 17h2" /></svg>
+            </button>
+            <input ref={cal} type="date" value={day} min={FIRST_DAY} max={addDays(etToday(), 240)} tabIndex={-1} aria-hidden="true"
+              onChange={e => e.target.value && setDay(e.target.value)} />
+          </span>
         </div>
       )}
       <nav className={sb.tabs} role="tablist">
