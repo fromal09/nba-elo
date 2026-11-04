@@ -356,6 +356,7 @@ function Stations({ C, preds, go, env }) {
     <div className={styles.stWrap}>
     <p className={styles.swipe}>Swipe the stations →</p>
     <div className={styles.stations} role="list">
+      <div className={styles.stGroup} data-g="pred">
       <button type="button" role="listitem" className={`${styles.st} ${styles.fight}`} onClick={() => go('matchups')}>
         <span className={styles.fightTop}>Tonight · {duels.length || 'no'} bout{duels.length === 1 ? '' : 's'}</span>
         {top ? <span className={styles.fightBout}>
@@ -390,6 +391,9 @@ function Stations({ C, preds, go, env }) {
         <span className={styles.ticket}>{potd?.pick ? <>Your ticket · <b>{shortName(potd.pick.player)}</b></> : 'Place your ticket'}</span>
       </button>
 
+      </div>
+      <h3 className={styles.zoneHead} data-z="play">Play your cards</h3>
+      <div className={styles.stGroup} data-g="play">
       <button type="button" role="listitem" className={`${styles.st} ${styles.cab}`} data-c="koc" onClick={() => go('koc')}>
         <span className={styles.cabMarquee}>King of the Court</span>
         <span className={styles.cabScreenMini}><b>FIGHT!</b><small>{RV.live ? `${RV.live} rivalr${RV.live === 1 ? 'y' : 'ies'} live` : 'Groups · tonight’s games'}</small></span>
@@ -419,6 +423,7 @@ function Stations({ C, preds, go, env }) {
         <b>INSERT COIN</b><span>2-PLAYER · RIVALRIES</span>
         <small>{RV.waiting ? `${RV.waiting} challenge${RV.waiting === 1 ? '' : 's'} waiting on you` : RV.sent ? `${RV.sent} sent · waiting` : 'Challenge a collector'}</small>
       </button>
+      </div>
     </div>
     </div>
   )
@@ -521,6 +526,8 @@ export default function GameRoom({ players, onSelectPlayer, ratings }) {
         <a className={styles.doorBack} href="/binders" onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); goTo('binders') }}>← The Binder Room</a>
       </header>
       <div className={styles.hall}>
+        <h3 className={styles.zoneHead} data-z="tonight">Tonight’s picks</h3>
+        <h3 className={styles.zoneHead} data-z="res">Results</h3>
         <Chalkboard C={C} preds={preds} go={go} />
         <HighScores C={C} picks={picks} go={go} />
         <Stations C={C} preds={preds} go={go} env={env} />

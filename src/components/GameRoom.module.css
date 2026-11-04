@@ -59,7 +59,7 @@
 .tally { font-size: 24px; color: #f7e48a; }
 .chalkLine { margin: 6px 0; font-size: 26px; line-height: 1.2; color: #e4ebdf; }
 .chalkLine button { border: 0; background: none; padding: 0; cursor: pointer; font: 700 26px 'Caveat', cursive; color: #f7e48a !important; text-decoration: underline wavy rgba(247,228,138,.6); }
-.chalkGames { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 2px 18px; }
+.chalkGames { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 18px; }
 .chalkGames li { display: flex; align-items: baseline; gap: 6px; font-size: 27px; line-height: 1.25; white-space: nowrap; }
 .chalkGames li i { font-style: normal; font-size: 20px; color: #aebda8; }
 .chalkGames li > span { position: relative; padding: 0 3px; }
@@ -411,4 +411,61 @@
 @media (prefers-reduced-motion: reduce) {
   .pennant, .sign h1, .ledRow[data-you], .cabScreenMini b, .insert b, .screen { animation: none; }
   .circle path { animation: none; }
+}
+
+.stGroup { display: contents; }
+.zoneHead { display: none; }
+
+/* ── Desktop: three zones (tonight's picks, play your cards, results), the lights down until you reach a station ───────────────────────────────────────────────────────────────────────── */
+@media (min-width: 761px) {
+  /* One neon sign, no blinking, quieter glows, plain captions */
+  .room { background: radial-gradient(50% 30% at 50% 6%, rgba(255,79,216,.08), transparent 70%), repeating-linear-gradient(0deg, transparent 0 27px, rgba(0,0,0,.3) 27px 29px),
+    repeating-linear-gradient(90deg, transparent 0 58px, rgba(0,0,0,.24) 58px 60px), linear-gradient(180deg, #170d24, #110a1b); }
+  .room .sign h1 { animation: none; text-shadow: 0 0 2px #fff, 0 0 10px rgba(255,79,216,.8), 0 0 26px rgba(255,79,216,.35); }
+  .room .sign h1 span { text-shadow: 0 0 2px #fff, 0 0 10px rgba(62,242,255,.6); }
+  .room .ledRow[data-you], .room .cabScreenMini b, .room .insert b, .room .pennant { animation: none; }
+  .room .cabMarquee { text-shadow: 0 0 4px var(--trim); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trim) 70%, transparent); }
+  .room .stTag { bottom: -26px; background: none; border: 0; box-shadow: none; padding: 0; font: 600 12.5px 'Inter', sans-serif; color: #cbb8e8; }
+  .room .ticket { bottom: -14px; }
+  .room .carpet { opacity: .2; }
+
+  /* Lights down: the chalkboard under a spotlight, the stations in shadow until you reach one */
+  .room .chalk { box-shadow: inset 0 0 0 2px #4a2d17, inset 0 0 60px rgba(0,0,0,.4), 0 0 0 1px rgba(255,220,150,.25), 0 -30px 140px rgba(255,214,150,.22), 0 18px 34px rgba(0,0,0,.55); }
+  .room .pennant { filter: saturate(.5) brightness(.6) drop-shadow(0 8px 10px rgba(0,0,0,.45)); }
+  .room .bigBanner { filter: saturate(.7) brightness(.8) drop-shadow(0 10px 14px rgba(0,0,0,.5)); }
+  .room .st, .room .led, .room .prize, .room .champ { filter: saturate(.4) brightness(.58); transition: filter .25s, transform .25s; }
+  .room .st.cab { filter: saturate(.4) brightness(.58) drop-shadow(0 18px 20px rgba(0,0,0,.55)); }
+  .room .st:hover, .room .st:focus-visible, .room .led:hover, .room .prize:hover, .room .champ:hover,
+  .room .led:focus-visible, .room .prize:focus-visible, .room .champ:focus-visible { filter: none; }
+  .room .st.cab:hover, .room .st.cab:focus-visible { filter: drop-shadow(0 0 22px color-mix(in srgb, var(--trim) 45%, transparent)) drop-shadow(0 18px 20px rgba(0,0,0,.55)); }
+
+
+  .room .st:hover, .room .st:focus-visible { transform: translateY(-4px); }
+
+  /* Zones, each under a quiet label */
+  .room .rafters { height: 100px; }
+  .room .pennant { width: 42px; height: 66px; padding-top: 8px; }
+  .room .bigBanner { width: 140px; height: 90px; }
+  .room .bigBanner span { display: none; }
+  .room .sign h1 { font-size: 48px; }
+  .room .hall { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 30px 22px;
+    grid-template-areas: "tH tH tH" "chalk chalk chalk" "pred pred pred" "pH pH pH" "play play play" "rH rH rH" "led prize champ"; }
+  .room .stWrap, .room .stations { display: contents; }
+  .room .stGroup { display: grid; gap: 22px; }
+  .room .stGroup[data-g=pred] { grid-area: pred; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .room .stGroup[data-g=play] { grid-area: play; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; }
+  .room .st { grid-column: auto; }
+  .room .fight, .room .magnet, .room .tote { min-height: 0; height: 290px; transform: none; box-sizing: border-box; }
+  .room .cab { height: 330px; }
+  .room .insert { height: 260px; }
+  .room .slate { min-height: 0; }
+  .room .chalkGames { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .room .zoneHead { display: flex; align-items: center; gap: 12px; margin: 14px 0 -6px; font: 700 12px 'Inter', sans-serif; letter-spacing: 2.5px; text-transform: uppercase; color: #e9dcff; }
+  .room .zoneHead::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(233,220,255,.35), transparent); }
+  .room .zoneHead[data-z=tonight] { grid-area: tH; margin-top: 0; }
+  .room .zoneHead[data-z=play] { grid-area: pH; }
+  .room .zoneHead[data-z=res] { grid-area: rH; }
+  .room .led, .room .prize, .room .champ { min-height: 250px; }
+  .room .frames { flex-direction: row; }
+  .room .frame { width: 84px; }
 }
