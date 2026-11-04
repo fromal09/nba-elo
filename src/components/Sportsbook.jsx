@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import sb from './Sportsbook.module.css'
 import { momentsFor } from './PlayerCard'
-import { PickBar } from './Predictions'
-import { LineupStrip } from './MyPredictions'
+import { lineupPts } from './MyPredictions'
+import { TIER_NAME } from './Collector'
+import { norm } from './predict'
 import { goTo } from '../nav.js'
 
 /*
@@ -121,7 +122,7 @@ export function SportsbookFrame({ view, setView, day, setDay, weekOf, addDays, e
 const BOARD_KEY = 'fpr.sbBoard'
 
 // Tonight's games: the moments crawl, the wall of TVs, the cards of the day, the board, the windows
-export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard, openBox, openCard, onPreview, shots, predLive, myDay, phone, loading, feedErr, unmatched, provisional, onView }) {
+export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard, openBox, openCard, onPreview, shots, myDay, phone, loading, feedErr, unmatched, provisional, onView }) {
   const { gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor } = kit
   const [boardId, setBoardId] = useState(() => { try { return localStorage.getItem(BOARD_KEY) || 'perf' } catch { return 'perf' } })
   const pickBoard = id => { setBoardId(id); try { localStorage.setItem(BOARD_KEY, id) } catch { /* private mode */ } }
@@ -130,6 +131,18 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
   if (!cards.length) return <div className={sb.msg}>No games on {fmtDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}.</div>
 
   const F = cards.map(c => ({ c, f: gameFacts(c) }))
+  // Your lineup: each slot's player found in the day's box scores, his Game Score and the lineup points it's worth
+  const slots = myDay?.lineup?.slots || []
+  const mine = slots.map(s => {
+    let hit = null
+    for (const g of scored) { const p = g.players.find(x => norm(x.n) === norm(s.player)); if (p) { hit = { g, p }; break } }
+    const gs = s.gs ?? hit?.p.gs ?? null
+    const pts = gs == null ? null : Math.round(lineupPts(gs, s.mult || 1) * 10) / 10
+    const card = cards.find(c => (c.g ? c.g.teams : [c.x.home, c.x.away]).includes(s.team))
+    return { s, hit, gs, pts, st: hit ? (hit.g.live?.state || 'post') : card?.state || 'pre', card }
+  })
+  const lineupTotal = myDay?.lineup?.graded ? +myDay.lineup.graded.total : mine.reduce((a, x) => a + (x.pts || 0), 0)
+  const mineIn = c => mine.filter(x => x.card === c)
   // The jumbotron: a game going down to the wire, else the night's biggest upset, else the tightest forecast
   const pick = () => {
     const live = F.filter(x => x.c.state === 'in')
@@ -156,10 +169,11 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
     const go = open(c)
     return (
       <div key={c.key} className={`${sb.cell} ${big ? sb.bigCell : ''}`}>
-        <button type="button" className={`${sb.tv} ${c.state === 'in' ? sb.tvLive : ''}`} onClick={go || undefined} disabled={!go}
+        <button type="button" className={`${sb.tv} ${c.state === 'in' ? sb.tvLive : ''}`} data-mine={mineIn(c).length ? '' : undefined} onClick={go || undefined} disabled={!go}
           aria-label={`${tShort(away)} at ${tShort(home)}${go ? (c.g ? ', box score' : ', preview') : ''}`}>
           <span className={sb.scr}>
             <span className={sb.bug}>
+              {mineIn(c).length > 0 && <span className={sb.yours} title="Your lineup">{mineIn(c).map(x => <b key={x.s.slot}>{shortName(x.s.player).split(' ').slice(-1)[0]} {x.pts != null ? x.pts.toFixed(1) : '—'}</b>)}</span>}
               <span className={sb.marks}>{m.car > 0 && <span title="Career games in this game">★{m.car > 1 ? m.car : ''}</span>}{m.mil > 0 && <u title="Milestones in this game">◆{m.mil}</u>}</span>
               <span className={sb.tags}>{(g || c.x)?.post && <em className={sb.po}>Playoffs</em>}{upset && <em className={sb.up}>{c.state === 'in' ? 'Upset watch' : `Upset${wp && lead ? ` · ${Math.round(wp[lead] * 100)}%` : ''}`}</em>}<i data-state={c.state}>{status}</i></span>
             </span>
@@ -189,7 +203,6 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
             {go && <span className={sb.open}>▶ {c.g ? 'Box score' : 'Preview'}</span>}
           </span>
         </button>
-        {predLive && <div className={sb.slip}><PickBar day={day} home={home} away={away} state={c.state} tip={c.tip} /></div>}
       </div>
     )
   }
@@ -241,7 +254,19 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
           {moments.map(x => <button key={x.g.id + x.p.n + (x.star ? '*' : '')} type="button" onClick={() => openCard(x.g, x.p)}>
             <span className={x.star ? sb.star : sb.dia}>{x.star ? '★' : '◆'}</span> {x.p.n.toUpperCase()} · {x.text.toUpperCase()}</button>)}
         </div></div>}
-      <LineupStrip d={myDay} games={scored} />
+      {mine.length > 0 && <div className={sb.ticket}>
+        <span className={sb.stub}><small>Your lineup</small><b>{lineupTotal.toFixed(1)}</b><small>{myDay.lineup.graded ? `final · +${myDay.lineup.graded.coins} Coins` : 'points so far'}</small></span>
+        <span className={sb.legs}>{mine.map(x => (
+          <button key={x.s.slot} type="button" className={sb.leg} data-state={x.st} style={{ '--tc': `var(--t-${x.s.tier || 'common'})` }}
+            onClick={() => (x.hit ? openCard(x.hit.g, x.hit.p) : x.card?.g ? openBox(x.card.g) : x.card?.fg ? onPreview(x.card) : null)}
+            title={`${x.s.player} · ${TIER_NAME[x.s.tier] || x.s.tier || ''} ×${+(x.s.mult || 1).toFixed(2)}`}>
+            <TeamMark t={x.s.team} size={22} />
+            <span><b>{shortName(x.s.player)}</b>
+              <small>{x.st === 'in' ? <><i className={sb.liveDot} />Live · </> : x.st === 'post' ? 'Final · ' : 'Tonight · '}{TIER_NAME[x.s.tier] || ''} ×{+(x.s.mult || 1).toFixed(2)}</small></span>
+            <strong>{x.pts != null ? x.pts.toFixed(1) : '—'}<small>{x.gs != null ? `${x.gs.toFixed(1)} GmSc` : 'pts'}</small></strong>
+          </button>
+        ))}</span>
+      </div>}
       <div className={sb.wallF}><div className={sb.wall}>{tv(feat, true)}{rest.map(x => tv(x))}{tiles}</div></div>
 
       {side.picks.length > 0 && <>

@@ -109,8 +109,6 @@
 .bigCell .row { padding: 7px 12px; } .bigCell .row b { width: 62px; font-size: 26px; } .bigCell .nm { font-size: 18px; } .bigCell .row strong { font-size: 40px; } .bigCell .row strong[data-wp] { font-size: 28px; }
 .bigCell .wp { height: 7px; } .bigCell .tick { font-size: 14px; margin-bottom: 0; } .bigCell .proj { font-size: 18px; }
 .bigCell .tags i, .bigCell .tags em { font-size: 12px; padding: 2px 9px; }
-/* The pick bar, as the betting slip under its TV */
-.slip > * { margin: 0; border-radius: 3px; background: #f7efd8 !important; border-color: #d9c79c !important; }
 .tile { display: flex; flex-direction: column; gap: 5px; min-height: 178px; padding: 12px 14px; border: 0; border-radius: 6px; text-align: left; background: linear-gradient(180deg, #141018, #0b090e); box-shadow: inset 0 0 0 1px #2c2c33; color: var(--amber); }
 button.tile { cursor: pointer; } button.tile:hover { box-shadow: inset 0 0 0 1px var(--gold); }
 .tile h6 { margin: 0 0 2px; font: 700 11px 'Oswald', sans-serif; letter-spacing: 2px; text-transform: uppercase; color: #d9b66a; }
@@ -138,7 +136,7 @@ button.tile { cursor: pointer; } button.tile:hover { box-shadow: inset 0 0 0 1px
 .cats button small { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 15px/1 'VT323', monospace; color: #8a6a2a; }
 .cats button:hover { border-color: var(--amber); }
 .cats button[data-on] { background: var(--amber); border-color: var(--amber); color: #120a00; } .cats button[data-on] small { color: #3a2400; }
-.screen { border-radius: 6px; padding: 12px; background: #f4f4f4; color: #1a1a1a; }
+.screen { border-radius: 6px; padding: 12px; }
 .screen > * { margin: 0 !important; }
 .moments { display: flex; flex-direction: column; }
 .moments header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 8px; }
@@ -220,3 +218,57 @@ button.tile { cursor: pointer; } button.tile:hover { box-shadow: inset 0 0 0 1px
   .chooseBox { padding: 18px; } .chooseBox h2 { font-size: 24px; }
 }
 @media (prefers-reduced-motion: reduce) { .run { animation: none; padding-left: 110px; overflow-x: auto; } .liveTxt i { animation: none; } }
+
+/* ── Your lineup: a five-leg ticket across the top of the wall, and a chip on each TV your players are on ── */
+.book { --t-goat: #c9a227; --t-icon: #8f6bd8; --t-legend: #d6a842; --t-standout: #9aa7b4; --t-rare: #c27a45; --t-common: #7c8896; }
+.ticket { display: flex; margin-top: 12px; border-radius: 6px; overflow: hidden; background: #f7efd8; color: #2a1c0e; box-shadow: 0 10px 22px rgba(0,0,0,.45); }
+.stub { position: relative; flex: none; display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 140px; padding: 10px 16px; background: linear-gradient(180deg, #2b1f12, #1b130a); color: var(--cream); text-align: center; }
+.stub::after { content: ""; position: absolute; right: -6px; top: 0; bottom: 0; width: 12px; background: radial-gradient(circle at 6px 8px, #f7efd8 4px, transparent 4.5px) 0 0 / 12px 16px repeat-y; }
+.stub small { font: 600 10px 'Inter', sans-serif; letter-spacing: 2px; text-transform: uppercase; color: #d9b66a; }
+.stub b { font: 700 34px/1.05 'Oswald', sans-serif; color: #fff; }
+.legs { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.leg { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 10px 12px 10px 14px; border: 0; border-left: 1px dashed #c9b38a; background: none; text-align: left; cursor: pointer; color: inherit; box-shadow: inset 0 3px 0 var(--tc); }
+.leg:first-child { border-left: 0; padding-left: 20px; }
+.leg:hover { background: #fff8e6; }
+.leg > span:not(:first-child) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.leg b { font: 700 14px 'Oswald', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leg small { font: 500 11px 'Inter', sans-serif; color: #6a5a3a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leg strong { display: flex; flex-direction: column; align-items: flex-end; font: 700 22px/1 'Oswald', sans-serif; font-variant-numeric: tabular-nums; }
+.leg strong small { font: 500 10px 'Inter', sans-serif; color: #8a7a5a; margin-top: 2px; }
+.leg[data-state="pre"] strong { color: #a99c80; }
+.liveDot { display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%; background: #e0242f; vertical-align: 1px; animation: pulse 1.4s infinite; }
+.yours { display: inline-flex; gap: 6px; align-items: center; min-width: 0; max-width: 60%; overflow: hidden; padding: 1px 6px 1px 18px; border-radius: 2px; background: #f7efd8 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1 3h8v4H1z' fill='none' stroke='%238a1c1c' stroke-width='1.2'/%3E%3C/svg%3E") 5px 50% / 9px no-repeat; color: #2a1c0e; white-space: nowrap; }
+.yours b { font: 700 11px 'Oswald', sans-serif; letter-spacing: .3px; color: #8a1c1c; }
+.tv[data-mine] { box-shadow: inset 0 0 0 1px #2c2c33, 0 0 0 2px rgba(247,239,216,.55); }
+.bug { flex-wrap: nowrap; }
+@media (max-width: 760px) {
+  .ticket { flex-direction: column; }
+  .stub { flex-direction: row; gap: 10px; min-width: 0; padding: 8px 12px; } .stub b { font-size: 24px; } .stub::after { display: none; }
+  .legs { display: flex; overflow-x: auto; scrollbar-width: none; } .legs::-webkit-scrollbar { display: none; }
+  .leg { flex: 0 0 62%; } .leg:first-child { padding-left: 12px; }
+  .yours b { font-size: 10px; }
+}
+
+/* ── The board's tables in the jumbotron's broadcast look (the Classic tables, restyled) ── */
+.screen { background: linear-gradient(180deg, #13233d, #0a1424 70%); color: #e6eef8; box-shadow: inset 0 0 0 1px #2a3d5c; }
+.screen section { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; color: inherit; }
+.screen header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin: 0 0 6px !important; padding: 0 0 8px !important; border-bottom: 2px solid #ffd34d !important; }
+.screen h3 { margin: 0 !important; font: 700 18px 'Oswald', sans-serif !important; letter-spacing: 2px; text-transform: uppercase; color: #fff !important; }
+.screen header span { color: #9fb3cc !important; font-size: 12px !important; }
+.screen table { color: inherit; background: none !important; }
+.screen th { background: none !important; color: #9fb3cc !important; font: 600 10.5px 'Oswald', sans-serif !important; letter-spacing: 1.5px; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,.14) !important; }
+.screen td { color: #dbe6f3 !important; border-bottom: 1px solid rgba(255,255,255,.06) !important; background: none !important; }
+.screen tr:hover td { background: rgba(255,255,255,.05) !important; }
+.screen td b, .screen button > span b { color: #fff !important; }
+.screen small { color: #9fb3cc !important; }
+.screen section > button { background: none !important; border: 0 !important; border-bottom: 1px solid rgba(255,255,255,.07) !important; border-radius: 0 !important; color: inherit !important; }
+.screen section > button:hover { background: rgba(255,255,255,.06) !important; }
+.screen section > button > em, .screen td:first-child { color: #ffd34d !important; font: 700 15px 'Oswald', sans-serif !important; font-style: normal !important; }
+.screen [class*="_bVal_"] { font: 700 18px 'Oswald', sans-serif !important; color: #fff; }
+.screen [class*="_up_"], .screen [class*="_up_"] b { color: #6bff95 !important; }
+.screen [class*="_down_"], .screen [class*="_down_"] b { color: #ff7b7b !important; }
+.screen [class*="_potdTag_"] { background: #ffd34d !important; color: #0b1220 !important; }
+.screen .moments h3 { color: #fff; } .screen .moments button { color: #dbe6f3; border-top-color: rgba(255,255,255,.08); } .screen .moments button em { color: #cfe0f3; } .screen .moments .star { color: #ffd34d; } .screen .moments .dia { color: #7ef0ff; } .screen .moments button:hover { background: rgba(255,255,255,.06); }
+
+.screen [class*="_pGame_"] { color: #9fb3cc !important; }
+.screen th, .screen td { border-left-color: rgba(255,255,255,.1) !important; border-right-color: rgba(255,255,255,.1) !important; }

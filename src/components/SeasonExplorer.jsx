@@ -6,8 +6,6 @@ import PlayerCard, { MiniCard, DuelCard, DuelModal, tierFor, momentsFor, setFirs
 import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder, CollectionBinder, PublicBinder, usePull, fromIndex } from './Binders'
 import { useCollector } from './Collector'
 import { StoreBook } from './Store'
-import { PickBar, usePredSlate } from './Predictions'
-import predStyles from './Predictions.module.css'
 import MyPredictions, { LineupStrip, useMyDay } from './MyPredictions'
 import PlayerOfWeek from './PlayerOfWeek'
 import { GameScreen } from './GameRoom'
@@ -2353,7 +2351,6 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer, book
     const p = x.g.players.find(q => q.n === x.a)
     setBox({ id: x.g.id, team: p?.t || x.g.teams[0], pin: [x.a, x.b] })
   }
-  const predLive = usePredSlate(day) // today and tomorrow: pick bars under the cards
   // Your lineup for the day: a strip above the cards, and its players marked in the box scores
   const { d: myDay } = useMyDay(day)
   const lineup = useMemo(() => new Map((myDay?.lineup?.slots || []).map(s => [norm(s.player), s])), [myDay])
@@ -2566,7 +2563,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer, book
   return (
     <div className={styles.dayPage}>
       {book ? <SportsbookDay kit={{ gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor }} day={day} cards={cards} scored={scored} side={side} tables={tables}
-        pickCard={pickCard} openBox={openBox} openCard={openCard} onPreview={c => setPreview({ day, fg: c.fg })} shots={shots} predLive={predLive} myDay={myDay}
+        pickCard={pickCard} openBox={openBox} openCard={openCard} onPreview={c => setPreview({ day, fg: c.fg })} shots={shots} myDay={myDay}
         phone={phone} loading={loading} feedErr={feedErr} unmatched={unmatched} provisional={provisional} onView={onView} /> : <>
       <div className={styles.dayBar}>
         <span><b>{cards.length || 'No'}</b> game{cards.length === 1 ? '' : 's'}{liveN ? <> · <span className={styles.liveTxt}><i className={styles.liveDot} />{liveN} live</span></> : ''}</span>
@@ -2581,12 +2578,8 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer, book
         : <div className={styles.dayLayout}><div className={styles.dayMain}>
           <LineupStrip d={myDay} games={scored} />
           <div className={styles.gGrid}>
-            {cards.map(c => {
-              const home = c.g ? (c.g.home || c.g.teams[1]) : c.x.home, away = c.g ? c.g.teams.find(t => t !== home) : c.x.away
-              const card = <GameCard key={c.key} c={c} shots={shots}
-                onOpen={c.g ? () => openBox(c.g) : c.fg ? () => setPreview({ day, fg: c.fg }) : null} />
-              return predLive ? <div key={c.key} className={predStyles.cardWrap}>{card}<PickBar day={day} home={home} away={away} state={c.state} tip={c.tip} /></div> : card
-            })}
+            {cards.map(c => <GameCard key={c.key} c={c} shots={shots}
+              onOpen={c.g ? () => openBox(c.g) : c.fg ? () => setPreview({ day, fg: c.fg }) : null} />)}
           </div>
 
           {phone ? <PhoneTables tables={tables} /> : <>
