@@ -1,11 +1,12 @@
-// Site navigation: the four top-level sections, the Elo Exploration pages under them, and a URL for every view,
+// Site navigation: the five top-level sections, the Elo Exploration pages under them, and a URL for every view,
 // so any menu item opens in a new tab (right-click, or Cmd/Ctrl-click). /scoreboard, /binders and /timemachine have
 // their own paths; every other view is /?view=<id>.
 
 export const TOP = [
   { id: 'rankings', label: 'Current Rankings' },
   { id: 'scoreboard', label: 'Scoreboard' },
-  { id: 'binders', label: 'Binders' },
+  { id: 'binders', label: 'The Binder Room' },
+  { id: 'gameroom', label: 'The Game Room' },
   { id: 'elo', label: 'Elo Exploration' },
 ]
 
@@ -26,7 +27,7 @@ export const ELO_SUBS = [
 const SUB_IDS = new Set(ELO_SUBS.map(s => s.view))
 // The Scoreboard's three tabs: games by day, standings (the season explorer), my predictions
 export const SCOREBOARD_VIEWS = ['scoreboard', 'explorer', 'mypicks', 'potw']
-const KNOWN = new Set(['home', 'rankings', 'elo', 'binders', ...SCOREBOARD_VIEWS, ...SUB_IDS])
+const KNOWN = new Set(['home', 'rankings', 'elo', 'binders', 'gameroom', ...SCOREBOARD_VIEWS, ...SUB_IDS])
 
 // Which top-level section a view sits under
 export const topOf = v => (v === 'elo' || SUB_IDS.has(v) ? 'elo' : SCOREBOARD_VIEWS.includes(v) ? 'scoreboard' : v)
@@ -39,6 +40,7 @@ export function hrefFor(view, opts = {}) {
   if (view === 'potw') return '/scoreboard?tab=potw'
   if (view === 'timemachine') return '/timemachine'
   if (view === 'binders') return opts.open ? `/binders?open=${opts.open}` : '/binders'
+  if (view === 'gameroom') return opts.open ? `/?view=gameroom&open=${opts.open}` : '/?view=gameroom'
   return `/?view=${view}`
 }
 
@@ -63,5 +65,11 @@ export const linkTo = (href, go) => ({
   },
 })
 
-export const TITLES = { scoreboard: 'Scoreboard', explorer: 'Standings', mypicks: 'My Predictions', potw: 'Player of the Week', binders: 'Binders', rankings: 'Current Rankings', elo: 'Elo Exploration',
+export const TITLES = { scoreboard: 'Scoreboard', explorer: 'Standings', mypicks: 'My Predictions', potw: 'Player of the Week', binders: 'The Binder Room', gameroom: 'The Game Room', rankings: 'Current Rankings', elo: 'Elo Exploration',
   ...Object.fromEntries(ELO_SUBS.map(s => [s.view, s.label])) }
+
+// Go to a view from anywhere (a button inside a binder, the desk): push its URL and let App pick it up from popstate
+export function goTo(view, opts = {}) {
+  window.history.pushState(null, '', hrefFor(view, opts))
+  window.dispatchEvent(new PopStateEvent('popstate'))
+}

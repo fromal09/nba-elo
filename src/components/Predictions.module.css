@@ -330,3 +330,73 @@
 .sortBy { display: inline-flex; border: 1px solid #d9dfe6; border-radius: 14px; overflow: hidden; flex-shrink: 0; }
 .sortBy button { border: 0; background: #fff; font: inherit; font-size: 11.5px; font-weight: 700; color: #5b6673; padding: 4px 10px; cursor: pointer; }
 .sortBy button[aria-pressed="true"] { background: #173657; color: #fff; }
+
+/* ── The Game Room's skins (PredictPages arcade): data-skin is the station's tab ───────────────────────────────── */
+.right[data-skin] { background: none; padding: 0; gap: 14px; }
+.right[data-skin] .body { overflow: visible; gap: 12px; }
+.right[data-skin] > .sheetHead { padding: 0 2px; }
+.right[data-skin] .sheetTitle b { font: 400 20px 'Bungee', 'Barlow Condensed', sans-serif; color: #fff2fd; text-shadow: 0 0 8px rgba(255,79,216,.6); }
+.right[data-skin] .sheetTitle span { color: #cbb8e8; }
+.right[data-skin] > .sheetHead > :not(.sheetTitle) { background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,79,216,.4); }
+.right[data-skin] > .sheetHead > :not(.sheetTitle) button { color: #e9dcff; }
+.right[data-skin] > .sheetHead > :not(.sheetTitle) button[aria-selected="true"] { background: #ff4fd8; color: #1a0620; }
+.right[data-skin] .empty { padding: 20px; border-radius: 8px; background: rgba(0,0,0,.35); color: #d8c8ef; }
+.right[data-skin] .empty b { color: #fff; }
+.right[data-skin] .light { color: #cbb8e8; }
+
+/* Daily Lineup: the magnet board */
+.right[data-skin=lineup] .body { padding: 18px; border-radius: 4px; background: linear-gradient(135deg, #ffffff, #e8edf1 60%, #f7f9fb); border: 10px solid #b9c1c9; box-shadow: inset 0 0 0 2px #8d969f, 0 16px 30px rgba(0,0,0,.45); }
+.right[data-skin=lineup] .light { color: #5a6673; }
+.right[data-skin=lineup] .empty { background: none; color: #5a6673; } .right[data-skin=lineup] .empty b { font: 400 20px 'Permanent Marker', cursive; color: #1d2633; }
+.right[data-skin=lineup] .goal { background: none; border: 0; padding: 0; }
+.right[data-skin=lineup] .goal b { font: 400 22px 'Permanent Marker', cursive; color: #1d3fa8; }
+.right[data-skin=lineup] .slot { position: relative; background: none; padding-top: 18px; }
+.right[data-skin=lineup] .slot::before { content: ""; position: absolute; top: 0; left: 50%; width: 22px; height: 22px; margin-left: -11px; border-radius: 50%; z-index: 2;
+  background: radial-gradient(circle at 35% 30%, #ff8a8a, #d42a2a 60%, #8f1414); box-shadow: 0 3px 5px rgba(0,0,0,.35); }
+.right[data-skin=lineup] .slot:nth-child(2)::before { background: radial-gradient(circle at 35% 30%, #8ab4ff, #2a5ad4 60%, #142f8f); }
+.right[data-skin=lineup] .slot:nth-child(3)::before { background: radial-gradient(circle at 35% 30%, #9cf0a8, #22a33a 60%, #136020); }
+.right[data-skin=lineup] .slot:nth-child(4)::before { background: radial-gradient(circle at 35% 30%, #ffe08a, #e0a414 60%, #8f6408); }
+.right[data-skin=lineup] .slot:nth-child(5)::before { background: radial-gradient(circle at 35% 30%, #d6a8ff, #8a3ad4 60%, #4f1a8f); }
+.right[data-skin=lineup] .slot b { font: 400 15px 'Permanent Marker', cursive; color: #1d2633; }
+.right[data-skin=lineup] .slotEmpty { border-color: #b9c1c9; }
+.right[data-skin=lineup] .slotEmpty span { font: 400 16px 'Permanent Marker', cursive; color: #8a95a2; }
+.right[data-skin=lineup] .cand, .right[data-skin=lineup] .multCell { box-shadow: 0 1px 3px rgba(16,32,56,.15); }
+
+/* Player of the Day: the tote board and your betting ticket */
+.right[data-skin=potd] .body { padding: 16px; border-radius: 6px; background: #0f3b26; box-shadow: inset 0 0 0 5px #082215, 0 16px 30px rgba(0,0,0,.45); }
+.right[data-skin=potd] .goal { background: rgba(0,0,0,.3); border: 1px solid rgba(255,225,74,.25); }
+.right[data-skin=potd] .goal > span, .right[data-skin=potd] .goalText { color: #cfe8d6 !important; }
+.right[data-skin=potd] .goal b { font: 400 24px 'VT323', monospace; color: #ffe14a; }
+.right[data-skin=potd] .boxLab { color: #ffe14a; }
+.right[data-skin=potd] .cand { background: #07160e; border: 1px solid rgba(255,225,74,.18); }
+.right[data-skin=potd] .candText b { font: 400 22px/1 'VT323', monospace; color: #ffe14a; letter-spacing: .5px; text-transform: uppercase; }
+.right[data-skin=potd] .candText small, .right[data-skin=potd] .candProj { color: #9fd8b0 !important; }
+.right[data-skin=potd] .candProj b { color: #fff6c8; }
+.right[data-skin=potd] .potdMine { position: relative; background: #f7efd8; border: 0; border-radius: 3px; box-shadow: 0 6px 14px rgba(0,0,0,.4); transform: rotate(-.6deg);
+  -webkit-mask: radial-gradient(circle 8px at 0 50%, transparent 98%, #000), radial-gradient(circle 8px at 100% 50%, transparent 98%, #000); -webkit-mask-composite: source-in; mask-composite: intersect; padding-left: 22px; padding-right: 22px; }
+.right[data-skin=potd] .potdMine::before { content: "WIN TICKET"; position: absolute; top: 4px; right: 24px; font: 700 9px 'Inter', sans-serif; letter-spacing: 2px; color: #a8172a; }
+.right[data-skin=potd] .search { background: #07160e; border-color: rgba(255,225,74,.3); color: #ffe14a; }
+
+/* Pick'em standings: the high-score table */
+.right[data-skin=standings] .body { padding: 18px; border-radius: 10px; background: radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1.5px) 0 0 / 5px 5px, #07050b; box-shadow: inset 0 0 0 3px #2b2433, 0 16px 30px rgba(0,0,0,.45); }
+.right[data-skin=standings] .light { color: #8f7a52; font-family: 'VT323', monospace; font-size: 17px; }
+.right[data-skin=standings] .stList { gap: 0; }
+.right[data-skin=standings] .stRow { background: none; border-radius: 0; padding: 4px 4px; border-bottom: 1px solid rgba(255,176,0,.12); font-family: 'VT323', monospace; }
+.right[data-skin=standings] .stRank { background: none !important; width: 40px; color: #ff3b3b; font-size: 26px; text-shadow: 0 0 6px rgba(255,59,59,.7); }
+.right[data-skin=standings] .stWho b { font-size: 26px; font-weight: 400; color: #ffb000; text-transform: uppercase; text-shadow: 0 0 6px rgba(255,176,0,.7); }
+.right[data-skin=standings] .stWho small { font-size: 16px; color: #8f7a52; }
+.right[data-skin=standings] .stRow strong { font-size: 30px; font-weight: 400; color: #ffe14a; text-shadow: 0 0 6px rgba(255,225,74,.7); }
+.right[data-skin=standings] .stRow:first-child .stWho b { color: #ffe14a; }
+.right[data-skin=standings] .stYou { box-shadow: none; }
+.right[data-skin=standings] .stYou .stWho b { color: #3ef2ff; text-shadow: 0 0 6px rgba(62,242,255,.8); }
+
+/* Prediction history: the prize counter, a ticket stub per day */
+.right[data-skin=history] .histTools .light { color: #cbb8e8; }
+.right[data-skin=history] .histBtn { background: #24123d; border-color: #ff4fd8; color: #ffe6fb; }
+.right[data-skin=history] .hist { position: relative; border-left: 0; border-radius: 4px; padding-left: 26px; background: #fdf3df; box-shadow: 0 4px 10px rgba(0,0,0,.35);
+  -webkit-mask: radial-gradient(circle 9px at 0 50%, transparent 98%, #000); mask: radial-gradient(circle 9px at 0 50%, transparent 98%, #000); }
+.right[data-skin=history] .hist::before { content: ""; position: absolute; left: 14px; top: 8px; bottom: 8px; border-left: 2px dashed rgba(168,23,42,.4); }
+.right[data-skin=history] .histWin { background: #e9f6ec; }
+.right[data-skin=history] .histPerfect { background: linear-gradient(90deg, #fff1c0, #fdf3df 50%); }
+.right[data-skin=history] .histDay b { font: 400 16px 'Bungee', sans-serif; color: #a8172a; }
+.right[data-skin=history] .dayBox { border-left: 0; }

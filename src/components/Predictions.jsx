@@ -480,7 +480,9 @@ function RewardPicker({ day, kind, env, onClose, onDone }) {
 // ── The book ─────────────────────────────────────────────────────────────────
 // The Predictions view of My binder: its left and right pages, handed to the binder's own book (render prop),
 // so it keeps the binder's colors and header. tools = the binder's view tabs.
-export function PredictPages({ env, phone, tools, children, initialTab = 'games' }) {
+// arcade: the Game Room's screens. Each station opens one tab (no tab bar, only the day switch), the page takes that
+// tab's skin (data-skin), and the Game Room draws Games (the trivia handout) and Matchups (the tale of the tape) itself
+export function PredictPages({ env, phone, tools, children, initialTab = 'games', arcade, renderGames, renderMatchups }) {
   const C = env.collector
   const d = C.preds
   const [err, setErr] = useState(null)
@@ -586,7 +588,8 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
     if (!games.length) body = <div className={styles.empty}><b>No games {dayWord}</b><span>{di === '0' && d.slates[1].games.length ? 'Tomorrow’s slate is open.' : di === '-1' ? 'Nothing to look back on.' : 'Check back when the schedule resumes.'}</span></div>
     else if (tab === 'games') {
       const k = need(games.length)
-      body = <>
+      body = renderGames ? renderGames({ games, slate, env, busy, lockFixed, dayWord, need: k,
+        onPick: (g_, t) => g_.pick !== t && run(g_.id, () => C.predict(g_.id, t)), onLock: (g_, on) => run(g_.id, () => C.lock(g_.id, on)) }) : <>
         <Goal items={games.map(g => ({ id: g.id, pick: g.pick, open: g.open, r: g.result }))} total={games.length}
           text={`Get ${k} right to choose a Legend-or-below card from the day’s games. Get all ${games.length} for any card. Star one pick as your Lock of the Day.`} />
         <div className={styles.games}>{games.map(g => <GameRow key={g.id} g={g} env={env} busy={busy === g.id} lockFixed={lockFixed}
@@ -595,7 +598,8 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
     } else if (tab === 'matchups') {
       const m = games.filter(g => g.duel)
       const live_ = m.filter(g => !g.duel.void), nv = m.length - live_.length
-      body = m.length ? <>
+      body = m.length ? renderMatchups ? renderMatchups({ games: m, live: live_, slate, env, busy, dayWord, need: need(live_.length), voided: nv,
+        onPick: (g_, p) => g_.duel.pick !== p && run(`d${g_.id}`, () => C.duelPick(g_.id, p)) }) : <>
         <Goal items={live_.map(g => ({ id: g.id, pick: g.duel.pick, open: g.open, r: g.duel.result }))} total={live_.length}
           text={`Who posts the higher Game Score in each game’s top player matchup? Get ${need(live_.length)} right to choose a Rare or Common from the day. Get all ${live_.length} for the Duel of the Day card.${nv ? ` ${nv} matchup${nv === 1 ? ' is' : 's are'} void (a player ruled out) and ${nv === 1 ? 'doesn’t' : 'don’t'} count.` : ''}`} />
         <div className={styles.games}>{m.map(g => <MatchupRow key={g.id} g={g} busy={busy === `d${g.id}`} onPick={(g_, p) => g_.duel.pick !== p && run(`d${g_.id}`, () => C.duelPick(g_.id, p))} />)}</div>
@@ -604,7 +608,12 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
       onPick={c => run('potd', () => C.potdPick(slate.day, c ? c.name : '', c ? c.team : ''))} />
     else body = <LineupTab day={slate.day} dayWord={dayWord} lu={slate.lineup} env={envX} slots={R.slots} R={R} busy={!!busy} onSet={(day, slot, card) => run('lineup', () => C.setLineup(day, slot, card))} />
   }
-  const right = (
+  const right = arcade ? (
+    <div className={styles.right} data-skin={tab}>
+      <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>{title}</b><span>{sub}</span></div>{picking && dayTabs}</div>
+      <div className={styles.body}>{body}</div>
+    </div>
+  ) : (
     <div className={styles.right}>
       <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>{title}</b><span>{sub}</span></div>{tools}</div>
       <div className={styles.tabRow}>{sub_}{dayTabs}{recTabs}</div>
@@ -612,7 +621,7 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
     </div>
   )
   return <>
-    {children({ left, right, summary: <span><b>Predictions {s.wins}–{s.losses}</b> · {F.rated ? `${sgn(F.over)} vs forecast` : pct(s.pct) + ' right'} · {s.perfect} perfect day{s.perfect === 1 ? '' : 's'}</span> })}
+    {children({ tab, setTab, day: slate.day, dayWord, left, right, summary: <span><b>Predictions {s.wins}–{s.losses}</b> · {F.rated ? `${sgn(F.over)} vs forecast` : pct(s.pct) + ' right'} · {s.perfect} perfect day{s.perfect === 1 ? '' : 's'}</span> })}
     {reward && <RewardPicker day={reward.day} kind={reward.kind} env={env} onClose={() => setReward(null)} onDone={() => setReward(null)} />}
   </>
 }

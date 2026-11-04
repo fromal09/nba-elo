@@ -10,6 +10,7 @@ import { PickBar, usePredSlate } from './Predictions'
 import predStyles from './Predictions.module.css'
 import MyPredictions, { LineupStrip, useMyDay } from './MyPredictions'
 import PlayerOfWeek from './PlayerOfWeek'
+import { GameScreen } from './GameRoom'
 import { hrefFor, linkTo } from '../nav.js'
 import { buildForecaster, blendWeight, norm, WP, winChance, makeProjector, normCdf, untie } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
@@ -3058,7 +3059,7 @@ export function BinderHost({ start, shots, onClose, onProfile }) {
   if (top.kind === 'career') return <CareerBinder key={stack.length} name={top.name} env={env} onClose={back} onSeason={openSeason} />
   if (top.kind === 'team') return <TeamBinder key={stack.length} team={top.team} sd={top.sd} env={env} onClose={back} onFranchise={code => push({ kind: 'franchise', code })} />
   if (top.kind === 'franchise') return <FranchiseBinder key={stack.length} code={top.code} env={env} onClose={back} onSeason={openTeam} />
-  if (top.kind === 'predict') return <CollectionBinder key={stack.length} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} startView="predict" onStore={() => push({ kind: 'store' })} />
+  if (top.kind === 'game') return <GameScreen key={stack.length} {...top} env={env} onClose={back} />
   if (top.kind === 'store') return <StoreBook key={stack.length} env={env} onClose={back} onMine={() => push({ kind: 'mine', sell: true })} />
   if (top.kind === 'public') return <PublicBinder key={stack.length} name={top.name} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} />
   if (top.kind === 'mine') return <CollectionBinder key={stack.length} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} startSell={!!top.sell} onStore={() => push({ kind: 'store' })} />

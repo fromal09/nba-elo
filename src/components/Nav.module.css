@@ -82,6 +82,13 @@
   white-space: nowrap;
 }
 
+/* Five sections: on laptop widths the tabs tighten and the update time steps aside */
+@media (max-width: 1500px) and (min-width: 761px) {
+  .header { gap: 12px; }
+  .navBtn { padding: 6px 8px; }
+  .right { display: none; }
+}
+
 /* Elo Exploration's pages: a second, lighter row under the bar */
 .sub { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; padding: 6px 24px; background: #1f4268; border-bottom: 1px solid rgba(255,255,255,0.08);
   position: sticky; top: 52px; z-index: 99; }

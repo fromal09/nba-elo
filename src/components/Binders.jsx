@@ -3,10 +3,8 @@ import { HOLIDAYS } from './holidays'
 import styles from './Binders.module.css'
 import { MiniCard, DuelCard, tierFor, TIERS, momentsFor } from './PlayerCard'
 import { Meter, CURRENT_TEAMS } from './Collector'
-import { PredictPages } from './Predictions'
-import FiveChallenge from './FiveChallenge'
-import HangBanner from './HangBanner'
-import KingOfTheCourt, { ChallengeModal } from './KingOfTheCourt'
+import { ChallengeModal } from './KingOfTheCourt'
+import { goTo } from '../nav.js'
 import { useIndex as usePlayerIndex, search as searchPlayers } from './PlayerSearch'
 import { Serial, SpecialFace, SpecialModal, isSpecial, specialTitle } from './SpecialCards'
 import { cardPoints } from '../../api/_lib/points.js'
@@ -1405,19 +1403,18 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const top = groups.team[0]
   const t = me?.today, open = me?.open?.[0]
   const PR = me?.predict || {}
-  // The binder's buttons: packs, rewards, the store, today's predictions. Greyed out when there's nothing to do
+  // The binder's buttons: packs, the store and the door to the Game Room (predictions and the challenges live there).
+  // Greyed out when there's nothing to do
   const RV = me?.rivals || {}
+  const gameNote = PR.unclaimed ? `${PR.unclaimed} prize card${PR.unclaimed === 1 ? '' : 's'} to claim` : RV.waiting ? `${RV.waiting} challenge${RV.waiting === 1 ? '' : 's'} waiting on you`
+    : PR.games ? `${PR.picked} of ${PR.games} games picked tonight` : 'Predictions and challenges'
   const lBtn = (key, label, sub, on, onClick, cls) => <button key={key} type="button" className={`${styles.lBtn} ${cls || ''}`} disabled={!on} onClick={onClick}><b>{label}</b>{sub && <small>{sub}</small>}</button>
   const actions = me && <div className={styles.lBtns}>
     {open ? lBtn('daily', `Finish your ${open.kind === 'team' ? 'weekly ' : ''}pack`, `${open.picked} of ${open.total} picked`, true, () => C.resume(open.id), styles.lGold)
       : lBtn('daily', 'Daily Pack', !t.claimed ? (t.bonusToday ? 'Ready · streak bonus inside' : 'Ready to open') : t.waiting ? 'Waiting on last night’s games' : 'Opened · back tomorrow', !t.claimed, () => C.claim(), styles.lGold)}
     {lBtn('weekly', 'Weekly Pack', me.week.claimed ? `Opened · next ${fullDay(me.week.next)}` : 'Ready · pick a team', !me.week.claimed, () => C.openTeam(), styles.lTeam)}
-    {lBtn('claim', 'Claim Rewards', PR.unclaimed ? `${PR.unclaimed} card${PR.unclaimed === 1 ? '' : 's'} to choose` : 'Nothing to claim', !!PR.unclaimed, () => pickView('predict:history'), styles.lClaim)}
     {onStore && lBtn('store', 'Store', `${(me.coins?.balance ?? 0).toLocaleString()} Coins`, true, onStore, styles.lStore)}
-    {lBtn('games', 'Game Predictions', PR.games ? `${PR.picked} of ${PR.games} picked` : 'No games today', true, () => pickView('predict:games'))}
-    {lBtn('match', 'Matchup Predictions', PR.duels ? `${PR.duels_picked} of ${PR.duels} picked` : 'Not set yet', true, () => pickView('predict:matchups'))}
-    {lBtn('potd', 'Player of the Day', `${PR.potd ? 1 : 0} of 1 picked`, true, () => pickView('predict:potd'))}
-    {lBtn('rivals', 'Rivalries', RV.waiting ? `${RV.waiting} challenge${RV.waiting === 1 ? '' : 's'} waiting on you` : RV.live ? `${RV.live} on${RV.sent ? ` · ${RV.sent} sent` : ''}` : RV.sent ? `${RV.sent} sent · waiting` : 'Challenge a collector', true, () => pickView('koc:rivals'), RV.waiting ? styles.lRival : '')}
+    {lBtn('games', 'The Game Room →', gameNote, true, () => goTo('gameroom'), PR.unclaimed ? styles.lClaim : RV.waiting ? styles.lRival : styles.lGames)}
   </div>
   const theme = src.user.binderTheme || null
   const settingsBtns = mine ? <div className={styles.headRow}>
@@ -1460,11 +1457,9 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   </>
   const nBadges = (src.achievements || []).filter(a => a.earned).length
   const specials = all.filter(e => e.special || e.duel)
-  // The header: the Table of Contents (every section of the binder) and Games (predictions and the challenges)
-  const inGames = view.startsWith('predict') || view === 'games' || view === 'five' || view === 'banner' || view.startsWith('koc')
+  // The header: the Table of Contents (every section of the binder)
   const tools = <div className={styles.navBtns}>
     <button type="button" className={view === 'toc' ? styles.navOn : ''} onClick={() => pickView('toc')}>☰ Table of Contents</button>
-    {mine && <button type="button" className={inGames ? styles.navOn : ''} onClick={() => pickView('games')}>◆ Games</button>}
   </div>
   const sortSel = (
     <select className={styles.sortSel} value={order} onChange={e => { setOrder(e.target.value); S.reset() }} aria-label="Sort">
@@ -1497,18 +1492,12 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       : !t.claimed ? <button type="button" className={styles.dockHot} onClick={() => C.claim()}><b>🎁</b>Open pack</button>
       : !me.week.claimed ? <button type="button" onClick={() => C.openTeam()}><b>🎁</b>Team pack</button>
       : <button type="button" disabled><b>🎁</b>Next pack</button>}
-    <button type="button" className={view.startsWith('predict') ? styles.dockOn : ''} onClick={() => pickView(view.startsWith('predict') ? 'all' : 'predict:games')}><b>🎯</b>{me.predict?.unclaimed ? 'Card to pick' : 'Predict'}</button>
+    <button type="button" onClick={() => goTo('gameroom')}><b>🕹</b>{me.predict?.unclaimed ? 'Prize waiting' : 'Game Room'}</button>
     {onStore && <button type="button" onClick={onStore}><b>◎</b>Store</button>}
     <button type="button" className={sellMode ? styles.dockSell : ''} onClick={() => { if (view !== 'all' && view !== 'starred' && view !== 'team' && view !== 'decade') pickView('all'); setSellMode(v => !v); setSellAsk(null) }}><b>$</b>{sellMode ? 'Done' : 'Sell'}</button>
   </>
   let right
   const settingsView = settings && mine && <SettingsModal env={env} C={C} fav={fav} theme={theme} onClose={() => setSettings(false)} />
-  if (view.startsWith('predict') && mine) {
-    return <PredictPages key={view} env={env} phone={phone} tools={tools} initialTab={view.split(':')[1] || 'games'}>{p => <>
-      <Book tc={tc} theme={theme} phone={phone} onClose={onClose} head={head} left={p.left} right={p.right} summary={p.summary} dock={phone && me ? dock : null} />
-      {P.view}{settingsView}
-    </>}</PredictPages>
-  }
   if (view === 'toc') {
     const ch = [
       ['I', 'My Cards', 'all', `${all.length} card${all.length === 1 ? '' : 's'}`, [['team', 'By franchise', `${groups.team.length}`], ['decade', 'By decade', `${groups.decade.length}`], ['specials', 'Specials', specials.length]]],
@@ -1526,36 +1515,6 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
             <button type="button" className={styles.tocRow} onClick={() => pickView(go)}><i>{num}</i><b>{title}</b><span className={styles.tocDots} /><em>{right_}</em></button>
             {subs && subs.map(([v, l, r]) => <button key={v} type="button" className={`${styles.tocRow} ${styles.tocSub}`} onClick={() => pickView(v)}><i /><span>{l}</span><span className={styles.tocDots} /><em>{r}</em></button>)}
           </div>)}
-        </div>
-      </div>
-    )
-  } else if (view === 'games' && mine) {
-    // Three banners, each with its buttons: [view, title, status]
-    const secs = [
-      ['Predictions', 'Call tonight’s games and players', [
-        ['predict:games', 'Games', PR.games ? `${PR.picked} of ${PR.games} picked` : 'No games today'],
-        ['predict:matchups', 'Player Matchups', PR.duels ? `${PR.duels_picked} of ${PR.duels} picked` : 'Not set yet'],
-        ['predict:lineup', 'Daily Lineup', 'Five players'],
-        ['predict:potd', 'Player of the Day', `${PR.potd ? 1 : 0} of 1 picked`]]],
-      ['Challenges', 'Play your cards', [
-        ['banner', 'Hang the Banner', 'A ladder per franchise'],
-        ['five', 'Five Challenge', 'This week’s lineups'],
-        ['koc', 'King of the Court', 'Groups · Rivalries']]],
-      ['Results', 'How you’ve done', [
-        ['predict:standings', 'Pick’em Standings', 'This week'],
-        ['predict:history', 'Prediction History', PR.unclaimed ? `${PR.unclaimed} card${PR.unclaimed === 1 ? '' : 's'} to claim` : 'Every day you’ve played']]],
-    ]
-    right = (
-      <div className={styles.right}>
-        <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Games</b><span>predictions and challenges</span></div>{tools}</div>
-        <div className={styles.gamesList}>
-          {secs.map(([title, sub, btns]) => <section key={title} className={styles.gameSec}>
-            <div className={styles.gameBanner}><b>{title}</b><span>{sub}</span></div>
-            <div className={styles.gameBtns}>
-              {btns.map(([v, label, status]) => <button key={v} type="button" className={styles.gameBtn} onClick={() => pickView(v)}>
-                <b>{label}</b><small>{status}</small></button>)}
-            </div>
-          </section>)}
         </div>
       </div>
     )
@@ -1621,12 +1580,6 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
         </div>
       </div>
     )
-  } else if (view === 'five' && mine) {
-    right = <FiveChallenge env={env} tools={tools} />
-  } else if (view === 'banner' && mine) {
-    right = <HangBanner env={env} tools={tools} />
-  } else if (view.startsWith('koc') && mine) {
-    right = <KingOfTheCourt key={view} env={env} tools={tools} initialTab={view === 'koc:rivals' ? 'rivals' : 'group'} />
   } else if (view === 'wishes') {
     right = <div className={styles.right}><WishList user={mine ? null : src.user.username} mine={mine} C={C} env={env} tools={tools} /></div>
   } else if (view === 'badges') {
@@ -1781,7 +1734,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     {chal && <ChallengeModal C={C} to={src.user.username} onClose={() => setChal(false)} />}
     <Book tc={tc} theme={theme} phone={phone} onClose={onClose} head={head} left={left} right={right} dock={phone && me ? dock : null}
       summary={<span><b>{n0(st.score)} pts</b>{st.rank ? ` · No. ${st.rank}` : ''} · {all.length} cards</span>}
-      onKey={e => { if (P.open) return true; if (['sets', 'badges', 'specials', 'wishes', 'five', 'banner', 'koc', 'koc:rivals', 'toc', 'games', 'checklists'].includes(view) || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
+      onKey={e => { if (P.open) return true; if (['sets', 'badges', 'specials', 'wishes', 'toc', 'checklists'].includes(view) || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
     {P.view}
   </>
 }

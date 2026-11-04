@@ -125,6 +125,13 @@
 .board span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board small { font: 700 14px 'Barlow Condensed', 'Inter', sans-serif; color: #b9c6b4; }
 .board strong { width: 32px; text-align: right; font-size: 22px; }
+.door { align-self: stretch; position: relative; display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; padding: 14px 18px; border-radius: 8px; text-decoration: none;
+  background: radial-gradient(120% 140% at 0% 0%, #3a1758, #160a26 70%); border: 2px solid #ff4fd8; box-shadow: 0 0 0 3px #160a26, 0 0 18px rgba(255,79,216,.45), inset 0 0 22px rgba(255,79,216,.25); }
+.door b { font: 800 26px/1 'Barlow Condensed', 'Inter', sans-serif; letter-spacing: 2px; color: #fff3ff; text-shadow: 0 0 6px #ff4fd8, 0 0 16px #ff4fd8; }
+.door span { grid-column: 1; font: 600 12px 'Inter', sans-serif; color: #f2c9ff; }
+.door i { grid-row: 1 / span 2; grid-column: 2; align-self: center; font: 800 30px 'Barlow Condensed', sans-serif; font-style: normal; color: #ffe14a; text-shadow: 0 0 10px #ffb300; transition: transform .2s; }
+.door:hover i { transform: translateX(4px); }
+.door:focus-visible { outline: 2px solid #ffe14a; outline-offset: 3px; }
 .chalkNote { margin-top: 8px; font: 600 12px 'Inter', sans-serif; color: #b9c6b4; }
 
 @media (prefers-reduced-motion: reduce) { .lspine, .tspine, .gspine, .drawer { transition: none; } .lspine:hover, .tspine:hover, .gspine:hover { transform: none; } }

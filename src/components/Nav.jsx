@@ -4,7 +4,7 @@ import PlayerSearch from './PlayerSearch'
 import { AccountBar } from './Collector'
 import { TOP, ELO_SUBS, topOf, hrefFor, linkTo } from '../nav.js'
 
-// Top bar: the four sections. Under Elo Exploration, a second row of its pages.
+// Top bar: the five sections. Under Elo Exploration, a second row of its pages.
 // Every item is a link, so it opens in a new tab with a right-click or Cmd/Ctrl-click.
 export default function Nav({ meta, live, view, setView, players, onSelectPlayer, onMine, onStore }) {
   const top = topOf(view)
@@ -33,7 +33,7 @@ export default function Nav({ meta, live, view, setView, players, onSelectPlayer
         ))}
       </nav>
       {players && <div className={styles.search}><PlayerSearch players={players} onSelect={onSelectPlayer} /></div>}
-      <div className={styles.account}><AccountBar onMine={onMine} onStore={onStore} compact={typeof matchMedia !== 'undefined' && matchMedia('(max-width: 1100px)').matches} /></div>
+      <div className={styles.account}><AccountBar onMine={onMine} onStore={onStore} compact={typeof matchMedia !== 'undefined' && matchMedia('(max-width: 1380px)').matches} /></div>
       <div className={styles.right}>
         <span className={styles.updated}>{live?.inprog.length
           ? <><i className={styles.liveDot} />Live · {live.inprog.length} game{live.inprog.length === 1 ? '' : 's'} on</>

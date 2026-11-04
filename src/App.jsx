@@ -13,6 +13,7 @@ import Daily from './components/Daily'
 import SeasonExplorer from './components/SeasonExplorer'
 import TimeMachine from './components/TimeMachine'
 import BinderRoom from './components/BinderRoom'
+import GameRoom from './components/GameRoom'
 import { CollectorProvider, useCollector } from './components/Collector'
 import Methodology from './components/Methodology'
 import PlayerModal from './components/PlayerModal'
@@ -21,7 +22,7 @@ import FanSidedHeader from './components/FanSidedHeader'
 import Homepage from './components/Homepage'
 import EloExploration from './components/EloExploration'
 import styles from './App.module.css'
-import { viewFromUrl, hrefFor, TITLES } from './nav.js'
+import { viewFromUrl, hrefFor, TITLES, goTo } from './nav.js'
 import { installCardSave } from './cardSave.js'
 import { registerPlayers, ensureHistory, onHistory } from './history.js'
 import { buildRatings } from './components/live.js'
@@ -36,16 +37,20 @@ export default function App() {
   const [error, setError] = useState(null)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
   // Every view has a URL (src/nav.js), so menu items open in new tabs and Back works
-  const [view, setView] = useState(viewFromUrl)
-  // A binder to open on the Binders page: { kind: mine | store | predict, n } (n changes on every request)
+  // Predictions moved to the Game Room: an old /binders?open=predict link opens them there
+  const [view, setView] = useState(() => {
+    if (viewFromUrl() === 'binders' && new URLSearchParams(window.location.search).get('open') === 'predict') window.history.replaceState(null, '', hrefFor('gameroom', { open: 'predict' }))
+    return viewFromUrl()
+  })
+  // A binder to open on the Binders page: { kind: mine | store, n } (n changes on every request)
   const [binderStart, setBinderStart] = useState(() => {
     const o = new URLSearchParams(window.location.search).get('open')
-    return viewFromUrl() === 'binders' && ['mine', 'store', 'predict'].includes(o) ? { kind: o, n: 1 } : null
+    return viewFromUrl() === 'binders' && ['mine', 'store'].includes(o) ? { kind: o, n: 1 } : null
   })
   const openBinder = kind => { setView('binders'); setBinderStart({ kind, n: Date.now() }) }
   const openMine = () => openBinder('mine')
   const openStore = () => openBinder('store')
-  const openPredict = () => openBinder('predict')
+  const openPredict = () => goTo('gameroom', { open: 'predict' })
 
   useEffect(() => {
     if (viewFromUrl() !== view) window.history.pushState(null, '', hrefFor(view))
@@ -165,6 +170,7 @@ export default function App() {
       )}
       {view === 'timemachine' && <TimeMachine />}
       {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} start={binderStart} />}
+      {view === 'gameroom' && <GameRoom players={data.players} onSelectPlayer={setSelectedPlayer} ratings={ratings} />}
       {view === 'methodology' && <Methodology />}
 
       {selectedPlayer && !histReady && (

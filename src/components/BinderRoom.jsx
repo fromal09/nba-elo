@@ -9,11 +9,12 @@ import TrophyRoom, { FaceFit, Plate } from './TrophyRoom'
 import CardDatabase from './CardDatabase'
 import { useShelf } from './ShelfFx'
 import { norm } from './predict'
+import { goTo } from '../nav.js'
 
 /*
  * The Binders page: the Binder Room, one bookcase. Your binder lies open on the desk in front of it; the shelves hold
  * the trophy case (leaderboards), the league sets, the franchise binders and the legends' career binders; the card
- * catalog at the bottom opens the card database, beside the week's Pick'em board.
+ * catalog at the bottom opens the card database, beside the door to the Game Room (the week's Pick'em board on it).
  */
 
 const baseName = n => n.replace(/\s*\(.*\)$/, '')
@@ -28,7 +29,7 @@ const Corners = () => <span className={styles.corners} aria-hidden="true"><i /><
 
 // Your desk: your binder lying closed under the lamp (your best card showing through its cover window), and the
 // things you use every day as objects beside it: today's foil pack, the coin stack (Store), the Pick'em notepad
-// (Predictions), a brass nameplate with your standing and the punch card toward the next big pull
+// (tonight's predictions, in the Game Room), a brass nameplate with your standing and the punch card toward the next big pull
 function Foil({ label, sub, tone }) {
   return <span className={styles.foil} data-tone={tone}><span>FPR</span><b>{label}</b><span>{sub}</span></span>
 }
@@ -77,9 +78,9 @@ function Desk({ C, shots, setOpen }) {
               <span className={styles.coins} aria-hidden="true">{[0, 1, 2, 3, 4].map(i => <i key={i} style={{ '--i': i }} />)}</span>
               <span className={styles.tag}><Coin size={14} />Store · {(me.coins?.balance ?? 0).toLocaleString()}</span>
             </button>
-            <button type="button" className={styles.obj} onClick={() => setOpen({ kind: 'predict' })}>
+            <button type="button" className={styles.obj} onClick={() => goTo('gameroom', { open: p?.unclaimed ? 'history' : 'predict' })}>
               <span className={styles.pad}><b>{pad[0]}</b><span>{pad[1]}</span></span>
-              <span className={styles.tag}>Predictions</span>
+              <span className={styles.tag}>Predictions · Game Room</span>
             </button>
           </>}
         </div>
@@ -106,7 +107,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
   const C = useCollector()
   const [picks, setPicks] = useState(null)
   useEffect(() => { if (!C.down && C.me !== undefined) C.loadStandings?.('week').then(setPicks).catch(() => {}) }, [C.down, C.me === undefined])
-  // Asked from elsewhere (the account bar, a /binders?open= link): open my binder, the store or Predictions once signed in
+  // Asked from elsewhere (the account bar, a /binders?open= link): open my binder or the store once signed in
   const used = useRef(null)
   useEffect(() => {
     if (!start || used.current === start.n || C.me === undefined) return
@@ -116,7 +117,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
   // The address names the open page of yours, so it can be shared or opened in a new tab
   useEffect(() => {
     if (window.location.pathname.replace(/\/+$/, '') !== '/binders') return
-    const url = open && ['mine', 'store', 'predict'].includes(open.kind) ? `/binders?open=${open.kind}` : '/binders'
+    const url = open && ['mine', 'store'].includes(open.kind) ? `/binders?open=${open.kind}` : '/binders'
     if (window.location.pathname + window.location.search !== url) window.history.replaceState(null, '', url)
   }, [open?.kind, open?.n])
   useEffect(() => {
@@ -243,7 +244,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
             <div className={shelf.plank} />
           </section>
 
-          <section id="br-catalog" className={`${shelf.bay} ${styles.lastBay}`} aria-label="Card catalog and Pick’em">
+          <section id="br-catalog" className={`${shelf.bay} ${styles.lastBay}`} aria-label="Card catalog and the door to the Game Room">
             <div className={styles.cabinets}>
               <div className={styles.catalog}>
                 <Plate as="h2">Card catalog</Plate>
@@ -252,20 +253,23 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
                 </div>
                 <small className={styles.cabNote}>Every card on record, searchable. Each drawer opens the card database ready to filter that way.</small>
               </div>
-              {picks && picks.leaders.length > 0 && <div className={styles.chalk}>
-                <Plate as="h2">Pick’em this week</Plate>
-                <div className={styles.board}>
+              <div className={styles.chalk}>
+                <Plate as="h2">To the Game Room</Plate>
+                <a className={styles.door} href="/?view=gameroom" onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); goTo('gameroom') }}>
+                  <b>THE GAME ROOM</b><span>Predictions · King of the Court · Hang the Banner · Five Challenge</span><i aria-hidden="true">→</i>
+                </a>
+                {picks && picks.leaders.length > 0 && <div className={styles.board}>
                   {picks.leaders.slice(0, 5).map(l => (
-                    <button key={l.username} type="button" data-you={C.me?.user.username === l.username ? '' : undefined} onClick={() => C.openPredict()}>
+                    <button key={l.username} type="button" data-you={C.me?.user.username === l.username ? '' : undefined} onClick={() => goTo('gameroom', { open: 'standings' })}>
                       <b>{l.rank}</b><span>{l.username}</span><small>{l.picks[0]}–{l.picks[1]}</small><strong>{l.score}</strong>
                     </button>
                   ))}
-                  {picks.you?.rank > 5 && <button type="button" data-you="" onClick={() => C.openPredict()}>
+                  {picks.you?.rank > 5 && <button type="button" data-you="" onClick={() => goTo('gameroom', { open: 'standings' })}>
                     <b>{picks.you.rank}</b><span>{picks.you.username} (you)</span><small>{picks.you.picks[0]}–{picks.you.picks[1]}</small><strong>{picks.you.score}</strong>
                   </button>}
-                  <small className={styles.chalkNote}>{picks.entrants} collector{picks.entrants === 1 ? '' : 's'} · top 10 win {picks.payouts?.top10} Coins</small>
-                </div>
-              </div>}
+                  <small className={styles.chalkNote}>Pick’em this week · {picks.entrants} collector{picks.entrants === 1 ? '' : 's'} · top 10 win {picks.payouts?.top10} Coins</small>
+                </div>}
+              </div>
             </div>
           </section>
         </div>
