@@ -117,14 +117,29 @@
   background: linear-gradient(135deg, #ffffff, #e8edf1 60%, #f7f9fb); border: 8px solid #b9c1c9; border-radius: 4px; color: #1d2633;
   box-shadow: inset 0 0 0 2px #8d969f, 0 14px 24px rgba(0,0,0,.5); }
 .wbTitle { font: 400 28px/1 'Permanent Marker', 'Comic Sans MS', cursive; color: #1d3fa8; }
-.magnets { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-.magnets i { width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: 400 11px/1.05 'Permanent Marker', cursive; font-style: normal; color: #8a95a2;
-  border: 2px dashed #b9c1c9; box-sizing: border-box; overflow: hidden; text-align: center; padding: 3px; }
-.magnets i[data-on] { border: 0; color: #fff; background: radial-gradient(circle at 35% 30%, #ff8a8a, #d42a2a 60%, #8f1414); box-shadow: 0 4px 6px rgba(0,0,0,.35), inset 0 -3px 0 rgba(0,0,0,.2); }
-.magnets i[data-on]:nth-child(2) { background: radial-gradient(circle at 35% 30%, #8ab4ff, #2a5ad4 60%, #142f8f); }
-.magnets i[data-on]:nth-child(3) { background: radial-gradient(circle at 35% 30%, #9cf0a8, #22a33a 60%, #136020); }
-.magnets i[data-on]:nth-child(4) { background: radial-gradient(circle at 35% 30%, #ffe08a, #e0a414 60%, #8f6408); color: #2a1a00; }
-.magnets i[data-on]:nth-child(5) { background: radial-gradient(circle at 35% 30%, #d6a8ff, #8a3ad4 60%, #4f1a8f); }
+.magnets { display: flex; gap: 10px; justify-content: center; align-items: flex-start; width: 100%; min-height: 104px; }
+.hang { position: relative; flex: 0 1 62px; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.mag { position: relative; z-index: 2; width: 22px; height: 22px; border-radius: 50%; flex: none; background: radial-gradient(circle at 35% 30%, #ff8a8a, #d42a2a 60%, #8f1414);
+  box-shadow: 0 3px 5px rgba(0,0,0,.35), inset 0 -2px 0 rgba(0,0,0,.2); }
+.mag[data-c="1"] { background: radial-gradient(circle at 35% 30%, #8ab4ff, #2a5ad4 60%, #142f8f); }
+.mag[data-c="2"] { background: radial-gradient(circle at 35% 30%, #9cf0a8, #22a33a 60%, #136020); }
+.mag[data-c="3"] { background: radial-gradient(circle at 35% 30%, #ffe08a, #e0a414 60%, #8f6408); }
+.mag[data-c="4"] { background: radial-gradient(circle at 35% 30%, #d6a8ff, #8a3ad4 60%, #4f1a8f); }
+.hang:not([data-on]) .mag { margin-top: 34px; }
+.hungCard { width: 100%; margin-top: -11px; transform: rotate(-2deg); box-shadow: 0 6px 10px rgba(0,0,0,.3); border-radius: 4px; }
+.hang:nth-child(2n) .hungCard { transform: rotate(2deg); }
+.hungCard > div { width: 100%; }
+.hungName { display: flex; align-items: center; justify-content: center; aspect-ratio: 340 / 476; background: #fff; border: 1px solid #cfd6dd; font: 400 11px/1.1 'Permanent Marker', cursive; color: #1d2633; text-align: center; padding: 4px; box-sizing: border-box; }
+
+/* The fight poster's two fighters, their last cards */
+.fightBout { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; margin-top: 18px; padding: 0 6px; }
+.fighterMini { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.fighterMini .photoCard { width: 100%; max-width: 104px; border-radius: 5px; box-shadow: 0 6px 10px rgba(0,0,0,.35), 0 0 0 3px #fff; }
+.fighterMini[data-side="a"] .photoCard { transform: rotate(-3deg); } .fighterMini[data-side="b"] .photoCard { transform: rotate(3deg); }
+.fighterMini b { margin-top: 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 clamp(13px, 1.4vw, 18px)/1 'Bungee', sans-serif; text-transform: uppercase; color: #1a0d07; }
+.fighterMini small { font: 700 10.5px 'Inter', sans-serif; letter-spacing: 1px; color: #6a4a2a; }
+.vsMini { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: #1a0d07; color: #ffe14a; font: 400 14px 'Bungee', sans-serif; font-style: normal; box-shadow: 0 0 0 3px #b3161f; z-index: 2; }
 
 /* Tote board */
 .tote { grid-column: span 4; min-height: 230px; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 30px; border-radius: 6px; color: #ffe14a; font-family: 'VT323', monospace;
@@ -210,6 +225,7 @@
 .plaque small { font: 700 9.5px 'Inter', sans-serif; letter-spacing: 1px; text-transform: uppercase; }
 .plaque b { font: 900 20px/1.1 'Playfair Display', Georgia, serif; }
 .plaque span { font: 600 12px 'Inter', sans-serif; }
+.plaqueRule { margin-top: 4px; padding-top: 5px; border-top: 1px solid rgba(42,26,0,.35); }
 .logo { flex: none; display: inline-flex; align-items: center; justify-content: center; }
 .logo img { width: 100%; height: 100%; object-fit: contain; }
 .logo b { font: 800 10px 'Inter', sans-serif; }

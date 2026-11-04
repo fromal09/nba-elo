@@ -3013,6 +3013,10 @@ export function binderCareerPath(name, date) {
 }
 // The newest season in the data (an in-season card is one from it until the server marks it Final)
 export const binderNewest = () => NEWEST
+// What a page outside a binder needs to draw a season's game cards (the Game Room's fight posters)
+export const binderLoadSeason = label => loadSeason(label, label === NEWEST)
+export const binderWithTeams = (sd, fn) => withTeams(sd, fn)
+export const binderCardGameInfo = (g, t, sd, p) => cardGameInfo(g, t, sd, p)
 export const binderPeaks = () => getJSON('/data/explorer/binders/peaks.json')
 export const binderHistory = () => historyReady()
 

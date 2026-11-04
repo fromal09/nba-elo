@@ -4,7 +4,8 @@ import bs from './Binders.module.css'
 import { Fit, useIsPhone } from './Binders'
 import { MiniCard } from './PlayerCard'
 import { useCollector, Coin } from './Collector'
-import { BinderHost, primeBinders, binderJSON, binderHeadshots, binderTeamInfo, binderLogo, binderNewest } from './SeasonExplorer'
+import { BinderHost, primeBinders, binderJSON, binderHeadshots, binderTeamInfo, binderLogo, binderNewest, binderLoadSeason, binderWithTeams, binderCardGameInfo } from './SeasonExplorer'
+import { norm } from './predict'
 import { PredictPages } from './Predictions'
 import KingOfTheCourt from './KingOfTheCourt'
 import HangBanner from './HangBanner'
@@ -340,7 +341,7 @@ function HighScores({ C, picks, go }) {
 }
 
 // The stations along the walls, each a doorway to its game
-function Stations({ C, preds, go }) {
+function Stations({ C, preds, go, env }) {
   const S = preds?.slates || []
   const slate = S[0]?.games.length ? S[0] : S[1]?.games.length ? S[1] : S[0]
   const games = slate?.games || []
@@ -350,20 +351,35 @@ function Stations({ C, preds, go }) {
   const potd = slate?.potd
   const cands = (potd?.candidates || []).slice(0, 4)
   const RV = C.me?.rivals || {}
+  const last = useLastCards(env, top ? [top.a, top.b] : [])
   return (
     <div className={styles.stWrap}>
     <p className={styles.swipe}>Swipe the stations →</p>
     <div className={styles.stations} role="list">
       <button type="button" role="listitem" className={`${styles.st} ${styles.fight}`} onClick={() => go('matchups')}>
         <span className={styles.fightTop}>Tonight · {duels.length || 'no'} bout{duels.length === 1 ? '' : 's'}</span>
-        <span className={styles.fightNames}>{top ? <><b>{lastName(top.a)}</b><i>vs</i><b>{lastName(top.b)}</b></> : <b>Tale of the Tape</b>}</span>
-        <span className={styles.fightSub}>{top ? `${n0(top.ae)} · ELO · ${n0(top.be)}` : 'Matchups appear before tipoff'}</span>
+        {top ? <span className={styles.fightBout}>
+          {[[top.a, top.ae], [top.b, top.be]].map(([n, e], i) => <span key={n} className={styles.fighterMini} data-side={i ? 'b' : 'a'}>
+            <LastCard name={n} x={last[n]} env={env} />
+            <b>{lastName(n)}</b><small>{n0(e)} Elo</small>
+          </span>)}
+          <i className={styles.vsMini}>VS</i>
+        </span> : <>
+          <span className={styles.fightNames}><b>Tale of the Tape</b></span>
+          <span className={styles.fightSub}>Matchups appear before tipoff</span>
+        </>}
         <span className={styles.stTag}>Player Matchups · {duels.filter(g => g.duel.pick).length} of {duels.length} called</span>
       </button>
 
       <button type="button" role="listitem" className={`${styles.st} ${styles.magnet}`} onClick={() => go('lineup')}>
         <span className={styles.wbTitle}>Daily Lineup</span>
-        <span className={styles.magnets}>{Array.from({ length: slots }, (_, i) => { const s = lu?.slots.find(x => x.slot === i); return <i key={i} data-on={s ? '' : undefined}>{s ? lastName(s.player).slice(0, 8) : i + 1}</i> })}</span>
+        <span className={styles.magnets}>{Array.from({ length: slots }, (_, i) => {
+          const s = lu?.slots.find(x => x.slot === i)
+          return <span key={i} className={styles.hang} data-on={s ? '' : undefined}>
+            <i className={styles.mag} data-c={i} aria-hidden="true" />
+            {s && <span className={styles.hungCard}>{s.card ? <FaceFit card={s.card} shots={env.shots} /> : <span className={styles.hungName}>{lastName(s.player)}</span>}</span>}
+          </span>
+        })}</span>
         <span className={styles.stTag}>The magnet board · {lu ? `${lu.slots.length} of ${slots} on the board` : 'Five of your players'}</span>
       </button>
 
@@ -433,14 +449,22 @@ function ChampWall({ shots, go }) {
     Promise.all([get(day), get(addDays(day, -7))]).then(([now, prev]) => setW({ now, prev }))
   }, [])
   const card = w.prev?.settled?.card
-  const lead = w.now?.leader
+  // This week's leader on the court (two games to qualify; the front-runner before that) and in the pick'em race
+  const lead = w.now?.leader || w.now?.top?.[0]
+  const race = w.now?.race?.[0]
+  const who = (card?.winners || w.prev?.settled?.winners || []).map(x => (typeof x === 'string' ? x : x?.username)).filter(Boolean)
   return (
     <button type="button" className={styles.champ} onClick={() => go('potw')}>
       <span className={styles.champSign}>Player of the Week</span>
       <span className={styles.frames}>
         <span className={styles.frame}>{card ? <FaceFit card={card} shots={shots} /> : <span className={styles.frameBlank}>Last week’s champion</span>}</span>
-        <span className={styles.plaque}><small>This week’s leader</small><b>{lead ? baseName(lead.n) : '—'}</b>{lead?.gs != null && <span>{(+lead.gs).toFixed(1)} Game Score a game</span>}
-          <small>{card?.winners?.length ? `Last week’s card went to ${card.winners.join(', ')}` : 'The week’s pick’em winner gets the card'}</small></span>
+        <span className={styles.plaque}>
+          <small>{w.now?.leader ? 'This week’s leader' : 'This week’s front-runner'}</small>
+          <b>{lead ? baseName(lead.n) : 'No games yet'}</b>
+          {lead?.gs != null && <span>{lead.gp} game{lead.gp === 1 ? '' : 's'} · {(+lead.gs).toFixed(1)} Game Score a game</span>}
+          <small className={styles.plaqueRule}>{race ? `Pick’em leader: ${race.username}, ${race.score} pts` : 'The week’s pick’em winner gets the card'}</small>
+          {who.length > 0 && <small>Last week’s card went to {who.join(', ')}</small>}
+        </span>
       </span>
     </button>
   )
@@ -478,6 +502,9 @@ export default function GameRoom({ players, onSelectPlayer, ratings }) {
   }, [open?.station, open?.n])
   const go = s => (C.me ? setOpen(s) : C.openAuth('signup'))
   const preds = C.me ? C.preds : null
+  // Enough of a binder's env to draw game cards in the room (the fight poster's fighters)
+  const env = useMemo(() => ({ loadSeason: binderLoadSeason, withTeams: binderWithTeams, cardGameInfo: binderCardGameInfo, teamInfo: binderTeamInfo,
+    headshot: n => shots?.[norm(n)]?.headshot, shots }), [shots])
   const fav = C.me?.user.favoriteTeam
   const pennants = useMemo(() => [fav, 'BOS', 'LAL', 'CHI', 'GSW', 'SAS'].filter((t, i, a) => t && a.indexOf(t) === i).slice(0, 5), [fav])
 
@@ -496,7 +523,7 @@ export default function GameRoom({ players, onSelectPlayer, ratings }) {
       <div className={styles.hall}>
         <Chalkboard C={C} preds={preds} go={go} />
         <HighScores C={C} picks={picks} go={go} />
-        <Stations C={C} preds={preds} go={go} />
+        <Stations C={C} preds={preds} go={go} env={env} />
         <PrizeCounter preds={preds} go={go} />
         <ChampWall shots={shots} go={go} />
       </div>
