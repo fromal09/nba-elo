@@ -2580,7 +2580,14 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer, book
 
   return (
     <div className={styles.dayPage}>
-      {book ? <SportsbookDay kit={{ gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor, tName }} day={day} cards={cards} scored={scored} side={side} tables={tables}
+      {book ? <SportsbookDay kit={{ gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor, tName,
+          // for FanSided Tonight: the real cards, the player's season before tonight and his career record
+          miniCard: (g, p) => <MiniCard name={p.n} row={p} game={cardGameInfo(g, p.t, daySd, p)} team={{ name: tName(p.t), color: tColor(p.t), abbr: tCode(p.t), logo: logoUrl(p.t) }} headshot={shots?.[norm(p.n)]?.headshot} />,
+          duelCard: (kind, x) => <DuelCard kind={kind} scope="day" date={x.g.date} live={false}
+            a={{ name: x.a.n, row: x.a, color: tColor(x.a.t), team: tShort(x.a.t), abbr: tCode(x.a.t), headshot: shots?.[norm(x.a.n)]?.headshot }}
+            b={{ name: x.b.n, row: x.b, color: tColor(x.b.t), team: tShort(x.b.t), abbr: tCode(x.b.t), headshot: shots?.[norm(x.b.n)]?.headshot }} />,
+          seasonOf: n => seasonBefore(daySd, n, day),
+          career: n => CAREER.byName[n] || null, peakRank: n => CAREER.rank[n] || null }} day={day} cards={cards} scored={scored} side={side} tables={tables}
         pickCard={pickCard} openBox={openBox} openCard={openCard} onPreview={c => setPreview({ day, fg: c.fg })} shots={shots} myDay={myDay}
         phone={phone} loading={loading} feedErr={feedErr} unmatched={unmatched} provisional={provisional} onView={onView} /> : <>
       <div className={styles.dayBar}>
@@ -2905,6 +2912,16 @@ function postBand(sd, g, t) {
   }
 }
 
+// A player's season before a given day: games, per-game averages, shooting totals and his Elo after each game
+function seasonBefore(sd, name, day) {
+  const rows = []
+  for (const g of sd?.games || []) { if (g.date >= day) continue; const p = g.players.find(x => x.n === name); if (p) rows.push([g.date, p]) }
+  if (!rows.length) return null
+  rows.sort((a, b) => a[0].localeCompare(b[0]))
+  const P = rows.map(r => r[1]), sum = k => P.reduce((t, p) => t + (p[k] || 0), 0), n = P.length
+  return { gp: n, pts: sum('pts') / n, trb: sum('trb') / n, ast: sum('ast') / n, gs: sum('gs') / n, fg: sum('fg'), fga: sum('fga'), tp: sum('tp'), tpa: sum('tpa'), ft: sum('ft'), fta: sum('fta'),
+    path: [P[0].pre, ...P.map(p => p.post)], dates: rows.map(r => r[0]) }
+}
 function cardGameInfo(g, t, sd, p) {
   const i = g.teams.indexOf(t), o = g.teams[1 - i]
   return {
