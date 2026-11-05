@@ -18,7 +18,7 @@ import { usePoll, gamesHot } from './poll'
  * Beat the Forecast (left page) compares your wins with the wins the Elo forecast expected from your picks.
  */
 
-const fmtDay = (d, o = { weekday: 'long', month: 'long', day: 'numeric' }) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', o)
+export const fmtDay = (d, o = { weekday: 'long', month: 'long', day: 'numeric' }) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', o)
 const tipTime = iso => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 const pct = v => (v == null ? '—' : `${Math.round(v * 100)}%`)
 const n0 = v => Math.round(v || 0).toLocaleString()
@@ -404,7 +404,7 @@ function DayDetail({ day, env }) {
 }
 
 // Choose one card from the day's games: Legend or below / any (game picks), Rare or below (matchups)
-function RewardPicker({ day, kind, env, onClose, onDone }) {
+export function RewardPicker({ day, kind, env, onClose, onDone }) {
   const C = env.collector
   const [data, setData] = useState(null), [err, setErr] = useState(null)
   const [sel, setSel] = useState(null), [busy, setBusy] = useState(false)

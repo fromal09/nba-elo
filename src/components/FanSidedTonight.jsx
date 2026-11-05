@@ -45,8 +45,11 @@ const B = {
       ['{t2} checks in second with a {t2gs}, while {t3} rounds out the top three with {t3pts} points for the {t3team}.',
         'Right behind him are {t2}, with {t2pts} points for the {t2team}, and {t3}, with {t3pts} of his own.',
         '{t2} is second on the list with {t2pts} points for the {t2team}, and {t3} is third with {t3pts}, and we’ll get to a few of these cards in more detail later on.',
-        'Every one of these cards is worth a closer look, and {t2} and {t3} make it a crowded race at the top.',
-        'The gap between first and third is {gap13} points of Game Score, so this was a night with more than one star.']],
+        'Every one of these cards is worth a closer look, and {t2} and {t3} make it a crowded race at the top.{close13}',
+        'Only {gap13} points of Game Score separate first and third, so this was a night with more than one star.{close13}',
+        'The top three were bunched together, just {gap13} points of Game Score apart.{close13}',
+        '{t1} was in a class of his own, {gap12} points of Game Score clear of second place.{wide12}',
+        'Nobody else came close, with {t1} finishing {gap12} points of Game Score ahead of the next-best performance.{wide12}']],
     fan: [['These are tonight’s Cards of the Day, and every one of them tells a story we’ll get to over the course of the show.',
         'Here’s the full set of tonight’s featured cards, starting with {potd} [[as Player of the Day|as the current Player of the Day leader]] and running through the biggest swings in the rankings.',
         'Take a look at the {cardCount} Cards of the Day, because each of them earned its spot and each of them is headed for somebody’s binder.',
@@ -715,8 +718,17 @@ function buildShow(N, kit, seed, act, side, live) {
     if (fives === 5) add('line', 11, 'He [[finished|is sitting]] with at least five in all five major categories, {pts} points, {reb} rebounds, {ast} assists, {stl} steals and {blk} blocks, which is one of the rarest lines in the sport.')
     if (tens >= 3) add('line', 10, 'That’s a triple-double, {line3}, and it’s the kind of line that shows up in every column of the box score.', 'He [[filled|is filling]] every column on his way to a triple-double, and that kind of all-around production is exactly what Game Score rewards.')
     else if (tens === 2) add('line', 6, (p.pts >= 10 && p.trb >= 10) ? 'It [[was|is]] a {pts}-and-{reb} double-double, so he [[did|is doing]] his damage both as a scorer and on the glass.' : (p.pts >= 10 && p.ast >= 10) ? 'It [[was|is]] a {pts}-point, {ast}-assist double-double, so he [[was|is]] creating for himself and for everybody else.' : 'He [[finished with|has]] a double-double, and the production [[came|is coming]] from more than one part of his game.')
-    if (p.pts >= 40) add('line', 8, 'Forty-point nights don’t come around often, and {pts} is a number that will stand up across the league this season.', 'He [[scored|has scored]] {pts}, and you don’t get to 40 in this league without the defense knowing exactly where you are.')
-    else if (p.pts >= 30 && (p.trb >= 10 || p.ast >= 10)) add('line', 6, 'Thirty points with double-digit {extra} is a star’s line, and that’s exactly what he [[gave|is giving]] the {team}.'.replace('{extra}', p.trb >= 10 ? 'rebounds' : 'assists'))
+    // ── rare numbers: these always make the broadcast ──
+    if (p.pts >= 50 && p.trb >= 20) add('line', 14, 'A {pts}-point, {reb}-rebound game is one of the rarest stat lines in basketball, and he [[put|is putting]] it up in one night.', 'Fifty and twenty. You can count the players who have ever done that on very few hands, and he [[did|is doing]] it tonight with {pts} and {reb}.')
+    else if (p.pts >= 50) add('line', 13, '{pts} points. That’s a fifty-point game, and nights like that end up on highlight reels for years.', 'He [[scored|has scored]] {pts}, and fifty-point games are rare enough that the whole league notices.')
+    else if (p.trb >= 20) add('def', 10, 'He [[pulled|has pulled]] down {reb} rebounds, and twenty-rebound games are rare in today’s league.', '{reb} rebounds is a number you almost never see anymore, and he [[owned|is owning]] the glass from start to finish.')
+    if (p.blk >= 8) add('def', 13, '{blk} blocks. That’s a number you almost never see in a box score, and it [[changed|is changing]] every shot the {opp} [[took|take]] near the rim.', 'He [[blocked|has blocked]] {blk} shots, a total so rare it barely shows up in the record books, and that’s before you count the shots he altered.')
+    else if (p.blk >= 6) add('def', 11, '{blk} blocks is elite rim protection, and the {opp} [[had|have had]] to think twice about every drive.', 'He [[swatted|has swatted]] {blk} shots, and that kind of rim protection [[changed|is changing]] the whole game plan for the {opp}.')
+    if (p.stl >= 5) add('def', 10, '{stl} steals is a lot of possessions taken away, and a lot of them [[turned|are turning]] into easy points the other way.', 'He [[picked|has picked]] off {stl} passes, which is the kind of defensive night that swings a game.')
+    if (p.ast >= 15) add('play', 10, '{ast} assists is a point guard’s dream night, and the offense [[ran|is running]] entirely through him.', 'He [[handed|has handed]] out {ast} assists, which means his teammates [[got|are getting]] easy looks all night.')
+    if (p.tp >= 8) add('shoot', 10, 'He [[made|has made]] {tp} threes, and eight or more in a game puts you in rare company.', '{tp} made threes on {tpa} attempts is a shooting display the {opp} had no answer for.')
+    if (p.pts >= 40 && p.pts < 50) add('line', 8, 'Forty-point nights don’t come around often, and {pts} is a number that will stand up across the league this season.', 'He [[scored|has scored]] {pts}, and you don’t get to 40 in this league without the defense knowing exactly where you are.')
+    else if (p.pts >= 30 && p.pts < 40 && (p.trb >= 10 || p.ast >= 10)) add('line', 6, 'Thirty points with double-digit {extra} is a star’s line, and that’s exactly what he [[gave|is giving]] the {team}.'.replace('{extra}', p.trb >= 10 ? 'rebounds' : 'assists'))
     if (share >= 0.33 && teamPts >= 80 && !x.live) add('line', 6, 'He accounted for {share} of the {teamPoss} {teamPts} points, which tells you how much of the offense ran through him.', 'Nearly a third of the {teamPoss} scoring came from him alone, {pts} of their {teamPts}.')
     if (mate && p.gs - mate.gs >= 10) add('line', 5, 'The gap between him and the next-best {team} player, {mate} at {mateGs}, [[was|is]] {gsGapMate} points of Game Score, so this [[was|is]] a one-man show.')
     if (p.mp && p.mp <= 26 && p.gs >= 15) add('line', 6, 'He [[did|is doing]] it in just {mins} minutes, which works out to a {per36}-point pace per 36 minutes.', 'Only {mins} minutes of floor time, and he still [[produced|has produced]] a {gs} Game Score.')
@@ -746,11 +758,11 @@ function buildShow(N, kit, seed, act, side, live) {
     if (load >= 26) add('play', 3, 'He [[carried|is carrying]] a heavy offensive load, and the volume alone tells you how much the {team} [[leaned|are leaning]] on him.')
 
     // ── rebounding and defense ──
-    if (p.trb >= 15) add('def', 6, (p.orb || 0) >= 5 ? '{reb} rebounds, including {orb} on the offensive glass, [[gave|have given]] his team extra possessions all night long.' : 'He [[owned|is owning]] the glass with {reb} rebounds, ending possessions and starting the break.')
+    if (p.trb >= 15 && p.trb < 20) add('def', 6, (p.orb || 0) >= 5 ? '{reb} rebounds, including {orb} on the offensive glass, [[gave|have given]] his team extra possessions all night long.' : 'He [[owned|is owning]] the glass with {reb} rebounds, ending possessions and starting the break.')
     else if ((p.orb || 0) >= 5) add('def', 4, '{orb} offensive rebounds [[meant|mean]] second chances, and those add up over a full game.')
-    if (w.stocks >= 5) add('def', 6, 'He also [[had|has]] {stl} steals and {blk} blocks, so the impact [[went|goes]] well beyond the scoring.', 'Defensively he [[was|has been]] everywhere, with {stl} steals and {blk} blocks.')
-    else if ((p.blk || 0) >= 4) add('def', 5, 'He [[protected|is protecting]] the rim with {blk} blocks, and that doesn’t count the shots he [[changed|has changed]].')
-    else if ((p.stl || 0) >= 4) add('def', 5, '{stl} steals is a lot of possessions taken away, and a few of those turned into easy points the other way.')
+    if (w.stocks >= 5 && p.blk < 6 && p.stl < 5) add('def', 6, 'He also [[had|has]] {stl} steals and {blk} blocks, so the impact [[went|goes]] well beyond the scoring.', 'Defensively he [[was|has been]] everywhere, with {stl} steals and {blk} blocks.')
+    else if ((p.blk || 0) >= 4 && p.blk < 6) add('def', 5, 'He [[protected|is protecting]] the rim with {blk} blocks, and that doesn’t count the shots he [[changed|has changed]].')
+    else if ((p.stl || 0) >= 4 && p.stl < 5) add('def', 5, '{stl} steals is a lot of possessions taken away, and a few of those turned into easy points the other way.')
 
     // ── the matchup and the team context ──
     if (oppStar && p.gs > oppStar.gs && oppStar.gs >= 15) add('team', 5, 'He [[got|is getting]] the better of {oppStar}, the {oppPoss} best player at a {oppStarGs} Game Score, and winning that matchup [[was|is]] a big part of the story.')
@@ -835,7 +847,7 @@ function buildShow(N, kit, seed, act, side, live) {
       <Slot h={picks.length > 4 ? 226 : 250} tilt={(i - (picks.length - 1) / 2) * 4}>{kind ? kit.duelCard(kind, v) : kit.miniCard(v.g, v.p)}</Slot><small>{label}</small></span>))}</div>
   const T5 = N.top5
   const tv = T5.length >= 3 ? { t1: bn(T5[0].p.n), t1gs: T5[0].p.gs.toFixed(1), t1pts: T5[0].p.pts, t1opp: tShort(opp(T5[0].p, T5[0].x)),
-    t2: bn(T5[1].p.n), t2gs: T5[1].p.gs.toFixed(1), t2pts: T5[1].p.pts, t2team: tShort(T5[1].p.t), t3: bn(T5[2].p.n), t3pts: T5[2].p.pts, t3team: tShort(T5[2].p.t), gap13: (T5[0].p.gs - T5[2].p.gs).toFixed(1), nightLive: ln > 0, inProg: !!T5[0].x.live } : {}
+    t2: bn(T5[1].p.n), t2gs: T5[1].p.gs.toFixed(1), t2pts: T5[1].p.pts, t2team: tShort(T5[1].p.t), t3: bn(T5[2].p.n), t3pts: T5[2].p.pts, t3team: tShort(T5[2].p.t), gap13: (T5[0].p.gs - T5[2].p.gs).toFixed(1), gap12: (T5[0].p.gs - T5[1].p.gs).toFixed(1), close13: T5[0].p.gs - T5[2].p.gs <= 6 ? '' : null, wide12: T5[0].p.gs - T5[1].p.gs >= 10 ? '' : null, nightLive: ln > 0, inProg: !!T5[0].x.live } : {}
   const topFan = <div className={s.fan}>{T5.map((m, i) => <span key={m.p.n} className={s.fanItem} style={{ '--d': `${0.25 * i + 0.2}s` }}>{card(m.p, m.x, T5.length > 4 ? 226 : 250, 0, (i - (T5.length - 1) / 2) * 3)}<small>{i + 1}. {m.p.gs.toFixed(1)} GMSC{m.x.live ? ' · LIVE' : ''}</small></span>)}</div>
   const liveBoard = ln > 0 && { gfx: true, head: ['Live right now', 'In progress', `${ln} game${ln === 1 ? '' : 's'}`], view: <LiveGrid live={live} kit={kit} onOpen={act.live} />, line: say(L.board, ov, r) }
   if (!n) seg('open', 'Tonight’s games', [

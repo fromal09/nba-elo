@@ -305,3 +305,27 @@
   .nameplate b { font-size: 26px; }
   .tag { font-size: 10.5px; }
 }
+
+/* Prize cards on the desk: the ones you've won on a little stand, and a sealed envelope for each one waiting */
+.prizeObj { display: flex; flex-direction: column; align-items: center; }
+.stand { position: relative; display: flex; align-items: flex-end; justify-content: center; min-width: 150px; height: 176px; padding: 0 6px 12px;
+  background: linear-gradient(180deg, transparent 84%, #6b4423 84%, #4a2e17 100%); }
+.stand::after { content: ""; position: absolute; left: 4px; right: 4px; bottom: 0; height: 6px; border-radius: 2px; background: #2d1b0c; box-shadow: 0 6px 10px rgba(0,0,0,.45); }
+.standCard { position: relative; width: 92px; height: 129px; margin: 0 -14px; padding: 0; border: 0; background: none; cursor: pointer; transform: rotate(calc(var(--i) * 7deg)) translateY(calc(var(--i) * var(--i) * 4px));
+  transition: transform .2s cubic-bezier(.2,.9,.3,1.2), z-index 0s; filter: drop-shadow(0 6px 8px rgba(0,0,0,.45)); }
+.standCard:hover, .standCard:focus-visible { transform: translateY(-14px) scale(1.08); z-index: 3; }
+.envelope { position: relative; z-index: 2; width: 104px; height: 74px; margin-left: 10px; margin-bottom: 4px; padding: 0; border: 0; border-radius: 3px; cursor: pointer; transform: rotate(-6deg);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 8px; color: #fff3cf;
+  background: linear-gradient(160deg, #a8243b, #6e1426); box-shadow: 0 8px 14px rgba(0,0,0,.5), inset 0 0 0 2px rgba(231,193,96,.6); animation: envBob 2.6s ease-in-out infinite; }
+.envelope::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 46px; background: linear-gradient(160deg, #c22e48, #8a1a2f); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.envelope b { position: relative; font: 800 13px 'Oswald', sans-serif; letter-spacing: 3px; } .envelope small { position: relative; font: 700 8px 'Inter', sans-serif; letter-spacing: 2px; opacity: .85; }
+.seal { position: absolute; top: 26px; left: 50%; transform: translateX(-50%); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 35% 35%, #f6db8f, #b8871e 70%); color: #3a2400; font: 800 14px 'Oswald', sans-serif; box-shadow: 0 2px 4px rgba(0,0,0,.45); z-index: 1; }
+@keyframes envBob { 50% { transform: rotate(-6deg) translateY(-4px); } }
+.envelope:hover { animation-play-state: paused; transform: rotate(-2deg) translateY(-8px) scale(1.05); }
+@media (prefers-reduced-motion: reduce) { .envelope { animation: none; } }
+@media (max-width: 760px) { .stand { min-width: 120px; height: 140px; } .standCard { width: 72px; height: 101px; margin: 0 -11px; } .envelope { width: 86px; height: 62px; } }
+.envelope { height: 88px; padding-bottom: 9px; }
+.envelope::before { height: 50px; }
+.seal { top: 30px; width: 26px; height: 26px; font-size: 13px; }
+@media (max-width: 760px) { .envelope { height: 76px; } .envelope::before { height: 42px; } .seal { top: 24px; } }

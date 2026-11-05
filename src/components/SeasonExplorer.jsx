@@ -2,6 +2,7 @@ import { historyReady, useCareerHistory } from '../history.js'
 import { useState, useEffect, useMemo, useRef, Fragment, createContext, useContext } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
+import { RewardPicker } from './Predictions'
 import PlayerCard, { MiniCard, DuelCard, DuelModal, tierFor, momentsFor, setFirstGameLookup } from './PlayerCard'
 import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder, CollectionBinder, PublicBinder, usePull, fromIndex } from './Binders'
 import { useCollector } from './Collector'
@@ -3137,8 +3138,10 @@ export function BinderHost({ start, shots, onClose, onProfile }) {
   if (top.kind === 'game') return <GameScreen key={stack.length} {...top} env={env} onClose={back} />
   if (top.kind === 'store') return <StoreBook key={stack.length} env={env} onClose={back} onMine={() => push({ kind: 'mine', sell: true })} />
   if (top.kind === 'public') return <PublicBinder key={stack.length} name={top.name} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} />
-  if (top.kind === 'mine') return <CollectionBinder key={stack.length} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} startSell={!!top.sell} onStore={() => push({ kind: 'store' })} />
+  if (top.kind === 'mine') return <CollectionBinder key={stack.length} env={env} onClose={back} onLeague={set => push({ kind: 'league', set })} startSell={!!top.sell} onStore={() => push({ kind: 'store' })}
+    onPrize={w => push({ kind: 'prize', day: w.day, which: w.which })} />
   if (top.kind === 'card') return <CardOnly card={top.card} env={env} onClose={back} />
+  if (top.kind === 'prize') return <RewardPicker key={stack.length} day={top.day} kind={top.which} env={env} onClose={back} onDone={back} />
   if (top.kind === 'league') return <LeagueBinder key={stack.length} set={top.set} env={env} onClose={back} onCareer={n => push({ kind: 'career', name: n })} />
   return null
 }

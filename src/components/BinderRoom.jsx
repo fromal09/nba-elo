@@ -10,6 +10,9 @@ import CardDatabase from './CardDatabase'
 import { useShelf } from './ShelfFx'
 import { norm } from './predict'
 import { goTo } from '../nav.js'
+import { usePrizes, prizeNote } from './Prizes'
+import { fromIndex, Fit } from './Binders'
+import { MiniCard, DuelCard } from './PlayerCard'
 
 /*
  * The Binders page: the Binder Room, one bookcase. Your binder lies open on the desk in front of it; the shelves hold
@@ -34,7 +37,8 @@ function Foil({ label, sub, tone }) {
   return <span className={styles.foil} data-tone={tone}><span>FPR</span><b>{label}</b><span>{sub}</span></span>
 }
 
-function Desk({ C, shots, setOpen }) {
+function Desk({ C, shots, setOpen, env }) {
+  const prizes = usePrizes(C)
   const me = C.me
   const lc = (me?.user.favoriteTeam && binderTeamInfo(me.user.favoriteTeam)?.color) || '#173657'
   const show = me ? (me.user.showcase.length ? me.user.showcase[0].card : me.stats.best?.card) : null
@@ -78,6 +82,17 @@ function Desk({ C, shots, setOpen }) {
               <span className={styles.coins} aria-hidden="true">{[0, 1, 2, 3, 4].map(i => <i key={i} style={{ '--i': i }} />)}</span>
               <span className={styles.tag}><Coin size={14} />Store · {(me.coins?.balance ?? 0).toLocaleString()}</span>
             </button>
+            {(prizes.count > 0 || prizes.won.length > 0) && <div className={styles.prizeObj}>
+              <div className={styles.stand}>
+                {prizes.won.slice(-3).map((w, i, a) => { const e = fromIndex(env, w.card, { key: w.day + w.which })
+                  return <button key={w.day + w.which} type="button" className={styles.standCard} style={{ '--i': i - (a.length - 1) / 2 }} onClick={() => setOpen({ kind: 'card', card: w.card })}
+                    aria-label={`Prize card from ${w.day}: ${e.name}`}>
+                    <Fit>{e.duel ? <DuelCard {...e.duel} /> : <MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} />}</Fit></button> })}
+                {prizes.count > 0 && <button type="button" className={styles.envelope} disabled={!prizes.waiting[0]} onClick={() => setOpen({ kind: 'prize', day: prizes.waiting[0].day, which: prizes.waiting[0].which })}
+                  aria-label="Choose your prize card"><span className={styles.seal}>{prizes.count}</span><b>PRIZE</b><small>{prizes.count === 1 ? 'CARD' : 'CARDS'}</small></button>}
+              </div>
+              <span className={styles.tag}>{prizes.count > 0 ? `Choose your prize card · ${prizeNote(prizes)}` : `Prize cards · ${prizes.won.length} won`}</span>
+            </div>}
             <button type="button" className={styles.obj} onClick={() => goTo('gameroom', { open: p?.unclaimed ? 'history' : 'predict' })}>
               <span className={styles.pad}><b>{pad[0]}</b><span>{pad[1]}</span></span>
               <span className={styles.tag}>Predictions · Game Room</span>
@@ -156,7 +171,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
         </nav>
       </header>
 
-      {ready && <section id="br-desk" className={styles.desk} aria-label="Your desk"><Desk C={C} shots={shots} setOpen={setOpen} /></section>}
+      {ready && <section id="br-desk" className={styles.desk} aria-label="Your desk"><Desk C={C} shots={shots} setOpen={setOpen} env={env} /></section>}
 
       <div className={styles.caseWrap}>
         <div className={styles.bookcase}>

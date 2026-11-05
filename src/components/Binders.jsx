@@ -5,6 +5,7 @@ import { MiniCard, DuelCard, tierFor, TIERS, momentsFor } from './PlayerCard'
 import { Meter, CURRENT_TEAMS } from './Collector'
 import { ChallengeModal } from './KingOfTheCourt'
 import { goTo } from '../nav.js'
+import { usePrizes, prizeNote } from './Prizes'
 import { useIndex as usePlayerIndex, search as searchPlayers } from './PlayerSearch'
 import { Serial, SpecialFace, SpecialModal, isSpecial, specialTitle } from './SpecialCards'
 import { cardPoints } from '../../api/_lib/points.js'
@@ -1287,10 +1288,11 @@ function RewardShelves({ all, have, honors, env, P, open, setOpen, onPreview }) 
   </>
 }
 
-export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onStore, startView }) {
+export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onStore, startView, onPrize }) {
   const phone = useIsPhone()
   const per = 9 // a 3 × 3 sheet on every screen
   const C = env.collector
+  const prizes = usePrizes(C) // prize cards waiting to be chosen (a button on the left page and the phone dock)
   const mine = !pub
   const [view, setView] = useState(startView || 'all')     // all | team | decade | starred | sets | predict | badges
   const [group, setGroup] = useState(null)    // the franchise or decade shown
@@ -1410,6 +1412,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     : PR.games ? `${PR.picked} of ${PR.games} games picked tonight` : 'Predictions and challenges'
   const lBtn = (key, label, sub, on, onClick, cls) => <button key={key} type="button" className={`${styles.lBtn} ${cls || ''}`} disabled={!on} onClick={onClick}><b>{label}</b>{sub && <small>{sub}</small>}</button>
   const actions = me && <div className={styles.lBtns}>
+    {prizes.count > 0 && onPrize && lBtn('prize', `🎁 Choose your prize card${prizes.count > 1 ? 's' : ''}`, prizeNote(prizes), !!prizes.waiting[0], () => onPrize(prizes.waiting[0]), styles.lPrize)}
     {open ? lBtn('daily', `Finish your ${open.kind === 'team' ? 'weekly ' : ''}pack`, `${open.picked} of ${open.total} picked`, true, () => C.resume(open.id), styles.lGold)
       : lBtn('daily', 'Daily Pack', !t.claimed ? (t.bonusToday ? 'Ready · streak bonus inside' : 'Ready to open') : t.waiting ? 'Waiting on last night’s games' : 'Opened · back tomorrow', !t.claimed, () => C.claim(), styles.lGold)}
     {lBtn('weekly', 'Weekly Pack', me.week.claimed ? `Opened · next ${fullDay(me.week.next)}` : 'Ready · pick a team', !me.week.claimed, () => C.openTeam(), styles.lTeam)}
@@ -1492,7 +1495,8 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       : !t.claimed ? <button type="button" className={styles.dockHot} onClick={() => C.claim()}><b>🎁</b>Open pack</button>
       : !me.week.claimed ? <button type="button" onClick={() => C.openTeam()}><b>🎁</b>Team pack</button>
       : <button type="button" disabled><b>🎁</b>Next pack</button>}
-    <button type="button" onClick={() => goTo('gameroom')}><b>🕹</b>{me.predict?.unclaimed ? 'Prize waiting' : 'Game Room'}</button>
+    {prizes.count > 0 && onPrize && prizes.waiting[0] ? <button type="button" className={styles.dockHot} onClick={() => onPrize(prizes.waiting[0])}><b>🎁</b>Prize card</button>
+      : <button type="button" onClick={() => goTo('gameroom')}><b>🕹</b>Game Room</button>}
     {onStore && <button type="button" onClick={onStore}><b>◎</b>Store</button>}
     <button type="button" className={sellMode ? styles.dockSell : ''} onClick={() => { if (view !== 'all' && view !== 'starred' && view !== 'team' && view !== 'decade') pickView('all'); setSellMode(v => !v); setSellAsk(null) }}><b>$</b>{sellMode ? 'Done' : 'Sell'}</button>
   </>
