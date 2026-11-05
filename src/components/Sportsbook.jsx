@@ -91,6 +91,8 @@ export function SportsbookFrame({ view, setView, day, setDay, weekOf, addDays, e
   const tabs = [['today', 'Tonight’s games', 'scoreboard'], ['standings', 'Standings', 'explorer'], ['picks', 'My predictions', 'mypicks'], ['potw', 'Player of the Week', 'potw']]
   return (
     <div className={sb.book}>
+      {/* No z-index on the room's layers: the box score and cards open fixed over the whole page, above the site header */}
+      <div className={sb.carpet} aria-hidden="true" />
       <div className={sb.ceil} aria-hidden="true"><i /><i /><i /><i /><i /><i /></div>
       <div className={sb.top}>
         <div className={sb.marquee}><b>The Scoreboard</b><small>Every game · every screen</small></div>
@@ -125,7 +127,6 @@ export function SportsbookFrame({ view, setView, day, setDay, weekOf, addDays, e
         {tabs.map(([v, l, nv]) => <a key={v} role="tab" aria-selected={view === v} data-on={view === v ? '' : undefined} {...linkTo(hrefFor(nv), () => setView(v))}>{l}</a>)}
       </nav>
       {view === 'today' ? <div className={sb.floor}>{children}</div> : <div className={sb.monitorWrap}><div className={sb.monitor}>{children}</div></div>}
-      <div className={sb.carpet} aria-hidden="true" />
     </div>
   )
 }
@@ -175,7 +176,7 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
   const open = c => (c.g ? () => openBox(c.g) : c.fg ? () => onPreview(c) : null)
 
   const tv = ({ c, f }, big) => {
-    const { g, home, away, pts, started, lead, wp, status, top, mover, tm, preProj, fav, upset, leaders, liveProj } = f
+    const { g, home, away, pts, started, lead, wp, status, top, tm, preProj, fav, upset, leaders, pLiveHome } = f
     const m = marks(g)
     const go = open(c)
     return (
@@ -205,11 +206,9 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
                 : tm?.[0] && tm?.[1] ? <>Top matchup <b>{shortName(tm[0].name)}</b> {r0(tm[0].elo)} vs <b>{shortName(tm[1].name)}</b> {r0(tm[1].elo)}</>
                 : started ? 'Box score loading…' : 'Preview once the forecast loads'}
             </span>
-            {big && <span className={sb.tick2}>
-              {wp && <span>Pre-game{g && !g.fcwp ? ' Elo' : ''} forecast: {Math.round(wp[fav] * 100)}% {tCode(fav)}</span>}
-              {preProj && started && <span>Projected {preProj[away]}–{preProj[home]}</span>}
-              {liveProj && <span>Live projection {liveProj[1]}–{liveProj[0]}</span>}
-              {mover && <span>Biggest swing <b className={mover.post >= mover.pre ? sb.upTxt : sb.dnTxt}>{shortName(mover.n)} {sgn(mover.post - mover.pre)}</b></span>}
+            {big && wp && <span className={sb.tick2}>
+              <span>Pre-game win chance <b>{Math.round(wp[fav] * 100)}% {tCode(fav)}</b></span>
+              {pLiveHome != null && (lv => <span>Live win chance <b>{Math.round(Math.max(lv, 1 - lv) * 100)}% {tCode(lv >= 0.5 ? home : away)}</b></span>)(pLiveHome)}
             </span>}
             {go && <span className={sb.open}>▶ {c.g ? 'Box score' : 'Preview'}</span>}
           </span>

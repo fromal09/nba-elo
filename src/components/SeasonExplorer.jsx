@@ -1324,6 +1324,7 @@ function ProjBox({ x, shots, pts }) {
 
 // ── Box score ────────────────────────────────────────────────────────────────
 const BOTH_KEY = 'fpr.boxBoth'
+let boxBackTimer = null // the history entry a closing box score is about to drop
 function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel, lineup }) {
   const collector = useCollector() // a ✓ by each player whose card from this game is in your binder
   const [focus, setFocus] = useState(null)
@@ -1342,6 +1343,19 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel
     addEventListener('keydown', k); document.body.style.overflow = 'hidden'
     return () => { removeEventListener('keydown', k); document.body.style.overflow = '' }
   }, [onClose])
+  // The phone's back gesture (and the browser's Back button) closes the box score instead of leaving the Scoreboard
+  const closeRef = useRef(onClose); closeRef.current = onClose
+  useEffect(() => {
+    let popped = false
+    // A remount right after an unmount (React's dev double-run, or switching games) reuses the entry instead of stacking another
+    if (boxBackTimer) { clearTimeout(boxBackTimer); boxBackTimer = null } else window.history.pushState({ ...(window.history.state || {}), fprBox: true }, '')
+    const onPop = () => { popped = true; closeRef.current() }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      if (!popped && window.history.state?.fprBox) boxBackTimer = setTimeout(() => { boxBackTimer = null; window.history.back() }, 0)
+    }
+  }, [])
 
   const story = useMemo(() => {
     const d = p => p.post - p.pre
@@ -1369,6 +1383,10 @@ function BoxScore({ team, game, has, shots, onCard, onClose, sd, pinPair, onDuel
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={e => e.stopPropagation()}>
         <button className={styles.close} onClick={onClose} aria-label="Close">×</button>
+        <div className={styles.boxBack}>
+          <button type="button" onClick={onClose}>‹ Scoreboard</button>
+          <span>{tCode(away)} {pts[away]} · {tCode(home)} {pts[home]}{st === 'in' ? ' · Live' : ''}</span>
+        </div>
 
         <div className={styles.scoreboard}>
           {[away, home].map((t, i) => {
@@ -2646,8 +2664,9 @@ function gameFacts(c) {
   // Without a projection, a late lead (fourth quarter or overtime) or a big one (12+) has to do.
   const st = { ...(g?.live || x), hs: pts[home] || 0, as: pts[away] || 0 }
   const pLiveHome = c.state === 'in' && preProj ? liveWinHome(preProj[home] - preProj[away], st, 13.7) : null
+  // Upset watch only from the second half on: early leads swing too much to call
   const upset = c.state === 'in'
-    ? (pLiveHome != null ? (dog === home ? pLiveHome : 1 - pLiveHome) >= 0.5 && wp?.[dog] < 0.5
+    ? (st.period || 0) >= 3 && (pLiveHome != null ? (dog === home ? pLiveHome : 1 - pLiveHome) >= 0.5 && wp?.[dog] < 0.5
       : lead === dog && wp?.[dog] < 0.5 && ((st.period || 0) >= 4 || Math.abs((pts[home] || 0) - (pts[away] || 0)) >= 12))
     : c.state === 'post' && lead && wp && wp[lead] < 0.5
   // Before tip-off: the projected box score's leaders in points, rebounds and assists, both teams
@@ -2657,7 +2676,7 @@ function gameFacts(c) {
     return [['pts', 'PTS'], ['trb', 'REB'], ['ast', 'AST']].map(([k, l]) => { const r = [...rows].sort((a, b) => b[k] - a[k] || b.elo - a.elo)[0]; return { k, l, r } })
   })() : null
   const liveProj = c.state === 'in' && preProj ? liveFinal([preProj[home], preProj[away]], g?.live || x, pts[home] || 0, pts[away] || 0) : null
-  return { g, x, home, away, pts, started, lead, wp, status, top, mover, tm, preProj, fav, dog, upset, leaders, liveProj }
+  return { g, x, home, away, pts, started, lead, wp, status, top, mover, tm, preProj, fav, dog, upset, leaders, liveProj, pLiveHome }
 }
 function GameCard({ c, shots, onOpen }) {
   const { g, x, home, away, pts, started, lead, wp, status, top, mover, tm, preProj, fav, dog, upset, leaders, liveProj } = gameFacts(c)

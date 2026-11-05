@@ -38,8 +38,8 @@
 .tabs a:hover { border-color: var(--gold); }
 .tabs a[data-on] { background: var(--gold); color: #1a1000; border-color: var(--gold); }
 
-.floor { position: relative; z-index: 1; }
-.monitorWrap { position: relative; z-index: 1; max-width: 1280px; margin: 22px auto 0; padding: 0 20px; }
+.floor { position: relative; }
+.monitorWrap { position: relative; max-width: 1280px; margin: 22px auto 0; padding: 0 20px; }
 .monitor { border-radius: 10px; padding: 14px; background: #08080b; box-shadow: inset 0 0 0 2px #26222c, 0 30px 60px rgba(0,0,0,.6), 0 0 60px rgba(201,162,74,.08);
   color: #1a1a1a; }
 .monitor > * { border-radius: 6px; }
@@ -105,7 +105,8 @@
 .wp { display: flex; height: 4px; margin: 2px 0; border-radius: 2px; overflow: hidden; } .wp i { display: block; height: 100%; }
 .tick { margin-top: auto; margin-bottom: 7px; font: 500 11.5px 'Inter', sans-serif; color: #cfe0f3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tick b { color: #ffd34d; font-weight: 700; }
-.tick2 { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: -3px 0 8px; font: 500 12px 'Inter', sans-serif; color: #9fb3cc; }
+.tick2 { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: -3px 0 8px; font: 500 12.5px 'Inter', sans-serif; color: #9fb3cc; }
+.tick2 b { color: #ffe9a0; font-weight: 700; }
 .upTxt { color: #6bff95; } .dnTxt { color: #ff7b7b; }
 .open { position: absolute; right: 8px; bottom: 6px; z-index: 2; padding: 2px 7px; border-radius: 2px; background: #fff; color: #0b1220; font: 600 10px 'Oswald', sans-serif; letter-spacing: 1px; opacity: 0; transition: opacity .15s; }
 .tv:hover .open, .tv:focus-visible .open { opacity: 1; }
