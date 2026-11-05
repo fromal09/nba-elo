@@ -21,7 +21,7 @@ const B = {
     intro: [OPENERS,
       ['We had {slate} on the board tonight, and while {upsets} kept things interesting, it was the individual performances that stole the show.',
         '{slate} went final tonight, and between the career nights, the big swings in the rankings and {upsets}, there’s a lot to get to.',
-        'Every one of tonight’s {gamesN} games is in the books, and the players gave us plenty to talk about from the opening tip to the final buzzer.',
+        'Every one of tonight’s {gamesN} games is in the books, and the players gave us plenty to talk about from the opening tip to the final buzzer.{allDone}',
         'It was a {gamesN}-game night across the league, and the stars showed up in a big way, with {upsets} sprinkled in for good measure.',
         '{slate} are final with {liveTxt} still going, and the players have already given us more than enough for a full show.',
         'The favorites held serve across the board tonight, but the players more than made up for the lack of drama.{chalk}',
@@ -643,7 +643,7 @@ function buildShow(N, kit, seed, act, side, live) {
   const bigM = N.big ? Math.abs(N.big.pts[N.big.win] - N.big.pts[N.big.lose]) : 0, closeM = N.close ? Math.abs(N.close.pts[N.close.win] - N.close.pts[N.close.lose]) : 0
   const ln = live.length
   const ov = n === 0 ? { liveTxt: ln === 1 ? 'one game' : `${ln} games`, liveAre: ln === 1 ? 'is' : 'are', liveIs: ln === 1 ? 'is' : 'are', cardCount: null, potd: null } : {
-    liveTxt: ln ? (ln === 1 ? 'one game' : `${ln} games`) : null, liveAre: ln === 1 ? 'is' : 'are', liveIs: ln === 1 ? 'is' : 'are',
+    liveTxt: ln ? (ln === 1 ? 'one game' : `${ln} games`) : null, allDone: ln ? null : '', liveAre: ln === 1 ? 'is' : 'are', liveIs: ln === 1 ? 'is' : 'are',
     slate: n === 1 ? 'one game' : `${n} games`, gamesN: n > 1 ? n : null, upsets: u ? (u === 1 ? 'one upset' : `${u} upsets`) : null, times: u ? (u === 1 ? 'once' : `${u} times`) : null, chalk: u ? null : '',
     bigW: n > 1 ? tShort(N.big.win) : null, bigL: tShort(N.big.lose), bigM, bigScore: `${N.big.pts[N.big.win]}–${N.big.pts[N.big.lose]}`,
     closeW: n > 2 ? tShort(N.close.win) : null, closeL: tShort(N.close.lose), closeM: closeM === 1 ? 'a single point' : `${closeM} points`, closeScore: `${N.close.pts[N.close.win]}–${N.close.pts[N.close.lose]}`,

@@ -233,13 +233,14 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
                 <strong data-wp={!started ? '' : undefined}>{started ? pts[t] ?? '–' : wp ? `${Math.round(wp[t] * 100)}%` : ''}</strong>
               </span>
             ))}
+            {/* During a game, the live win chance gets its own bar above the pre-game one */}
+            {pLiveHome != null && <span className={`${sb.wp} ${sb.wpLive}`}><i style={{ width: `${(1 - pLiveHome) * 100}%`, background: tColor(away) }} /><i style={{ flex: 1, background: tColor(home) }} /></span>}
             {wp && <span className={sb.wp}><i style={{ width: `${wp[away] * 100}%`, background: tColor(away) }} /><i style={{ flex: 1, background: tColor(home) }} /></span>}
-            {/* Win chances only: before tipoff the forecast, during a game the pre-game and live chances, after it the pre-game one */}
-            <span className={sb.tick}>
-              {wp ? <>
-                <span>{big ? (started ? 'Pre-game win chance' : 'Win chance') : started ? 'Pre-game' : 'Win chance'} <b>{Math.round(wp[fav] * 100)}% {tCode(fav)}</b></span>
-                {pLiveHome != null && (lv => <span>{big ? 'Live win chance' : 'Live'} <b>{Math.round(Math.max(lv, 1 - lv) * 100)}% {tCode(lv >= 0.5 ? home : away)}</b></span>)(pLiveHome)}
-              </> : started ? 'Box score loading…' : 'Forecast loading…'}
+            {/* Win chances only: before tipoff the forecast; during a game the live chance in a row above the pre-game one; after it the pre-game one */}
+            <span className={`${sb.tick} ${pLiveHome != null ? sb.tickLive : ''}`}>
+              {pLiveHome != null && (lv => <span className={sb.liveRow}><i className={sb.liveDot} />{big ? 'Live win chance' : 'Live'} <b>{Math.round(Math.max(lv, 1 - lv) * 100)}% {tCode(lv >= 0.5 ? home : away)}</b></span>)(pLiveHome)}
+              {wp ? <span>{big ? (started ? 'Pre-game win chance' : 'Win chance') : started ? 'Pre-game' : 'Win chance'} <b>{Math.round(wp[fav] * 100)}% {tCode(fav)}</b></span>
+                : started ? 'Box score loading…' : 'Forecast loading…'}
             </span>
             {go && <span className={sb.open}>▶ {c.g ? 'Box score' : 'Preview'}</span>}
           </span>

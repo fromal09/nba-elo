@@ -1,5 +1,5 @@
 import { historyReady, useCareerHistory } from '../history.js'
-import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
+import { useState, useEffect, useMemo, useRef, Fragment, createContext, useContext } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
 import PlayerCard, { MiniCard, DuelCard, DuelModal, tierFor, momentsFor, setFirstGameLookup } from './PlayerCard'
@@ -2580,16 +2580,14 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer, book
 
   return (
     <div className={styles.dayPage}>
-      {book ? <SportsbookDay kit={{ gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor, tName,
+      {book ? <ShotsCtx.Provider value={shots}><SportsbookDay kit={{ gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor, tName,
           // for FanSided Tonight: the real cards, the player's season before tonight and his career record
-          miniCard: (g, p) => <MiniCard name={p.n} row={p} game={cardGameInfo(g, p.t, daySd, p)} team={{ name: tName(p.t), color: tColor(p.t), abbr: tCode(p.t), logo: logoUrl(p.t) }} headshot={shots?.[norm(p.n)]?.headshot} />,
-          duelCard: (kind, x) => <DuelCard kind={kind} scope="day" date={x.g.date} live={false}
-            a={{ name: x.a.n, row: x.a, color: tColor(x.a.t), team: tShort(x.a.t), abbr: tCode(x.a.t), headshot: shots?.[norm(x.a.n)]?.headshot }}
-            b={{ name: x.b.n, row: x.b, color: tColor(x.b.t), team: tShort(x.b.t), abbr: tCode(x.b.t), headshot: shots?.[norm(x.b.n)]?.headshot }} />,
+          miniCard: (g, p) => <ShowMini g={g} p={p} sd={daySd} />,
+          duelCard: (kind, x) => <ShowDuel kind={kind} x={x} />,
           seasonOf: n => seasonBefore(daySd, n, day),
           career: n => CAREER.byName[n] || null, peakRank: n => CAREER.rank[n] || null }} day={day} cards={cards} scored={scored} side={side} tables={tables}
         pickCard={pickCard} openBox={openBox} openCard={openCard} onPreview={c => setPreview({ day, fg: c.fg })} shots={shots} myDay={myDay}
-        phone={phone} loading={loading} feedErr={feedErr} unmatched={unmatched} provisional={provisional} onView={onView} /> : <>
+        phone={phone} loading={loading} feedErr={feedErr} unmatched={unmatched} provisional={provisional} onView={onView} /></ShotsCtx.Provider> : <>
       <div className={styles.dayBar}>
         <span><b>{cards.length || 'No'}</b> game{cards.length === 1 ? '' : 's'}{liveN ? <> · <span className={styles.liveTxt}><i className={styles.liveDot} />{liveN} live</span></> : ''}</span>
         {provisional && <span className={styles.muted}>Live and unprocessed games use ratings through {fmtDate(ratings.asof || asof, { month: 'short', day: 'numeric' })}. Elo is provisional until the next data update.</span>}
@@ -2910,6 +2908,18 @@ function postBand(sd, g, t) {
     level: champ ? 'champ' : finals ? 'finals' : cf ? 'cf' : r >= 2 ? 'r2' : 'r1',
     label: `${finals ? 'Finals' : cf ? 'Conf. Finals' : `R${r}`} · G${k}`, champ,
   }
+}
+
+// The show's cards read headshots from context, so a card built before the headshots load still gets its photo
+const ShotsCtx = createContext(null)
+function ShowMini({ g, p, sd }) {
+  const shots = useContext(ShotsCtx)
+  return <MiniCard name={p.n} row={p} game={cardGameInfo(g, p.t, sd, p)} team={{ name: tName(p.t), color: tColor(p.t), abbr: tCode(p.t), logo: logoUrl(p.t) }} headshot={shots?.[norm(p.n)]?.headshot} />
+}
+function ShowDuel({ kind, x }) {
+  const shots = useContext(ShotsCtx)
+  const side = q => ({ name: q.n, row: q, color: tColor(q.t), team: tShort(q.t), abbr: tCode(q.t), headshot: shots?.[norm(q.n)]?.headshot })
+  return <DuelCard kind={kind} scope="day" date={x.g.date} live={false} a={side(x.a)} b={side(x.b)} />
 }
 
 // A player's season before a given day: games, per-game averages, shooting totals and his Elo after each game
