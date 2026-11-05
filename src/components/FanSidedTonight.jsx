@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react'
 import s from './FanSidedTonight.module.css'
 import { useCareerHistory } from '../history.js'
 
@@ -17,7 +17,7 @@ const OPENERS = ['Good evening and welcome to FanSided Tonight.', 'Welcome in to
 const B = {
   open: {
     intro: [OPENERS,
-      ['{slate} went final tonight, with {upsets} along the way.', 'We have {slate} to get through, and the forecast got burned {times}.', 'The league went {gamesN} deep tonight, and the underdogs came through {times}.', 'All {gamesN} games are in the books, including {upsets}.', 'Every favorite held serve tonight, but there was still plenty to talk about.{chalk}', 'It was a night for the chalk, but the individual performances made up for it.{chalk}', 'We had {slate} on the board, and there’s a lot to unpack.'],
+      ['{slate} went final tonight, with {upsets} along the way.', 'We have {slate} to get through, and the forecast got burned {times}.', 'The league went {gamesN} deep tonight, and the underdogs came through {times}.', 'All {gamesN} games are in the books, including {upsets}.', 'Every favorite held serve tonight, but there was still plenty to talk about.{chalk}', 'It was a night for the chalk, but the individual performances made up for it.{chalk}', 'We had {slate} on the board, and there’s a lot to unpack.', '{slate} are final, with {liveTxt} still going.', 'We’ve got {slate} in the books and {liveTxt} still being played.'],
       ['We’ve got a Player of the Day, career nights, a duel worth your time and the biggest swings in the rankings.', 'Stick around, because the cards came out to play.', 'Let’s get to it.', 'There’s a lot to cover, so let’s not waste any time.', 'Grab your binder. You’re going to want to add a few of these.']],
     scores: [['Here’s the full board.', 'Let’s run through the finals.', 'Around the league, here’s how it went.', 'Your final scores, all in one place.', 'A quick lap around the league.', 'Here’s every final from tonight.'],
       ['The {bigW} had the easiest night, a {bigM}-point win over the {bigL}.', 'The biggest margin belonged to the {bigW}, who beat the {bigL} by {bigM}.', 'The {bigW} ran away from the {bigL}, {bigScore}.'],
@@ -77,7 +77,7 @@ const B = {
       ['Tonight he went for {pts} and a {gs}.', 'That’s {ptsOver} points above his average.', 'Nights like this don’t come around often.']],
     career: 'career',
     list: [['He wasn’t the only one.', 'It was a big night for personal bests.', 'More career nights around the league.'],
-      ['{careerN} players set career-best Game Scores tonight.', 'Here are the rest of tonight’s career games.', 'Here’s everybody who had the best game of his career tonight.'],
+      ['{careerN} players set career-best Game Scores tonight.', 'Here are the rest of tonight’s career games.', 'Here’s everybody who had the best game of his career tonight.', '{c2} had a {c2gs} of his own, the best game of his career.'],
       ['Every one of those cards gets a star.', 'That’s a lot of new career highs.', 'Tap a card on the board to open it.']],
   },
   milestone: {
@@ -135,6 +135,52 @@ const B = {
     end: [['For FanSided Tonight, good night.', 'See you next time on FanSided Tonight.', 'Thanks for watching FanSided Tonight.', 'Get some sleep, and we’ll see you next time.'],
       ['Open your pack.', 'Until next time.', 'We’ll be here tomorrow.']],
   },
+}
+
+// Runners-up: the podium and the near misses in every category
+const RU = {
+  podium: [['Here’s the podium.', 'Let’s see the top three.', 'The Player of the Day podium.', 'It wasn’t a one-man race.', 'Here’s how the race for Player of the Day finished.'],
+    ['{n2} finished second with a {s2} on the Player of the Day scale, {p2line} against the {o2}.', 'Silver goes to {n2}, who put up {p2line} against the {o2}.', '{n2} came in second at {s2}, with {p2line}.', 'The runner-up was {n2}: {p2line} against the {o2}.'],
+    ['{n3} took the bronze with {p3line}.', '{n3} rounded out the podium at {s3}.', 'Third place went to {n3}, {p3line} against the {o3}.', '{n3} grabbed the last spot on the podium, a {s3}.'],
+    ['But nobody caught {n1}, at {s1}.', 'The gap between first and second was {gap12} points.', '{n1} won it by {gap12}.', 'It was close at the top, just {gap12} points.{tight}', 'This one wasn’t close. {n1} won by {gap12}.{wide}']],
+  upsets: [['It wasn’t the only upset.', 'There were more surprises around the league.', 'The favorites had a rough night overall.', 'Here are the rest of tonight’s upsets.'],
+    ['The {u2w} beat the {u2l} as {u2c} underdogs.', 'The {u2w} also won at {u2c}, beating the {u2l} {u2s}.', 'At {u2c}, the {u2w} knocked off the {u2l}.'],
+    ['The {u3w} pulled one off too, at {u3c}.', 'And the {u3w} took down the {u3l} at {u3c}.', 'That’s {upN} upsets on the night.', 'Check your pick’em sheet.']],
+  duel: [['The runner-up duel.', 'Honorable mention goes to another matchup.', 'Just missing the cut was this one.', 'The second-best duel of the night.'],
+    ['{ra} and {rb} went at it, {rag} to {rbg} in Game Score.', '{ra} edged {rb}, {rag} to {rbg}.', '{ra} for the {rateam} against {rb} for the {rbteam}, {rag} to {rbg}.'],
+    ['That one would have won most nights.', 'Good, just not quite the main event.', 'A strong second place.', 'Both of those cards are worth keeping too.']],
+  slayer: [['The runner-up giant-slayer.', 'Another long shot came through.', 'Honorable mention for punching up.', 'One more giant fell tonight.'],
+    ['{ra} outplayed {rb}, who was rated {rgap} points higher.', '{ra} beat {rb} by Game Score, {rag} to {rbg}, at {rchance} odds.', 'At {rchance}, {ra} still got the better of {rb}.'],
+    ['Not quite as wild, but close.', 'Two giants fell tonight.', 'Respect to him too.']],
+}
+
+// Live look-ins: games still in progress, woven through the show
+const L = {
+  board: [['And the night isn’t over.', 'We’re not done yet, either.', 'Meanwhile, the action is still going.', 'But first, a look at what’s still being played.'],
+    ['We’ve got {liveTxt} in progress right now.', 'There {liveAre} still {liveTxt} going as we speak.', '{liveTxt} {liveIs} still on the floor.'],
+    ['We’ll check in on them throughout the show.', 'We’ll bring you live look-ins as we go.', 'Stay with us for updates all show long.', 'We’ll keep an eye on every one of them.']],
+  intro: [['Let’s take a quick look at a game in progress.', 'We’ve got a game going right now.', 'Live look-in time.', 'Let’s check in on a game that’s still going.', 'Time for a live update.', 'Somewhere in the league, they’re still playing.', 'Let’s send it to a game in progress.', 'Quick check on a game that’s still on.'],
+    ['It’s the {away} at the {home}, and the {leader} lead {leadScore} {clock}.', 'The {leader} are up {margin} on the {trailer} {clock}.', 'The {away} and the {home} are all tied up at {tieScore} {clock}.', '{away} at {home}, {leadScore} {leader} {clock}.'],
+    ['Here’s where it stands.', 'Let’s look at the live numbers.', 'Here’s the live picture.', 'Let’s go to the board.']],
+  bug: [['Before tipoff, the {fav} were {favPct} favorites.', 'The pre-game forecast had the {fav} at {favPct}.', 'Coming in, the {fav} were the pick at {favPct}.', 'The {fav} came in as {favPct} favorites.'],
+    ['Right now our live model gives the {liveLead} a {livePct} chance.', 'With the clock running, the {liveLead} are at {livePct}.', 'The live win chance has the {liveLead} at {livePct}.', 'As of now, it’s {livePct} for the {liveLead}.'],
+    ['That’s an upset watch.{uw}', 'The underdog has the edge right now, so keep an eye on this one.{uw}', 'We project a final of {projLine}.', 'Our projected final: {projLine}.', 'There’s plenty of basketball left.{early}', 'This one could come down to the wire.{late}', 'The favorite is in control.{safe}']],
+  box: [['Here’s who’s carrying the load so far.', 'The top performers so far.', 'The live leaders.', 'Here’s who’s shining in this one.'],
+    ['{t1} has {t1pts} points, {t1reb} rebounds and {t1ast} assists for the {t1team}.', '{t1} leads everybody with a {t1gs} Game Score so far.', '{t1} is up to {t1pts} points for the {t1team}.', '{t1} has been the best player on the floor, {t1pts} points and counting.'],
+    ['{t2} has {t2pts} for the {t2team}.', 'On the other side, {t2} has {t2pts}.', '{t2} is keeping the {t2team} in it with {t2pts}.', '{t2} has a {t2gs} Game Score of his own.'],
+    ['We’ll come back to this one.', 'We’ll check back in later in the show.', 'Back to the rest of the night.', 'Keep it here for updates.']],
+}
+const LiveCtx = createContext(null)
+const ORD = ['first', 'second', 'third', 'fourth']
+function clockText(live) {
+  const d = String(live?.detail || ''), per = live?.period || 0
+  if (/half/i.test(d)) return 'at halftime'
+  const ord = per > 4 ? (per === 5 ? 'overtime' : `${per - 4}OT`) : ORD[per - 1]
+  if (!ord) return 'early on'
+  if (/end/i.test(d)) return per > 4 ? 'at the end of overtime' : `at the end of the ${ord}`
+  const t = d.match(/\b(\d{1,2}:\d{2}|\d{1,2}\.\d)\b/)
+  if (t) return per > 4 ? `with ${t[1]} left in ${ord}` : `with ${t[1]} left in the ${ord}`
+  return per > 4 ? `in ${ord}` : `in the ${ord}`
 }
 
 const STAMP_LINE = {
@@ -311,6 +357,59 @@ function Tape({ a, b, kit, rows }) {
   )
 }
 
+function Podium({ rows, kit }) {
+  const order = [1, 0, 2].filter(i => rows[i])
+  return (
+    <div className={s.podium}>{order.map(i => { const { p, x, ns } = rows[i]; return (
+      <div key={p.n} className={s.step} data-place={i + 1} style={{ '--d': `${(2 - i) * 0.9 + 0.3}s` }}>
+        <Slot h={i === 0 ? 214 : 176}>{kit.miniCard(x.g, p)}</Slot>
+        <div className={s.block}><b>{i + 1}</b><span>{bn(p.n)}</span><small>{ns.toFixed(1)} · {p.pts}-{p.trb ?? '—'}-{p.ast ?? '—'}</small></div>
+      </div>) })}</div>
+  )
+}
+
+// Live graphics read the newest numbers from context, so scores keep moving while the script stays put
+const useLive = (k, snap) => useContext(LiveCtx)?.get(k) || snap
+function LiveGrid({ live, kit, onOpen }) {
+  const ctx = useContext(LiveCtx)
+  return (
+    <div className={s.scores} data-live>{live.map((x0, i) => { const { c, f } = ctx?.get(x0.c.key) || x0; const lv = c.g?.live || c.x || {}; const pl = f.pLiveHome; return (
+      <button key={c.key} type="button" style={{ animationDelay: `${0.08 * i}s` }} onClick={() => c.g && onOpen(c.g)}>
+        {[f.away, f.home].map(t => <span key={t} data-w={f.lead === t ? '' : undefined}><i style={{ background: kit.tColor(t) }} /><b>{kit.tCode(t)}</b><b>{f.pts[t] ?? 0}</b></span>)}
+        <em data-l><u />{String(lv.detail || 'LIVE').toUpperCase()}{pl != null ? ` · ${kit.tCode(pl >= 0.5 ? f.home : f.away)} ${pct(Math.max(pl, 1 - pl))}` : ''}</em>
+        {f.upset && <em>UPSET WATCH</em>}
+      </button>) })}</div>
+  )
+}
+function LiveBug({ k, snap, kit }) {
+  const { c, f } = useLive(k, snap)
+  const lv = c.g?.live || c.x || {}
+  const { home, away, pts, wp, pLiveHome: pl } = f
+  const proj = Array.isArray(f.liveProj) ? f.liveProj : null
+  return (
+    <div className={s.wpg}>
+      {[away, home].map(t => <div key={t} className={s.wpRow}><span className={s.tm} style={{ '--c': kit.tColor(t) }}>{kit.tName(t).toUpperCase()}</span>
+        <span className={s.sc} data-w={f.lead === t || !f.lead ? '' : undefined}>{pts[t] ?? 0}</span>
+        {proj && <span className={s.lu}>Proj. <b>{t === home ? proj[0] : proj[1]}</b></span>}</div>)}
+      <div className={s.liveTag}><u />LIVE · {String(lv.detail || '').toUpperCase()}</div>
+      {wp && <><div className={s.wpLab}><span>{kit.tCode(away)} {pct(wp[away])}</span><span>PRE-GAME WIN CHANCE</span><span>{pct(wp[home])} {kit.tCode(home)}</span></div>
+        <div className={s.wpBar} data-thin><i style={{ width: `${wp[away] * 100}%`, background: kit.tColor(away) }} /><i style={{ flex: 1, background: kit.tColor(home) }} /></div></>}
+      {pl != null && <><div className={s.wpLab}><span>{kit.tCode(away)} {pct(1 - pl)}</span><span>LIVE WIN CHANCE</span><span>{pct(pl)} {kit.tCode(home)}</span></div>
+        <div className={s.wpBar}><i style={{ width: `${(1 - pl) * 100}%`, background: kit.tColor(away), transition: 'width 1.2s' }} /><i style={{ flex: 1, background: kit.tColor(home) }} /></div></>}
+      {f.upset && <div className={s.stamp} data-watch>UPSET WATCH</div>}
+    </div>
+  )
+}
+function LiveLines({ ps, kit, k }) {
+  const cur = useContext(LiveCtx)?.get(k)
+  const rows = ps.map(p => cur?.c.g?.players.find(q => q.n === p.n) || p)
+  return (
+    <div className={s.liveLines}>{rows.map((p, i) => (
+      <div key={p.n} style={{ animationDelay: `${0.4 + i * 0.4}s` }}><b>{bn(p.n)}</b><small>{kit.tShort(p.t)} · so far</small>
+        <span>{p.pts}<i>PTS</i></span><span>{p.trb ?? '—'}<i>REB</i></span><span>{p.ast ?? '—'}<i>AST</i></span><span>{p.gs.toFixed(1)}<i>GMSC</i></span></div>))}</div>
+  )
+}
+
 // The night, read off the finals
 function buildNight({ finals, side }) {
   const G = finals.map(({ c, f }) => {
@@ -333,12 +432,30 @@ function buildNight({ finals, side }) {
   const risers = [...all].sort((a, b) => (b.p.post - b.p.pre) - (a.p.post - a.p.pre))
   const pick = k => { const v = side.picks.find(x => x[2] === k)?.[1]; return v && byId.get(v.g.id) ? { ...v, x: byId.get(v.g.id) } : null }
   const margin = x => Math.abs(x.pts[x.win] - x.pts[x.lose])
-  return { G, pd, ups, careers, cg, mils, mil, risers, fallers: [...risers].reverse(), duel: pick('duel'), slayer: pick('slayer'),
-    big: [...G].sort((a, b) => margin(b) - margin(a))[0], close: [...G].sort((a, b) => margin(a) - margin(b))[0],
-    hi: G.flatMap(x => [x.win, x.lose].map(t => ({ t, v: x.pts[t] }))).sort((a, b) => b.v - a.v)[0] }
+  const ns = p => p.gs + (p.post - p.pre) / 6
+  const podium = [...all].sort((a, b) => ns(b.p) - ns(a.p)).slice(0, 3).map(o => ({ ...o, ns: ns(o.p) }))
+  // Each game's best duel and widest giant-slayer gap; the runner-up comes from a different game than the winner
+  const duels = [], slayers = []
+  for (const x of G) {
+    const ps = x.g.players
+    let d = null, sl = null
+    for (const a of ps) for (const b of ps) {
+      if (a.t !== b.t && a.n < b.n && a.gs >= 10 && b.gs >= 10 && (a.mp == null || a.mp >= 20) && (b.mp == null || b.mp >= 20)) {
+        const sc = Math.min(a.gs, b.gs) * Math.min(a.pre, b.pre) / 2500
+        if (!d || sc > d.sc) d = { a: a.gs >= b.gs ? a : b, b: a.gs >= b.gs ? b : a, sc, x }
+      }
+      if ((a.mp || 0) >= 12 && (b.mp || 0) >= 12 && a.gs >= 10 && a.gs > b.gs && b.pre > a.pre && (!sl || b.pre - a.pre > sl.gap)) sl = { a, b, gap: b.pre - a.pre, wc: 1 / (1 + 10 ** ((b.pre - a.pre) / 620)), x }
+    }
+    if (d) duels.push(d); if (sl) slayers.push(sl)
+  }
+  duels.sort((a, b) => b.sc - a.sc); slayers.sort((a, b) => b.gap - a.gap)
+  const dd = pick('duel'), ss = pick('slayer')
+  return { G, pd, ups, careers, podium, duel2: dd && duels.find(d => d.x.g.id !== dd.g.id), slayer2: ss && slayers.find(d => d.x.g.id !== ss.g.id), cg, mils, mil, risers, fallers: [...risers].reverse(), duel: pick('duel'), slayer: pick('slayer'),
+    big: [...G].sort((a, b) => margin(b) - margin(a))[0] || null, close: [...G].sort((a, b) => margin(a) - margin(b))[0] || null,
+    hi: G.flatMap(x => [x.win, x.lose].map(t => ({ t, v: x.pts[t] }))).sort((a, b) => b.v - a.v)[0] || null }
 }
 
-function buildShow(N, kit, seed, act, side) {
+function buildShow(N, kit, seed, act, side, live) {
   const { tShort, tName, tColor, tCode } = kit
   const r = rng(seed)
   const segs = []
@@ -415,11 +532,42 @@ function buildShow(N, kit, seed, act, side) {
   const anchor = (ots, lab, line, go) => ({ ots, lab, line, go })
   const seg = (id, title, beats, banksAll) => { const b = beats.filter(Boolean); if (b.length) segs.push({ id, title, beats: b, takes: banksAll }) }
   const tk = obj => Object.values(obj).filter(Array.isArray).reduce((n, b) => n * combos(b), 1)
+  const tkL = b => combos(b)
+
+  // A live look-in: the scorebug with pre-game and live win chances, then who's leading the box so far
+  function liveSeg({ c, f }) {
+    const { home, away, pts } = f
+    const lv = c.g?.live || c.x || {}
+    const hs = pts[home] ?? 0, as = pts[away] ?? 0
+    const leader = hs === as ? null : hs > as ? home : away, trailer = leader && (leader === home ? away : home)
+    const pl = f.pLiveHome, liveLead = pl == null ? null : pl >= 0.5 ? home : away
+    const per = lv.period || 0
+    const proj = Array.isArray(f.liveProj) ? f.liveProj : null
+    const v = { away: tShort(away), home: tShort(home), leader: leader && tShort(leader), trailer: trailer && tShort(trailer),
+      leadScore: leader ? `${Math.max(hs, as)}–${Math.min(hs, as)}` : null, margin: leader ? Math.abs(hs - as) : null, tieScore: leader ? null : hs, clock: clockText(lv),
+      fav: f.wp ? tShort(f.fav) : null, favPct: f.wp ? pct(f.wp[f.fav]) : null, liveLead: liveLead && tShort(liveLead), livePct: pl == null ? null : pct(Math.max(pl, 1 - pl)),
+      uw: f.upset ? '' : null, projLine: proj ? `${tShort(proj[0] >= proj[1] ? home : away)} ${Math.max(...proj)}, ${tShort(proj[0] >= proj[1] ? away : home)} ${Math.min(...proj)}` : null,
+      early: per && per <= 2 && !f.upset ? '' : null, late: per >= 4 && Math.abs(hs - as) <= 6 ? '' : null, safe: pl != null && Math.max(pl, 1 - pl) >= 0.9 && liveLead === f.fav ? '' : null }
+    const ps = c.g ? [...c.g.players].filter(p => p.gs != null).sort((a, b) => b.gs - a.gs) : []
+    const t1 = ps[0], t2 = t1 && ps.find(p => p.t !== t1.t)
+    Object.assign(v, t1 ? { t1: bn(t1.n), t1pts: t1.pts, t1reb: t1.trb ?? null, t1ast: t1.ast ?? null, t1gs: t1.gs.toFixed(1), t1team: tShort(t1.t) } : {},
+      t2 ? { t2: bn(t2.n), t2pts: t2.pts, t2gs: t2.gs.toFixed(1), t2team: tShort(t2.t) } : {})
+    const title = `Live: ${tCode(away)} at ${tCode(home)}`
+    const open = c.g ? () => act.box(c.g) : null
+    return { id: `live-${c.key}`, title, live: true, takes: combos(L.intro) * combos(L.bug) * combos(L.box), beats: [
+      anchor(<span className={s.miniBug}>{[away, home].map(t => <span key={t}><i style={{ background: tColor(t) }} /><b>{tCode(t)}</b><strong>{pts[t] ?? 0}</strong></span>)}<em><u />LIVE</em></span>, 'Live look-in', say(L.intro, v, r), open),
+      { gfx: true, head: ['Live', tCode(away) + ' @ ' + tCode(home), String(lv.detail || '')], view: <LiveBug k={c.key} snap={{ c, f }} kit={kit} />, line: say(L.bug, v, r), go: open },
+      t1 && t2 && { gfx: true, head: ['Leaders so far', 'Live', `${tShort(away)} at ${tShort(home)}`], go: open,
+        view: <div className={s.tape}><Slot h={250}>{kit.miniCard(c.g, t1)}</Slot><LiveLines ps={[t1, t2]} kit={kit} k={c.key} /><Slot h={250} i={1}>{kit.miniCard(c.g, t2)}</Slot></div>, line: say(L.box, v, r) },
+    ].filter(Boolean) }
+  }
 
   // 1 · Open
   const n = N.G.length, u = N.ups.length
-  const bigM = Math.abs(N.big.pts[N.big.win] - N.big.pts[N.big.lose]), closeM = Math.abs(N.close.pts[N.close.win] - N.close.pts[N.close.lose])
-  const ov = {
+  const bigM = N.big ? Math.abs(N.big.pts[N.big.win] - N.big.pts[N.big.lose]) : 0, closeM = N.close ? Math.abs(N.close.pts[N.close.win] - N.close.pts[N.close.lose]) : 0
+  const ln = live.length
+  const ov = n === 0 ? { liveTxt: ln === 1 ? 'one game' : `${ln} games`, liveAre: ln === 1 ? 'is' : 'are', liveIs: ln === 1 ? 'is' : 'are', cardCount: null, potd: null } : {
+    liveTxt: ln ? (ln === 1 ? 'one game' : `${ln} games`) : null, liveAre: ln === 1 ? 'is' : 'are', liveIs: ln === 1 ? 'is' : 'are',
     slate: n === 1 ? 'one game' : `${n} games`, gamesN: n > 1 ? n : null, upsets: u ? (u === 1 ? 'one upset' : `${u} upsets`) : null, times: u ? (u === 1 ? 'once' : `${u} times`) : null, chalk: u ? null : '',
     bigW: n > 1 ? tShort(N.big.win) : null, bigL: tShort(N.big.lose), bigM, bigScore: `${N.big.pts[N.big.win]}–${N.big.pts[N.big.lose]}`,
     closeW: n > 2 ? tShort(N.close.win) : null, closeL: tShort(N.close.lose), closeM: closeM === 1 ? 'a single point' : `${closeM} points`, closeScore: `${N.close.pts[N.close.win]}–${N.close.pts[N.close.lose]}`,
@@ -429,13 +577,19 @@ function buildShow(N, kit, seed, act, side) {
   const fanView = picks => <div className={s.fan}>{picks.map(([label, v, kind], i) => (
     <span key={label} className={s.fanItem} style={{ '--d': `${0.25 * i + 0.2}s` }}>
       <Slot h={picks.length > 4 ? 226 : 250} tilt={(i - (picks.length - 1) / 2) * 4}>{kind ? kit.duelCard(kind, v) : kit.miniCard(v.g, v.p)}</Slot><small>{label}</small></span>))}</div>
-  seg('open', 'Tonight’s finals', [
+  const liveBoard = ln > 0 && { gfx: true, head: ['Live right now', 'In progress', `${ln} game${ln === 1 ? '' : 's'}`], view: <LiveGrid live={live} kit={kit} onOpen={act.live} />, line: say(L.board, ov, r) }
+  if (!n) seg('open', 'Tonight’s games', [
+    anchor(<><span className={s.big2}>{ln}</span><span className={s.big2l}>LIVE</span></>, 'In progress', say([OPENERS, ['No finals yet, but there’s plenty going on.', 'The night is still young.', 'Nothing’s final yet, so let’s go around the league.']], ov, r)),
+    liveBoard,
+  ], combos(OPENERS) * tkL(L.board))
+  else seg('open', 'Tonight’s finals', [
     anchor(<><span className={s.big2}>{n}</span><span className={s.big2l}>FINAL{n === 1 ? '' : 'S'}</span></>, 'All final', say(B.open.intro, ov, r)),
     { gfx: true, head: ['Around the league', 'Final'], view: <div className={s.scores}>{N.G.map((x, i) => (
       <button key={x.g.id} type="button" style={{ animationDelay: `${0.08 * i}s` }} onClick={() => act.box(x.g)}>
         {[x.away, x.home].map(t => <span key={t} data-w={t === x.win ? '' : undefined}><i style={{ background: tColor(t) }} /><b>{tCode(t)}</b><b>{x.pts[t]}</b></span>)}
         {x.f.upset && x.f.wp ? <em>UPSET · {pct(x.f.wp[x.win])}</em> : <em data-q>FINAL{x.g.ot ? `/${x.g.ot}` : ''}</em>}
       </button>))}</div>, line: say(B.open.scores, ov, r) },
+    liveBoard,
     side.picks.length > 1 && { gfx: true, head: ['Cards of the Day', 'Tonight'], view: fanView(side.picks), line: say(B.open.fan, ov, r) },
   ], tk(B.open))
 
@@ -445,6 +599,13 @@ function buildShow(N, kit, seed, act, side) {
     seg('potd', 'Player of the Day', [
       anchor(card(p, x, 196), 'Player of the Day', say(B.potd.intro, v, r), () => act.card(x.g, p)),
       heroBeat(p, x, v, B.potd.hero, ['Player of the Day', 'Top performer', `${tShort(p.t)} vs ${tShort(opp(p, x))}`]),
+      N.podium.length >= 3 && N.podium[0].p === p && (() => {
+        const [a1, a2, a3] = N.podium, line = q => `${q.p.pts} points, ${q.p.trb ?? 0} rebounds and ${q.p.ast ?? 0} assists`
+        const gap = a1.ns - a2.ns
+        const pv = { n1: bn(a1.p.n), s1: a1.ns.toFixed(1), n2: bn(a2.p.n), s2: a2.ns.toFixed(1), p2line: line(a2), o2: tShort(opp(a2.p, a2.x)), n3: bn(a3.p.n), s3: a3.ns.toFixed(1), p3line: line(a3), o3: tShort(opp(a3.p, a3.x)),
+          gap12: gap.toFixed(1), tight: gap < 3 ? '' : null, wide: gap >= 10 ? '' : null }
+        return { gfx: true, head: ['The podium', 'Player of the Day', 'Game Score + Elo gain ÷ 6'], view: <Podium rows={N.podium} kit={kit} />, line: say(RU.podium, pv, r) }
+      })(),
       p.fga ? { gfx: true, head: ['Shooting', bn(p.n), p.fga >= 5 ? `${Math.round(p.pts / (2 * (p.fga + 0.44 * (p.fta || 0))) * 100)}% true shooting` : ''],
         view: <div className={s.split2}>{card(p, x, 300)}<Splits p={p} S={kit.seasonOf(p.n)} /></div>, line: say(B.potd.shoot, v, r), go: () => act.card(x.g, p) } : null,
       chartBeat(p, x, v),
@@ -474,6 +635,16 @@ function buildShow(N, kit, seed, act, side) {
         view: <VsBars color={tColor(x.win)} rows={[x.win, x.lose].map(t => ({ l: `${tName(t)} lineup`, a: Math.max(1, g.elo[t].pre - Math.min(eloW, eloL) + 120), fa: r0(g.elo[t].pre), c: t === x.win ? '#ffd34d' : '#d6223a' }))} />, line: say(B.upset.lineup, v, r), noLegend: true },
       w && l && boxBeat(x, [w.n, l.n], v, B.upset.box, ['The box score', 'Final', `${tShort(x.win)} ${x.pts[x.win]}, ${tShort(x.lose)} ${x.pts[x.lose]}`]),
       star && heroBeat(star, x, facts(star, x), B.upset.hero, ['Upset star', tCode(x.win), bn(star.n)]),
+      N.ups.length > 1 && (() => {
+        const [, u2, u3] = N.ups
+        const uv = { u2w: tShort(u2.win), u2l: tShort(u2.lose), u2c: pct(u2.f.wp[u2.win]), u2s: `${u2.pts[u2.win]}–${u2.pts[u2.lose]}`,
+          u3w: u3 ? tShort(u3.win) : null, u3l: u3 ? tShort(u3.lose) : null, u3c: u3 ? pct(u3.f.wp[u3.win]) : null, upN: N.ups.length > 2 ? N.ups.length : null }
+        return { gfx: true, head: ['More upsets', 'Final', `${N.ups.length} tonight`], view: <div className={s.list}>{N.ups.map((y, i) => (
+          <button key={y.g.id} type="button" style={{ animationDelay: `${0.25 * i + 0.3}s` }} onClick={() => act.box(y.g)} data-first={i === 0 ? '' : undefined}>
+            <span className={s.upPct}>{pct(y.f.wp[y.win])}</span><b>{tName(y.win)}</b><small>over {tCode(y.lose)}</small>
+            <em className={s.upBar}><i style={{ width: `${y.f.wp[y.win] * 100}%` }} /><span>{y.pts[y.win]}–{y.pts[y.lose]}{y.g.ot ? ` ${y.g.ot}` : ''}</span></em></button>))}</div>,
+          line: say(RU.upsets, uv, r) }
+      })(),
     ], tk(B.upset))
   }
 
@@ -482,6 +653,7 @@ function buildShow(N, kit, seed, act, side) {
     const { p, x } = N.cg, v = facts(p, x)
     const others = N.careers.filter(m => m.p.n !== p.n)
     v.careerN = N.careers.length > 1 ? N.careers.length : null
+    if (others[0]) Object.assign(v, { c2: bn(others[0].p.n), c2gs: others[0].p.gs.toFixed(1) })
     seg('career', 'Career night', [
       anchor(card(p, x, 196), 'Career game ★', say(B.careerGame.intro, v, r), () => act.card(x.g, p)),
       heroBeat(p, x, v, B.careerGame.hero, ['Career game', '★', `${tShort(p.t)} vs ${tShort(opp(p, x))}`]),
@@ -522,7 +694,9 @@ function buildShow(N, kit, seed, act, side) {
         <button key={p.n + i} type="button" className={s.mv} onClick={() => act.card(x.g, p)} style={{ animationDelay: `${0.25 * i + 0.2}s` }}><span><b>{kit.shortName(p.n)}</b><small>{tCode(p.t)} · {r0(p.pre)} → {r0(p.post)}</small></span>
           <span className={s.mvBar}><i style={{ left: `${d >= 0 ? 50 : 50 - Math.abs(d) / mx * 50}%`, width: `${Math.abs(d) / mx * 50}%`, background: d >= 0 ? '#2fae5c' : '#d6223a', animationDelay: `${0.25 * i + 0.4}s` }} /><i className={s.mid} /></span>
           <strong className={d >= 0 ? s.up : s.dn}>{sgn(d)}</strong></button>) })}</div>,
-        line: say([['The full board.', 'Here are the top three risers and the two biggest fallers.', 'Up top, the gainers. Down below, the drops.'], ['Big nights against highly rated opponents are what move the needle.', 'Elo rewards production against good competition.', 'Every one of these swings came from a single game.']], {}, r) },
+        line: say([['The full board.', 'Here are the top three risers and the two biggest fallers.', 'Up top, the gainers. Down below, the drops.'],
+          ['{r2} was next, up {r2d}, followed by {r3} at {r3d}.', 'Behind him, {r2} gained {r2d} and {r3} gained {r3d}.', '{r2} finished second among the risers at {r2d}.', '{f2} had the second-biggest drop, {f2d}.'], ['Big nights against highly rated opponents are what move the needle.', 'Elo rewards production against good competition.', 'Every one of these swings came from a single game.']], { r2: N.risers[1] && bn(N.risers[1].p.n), r2d: N.risers[1] && f1(N.risers[1].p.post - N.risers[1].p.pre),
+          r3: N.risers[2] && bn(N.risers[2].p.n), r3d: N.risers[2] && f1(N.risers[2].p.post - N.risers[2].p.pre), f2: N.fallers[1] && bn(N.fallers[1].p.n), f2d: N.fallers[1] && f1(N.fallers[1].p.pre - N.fallers[1].p.post) }, r) },
       heroBeat(R.p, R.x, facts(R.p, R.x), B.movers.riser, ['Top riser', sgn(R.p.post - R.p.pre), bn(R.p.n)]),
       chartBeat(R.p, R.x, facts(R.p, R.x)),
       heroBeat(F.p, F.x, facts(F.p, F.x), B.movers.faller, ['Biggest faller', sgn(F.p.post - F.p.pre), bn(F.p.n)]),
@@ -530,7 +704,7 @@ function buildShow(N, kit, seed, act, side) {
   }
 
   // 7 · Duel and 8 · Giant-Slayer
-  const pair = (kind, D, banks, title) => {
+  const pair = (kind, D, banks, title, R2) => {
     const { a, b, x } = D, A = { p: a, g: x.g }, Bp = { p: b, g: x.g }
     const v = { a: bn(a.n), b: bn(b.n), alast: lastName(a.n), ag: a.gs.toFixed(1), bg: b.gs.toFixed(1), apts: a.pts, bpts: b.pts, apre: r0(a.pre), bpre: r0(b.pre),
       ateam: tShort(a.t), bteam: tShort(b.t), gap: D.gap ? r0(D.gap) : null, chance: D.wc != null ? pct(D.wc) : null, score: `${x.pts[x.win]}–${x.pts[x.lose]}`, winT: tShort(x.win) }
@@ -544,25 +718,48 @@ function buildShow(N, kit, seed, act, side) {
         line: say(banks.card, v, r) },
       { gfx: true, head: ['Tale of the tape', kind === 'duel' ? 'Duel' : 'Giant-Slayer', bn(a.n) + ' · ' + bn(b.n)], go: () => act.box(x.g), view: <Tape a={A} b={Bp} kit={kit} rows={rowsT} />, line: say(banks.tape, v, r) },
       banks.box && boxBeat(x, [a.n, b.n], v, banks.box, ['The box score', 'Final', `${tShort(x.win)} ${x.pts[x.win]}, ${tShort(x.lose)} ${x.pts[x.lose]}`]),
+      R2 && (() => {
+        const rv = { ra: bn(R2.a.n), rb: bn(R2.b.n), rag: R2.a.gs.toFixed(1), rbg: R2.b.gs.toFixed(1), rateam: tShort(R2.a.t), rbteam: tShort(R2.b.t), rgap: R2.gap ? r0(R2.gap) : null, rchance: R2.wc != null ? pct(R2.wc) : null }
+        return { gfx: true, head: [kind === 'duel' ? 'Runner-up duel' : 'Runner-up giant-slayer', '2nd', `${tShort(R2.a.t)} vs ${tShort(R2.b.t)}`], go: () => act.box(R2.x.g),
+          view: <div className={s.vs}><Slot h={290}>{kit.miniCard(R2.x.g, R2.a)}</Slot>
+            <div className={s.vsSide}>{kind === 'slayer' ? <><b>{pct(R2.wc)}</b><small>CHANCE</small><em>{r0(R2.gap)} Elo apart</em></> : <><b>{R2.a.gs.toFixed(1)}<i>–</i>{R2.b.gs.toFixed(1)}</b><small>GAME SCORE</small><em>Duel score {R2.sc.toFixed(1)} · winner {D.score != null ? D.score.toFixed(1) : ''}</em></>}</div>
+            <Slot h={290} i={1}>{kit.miniCard(R2.x.g, R2.b)}</Slot></div>,
+          line: say(kind === 'duel' ? RU.duel : RU.slayer, rv, r) }
+      })(),
     ], tk(banks))
   }
-  if (N.duel) pair('duel', N.duel, B.duel, 'Duel of the Day')
-  if (N.slayer) pair('slayer', N.slayer, B.slayer, 'Giant-Slayer')
+  if (N.duel) pair('duel', N.duel, B.duel, 'Duel of the Day', N.duel2)
+  if (N.slayer) pair('slayer', N.slayer, B.slayer, 'Giant-Slayer', N.slayer2)
+
+  // Live look-ins woven through: after every other segment, one in-progress game at a time
+  if (ln) {
+    const looks = live.map(x => liveSeg(x)).filter(Boolean)
+    if (looks.length) {
+      const out = [segs[0]]
+      let k = 0
+      segs.slice(1).forEach((x, i) => { out.push(x); if (i % 2 === 0) { out.push({ ...looks[k % looks.length], id: `${looks[k % looks.length].id}-${k}` }); k++ } })
+      if (segs.length === 1) out.push(...looks)
+      segs.length = 0; segs.push(...out)
+    }
+  }
 
   // 9 · Sign-off
   seg('close', 'Sign-off', [
     side.picks.length > 1 ? { gfx: true, head: ['Cards of the Day', 'One more look'], view: fanView(side.picks), line: say(B.close.fan, ov, r) } : null,
-    anchor(<span className={s.wordmark}><i>FS</i>TONIGHT</span>, 'FanSided Tonight', say(B.close.end, ov, r)),
+    anchor(<span className={s.wordmark}><i>FS</i>TONIGHT</span>, 'FanSided Tonight', say(ln ? [['We’ll keep watching the games still going.', 'There’s still basketball being played, so keep the TVs on.', 'The live games are on the wall.'], ...B.close.end] : B.close.end, ov, r)),
   ], tk(B.close))
   return segs
 }
 
-export default function FanSidedTonight({ kit, day, finals, side, shots, phone, openBox, openCard, liveN, onLive }) {
+export default function FanSidedTonight({ kit, day, finals, live = [], side, shots, phone, openBox, openCard, liveN, onLive }) {
   const hv = useCareerHistory(true)
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 2e9) + 1)
   const sig = finals.map(x => x.c.g.id + x.c.g.pts.join('-')).join('|')
-  const act = { box: g => openBox(g), card: (g, p) => openCard(g, p) }
-  const segs = useMemo(() => buildShow(buildNight({ finals, side }), kit, seed, act, side), [sig, side, seed, shots, hv])
+  const act = { box: g => openBox(g), card: (g, p) => openCard(g, p), live: g => openBox(g) }
+  // The script is rewritten when a game ends or a new one tips; live scores update inside the graphics
+  const liveSig = live.map(x => x.c.key).join('|')
+  const liveMap = useMemo(() => new Map(live.map(x => [x.c.key, x])), [live])
+  const segs = useMemo(() => buildShow(buildNight({ finals, side }), kit, seed, act, side, live), [sig, liveSig, seed, shots, hv])
   const [seg, setSeg] = useState(0)
   const [beat, setBeat] = useState(0)
   const [playing, setPlaying] = useState(true)
@@ -577,7 +774,10 @@ export default function FanSidedTonight({ kit, day, finals, side, shots, phone, 
   const clear = () => { timers.current.forEach(clearTimeout); timers.current = [] }
   const later = (fn, ms) => timers.current.push(setTimeout(fn, ms))
   const si = Math.min(seg, segs.length - 1)
-  const S = segs[si]
+  // The segment on air stays as written until it ends, even if the rundown is rebuilt underneath it
+  const fz = useRef({ k: null, S: null })
+  if (fz.current.k !== `${si}|${seed}`) fz.current = { k: `${si}|${seed}`, S: segs[si] }
+  const S = fz.current.S || segs[si]
   const bi = Math.min(beat, S.beats.length - 1)
   const Bt = S.beats[bi]
   // Next beat within a segment cuts straight over; a new segment gets the FanSided wipe
@@ -606,7 +806,7 @@ export default function FanSidedTonight({ kit, day, finals, side, shots, phone, 
   const takes = segs.reduce((n, x) => n * x.takes, 1)
 
   return (
-    <div className={s.wrap}>
+    <LiveCtx.Provider value={liveMap}><div className={s.wrap}>
       <div className={s.box} ref={box} style={{ aspectRatio: `${Wd} / ${Ht}` }}>
         <div className={s.stage} data-phone={phone ? '' : undefined} data-rm={reduce ? '' : undefined} style={{ width: Wd, height: Ht, transform: `scale(${k})` }}>
           <div className={s.studio}>
@@ -625,7 +825,7 @@ export default function FanSidedTonight({ kit, day, finals, side, shots, phone, 
           <div className={s.lower}>
             <div className={s.strip}><span className={s.bug}>FANSIDED <small>TONIGHT</small></span><span key={si} className={s.title}>{S.title}</span>
               <span className={s.dots}>{S.beats.map((_, i) => <i key={i} data-on={i === bi ? '' : undefined} data-past={i < bi ? '' : undefined} />)}</span>
-              <span className={s.clock}>FINALS · {dateLab}</span></div>
+              <span className={s.clock}>{S.live ? <><u className={s.liveDot} />LIVE</> : live.length ? `FINALS & LIVE · ${dateLab}` : `FINALS · ${dateLab}`}</span></div>
             <Caption key={key} text={Bt.line || ' '} run={run} instant={reduce} onTalk={setTalk} onDone={() => doneRef.current()} />
           </div>
           {!reduce && <div key={wipe} className={s.wipe} data-go={wipe ? '' : undefined}><i /><i /><i /><i /><span>FANSIDED</span></div>}
@@ -639,6 +839,6 @@ export default function FanSidedTonight({ kit, day, finals, side, shots, phone, 
         <button type="button" onClick={() => { clear(); setSeed(Math.floor(Math.random() * 2e9) + 1); setBeat(0) }} title={`Rewrite the script (about ${takes.toExponential(0).replace('e+', '×10^')} possible shows tonight)`}>↻ New take</button>
         {liveN > 0 && <button type="button" className={s.live} onClick={onLive}><i />Live game</button>}
       </div>
-    </div>
+    </div></LiveCtx.Provider>
   )
 }

@@ -164,7 +164,7 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
     return () => clearTimeout(t)
   }, [breaking])
   const news = breaking[0]
-  // The main TV: FanSided Tonight once there are finals and nothing is live, else the featured game; either can be picked
+  // The main TV: FanSided Tonight once any game has tipped (finals and live look-ins), else the featured game; either can be picked
   const [tvPick, setTvPick] = useState(null)
   useEffect(() => { setTvPick(null) }, [day])
   if (loading) return <div className={sb.msg}>Warming up the screens…</div>
@@ -197,7 +197,9 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
   const feat = pick()
   const finals = F.filter(x => x.c.state === 'post' && x.c.g)
   const liveCount = F.filter(x => x.c.state === 'in').length
-  const showOn = finals.length > 0 && (tvPick || (liveCount ? 'game' : 'show')) === 'show'
+  const liveF = F.filter(x => x.c.state === 'in')
+  // The show covers finals and games in progress, so it's the main TV whenever anything has tipped
+  const showOn = finals.length + liveF.length > 0 && (tvPick || 'show') === 'show'
   const why = feat.c.state === 'in' ? 'Closest game on now' : feat.c.state === 'post' && feat.f.upset ? 'Biggest upset of the night' : feat.c.state === 'pre' ? 'Tightest forecast on the slate' : 'Featured'
   const marks = g => {
     if (!g) return { car: 0, mil: 0 }
@@ -283,7 +285,7 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
       <div className={sb.bar}>
         <span><b>{F.length}</b> game{F.length === 1 ? '' : 's'}{liveN ? <> · <span className={sb.liveTxt}><i />{liveN} live</span></> : ''}</span>
         {provisional && <span>Live games use ratings through the last data update; Elo is provisional until the next one.</span>}
-        {finals.length > 0 && <span className={sb.tvSwitch} role="group" aria-label="Main TV"><small>Main TV</small>
+        {finals.length + liveF.length > 0 && <span className={sb.tvSwitch} role="group" aria-label="Main TV"><small>Main TV</small>
           <button type="button" data-on={showOn ? '' : undefined} onClick={() => setTvPick('show')}>FanSided Tonight</button>
           <button type="button" data-on={!showOn ? '' : undefined} onClick={() => setTvPick('game')}>{feat.c.state === 'in' ? 'Live game' : 'Featured game'}</button></span>}
       </div>
@@ -309,7 +311,7 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
         ))}</span>
       </div>}
       <div className={sb.wallF}><div className={sb.wall} data-show={showOn ? '' : undefined}>
-        {showOn ? <div className={`${sb.cell} ${sb.showCell}`}><FanSidedTonight kit={kit} day={day} finals={finals} side={side} shots={shots} phone={phone}
+        {showOn ? <div className={`${sb.cell} ${sb.showCell}`}><FanSidedTonight kit={kit} day={day} finals={finals} live={liveF} side={side} shots={shots} phone={phone}
           openBox={openBox} openCard={openCard} liveN={liveCount} onLive={() => setTvPick('game')} /></div> : tv(feat, true)}
         {rest.map((x, i) => tv(x, false, showOn && !phone && i < 2))}{tiles}
       </div></div>

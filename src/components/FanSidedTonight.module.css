@@ -319,3 +319,76 @@
 .stage[data-phone] .fan { flex-wrap: nowrap; }
 .stage[data-phone] .fanItem { flex: 1 1 0; min-width: 0; }
 .stage[data-phone] .fanItem small { max-width: 112px; font-size: 9px; letter-spacing: 1px; }
+
+/* ── live look-ins ── */
+.liveDot, .liveTag u, .scores em[data-l] u, .miniBug em u { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: #ff3b4a; box-shadow: 0 0 8px #ff3b4a; text-decoration: none; animation: livePulse 1.4s ease-in-out infinite; }
+@keyframes livePulse { 50% { opacity: .35; } }
+.liveTag { align-self: flex-start; padding: 4px 12px; border-radius: 3px; background: rgba(255,59,74,.15); box-shadow: inset 0 0 0 1px rgba(255,59,74,.5); font: 700 15px 'Oswald', sans-serif; letter-spacing: 2px; color: #ffd7db; }
+.wpBar[data-thin] { height: 14px; opacity: .75; }
+.wpg:has(.liveTag) { gap: 12px; padding-right: 150px; }
+.wpg:has(.liveTag) .wpRow { gap: 14px; } .wpg:has(.liveTag) .sc { font-size: 48px; }
+.stamp[data-watch] { font-size: 30px; right: 22%; top: 2%; }
+.scores[data-live] { grid-template-columns: repeat(4, 1fr); padding-right: 150px; }
+.stage .scores[data-live] button { padding: 8px 10px; font-size: 18px; }
+.scores em[data-l] { display: flex; align-items: center; color: #ffd7db; font-size: 11px; }
+.miniBug { display: flex; flex-direction: column; gap: 8px; width: 78%; font: 700 30px 'Oswald', sans-serif; }
+.miniBug > span { display: flex; align-items: center; gap: 10px; padding: 4px 10px; background: rgba(255,255,255,.06); border-radius: 4px; }
+.miniBug > span i { width: 6px; height: 26px; border-radius: 2px; }
+.miniBug strong { margin-left: auto; }
+.miniBug em { display: flex; align-items: center; font: 700 14px 'Oswald', sans-serif; font-style: normal; letter-spacing: 2px; color: #ffd7db; }
+.liveLines { flex: 1; display: flex; flex-direction: column; gap: 18px; }
+.liveLines > div { display: grid; grid-template-columns: 1fr repeat(4, 64px); grid-template-rows: auto auto; align-items: end; gap: 0 8px; padding: 12px 14px; border-radius: 6px; background: rgba(255,255,255,.06); animation: statIn .6s ease-out both; }
+.liveLines b { font: 700 22px 'Oswald', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.liveLines small { grid-row: 2; font: 600 12px 'Inter', sans-serif; color: #ffd7db; }
+.liveLines span { grid-row: span 2; display: flex; flex-direction: column; align-items: center; font: 700 30px/1 'Oswald', sans-serif; }
+.liveLines span i { font: 700 9px 'Inter', sans-serif; font-style: normal; color: #9fb3cc; margin-top: 3px; }
+.stage[data-phone] .scores[data-live] { grid-template-columns: repeat(2, 1fr); padding-right: 0; }
+.stage[data-phone] .wpg:has(.liveTag) { padding-right: 0; }
+.stage[data-phone] .liveLines > div { grid-template-columns: 1fr repeat(4, 48px); }
+.stage[data-phone] .liveLines span { font-size: 22px; }
+.wpBar i { box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); filter: brightness(1.35) saturate(1.15); }
+.liveLines > div { grid-template-columns: minmax(0, 1fr) repeat(4, 52px); padding: 10px 12px; }
+.liveLines b { font-size: 19px; } .liveLines span { font-size: 26px; }
+
+/* ── runners-up ── */
+.podium { flex: 1; align-self: stretch; display: flex; align-items: flex-end; justify-content: center; gap: 26px; padding-right: 150px; }
+.step { display: flex; flex-direction: column; align-items: center; gap: 0; animation: podIn .9s var(--d) cubic-bezier(.2,.8,.2,1.05) both; }
+.step .slot { animation: none; margin-bottom: -8px; z-index: 1; filter: drop-shadow(0 10px 16px rgba(0,0,0,.6)); }
+@keyframes podIn { from { opacity: 0; translate: 0 60px; } }
+.block { position: relative; width: 210px; display: flex; flex-direction: column; align-items: center; padding: 14px 8px 10px; border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, var(--m1), var(--m2)); box-shadow: inset 0 2px 0 rgba(255,255,255,.5), 0 10px 24px rgba(0,0,0,.4); color: #1a1000; }
+.block b { font: 700 40px/1 'Oswald', sans-serif; }
+.block span { font: 700 16px 'Oswald', sans-serif; letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.block small { font: 600 11px 'Inter', sans-serif; opacity: .8; }
+.step[data-place="1"] .block { --m1: #fff1c0; --m2: #b8871e; height: 120px; width: 240px; }
+.step[data-place="2"] .block { --m1: #f2f5f8; --m2: #8d99a6; height: 88px; }
+.step[data-place="3"] .block { --m1: #f6c9a0; --m2: #a5612f; height: 66px; }
+.step[data-place="3"] .block b { font-size: 30px; } .step[data-place="3"] .block { padding-top: 8px; }
+.stage[data-phone] .podium { padding-right: 0; gap: 8px; }
+.stage[data-phone] .step .slot { width: 120px !important; height: 168px !important; } .stage[data-phone] .step .slotIn { transform: scale(.353) !important; }
+.stage[data-phone] .step[data-place="1"] .slot { width: 140px !important; height: 196px !important; } .stage[data-phone] .step[data-place="1"] .slotIn { transform: scale(.412) !important; }
+.stage[data-phone] .block { width: 150px !important; } .stage[data-phone] .block span { font-size: 13px; }
+.stage .list button[data-first] { box-shadow: inset 3px 0 0 #ff3b4a; }
+.stage .list:has(.upPct) button { grid-template-columns: 60px 230px 70px 1fr; }
+.upPct { font: 700 24px 'Oswald', sans-serif; color: #ff6b7a; }
+.upBar { position: relative; display: flex; align-items: center; height: 18px; border-radius: 9px; background: #1b2638; overflow: hidden; }
+.upBar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #d6223a, #ff6b7a); animation: grow 1.4s .5s ease-out both; }
+.upBar span { position: relative; margin-left: auto; padding-right: 8px; font: 700 12px 'Oswald', sans-serif; color: #fff; }
+.stage[data-phone] .list:has(.upPct) button { grid-template-columns: 50px 1fr 50px; } .stage[data-phone] .list:has(.upPct) .upBar { grid-column: 1 / -1; }
+.step[data-place="1"] .block { height: 96px; } .step[data-place="2"] .block { height: 72px; padding-top: 8px; } .step[data-place="3"] .block { height: 56px; padding-top: 6px; }
+.step[data-place="2"] .block b { font-size: 30px; } .step[data-place="3"] .block b { font-size: 24px; }
+.step[data-place="3"] .block small { display: none; }
+.vs:has(> .slot + .vsSide + .slot) { gap: 30px; }
+.vs:has(> .slot + .vsSide + .slot) .vsSide b { font-size: 50px; white-space: nowrap; }
+.step .slot { margin-bottom: 0; }
+.step .block, .step[data-place] .block { height: auto; }
+.step[data-place="1"] .block { padding: 12px 8px 34px; }
+.step[data-place="2"] .block { padding: 8px 8px 16px; }
+.step[data-place="3"] .block { padding: 6px 8px 6px; }
+.stage[data-phone] .vs:has(> .slot + .vsSide + .slot) { gap: 10px; }
+.stage[data-phone] .vs:has(> .slot + .vsSide + .slot) .slot { width: 136px !important; height: 190px !important; }
+.stage[data-phone] .vs:has(> .slot + .vsSide + .slot) .slotIn { transform: scale(.4) !important; }
+.stage[data-phone] .vs:has(> .slot + .vsSide + .slot) .vsSide b { font-size: 34px; }
+.stage[data-phone] .step .slot { width: 107px !important; height: 150px !important; } .stage[data-phone] .step .slotIn { transform: scale(.315) !important; }
+.stage[data-phone] .step[data-place="1"] .slot { width: 126px !important; height: 176px !important; } .stage[data-phone] .step[data-place="1"] .slotIn { transform: scale(.37) !important; }
+.stage[data-phone] .step[data-place="1"] .block { padding-bottom: 22px; }
