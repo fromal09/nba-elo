@@ -103,8 +103,8 @@
 .row[data-trail] strong { color: rgba(255,255,255,.55); }
 .proj { font: 600 12px 'Oswald', sans-serif; color: #9fb3cc; }
 .wp { display: flex; height: 4px; margin: 2px 0; border-radius: 2px; overflow: hidden; } .wp i { display: block; height: 100%; }
-.tick { margin-top: auto; margin-bottom: 7px; font: 500 11.5px 'Inter', sans-serif; color: #cfe0f3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tick b { color: #ffd34d; font-weight: 700; }
+.tick { display: flex; gap: 4px 12px; flex-wrap: wrap; margin-top: auto; margin-bottom: 8px; font: 600 13px 'Inter', sans-serif; color: #9fb3cc; white-space: nowrap; overflow: hidden; }
+.tick b { color: #ffe9a0; font-weight: 700; }
 .tick2 { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: -3px 0 8px; font: 500 12.5px 'Inter', sans-serif; color: #9fb3cc; }
 .tick2 b { color: #ffe9a0; font-weight: 700; }
 .upTxt { color: #6bff95; } .dnTxt { color: #ff7b7b; }
@@ -112,7 +112,7 @@
 .tv:hover .open, .tv:focus-visible .open { opacity: 1; }
 .bigCell .scr { padding: 12px 18px 0; gap: 7px; }
 .bigCell .row { padding: 7px 12px; } .bigCell .row b { width: 62px; font-size: 26px; } .bigCell .nm { font-size: 18px; } .bigCell .row strong { font-size: 40px; } .bigCell .row strong[data-wp] { font-size: 28px; }
-.bigCell .wp { height: 7px; } .bigCell .tick { font-size: 14px; margin-bottom: 0; } .bigCell .proj { font-size: 18px; }
+.bigCell .wp { height: 7px; } .bigCell .tick { font-size: 15px; margin-bottom: 14px; gap: 4px 22px; } .bigCell .proj { font-size: 18px; }
 .bigCell .tags i, .bigCell .tags em { font-size: 12px; padding: 2px 9px; }
 .tile { display: flex; flex-direction: column; gap: 5px; min-height: 178px; padding: 12px 14px; border: 0; border-radius: 6px; text-align: left; background: linear-gradient(180deg, #141018, #0b090e); box-shadow: inset 0 0 0 1px #2c2c33; color: var(--amber); }
 button.tile { cursor: pointer; } button.tile:hover { box-shadow: inset 0 0 0 1px var(--gold); }
@@ -208,7 +208,7 @@ button.tile { cursor: pointer; } button.tile:hover { box-shadow: inset 0 0 0 1px
   .row { gap: 5px; padding: 2px 4px; } .row b { width: auto; font-size: 13px; } .nm { display: none; } .row strong { margin-left: auto; font-size: 17px; } .row strong[data-wp] { font-size: 13px; }
   .bigCell .nm { display: block; } .bigCell .row b { width: 48px; font-size: 20px; } .bigCell .row strong { font-size: 30px; } .bigCell .row strong[data-wp] { font-size: 22px; }
   .proj { display: none; } .bigCell .proj { display: inline; }
-  .tick { font-size: 10px; margin-bottom: 5px; } .bigCell .tick { font-size: 12px; }
+  .tick { font-size: 11px; margin-bottom: 6px; gap: 2px 8px; } .bigCell .tick { font-size: 13px; }
   .tick2 { font-size: 11px; }
   .marks, .why { display: none; } .bigCell .why { display: block; }
   .tags i, .tags em { font-size: 9px; padding: 1px 4px; }
@@ -277,3 +277,28 @@ button.tile { cursor: pointer; } button.tile:hover { box-shadow: inset 0 0 0 1px
 
 .screen [class*="_pGame_"] { color: #9fb3cc !important; }
 .screen th, .screen td { border-left-color: rgba(255,255,255,.1) !important; border-right-color: rgba(255,255,255,.1) !important; }
+
+/* Breaking news: the ticker stops, flashes red and holds one new moment, then goes back to the crawl */
+.crawl[data-breaking] { box-shadow: inset 0 0 0 2px #e0242f, 0 0 22px rgba(224,36,47,.45); animation: breakIn .5s ease-out; }
+.crawl[data-breaking] .crawlLab { background: #e0242f; color: #fff; animation: breakFlash 1s steps(2) 3; }
+.news { position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; align-items: center; gap: 10px; padding: 0 16px 0 128px; border: 0; background: linear-gradient(90deg, rgba(224,36,47,.25), transparent 60%);
+  font: 400 23px 'VT323', monospace; color: #fff; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: newsIn .45s ease-out; }
+.news small { margin-left: auto; font: 400 18px 'VT323', monospace; color: #ffb3b8; }
+@keyframes breakIn { from { transform: scaleY(.6); opacity: .4 } }
+@keyframes breakFlash { 50% { background: #fff; color: #e0242f } }
+@keyframes newsIn { from { transform: translateY(100%); opacity: 0 } }
+@media (max-width: 760px) { .news { padding-left: 112px; font-size: 18px; } }
+@media (prefers-reduced-motion: reduce) { .crawl[data-breaking], .crawl[data-breaking] .crawlLab, .news { animation: none; } }
+
+/* FanSided Tonight on the main TV: three columns by two rows, the next two games stacked beside it */
+.showCell { grid-column: span 3; grid-row: span 2; }
+.sideCell { align-self: stretch; }
+.sideCell .tv { flex: 1; height: auto; min-height: 178px; }
+.tvSwitch { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
+.tvSwitch small { margin-right: 4px; font: 600 10px 'Inter', sans-serif; letter-spacing: 2px; text-transform: uppercase; color: #a99c80; }
+.tvSwitch button { padding: 4px 10px; border: 1px solid #3a3040; border-radius: 4px; background: #14101a; font: 600 12px 'Oswald', sans-serif !important; letter-spacing: .5px; color: #d9cba8; cursor: pointer; }
+.tvSwitch button[data-on] { background: #c9a24a; border-color: #c9a24a; color: #1a1000; }
+@media (max-width: 760px) {
+  .showCell { grid-column: 1 / -1; grid-row: auto; }
+  .tvSwitch { margin-left: 0; }
+}

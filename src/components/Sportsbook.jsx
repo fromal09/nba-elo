@@ -5,6 +5,7 @@ import { lineupPts } from './MyPredictions'
 import { TIER_NAME } from './Collector'
 import { norm } from './predict'
 import { goTo } from '../nav.js'
+import FanSidedTonight from './FanSidedTonight'
 
 /*
  * The Sportsbook Scoreboard: the same Scoreboard, dressed as a casino sportsbook. Every piece comes from the Classic one
@@ -138,6 +139,34 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
   const { gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor } = kit
   const [boardId, setBoardId] = useState(() => { try { return localStorage.getItem(BOARD_KEY) || 'perf' } catch { return 'perf' } })
   const pickBoard = id => { setBoardId(id); try { localStorage.setItem(BOARD_KEY, id) } catch { /* private mode */ } }
+  const moments = [
+    ...side.careerGames.map(({ g, p }) => ({ g, p, star: true, text: `Career game · ${p.gs.toFixed(1)} GmSc · ${p.pts}-${p.trb}-${p.ast}` })),
+    ...side.milestones.map(({ g, p, m }) => ({ g, p, text: m.stamps.map(x => x.text).join(' · ') })),
+  ]
+  // Breaking news: a career game or milestone that lands while you're watching takes over the ticker for a few
+  // seconds, one at a time, then the crawl resumes. What's already there when the day loads just scrolls.
+  const momentKey = x => x.g.id + '|' + x.p.n + (x.star ? '|*' : '')
+  const keys = moments.map(momentKey).join('~')
+  const seen = useRef({ day: null, keys: null })
+  const [breaking, setBreaking] = useState([])
+  useEffect(() => {
+    const r = seen.current
+    if (r.day !== day) { r.day = day; r.keys = null; setBreaking([]) }
+    if (loading || !cards.length) return
+    if (!r.keys) { r.keys = new Set(moments.map(momentKey)); return }
+    const fresh = moments.filter(x => !r.keys.has(momentKey(x)))
+    fresh.forEach(x => r.keys.add(momentKey(x)))
+    if (fresh.length) setBreaking(q => [...q, ...fresh])
+  }, [day, keys, loading, cards.length])
+  useEffect(() => {
+    if (!breaking.length) return
+    const t = setTimeout(() => setBreaking(q => q.slice(1)), 7000)
+    return () => clearTimeout(t)
+  }, [breaking])
+  const news = breaking[0]
+  // The main TV: FanSided Tonight once there are finals and nothing is live, else the featured game; either can be picked
+  const [tvPick, setTvPick] = useState(null)
+  useEffect(() => { setTvPick(null) }, [day])
   if (loading) return <div className={sb.msg}>Warming up the screens…</div>
   if (feedErr && !cards.length) return <div className={sb.msg}>Couldn’t load the games: {feedErr}</div>
   if (!cards.length) return <div className={sb.msg}>No games on {fmtDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}.</div>
@@ -166,6 +195,9 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
     return F[0]
   }
   const feat = pick()
+  const finals = F.filter(x => x.c.state === 'post' && x.c.g)
+  const liveCount = F.filter(x => x.c.state === 'in').length
+  const showOn = finals.length > 0 && (tvPick || (liveCount ? 'game' : 'show')) === 'show'
   const why = feat.c.state === 'in' ? 'Closest game on now' : feat.c.state === 'post' && feat.f.upset ? 'Biggest upset of the night' : feat.c.state === 'pre' ? 'Tightest forecast on the slate' : 'Featured'
   const marks = g => {
     if (!g) return { car: 0, mil: 0 }
@@ -175,12 +207,12 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
   }
   const open = c => (c.g ? () => openBox(c.g) : c.fg ? () => onPreview(c) : null)
 
-  const tv = ({ c, f }, big) => {
-    const { g, home, away, pts, started, lead, wp, status, top, tm, preProj, fav, upset, leaders, pLiveHome } = f
+  const tv = ({ c, f }, big, beside) => {
+    const { g, home, away, pts, started, lead, wp, status, preProj, fav, upset, pLiveHome } = f
     const m = marks(g)
     const go = open(c)
     return (
-      <div key={c.key} className={`${sb.cell} ${big ? sb.bigCell : ''}`}>
+      <div key={c.key} className={`${sb.cell} ${big ? sb.bigCell : ''} ${beside ? sb.sideCell : ''}`}>
         <button type="button" className={`${sb.tv} ${c.state === 'in' ? sb.tvLive : ''}`} data-mine={mineIn(c).length ? '' : undefined} onClick={go || undefined} disabled={!go}
           aria-label={`${tShort(away)} at ${tShort(home)}${go ? (c.g ? ', box score' : ', preview') : ''}`}>
           <span className={sb.scr}>
@@ -200,16 +232,13 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
               </span>
             ))}
             {wp && <span className={sb.wp}><i style={{ width: `${wp[away] * 100}%`, background: tColor(away) }} /><i style={{ flex: 1, background: tColor(home) }} /></span>}
+            {/* Win chances only: before tipoff the forecast, during a game the pre-game and live chances, after it the pre-game one */}
             <span className={sb.tick}>
-              {top ? <><b>{shortName(top.n)}</b> {top.pts ?? 0} pts · {top.trb ?? 0} reb · {top.ast ?? 0} ast · {top.gs.toFixed(1)} GmSc</>
-                : leaders ? <>Proj {leaders.map(({ l, r, k }) => <span key={k}> {l} <b>{shortName(r.name)}</b> {r[k]}</span>)}</>
-                : tm?.[0] && tm?.[1] ? <>Top matchup <b>{shortName(tm[0].name)}</b> {r0(tm[0].elo)} vs <b>{shortName(tm[1].name)}</b> {r0(tm[1].elo)}</>
-                : started ? 'Box score loading…' : 'Preview once the forecast loads'}
+              {wp ? <>
+                <span>{big ? (started ? 'Pre-game win chance' : 'Win chance') : started ? 'Pre-game' : 'Win chance'} <b>{Math.round(wp[fav] * 100)}% {tCode(fav)}</b></span>
+                {pLiveHome != null && (lv => <span>{big ? 'Live win chance' : 'Live'} <b>{Math.round(Math.max(lv, 1 - lv) * 100)}% {tCode(lv >= 0.5 ? home : away)}</b></span>)(pLiveHome)}
+              </> : started ? 'Box score loading…' : 'Forecast loading…'}
             </span>
-            {big && wp && <span className={sb.tick2}>
-              <span>Pre-game win chance <b>{Math.round(wp[fav] * 100)}% {tCode(fav)}</b></span>
-              {pLiveHome != null && (lv => <span>Live win chance <b>{Math.round(Math.max(lv, 1 - lv) * 100)}% {tCode(lv >= 0.5 ? home : away)}</b></span>)(pLiveHome)}
-            </span>}
             {go && <span className={sb.open}>▶ {c.g ? 'Box score' : 'Preview'}</span>}
           </span>
         </button>
@@ -217,15 +246,11 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
     )
   }
 
-  const rest = F.filter(x => x !== feat)
+  const rest = showOn ? F : F.filter(x => x !== feat)
   const ups = F.filter(x => x.c.state === 'post' && x.f.upset).length
   const liveN = F.filter(x => x.c.state === 'in').length
-  const moments = [
-    ...side.careerGames.map(({ g, p }) => ({ g, p, star: true, text: `Career game · ${p.gs.toFixed(1)} GmSc · ${p.pts}-${p.trb}-${p.ast}` })),
-    ...side.milestones.map(({ g, p, m }) => ({ g, p, text: m.stamps.map(x => x.text).join(' · ') })),
-  ]
   // Fill the wall's last row with the night's numbers and moments
-  const fill = phone ? 0 : (4 - ((rest.length + 4) % 4)) % 4
+  const fill = phone ? 0 : (4 - ((rest.length + (showOn ? 6 : 4)) % 4)) % 4
   const tiles = [
     <div key="n" className={sb.tile}><h6>Tonight in numbers</h6>
       <p><b>{F.length}</b> game{F.length === 1 ? '' : 's'}{liveN ? <> · <b>{liveN}</b> live</> : ''}{scored.length ? <> · <b>{ups}</b> upset{ups === 1 ? '' : 's'}</> : ''}</p>
@@ -258,12 +283,18 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
       <div className={sb.bar}>
         <span><b>{F.length}</b> game{F.length === 1 ? '' : 's'}{liveN ? <> · <span className={sb.liveTxt}><i />{liveN} live</span></> : ''}</span>
         {provisional && <span>Live games use ratings through the last data update; Elo is provisional until the next one.</span>}
+        {finals.length > 0 && <span className={sb.tvSwitch} role="group" aria-label="Main TV"><small>Main TV</small>
+          <button type="button" data-on={showOn ? '' : undefined} onClick={() => setTvPick('show')}>FanSided Tonight</button>
+          <button type="button" data-on={!showOn ? '' : undefined} onClick={() => setTvPick('game')}>{feat.c.state === 'in' ? 'Live game' : 'Featured game'}</button></span>}
       </div>
-      {moments.length > 0 && <div className={sb.crawl}><span className={sb.crawlLab}>Moments</span>
-        <div className={sb.run} style={{ animationDuration: `${Math.max(30, moments.length * 7)}s` }}>
+      {moments.length > 0 && <div className={sb.crawl} data-breaking={news ? '' : undefined} aria-live="polite"><span className={sb.crawlLab}>{news ? 'Breaking' : 'Moments'}</span>
+        {news ? <button key={momentKey(news)} type="button" className={sb.news} onClick={() => openCard(news.g, news.p)}>
+          <span className={news.star ? sb.star : sb.dia}>{news.star ? '★' : '◆'}</span> {news.p.n.toUpperCase()} · {news.text.toUpperCase()}
+          {breaking.length > 1 && <small>+{breaking.length - 1} more</small>}
+        </button> : <div className={sb.run} style={{ animationDuration: `${Math.max(30, moments.length * 7)}s` }}>
           {moments.map(x => <button key={x.g.id + x.p.n + (x.star ? '*' : '')} type="button" onClick={() => openCard(x.g, x.p)}>
             <span className={x.star ? sb.star : sb.dia}>{x.star ? '★' : '◆'}</span> {x.p.n.toUpperCase()} · {x.text.toUpperCase()}</button>)}
-        </div></div>}
+        </div>}</div>}
       {mine.length > 0 && <div className={sb.ticket}>
         <span className={sb.stub}><small>Your lineup</small><b>{lineupTotal.toFixed(1)}</b><small>{myDay.lineup.graded ? `final · +${myDay.lineup.graded.coins} Coins` : 'points so far'}</small></span>
         <span className={sb.legs}>{mine.map(x => (
@@ -277,7 +308,11 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
           </button>
         ))}</span>
       </div>}
-      <div className={sb.wallF}><div className={sb.wall}>{tv(feat, true)}{rest.map(x => tv(x))}{tiles}</div></div>
+      <div className={sb.wallF}><div className={sb.wall} data-show={showOn ? '' : undefined}>
+        {showOn ? <div className={`${sb.cell} ${sb.showCell}`}><FanSidedTonight kit={kit} day={day} finals={finals} side={side} shots={shots} phone={phone}
+          openBox={openBox} openCard={openCard} liveN={liveCount} onLive={() => setTvPick('game')} /></div> : tv(feat, true)}
+        {rest.map((x, i) => tv(x, false, showOn && !phone && i < 2))}{tiles}
+      </div></div>
 
       {side.picks.length > 0 && <>
         <div className={sb.lab}><b>Cards of the Day</b><span>The night’s featured cards · tap one to open it</span></div>

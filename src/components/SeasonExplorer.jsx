@@ -2580,7 +2580,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer, book
 
   return (
     <div className={styles.dayPage}>
-      {book ? <SportsbookDay kit={{ gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor }} day={day} cards={cards} scored={scored} side={side} tables={tables}
+      {book ? <SportsbookDay kit={{ gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor, tName }} day={day} cards={cards} scored={scored} side={side} tables={tables}
         pickCard={pickCard} openBox={openBox} openCard={openCard} onPreview={c => setPreview({ day, fg: c.fg })} shots={shots} myDay={myDay}
         phone={phone} loading={loading} feedErr={feedErr} unmatched={unmatched} provisional={provisional} onView={onView} /> : <>
       <div className={styles.dayBar}>
