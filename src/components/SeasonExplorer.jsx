@@ -67,12 +67,16 @@ function liveFinal(fg, live, ptsHome, ptsAway) {
 }
 // Home team's win chance during a game: the current lead plus the pre-game projected margin for the
 // time left, with the spread of outcomes shrinking as the clock runs (sigma × √share left)
+const END_SD = 2.1
 function liveWinHome(preMargin, live, sigma) {
   const lead = (live.hs || 0) - (live.as || 0)
   if (!live.period) return null
   const r = shareLeft(live)
   if (r <= 0.0005) return lead > 0 ? 1 : lead < 0 ? 0 : 0.5
-  return normCdf((lead + (preMargin || 0) * r) / (sigma * Math.sqrt(r)))
+  // End-game floor: with any time left, the trailing team still gets at least one possession (a three, an and-one,
+  // a foul game), so the spread never shrinks below about two points. Without it, up 2 with 6 seconds left read as 100%.
+  const sd = Math.sqrt(sigma * sigma * r + END_SD * END_SD)
+  return normCdf((lead + (preMargin || 0) * r) / sd)
 }
 let NEWEST = null // the newest season's label, for loading it with this season's teams
 let CAREER = { byName: {}, rank: {}, best: {} } // elo.json players, all-time peak Elo rank, best active rank
@@ -2929,7 +2933,10 @@ function seasonBefore(sd, name, day) {
   if (!rows.length) return null
   rows.sort((a, b) => a[0].localeCompare(b[0]))
   const P = rows.map(r => r[1]), sum = k => P.reduce((t, p) => t + (p[k] || 0), 0), n = P.length
+  // recent form and streaks, for the show's context lines
+  const l5 = P.slice(-5), streak = (() => { let k = 0; for (let i = P.length - 1; i >= 0 && P[i].post > P[i].pre; i--) k++; return k })()
   return { gp: n, pts: sum('pts') / n, trb: sum('trb') / n, ast: sum('ast') / n, gs: sum('gs') / n, fg: sum('fg'), fga: sum('fga'), tp: sum('tp'), tpa: sum('tpa'), ft: sum('ft'), fta: sum('fta'),
+    maxPts: Math.max(...P.map(p => p.pts || 0)), maxGs: Math.max(...P.map(p => p.gs || 0)), l5: l5.length >= 5 ? l5.reduce((t, p) => t + p.gs, 0) / 5 : null, streak,
     path: [P[0].pre, ...P.map(p => p.post)], dates: rows.map(r => r[0]) }
 }
 function cardGameInfo(g, t, sd, p) {

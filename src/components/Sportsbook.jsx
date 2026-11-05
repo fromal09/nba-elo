@@ -238,7 +238,7 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
             {wp && <span className={sb.wp}><i style={{ width: `${wp[away] * 100}%`, background: tColor(away) }} /><i style={{ flex: 1, background: tColor(home) }} /></span>}
             {/* Win chances only: before tipoff the forecast; during a game the live chance in a row above the pre-game one; after it the pre-game one */}
             <span className={`${sb.tick} ${pLiveHome != null ? sb.tickLive : ''}`}>
-              {pLiveHome != null && (lv => <span className={sb.liveRow}><i className={sb.liveDot} />{big ? 'Live win chance' : 'Live'} <b>{Math.round(Math.max(lv, 1 - lv) * 100)}% {tCode(lv >= 0.5 ? home : away)}</b></span>)(pLiveHome)}
+              {pLiveHome != null && (lv => <span className={sb.liveRow}><i className={sb.liveDot} />{big ? 'Live win chance' : 'Live'} <b>{Math.min(99, Math.round(Math.max(lv, 1 - lv) * 100))}% {tCode(lv >= 0.5 ? home : away)}</b></span>)(pLiveHome)}
               {wp ? <span>{big ? (started ? 'Pre-game win chance' : 'Win chance') : started ? 'Pre-game' : 'Win chance'} <b>{Math.round(wp[fav] * 100)}% {tCode(fav)}</b></span>
                 : started ? 'Box score loading…' : 'Forecast loading…'}
             </span>
