@@ -20,17 +20,20 @@ const OPENERS = ['Good evening and welcome to FanSided Tonight.', 'Welcome in to
 const B = {
   open: {
     intro: [OPENERS,
-      ['We had {slate} on the board tonight, and while {upsets} kept things interesting, it was the individual performances that stole the show.',
-        '{slate} went final tonight, and between the career nights, the big swings in the rankings and {upsets}, there’s a lot to get to.',
+      ['We had {slate} on the board tonight, and while {upsets} kept things interesting, it was the individual performances that stole the show.{allDone}',
+        '{slate} <<went final tonight|{slateAre} final so far>>, and between the career nights, the big swings in the rankings and {upsets}, there’s a lot to get to.',
         'Every one of tonight’s {gamesN} games is in the books, and the players gave us plenty to talk about from the opening tip to the final buzzer.{allDone}',
-        'It was a {gamesN}-game night across the league, and the stars showed up in a big way, with {upsets} sprinkled in for good measure.',
-        '{slate} are final with {liveTxt} still going, and the players have already given us more than enough for a full show.',
+        'It was a {gamesN}-game night across the league, and the stars showed up in a big way, with {upsets} sprinkled in for good measure.{allDone}',
+        '{slate} {slateAre} final with {liveTxt} still going, and the players have already given us more than enough for a full show.',
         'We’ve got {slate} in the books and {liveTxt} still on the floor, so this is going to be a busy hour.',
-        'The favorites held serve across the board tonight, but the players more than made up for the lack of drama.{chalk}',
-        'There was no shortage of big individual nights, and with {slate} in the books, we’ve got a lot of ground to cover.',
-        'The forecast took {upsets} on the chin tonight, but the real story is the handful of players who played the best basketball of their seasons.'],
+        'The favorites held serve across the board tonight, but the players more than made up for the lack of drama.{chalk}{allDone}',
+        'With {slate} final and {liveTxt} still on the floor, the night is far from over, and the players have already given us plenty.',
+        '{slate} {slateHave} gone final so far, and with {liveTxt} still going, some of tonight’s cards could still change before the last buzzer.',
+        'The night is still being written, with {liveTxt} in progress, but {slate} {slateAre} in the books and there’s plenty to talk about already.',
+        'There <<was|has been>> no shortage of big individual nights, and with {slate} in the books<<| so far>>, we’ve got a lot of ground to cover.',
+        '<<The forecast took|The forecast has already taken>> {upsets} on the chin tonight, but the real story is the handful of players who <<played|are playing>> the best basketball of their seasons.'],
       ['We’ll start with {potd}, who <<was|has been>> the best player in the league tonight by our Player of the Day formula, and then work our way through the cards that are about to land in your binder.',
-        '{potd} leads the way as our Player of the Day, but he’s far from the only player who deserves a closer look tonight.',
+        '{potd} [[leads the way as our Player of the Day|leads the Player of the Day race right now]], but he’s far from the only player who deserves a closer look tonight.',
         'Stick around, because between {potd}’s big night and a handful of career highs, the binders are about to get a lot heavier.',
         'We’ve got a Player of the Day, a duel worth your time and a few players who just had the best games of their careers, so let’s get right to it.',
         'Our formula rewards production and the Elo it earns, and by that measure {potd} <<stood|stands>> above everybody, so that’s where we’ll begin.']],
@@ -45,9 +48,9 @@ const B = {
         'Every one of these cards is worth a closer look, and {t2} and {t3} make it a crowded race at the top.',
         'The gap between first and third is {gap13} points of Game Score, so this was a night with more than one star.']],
     fan: [['These are tonight’s Cards of the Day, and every one of them tells a story we’ll get to over the course of the show.',
-        'Here’s the full set of tonight’s featured cards, starting with {potd} as Player of the Day and running through the biggest swings in the rankings.',
+        'Here’s the full set of tonight’s featured cards, starting with {potd} [[as Player of the Day|as the current Player of the Day leader]] and running through the biggest swings in the rankings.',
         'Take a look at the {cardCount} Cards of the Day, because each of them earned its spot and each of them is headed for somebody’s binder.',
-        'This is what the binder is getting tonight, from {potd}’s Player of the Day card to the duel and the biggest Elo swings.',
+        'This is what the binder is <<getting|on track to get>> tonight, from {potd}’s Player of the Day card to the duel and the biggest Elo swings.',
         'These are the cards that define the night, and a couple of them could end up being some of the rarest pulls of the season.'],
       ['We’ll take them one at a time, and we’ll start at the very top.', 'Let’s start with the best of the bunch and work our way down from there.', 'First up is the best player in the league tonight, so let’s get to him.', 'Let’s go card by card, starting with the one everybody’s going to want.']],
   },
@@ -295,7 +298,10 @@ const rng = seed => { let x = seed % 2147483647 || 1; return () => (x = (x * 482
 const usable = (t, v) => [...t.matchAll(/\{(\w+)\}/g)].every(m => v[m[1]] != null)
 // "an 18.2", "an 8-point", "an 11 of 18", but "a 33.5"
 const anFix = t => t.replace(/\b([Aa]) (\d[\d,]*)/g, (m, a, num) => { const i = num.split(/[.,]/)[0]; return /^8/.test(i) || i === '11' || i === '18' ? `${a}n ${num}` : m })
-const fill = (t, v) => anFix(t.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? '').replace(/\.\./g, '.').replace(/\.,/g, ','))
+// Style: a sentence never opens on a numeral ("Two games are final", not "2 games are final")
+const WORDS = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen']
+const spellLead = t => t.replace(/(^|[.!?] )(\d{1,2}) (?=[a-z])/g, (m, pre, n) => (+n < WORDS.length ? `${pre}${WORDS[+n]} ` : m))
+const fill = (t, v) => spellLead(anFix(t.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? '').replace(/\.\./g, '.').replace(/\.,/g, ',')))
 // [[finished|in progress]] follows this player's game, <<all final|games still going>> follows the night
 const tense = (t, v) => t.replace(/\[\[([^|\]]*)\|([^\]]*)\]\]/g, (_, a, b) => (v.inProg ? b : a)).replace(/<<([^|>]*)\|([^>]*)>>/g, (_, a, b) => (v.nightLive ? b : a))
 const say = (banks, v, r) => banks.map(b => { const ok = b.map(t => tense(t, v)).filter(t => t.trim() && usable(t, v)); if (!ok.length) return ''; return fill(ok[Math.floor(r() * ok.length)], v) }).filter(Boolean).join(' ')
@@ -784,8 +790,8 @@ function buildShow(N, kit, seed, act, side, live) {
   const bigM = N.big ? Math.abs(N.big.pts[N.big.win] - N.big.pts[N.big.lose]) : 0, closeM = N.close ? Math.abs(N.close.pts[N.close.win] - N.close.pts[N.close.lose]) : 0
   const ln = live.length
   const ov = n === 0 ? { nightLive: true, liveTxt: ln === 1 ? 'one game' : `${ln} games`, liveAre: ln === 1 ? 'is' : 'are', liveIs: ln === 1 ? 'is' : 'are', cardCount: null, potd: null } : {
-    nightLive: ln > 0, liveTxt: ln ? (ln === 1 ? 'one game' : `${ln} games`) : null, allDone: ln ? null : '', liveAre: ln === 1 ? 'is' : 'are', liveIs: ln === 1 ? 'is' : 'are',
-    slate: n === 1 ? 'one game' : `${n} games`, gamesN: n > 1 ? n : null, upsets: u ? (u === 1 ? 'one upset' : `${u} upsets`) : null, times: u ? (u === 1 ? 'once' : `${u} times`) : null, chalk: u ? null : '',
+    inProg: !!N.pd?.x.live, nightLive: ln > 0, liveTxt: ln ? (ln === 1 ? 'one game' : `${ln} games`) : null, allDone: ln ? null : '', liveAre: ln === 1 ? 'is' : 'are', liveIs: ln === 1 ? 'is' : 'are',
+    slate: n === 1 ? 'one game' : `${n} games`, slateAre: n === 1 ? 'is' : 'are', slateHave: n === 1 ? 'has' : 'have', gamesN: n > 1 ? n : null, upsets: u ? (u === 1 ? 'one upset' : `${u} upsets`) : null, times: u ? (u === 1 ? 'once' : `${u} times`) : null, chalk: u ? null : '',
     bigW: n > 1 ? tShort(N.big.win) : null, bigL: tShort(N.big.lose), bigM, bigScore: `${N.big.pts[N.big.win]}–${N.big.pts[N.big.lose]}`,
     closeW: n > 2 ? tShort(N.close.win) : null, closeL: tShort(N.close.lose), closeM: closeM === 1 ? 'a single point' : `${closeM} points`, closeScore: `${N.close.pts[N.close.win]}–${N.close.pts[N.close.lose]}`,
     closeOT: N.close.g.ot ? ` in ${N.close.g.ot === 'OT' ? 'overtime' : N.close.g.ot}` : '', hiW: tShort(N.hi.t), hiPts: N.hi.v,
@@ -804,8 +810,8 @@ function buildShow(N, kit, seed, act, side, live) {
     liveBoard,
     N.top5.length >= 3 && { gfx: true, head: ['Top performers so far', 'Game Score', 'Live'], view: topFan, line: say(B.open.top, tv, r) },
   ], combos(OPENERS) * tkL(L.board))
-  else seg('open', 'Tonight’s finals', [
-    anchor(N.pd ? card(N.pd.p, N.pd.x, 196) : <><span className={s.big2}>{n}</span><span className={s.big2l}>FINAL{n === 1 ? '' : 'S'}</span></>, N.pd ? 'Player of the Day' : 'All final', say(B.open.intro, ov, r)),
+  else seg('open', ln ? 'Tonight so far' : 'Tonight’s finals', [
+    anchor(N.pd ? card(N.pd.p, N.pd.x, 196) : <><span className={s.big2}>{n}</span><span className={s.big2l}>FINAL{n === 1 ? '' : 'S'}</span></>, N.pd ? (N.pd.x.live ? 'Player of the Day race' : 'Player of the Day') : 'All final', say(B.open.intro, ov, r)),
     N.top5.length >= 3 && { gfx: true, head: ['Top performers', 'Game Score', 'Tonight'], view: topFan, line: say(B.open.top, tv, r) },
     liveBoard,
     side.picks.length > 1 && { gfx: true, head: ['Cards of the Day', 'Tonight'], view: fanView(side.picks), line: say(B.open.fan, ov, r) },
@@ -815,7 +821,7 @@ function buildShow(N, kit, seed, act, side, live) {
   if (N.pd) {
     const { p, x } = N.pd, v = facts(p, x)
     seg('potd', x.live ? 'Player of the Day race' : 'Player of the Day', [
-      anchor(card(p, x, 196), 'Player of the Day', say(B.potd.intro, v, r), () => act.card(x.g, p)),
+      anchor(card(p, x, 196), x.live ? 'Player of the Day race' : 'Player of the Day', say(B.potd.intro, v, r), () => act.card(x.g, p)),
       heroBeat(p, x, v, B.potd.hero, ['Player of the Day', 'Top performer', `${tShort(p.t)} vs ${tShort(opp(p, x))}`]),
       N.podium.length >= 3 && N.podium[0].p === p && (() => {
         const [a1, a2, a3] = N.podium, line = q => [`${q.p.pts} points`, q.p.trb ? `${q.p.trb} rebound${q.p.trb === 1 ? '' : 's'}` : null, q.p.ast ? `${q.p.ast} assist${q.p.ast === 1 ? '' : 's'}` : null].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' and $1')
