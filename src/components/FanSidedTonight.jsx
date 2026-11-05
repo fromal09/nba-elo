@@ -13,7 +13,7 @@ const SENTENCE_GAP = 1100 // pause between sentences
 const HOLD = { anchor: 2600, gfx: 4200 } // how long a finished beat stays up
 
 // ── Script banks: each beat lists banks; one line is drawn from each ──
-const OPENERS = ['Good evening and welcome to FanSided Tonight.', 'Welcome in to FanSided Tonight.', 'You’re watching FanSided Tonight.', 'Evening, everybody, and welcome to the show.', 'Thanks for joining us on FanSided Tonight.', 'It’s FanSided Tonight, and we are rolling.', 'Pull up a chair, because this is FanSided Tonight.', 'Here we go on FanSided Tonight.', 'Good to have you with us on FanSided Tonight.', 'From the FanSided desk, welcome to the show.', 'Welcome back to the desk, and welcome to FanSided Tonight.', 'Lights up, cards out, this is FanSided Tonight.']
+const OPENERS = ['I’m Everest, the FanSided Yeti, and welcome to FanSided Tonight.', 'Good evening, I’m Everest, and this is FanSided Tonight.', 'Everest here, coming to you from the FanSided desk, and welcome to FanSided Tonight.', 'Welcome to FanSided Tonight, I’m your host, Everest the Yeti.', 'From the top of the mountain to the top of the rankings, I’m Everest, and this is FanSided Tonight.', 'It’s your host Everest, and I’ve got the night’s best cards for you on FanSided Tonight.', 'Hello from the FanSided desk, I’m Everest, and it’s time for FanSided Tonight.', 'I’m Everest, and if you came for the night’s best cards, you came to the right yeti.', 'Welcome in, everybody, I’m Everest, and this is FanSided Tonight.', 'Good to have you with us, I’m Everest, and FanSided Tonight starts now.']
 // Every line is a full compound sentence, so a beat reads as a paragraph rather than a list of facts.
 // The show talks about players first: games come up only as the setting for what a player did.
 // Tense: [[finished|in progress]] picks by whether this player's game is still going; <<all final|games still going>> by the night.
@@ -109,7 +109,7 @@ const B = {
     wp: [['Before tipoff the forecast had the {lose} at {fav}, which made the {win} roughly one-in-{oneIn} underdogs, and they won anyway.',
         'The pre-game numbers gave the {win} a {chance} chance, so the {lose} were supposed to handle this one.',
         'Here’s how lopsided it looked on paper, with the {lose} at {fav} before the opening tip.'],
-      ['{star} didn’t care much about the odds, and neither did his teammates.', 'It’s a reminder that the players decide these things, not the forecast.', 'Upsets move the ratings in a big way, and {star} was the biggest beneficiary.', 'When an underdog wins, the Elo swing is bigger, and that’s why the {win} players come out of this one looking so good.']],
+      ['{star} didn’t care much about the odds, and neither did his teammates.', 'It’s a reminder that the players decide these things, not the forecast.', 'Upsets move the ratings in a big way, and {star} was the biggest beneficiary.', 'Even a yeti didn’t see that one coming, and I’ve seen a lot from up on the mountain.', 'When an underdog wins, the Elo swing is bigger, and that’s why the {win} players come out of this one looking so good.']],
     hero: [['{name} finished with {line3}, and his {gs} Game Score led everyone in the game.{gsGameTop}',
         '{name} finished with {line3} for a {gs} Game Score, the best on the winning side.',
         '{name} went {fgline} from the field on his way to {pts} points, and he finished a {pm} in {mins} minutes.',
@@ -124,7 +124,7 @@ const B = {
         '[[Mark the date, because {name} had the game of his life against the {opp}, scoring {pts} on {fgline} shooting.|{name} is in the middle of the game of his life against the {opp}, with {pts} points on {fgline} shooting.]]',
         '[[Put this one in the scrapbook, because {name} just set a new career high with a {gs} Game Score against the {opp}.|{name} is already past his career high with a {gs} Game Score against the {opp}, and there’s still time on the clock.]]',
         '{name} [[set|has set]] a new personal best tonight, and the {gs} Game Score [[came|is coming]] against the {opp}.'],
-      ['Let’s take a look at the card that goes along with it.', 'Here’s the card, and it’s going straight into the binder.', 'This one deserves a closer look, so let’s start with the card.', 'Let’s see what a career night looks like on a card.']],
+      ['Let’s take a look at the card that goes along with it.', 'Here’s the card, and it’s going straight into the binder.', 'This one deserves a closer look, so let’s start with the card.', 'Let’s see what a career night looks like on a card.', 'That one had me out of my seat, so let’s take a look at the card.']],
     hero: [['He [[finished with|has]] {line3} in {mins} minutes on {fgline} shooting.',
         'He [[scored|has scored]] {pts} on {fgline} shooting and [[finished|is]] a {pm} in {mins} minutes.',
         'It [[was|is]] a {gs} Game Score in {mins} minutes, built on {line3}.'],
@@ -211,10 +211,11 @@ const B = {
         'Before we go, here are tonight’s cards one last time, and every one of them is waiting for you on the wall.',
         'That’s our show, and these are the cards that defined the night.'],
       ['Tap any TV for the full box score, and check the board below for every table from tonight.', 'Every box score is one tap away, and the board below has every table from the night.', 'Make your picks before the next tip, because there’s another set of cards on the way.', '<<|Keep an eye on the games still going, because some of these cards could still change.>>']],
-    end: [['If you take one thing away from tonight, let it be {potd}, and we’ll see you next time on FanSided Tonight.',
-        'For everyone here at the FanSided desk, thanks for watching, and we’ll see you next time.',
-        'Get some sleep and open your pack, because we’ll be back tomorrow with another night of cards.',
-        'That’s FanSided Tonight, and until next time, good night.']],
+    end: [['If you take one thing away from tonight, let it be {potd}, and for FanSided Tonight, I’m Everest.',
+        'For FanSided Tonight, I’m Everest, and we’ll see you next time.',
+        'From the top of the mountain, I’m Everest, so get some sleep, open your pack, and I’ll see you tomorrow.',
+        'That’s the show, I’m Everest the Yeti, and until next time, good night.',
+        'Thanks for spending the night at the FanSided desk, I’m Everest, and we’ll do it all again tomorrow.']],
   },
 }
 
@@ -317,29 +318,61 @@ const f1 = v => (Math.round(v * 10) / 10).toFixed(1)
 const ordWord = n => (['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'][n] || `${n}th`)
 const SIZE = { desk: [960, 540], phone: [640, 500] }
 
-function Anchor({ talk, gest }) {
+// The host: Everest, the FanSided Yeti. Each pose is traced from FanSided's Everest art and normalized to one frame
+// (face centred at x = 0, feet at y = 0), so swapping poses keeps him planted at the desk. He talks from a relaxed
+// pose and pops into a gesture for emphasis (waves, hands up, the logo flex), then settles back.
+const EV_VB = '-860 -1330 1720 1350'
+const EV_RIG = {"open":{"m":[-97.5,-691.6,99.5,-625.6],"e":[[37.6,-766.8,96.5,-720.1],[-92.4,-766.8,-36.6,-720.1]],"fierce":false},"shrug":{"m":[-98.5,-679.4,98.5,-586.5],"e":[[-98.5,-758.7,-34.5,-719.5],[34.5,-756.1,96.8,-719.5]],"fierce":false},"wave2":{"m":[-99.5,-695.7,100.5,-601.2],"e":[[33.5,-770.9,98.5,-727.2],[-99.5,-770.9,-32.5,-728.2]],"fierce":false},"chest_wave":{"m":[-97.6,-688.8,98.5,-596.7],"e":[[34.5,-769.8,95.0,-732.3],[-95.0,-769.8,-34.5,-730.6]],"fierce":false},"hands_up":{"m":[-95.5,-652.9,98.9,-558.7],"e":[[-95.5,-726.1,-32.4,-686.6],[35.8,-726.1,98.9,-686.6]],"fierce":false},"hands_up2":{"m":[-97.9,-657.6,101.3,-563.9],"e":[[-95.4,-736.1,-32.1,-699.0],[32.9,-735.3,96.2,-699.8]],"fierce":false},"hands_high":{"m":[-100.0,-674.0,101.0,-576.0],"e":[[-101.0,-759.0,-33.0,-717.0],[32.0,-759.0,101.0,-717.0]],"fierce":false},"f_flex":{"m":[-62.1,-784.2,66.3,-714.2],"e":[[-83.0,-870.8,-26.6,-831.2],[26.6,-870.8,83.0,-831.2]],"fierce":true},"f_claws":{"m":[-58.4,-762.7,59.5,-693.3],"e":[[28.3,-854.0,78.0,-814.7],[-78.0,-855.1,-27.2,-813.5]],"fierce":true},"f_palms":{"m":[-62.9,-774.8,59.8,-704.7],"e":[[24.8,-860.5,80.5,-821.3],[-79.4,-861.5,-23.7,-821.3]],"fierce":true},"logo":{"m":[-45.1,-759.6,45.1,-674.7],"e":[[24.7,-859.5,78.4,-817.6],[-79.5,-859.5,-26.9,-817.6]],"fierce":true}}
+const EV_POSES = Object.keys(EV_RIG)
+const EV_REST = ['open', 'shrug']
+function Everest({ talk, pose, hold = 2600, small }) {
+  const [shown, setShown] = useState(pose || 'open')
+  const [rest, setRest] = useState(0)
+  useEffect(() => {
+    if (!pose) { setShown(EV_REST[rest % 2]); return }
+    setShown(pose)
+    const t = setTimeout(() => setShown(EV_REST[rest % 2]), hold)
+    return () => clearTimeout(t)
+  }, [pose])
+  // while he's talking from the desk, he shifts between the two relaxed poses now and then
+  useEffect(() => {
+    if (!talk || small) return
+    const t = setInterval(() => setRest(n => n + 1), 7000)
+    return () => clearInterval(t)
+  }, [talk, small])
+  useEffect(() => { setShown(cur => (EV_REST.includes(cur) ? EV_REST[rest % 2] : cur)) }, [rest])
+  const R = EV_RIG[shown] || EV_RIG.open
+  const blue = shown === 'logo' ? '#5A97C1' : '#6293B7', navy = shown === 'logo' ? '#052E4B' : '#082A45'
+  const m = R.m
   return (
-    <svg viewBox="0 0 300 420" className={`${talk ? s.talk : ''} ${gest ? s.gest : ''}`} aria-hidden="true">
-      <path d="M40 420 C 40 330, 80 300, 150 296 C 220 300, 260 330, 260 420 Z" fill="#14294a" />
-      <path d="M150 300 L 122 300 L 150 380 L 178 300 Z" fill="#f4f4f4" />
-      <path d="M150 310 L 142 322 L 150 372 L 158 322 Z" fill="#c8102e" />
-      <path d="M122 300 L 108 312 L 140 372 L 150 380 Z" fill="#1d3a66" /><path d="M178 300 L 192 312 L 160 372 L 150 380 Z" fill="#1d3a66" />
-      <circle cx="198" cy="336" r="6" fill="#c9a24a" />
-      <g className={s.armR}><path d="M232 330 C 262 350, 270 392, 250 420 L 214 420 C 224 392, 222 360, 212 340 Z" fill="#14294a" /><circle cx="238" cy="410" r="13" fill="#c98e6b" /></g>
-      <path d="M68 330 C 40 350, 34 392, 52 420 L 88 420 C 78 392, 80 360, 90 340 Z" fill="#14294a" />
-      <rect x="134" y="250" width="32" height="52" rx="12" fill="#b97f5d" />
-      <g className={s.head}>
-        <ellipse cx="150" cy="190" rx="66" ry="78" fill="#c98e6b" />
-        <ellipse cx="86" cy="196" rx="11" ry="17" fill="#b97f5d" /><ellipse cx="214" cy="196" rx="11" ry="17" fill="#b97f5d" />
-        <path d="M84 168 C 80 108, 120 96, 152 98 C 196 98, 222 120, 218 170 C 206 146, 186 132, 150 134 C 120 134, 98 146, 84 168 Z" fill="#2b1d16" />
-        <path d="M108 148 C 130 136, 168 132, 196 146" stroke="#3a2a20" strokeWidth="5" fill="none" strokeLinecap="round" />
-        <g className={s.eyes}><ellipse cx="124" cy="190" rx="7" ry="9" fill="#1d1410" /><ellipse cx="176" cy="190" rx="7" ry="9" fill="#1d1410" /><circle cx="126" cy="187" r="2" fill="#fff" /><circle cx="178" cy="187" r="2" fill="#fff" /></g>
-        <path d="M110 172 Q 124 164 138 170" stroke="#2b1d16" strokeWidth="5" fill="none" strokeLinecap="round" /><path d="M162 170 Q 176 164 190 172" stroke="#2b1d16" strokeWidth="5" fill="none" strokeLinecap="round" />
-        <path d="M150 196 Q 144 216 150 222 Q 156 224 158 220" stroke="#a8704f" strokeWidth="3.5" fill="none" strokeLinecap="round" />
-        <path className={s.mouthC} d="M128 238 Q 150 250 172 238" stroke="#7a3b2c" strokeWidth="5" fill="none" strokeLinecap="round" />
-        <path className={s.mouthO} d="M130 236 Q 150 232 170 236 Q 166 258 150 260 Q 134 258 130 236 Z" fill="#5a2018" />
-      </g>
-    </svg>
+    <span className={`${s.everest} ${talk ? s.talk : ''}`}>
+      {EV_POSES.map(k => <img key={k} src={`/everest/${k}.svg`} alt={k === shown ? 'Everest, the FanSided Yeti' : ''} data-on={k === shown ? '' : undefined} draggable="false" />)}
+      <svg key={shown} viewBox={EV_VB} aria-hidden="true" className={s.evPop}>
+        {R.fierce && R.e.length === 2 && <g className={s.lids}>{R.e.map((e, i) => <rect key={i} x={e[0] - 6} y={e[1] - 6} width={e[2] - e[0] + 12} height={e[3] - e[1] + 12} rx="14" fill={blue} />)}</g>}
+        {m && <g className={s.shut}>
+          <rect x={m[0] - 4} y={m[1] - 6} width={m[2] - m[0] + 8} height={m[3] - m[1] + 10} rx="26" fill={blue} />
+          {R.fierce
+            ? <><path d={`M${m[0] + 18},${(m[1] + m[3]) / 2} L${m[2] - 18},${(m[1] + m[3]) / 2}`} stroke={navy} strokeWidth="11" strokeLinecap="round" />
+              <path d={`M${m[0] + 34},${(m[1] + m[3]) / 2} l9,18 l9,-18 Z M${m[2] - 52},${(m[1] + m[3]) / 2} l9,18 l9,-18 Z`} fill="#fff" stroke={navy} strokeWidth="3" strokeLinejoin="round" /></>
+            : <path d={`M${m[0] + 16},${m[1] + (m[3] - m[1]) * 0.35} Q${(m[0] + m[2]) / 2},${m[3] + 6} ${m[2] - 16},${m[1] + (m[3] - m[1]) * 0.35}`} stroke={navy} strokeWidth="11" fill="none" strokeLinecap="round" />}
+        </g>}
+      </svg>
+    </span>
+  )
+}
+// Which gesture he pops into on the first shot of each segment
+const EV_EMPH = { open: ['chest_wave', 'wave2'], potd: ['hands_up', 'hands_up2'], upset: ['f_flex', 'logo'], career: ['hands_high', 'hands_up'], climb: ['hands_up2', 'hands_up'],
+  movers: ['shrug', 'open'], duel: ['f_claws', 'f_palms'], slayer: ['logo', 'f_flex'], close: ['wave2', 'chest_wave'] }
+
+// Logo A: the FS ball badge and the stacked FANSIDED / TONIGHT lockup
+function Logo({ small }) {
+  return (
+    <span className={`${s.logo} ${small ? s.logoSm : ''}`}>
+      <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#0d2140" stroke="#e9b949" strokeWidth="3" /><circle cx="32" cy="32" r="22" fill="#c8102e" />
+        <path d="M10 32h44M32 10v44M16 17c9 8 9 22 0 30M48 17c-9 8-9 22 0 30" stroke="#0d2140" strokeWidth="2.4" fill="none" />
+        <text x="32" y="38.5" textAnchor="middle" fontFamily="Barlow Condensed, sans-serif" fontWeight="800" fontSize="19" fontStyle="italic" fill="#fff">FS</text></svg>
+      <span><b>FANSIDED</b><i>TONIGHT</i></span>
+    </span>
   )
 }
 
@@ -963,7 +996,7 @@ function buildShow(N, kit, seed, act, side, live) {
   // 9 · Sign-off
   seg('close', 'Sign-off', [
     side.picks.length > 1 ? { gfx: true, head: ['Cards of the Day', 'One more look'], view: fanView(side.picks), line: say(B.close.fan, ov, r) } : null,
-    anchor(N.pd ? card(N.pd.p, N.pd.x, 196) : <span className={s.wordmark}><i>FS</i>TONIGHT</span>, 'FanSided Tonight', say(B.close.end, ov, r)),
+    anchor(N.pd ? card(N.pd.p, N.pd.x, 196) : <Logo />, 'FanSided Tonight', say(B.close.end, ov, r)),
   ], tk(B.close))
   return segs
 }
@@ -1020,6 +1053,9 @@ export default function FanSidedTonight({ kit, day, finals, live = [], side, sho
   useEffect(() => { if (!run) { clear(); setTalk(false) } }, [run])
   const dateLab = new Date(day + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()
   const key = `${si}-${bi}-${seed}`
+  // his gesture for this shot: a pop on the segment's opening desk shot, relaxed otherwise
+  const emph = EV_EMPH[S.id] || (S.live ? null : ['open'])
+  const evPose = !Bt.gfx && emph ? (bi === 0 || S.id === 'close' ? emph[(seed + si) % emph.length] : bi % 2 ? 'shrug' : null) : null
   const takes = segs.reduce((n, x) => n * x.takes, 1)
 
   return (
@@ -1031,16 +1067,16 @@ export default function FanSidedTonight({ kit, day, finals, live = [], side, sho
             <div className={s.skyline} />
             {!Bt.gfx && <button key={`o${key}`} type="button" className={s.ots} onClick={Bt.go || undefined} disabled={!Bt.go} tabIndex={-1}>
               <span className={s.art}>{Bt.ots}</span><span className={s.lab}>{Bt.lab}</span></button>}
-            <div className={s.anchor}><Anchor talk={talk && !Bt.gfx} gest={(si + bi) % 2 === 1} /></div>
-            <div className={s.desk}><span className={s.wordmark}><i>FS</i>FANSIDED TONIGHT</span></div>
+            <div className={s.anchor}><Everest talk={talk && !Bt.gfx} pose={evPose} hold={S.id === 'close' ? 5200 : 2600} /></div>
+            <div className={s.desk}><Logo /></div>
           </div>
           {Bt.gfx && <div key={`g${key}`} className={s.gfx}>
             <div className={s.gHead}><b>{Bt.head[0]}</b>{Bt.head[1] && <i>{Bt.head[1]}</i>}{Bt.head[2] && <span>{Bt.head[2]}</span>}{Bt.go && <button type="button" className={s.openB} onClick={Bt.go}>▶ Open</button>}</div>
             <div className={s.gBody} data-nolegend={Bt.noLegend ? '' : undefined}>{Bt.view}</div>
-            <div className={s.pip}><Anchor talk={talk} /></div>
+            <div className={s.pip}><Everest talk={talk} small /></div>
           </div>}
           <div className={s.lower}>
-            <div className={s.strip}><span className={s.bug}>FANSIDED <small>TONIGHT</small></span><span key={si} className={s.title}>{S.title}</span>
+            <div className={s.strip}><span className={s.bug}><Logo small /></span><span key={si} className={s.title}>{S.title}</span>
               <span className={s.dots}>{S.beats.map((_, i) => <i key={i} data-on={i === bi ? '' : undefined} data-past={i < bi ? '' : undefined} />)}</span>
               <span className={s.clock}>{S.live ? <><u className={s.liveDot} />LIVE</> : live.length ? `FINALS & LIVE · ${dateLab}` : `FINALS · ${dateLab}`}</span></div>
             <Caption key={key} text={Bt.line || ' '} run={run} instant={reduce} onTalk={setTalk} onDone={() => doneRef.current()} />

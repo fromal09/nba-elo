@@ -392,3 +392,32 @@
 .stage[data-phone] .step .slot { width: 107px !important; height: 150px !important; } .stage[data-phone] .step .slotIn { transform: scale(.315) !important; }
 .stage[data-phone] .step[data-place="1"] .slot { width: 126px !important; height: 176px !important; } .stage[data-phone] .step[data-place="1"] .slotIn { transform: scale(.37) !important; }
 .stage[data-phone] .step[data-place="1"] .block { padding-bottom: 22px; }
+
+/* ── Everest, the host ── */
+.everest { position: relative; display: block; aspect-ratio: 1720 / 1350; transform-origin: 50% 100%; animation: breathe 3.6s ease-in-out infinite; }
+.everest img { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .14s ease-out; user-select: none; -webkit-user-drag: none; }
+.everest img[data-on] { opacity: 1; }
+.everest svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.evPop { animation: evPop .32s cubic-bezier(.3,1.6,.5,1); }
+@keyframes evPop { from { transform: scale(.97); } }
+@keyframes breathe { 50% { transform: scale(1.01, 1.016); } }
+.everest.talk { animation: talkBob 1.4s ease-in-out infinite; }
+@keyframes talkBob { 0%, 100% { transform: translateY(0) rotate(0); } 30% { transform: translateY(-.8%) rotate(-.6deg); } 70% { transform: translateY(-.3%) rotate(.6deg); } }
+.lids { opacity: 0; animation: lid 4.6s infinite; }
+@keyframes lid { 0%, 93%, 100% { opacity: 0; } 94.5%, 97% { opacity: 1; } }
+.shut { opacity: 0; }
+.talk .shut { animation: flap .28s steps(2) infinite; }
+@keyframes flap { 50% { opacity: 1; } }
+.stage .anchor { left: 5%; width: 52%; bottom: 2%; }
+.pip .everest { position: absolute; left: -48%; width: 196%; bottom: -78%; animation: none; }
+.stage[data-phone] .anchor { left: -8%; width: 70%; bottom: 6%; }
+
+/* ── Logo A ── */
+.logo { display: inline-flex; align-items: center; gap: 12px; white-space: nowrap; }
+.logo svg { width: 64px; height: 64px; flex: none; }
+.logo > span { display: flex; flex-direction: column; line-height: 1; }
+.logo b { font: 800 40px/.9 'Barlow Condensed', sans-serif; letter-spacing: 3px; color: #fff; }
+.logo i { margin-top: 5px; display: flex; justify-content: center; padding: 3px 0 3px 9px; background: #c8102e; font: 700 15px 'Oswald', sans-serif; font-style: normal; letter-spacing: 9px; color: #fff; box-shadow: inset 0 1px 0 #e9b949, inset 0 -1px 0 #e9b949; }
+.logoSm { gap: 6px; } .logoSm svg { width: 24px; height: 24px; } .logoSm b { font-size: 15px; letter-spacing: 1.5px; } .logoSm i { margin-top: 2px; font-size: 6.5px; letter-spacing: 4px; padding: 1px 0 1px 4px; }
+.stage .bug { background: #0d2140; box-shadow: inset 0 -3px 0 #c8102e; padding: 0 10px; }
+.ots .art .logo { transform: scale(.85); }
