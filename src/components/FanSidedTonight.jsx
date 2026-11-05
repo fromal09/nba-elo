@@ -13,162 +13,231 @@ const SENTENCE_GAP = 1100 // pause between sentences
 const HOLD = { anchor: 2600, gfx: 4200 } // how long a finished beat stays up
 
 // ── Script banks: each beat lists banks; one line is drawn from each ──
-const OPENERS = ['Good evening and welcome to FanSided Tonight.', 'Welcome in to FanSided Tonight.', 'You’re watching FanSided Tonight.', 'Evening, everybody, and welcome to the show.', 'Thanks for joining us on FanSided Tonight.', 'It’s FanSided Tonight, and we are rolling.', 'Pull up a chair, this is FanSided Tonight.', 'Here we go on FanSided Tonight.', 'Good to have you with us on FanSided Tonight.', 'From the FanSided desk, welcome to the show.']
+const OPENERS = ['Good evening and welcome to FanSided Tonight.', 'Welcome in to FanSided Tonight.', 'You’re watching FanSided Tonight.', 'Evening, everybody, and welcome to the show.', 'Thanks for joining us on FanSided Tonight.', 'It’s FanSided Tonight, and we are rolling.', 'Pull up a chair, because this is FanSided Tonight.', 'Here we go on FanSided Tonight.', 'Good to have you with us on FanSided Tonight.', 'From the FanSided desk, welcome to the show.']
+// Every line is a full compound sentence, so a beat reads as a paragraph rather than a list of facts.
+// The show talks about players first: games come up only as the setting for what a player did.
 const B = {
   open: {
     intro: [OPENERS,
-      ['{slate} went final tonight, with {upsets} along the way.', 'We have {slate} to get through, and the forecast got burned {times}.', 'The league went {gamesN} deep tonight, and the underdogs came through {times}.', 'All {gamesN} games are in the books, including {upsets}.', 'Every favorite held serve tonight, but there was still plenty to talk about.{chalk}', 'It was a night for the chalk, but the individual performances made up for it.{chalk}', 'We had {slate} on the board, and there’s a lot to unpack.', '{slate} are final, with {liveTxt} still going.', 'We’ve got {slate} in the books and {liveTxt} still being played.'],
-      ['We’ve got a Player of the Day, career nights, a duel worth your time and the biggest swings in the rankings.', 'Stick around, because the cards came out to play.', 'Let’s get to it.', 'There’s a lot to cover, so let’s not waste any time.', 'Grab your binder. You’re going to want to add a few of these.']],
-    scores: [['Here’s the full board.', 'Let’s run through the finals.', 'Around the league, here’s how it went.', 'Your final scores, all in one place.', 'A quick lap around the league.', 'Here’s every final from tonight.'],
-      ['The {bigW} had the easiest night, a {bigM}-point win over the {bigL}.', 'The biggest margin belonged to the {bigW}, who beat the {bigL} by {bigM}.', 'The {bigW} ran away from the {bigL}, {bigScore}.'],
-      ['The {closeW} and {closeL} gave us the closest finish, {closeScore}{closeOT}.', 'The tightest one was {closeW} over {closeL}, decided by {closeM}{closeOT}.', 'And the {hiW} put up {hiPts}, the most points by anyone tonight.', 'If you like close games, {closeW} and {closeL} went down to the wire, {closeScore}.']],
-    fan: [['These are tonight’s Cards of the Day.', 'Here’s what we’ll get to tonight.', 'Tonight’s featured cards, all in a row.', 'Take a look at the cards we’re talking about tonight.', 'The binder’s about to get a little heavier.'],
-      ['{potd} leads the way as Player of the Day.', 'We’ll start with {potd}, then work our way through the rest.', 'Player of the Day, the duel and the biggest Elo swings, they’re all here.', '{cardCount} cards, and every one of them earned its spot.'],
-      ['We’ll take them one at a time.', 'Let’s start at the top.', 'First up, the best player in the league tonight.']],
+      ['We had {slate} on the board tonight, and while {upsets} kept things interesting, it was the individual performances that stole the show.',
+        '{slate} went final tonight, and between the career nights, the big swings in the rankings and {upsets}, there’s a lot to get to.',
+        'Every one of tonight’s {gamesN} games is in the books, and the players gave us plenty to talk about from the opening tip to the final buzzer.',
+        'It was a {gamesN}-game night across the league, and the stars showed up in a big way, with {upsets} sprinkled in for good measure.',
+        '{slate} are final with {liveTxt} still going, and the players have already given us more than enough for a full show.',
+        'The favorites held serve across the board tonight, but the players more than made up for the lack of drama.{chalk}',
+        'There was no shortage of big individual nights tonight, and with {slate} in the books, we’ve got a lot of ground to cover.'],
+      ['We’ll start with {potd}, who was the best player in the league tonight, and then work our way through the cards that are about to land in your binder.',
+        '{potd} leads the way as our Player of the Day, but he’s far from the only player who deserves a closer look tonight.',
+        'Stick around, because between {potd}’s big night and a handful of career highs, the binders are about to get a lot heavier.',
+        'We’ve got a Player of the Day, a duel worth your time and a few players who just had the best games of their careers, so let’s get right to it.']],
+    top: [['Before we dig in, here are the five best Game Scores of the night, and {t1} sits at the top of the list after a {t1gs} against the {t1opp}.',
+        '{t1} posted the best Game Score of the night at {t1gs}, and as you can see, the rest of this group wasn’t far behind.',
+        'Here are tonight’s top performers by Game Score, led by {t1}, who put up {t1pts} points against the {t1opp}.',
+        'Take a look at the five players who did the most damage tonight, starting with {t1} and his {t1gs} Game Score.'],
+      ['{t2} checks in second with a {t2gs}, while {t3} rounds out the top three after a {t3pts}-point night for the {t3team}.',
+        'Right behind him are {t2}, who scored {t2pts} for the {t2team}, and {t3}, who finished with {t3pts} of his own.',
+        '{t2} put up {t2pts} points for the {t2team}, while {t3} answered with {t3pts}, and we’ll get to a few of these cards in more detail later on.',
+        'Every one of these cards is worth a closer look, and {t2} and {t3} made it a crowded race at the top.']],
+    fan: [['These are tonight’s Cards of the Day, and every one of them tells a story we’ll get to over the course of the show.',
+        'Here’s the full set of tonight’s featured cards, starting with {potd} as Player of the Day and running through the biggest swings in the rankings.',
+        'Take a look at the {cardCount} Cards of the Day, because each of them earned its spot and each of them is headed for somebody’s binder.',
+        'This is what the binder is getting tonight, from {potd}’s Player of the Day card to the duel and the biggest Elo swings.'],
+      ['We’ll take them one at a time, and we’ll start at the very top.', 'Let’s start with the best of the bunch and work our way down from there.', 'First up is the best player in the league tonight, so let’s get to him.']],
   },
   potd: {
-    intro: [['Our Player of the Day is {name}.', 'Nobody did it better tonight than {name}.', 'The night belonged to {name}.', 'Tonight’s top performer: {name}.', 'Hats off to {name}.', '{name} owned the night.', 'The Player of the Day card goes to {name}.', 'If you watched one player tonight, it should have been {name}.', 'Nobody touched {name} tonight.'],
-      ['He finished with {pts} points, {reb} rebounds and {ast} assists as the {team} {rv} the {opp}, {score}.', '{pts} points, {reb} rebounds and {ast} assists in a {score} {rn} against the {opp}.', 'The {team} {rv} the {opp} {score}, and he was the one everybody was talking about.', 'It came in a {score} {rn} for the {team} against the {opp}, and he put up {pts}.'],
-      ['Let’s take a closer look.', 'Here’s how he did it.', 'This one deserves a full breakdown.', 'Let’s go to the card.']],
-    hero: [['Here’s the card.', 'Take a look at the line.', 'Here’s the full stat line.', 'Let’s put it on the screen.', 'This is what a Player of the Day card looks like.'],
-      ['A {gs} Game Score in {mins} minutes, with {stl} steals and {blk} blocks mixed in.', 'That’s a {gs} Game Score, the best in the league tonight.', 'His {gs} Game Score topped every player on the slate.', 'He was a {pm} in {mins} minutes on the floor.', 'A {gs} Game Score and a {pm} plus-minus tell you how much he controlled the game.'],
-      ['His Elo moves {up} {delta} to {post}.', 'That night is worth {delta} points of Elo, and he’s now at {post}.', 'He moves from number {prev} to number {rank} in the rankings.', 'In the rankings, he goes from {prev} to {rank}.', 'His Player of the Day score, Game Score plus a sixth of his Elo gain, came out to {ns}.']],
-    shoot: [['Now look at how efficient he was.', 'The shooting tells the rest of the story.', 'Here’s where it gets impressive.', 'Let’s talk about the shot-making.', 'Look at the efficiency.'],
-      ['He went {fgline} from the field and {tpline}.', '{fgline} shooting, and {ftline} at the line.', 'That works out to {ts} true shooting.', '{fgpct} from the field on {fga} attempts.', 'He made {fg} of his {fga} shots.'],
-      ['He averages {spts} points a game this season, so this was {ptsOver} above his norm.', 'Compare that to his {spts} points per game on the season.', 'His season average is {spts} points and a {sgs} Game Score, and tonight he blew past both.', 'Through {gp} games he’s been a {sgs} Game Score player. Tonight was {gs}.', 'That’s as efficient as it gets with that kind of volume.']],
-    career: 'career',
-    box: 'box',
+    intro: [['Our Player of the Day is {name}, who put up {pts} points, {reb} rebounds and {ast} assists as the {team} {rv} the {opp}.',
+        'Nobody in the league was better tonight than {name}, who went for {pts}, {reb} and {ast} against the {opp} and made it look easy.',
+        'The night belonged to {name}, and after {pts} points on {fgline} shooting against the {opp}, it wasn’t particularly close.',
+        '{name} takes home Player of the Day honors after a {pts}-point night against the {opp}, and he did it with a {gs} Game Score that topped the entire league.',
+        'If you only watched one player tonight, it should have been {name}, who scored {pts} and posted a {gs} Game Score against the {opp}.',
+        'The Player of the Day card goes to {name}, who filled up the box score against the {opp} with {pts} points, {reb} rebounds and {ast} assists.'],
+      ['Let’s take a closer look at how he did it, because the details are even better than the headline.', 'Here’s the card, and it’s a good one.', 'This one deserves the full breakdown, so let’s start with the card.']],
+    hero: [['His {gs} Game Score was the best in the league tonight, and he did it in {mins} minutes while finishing a {pm} with {stl} steals and {blk} blocks mixed in.',
+        'He finished with a {gs} Game Score in {mins} minutes, and the {pm} plus-minus tells you just how much the game swung with him on the floor.',
+        'That {gs} Game Score topped everyone on the slate, and he backed it up by finishing a {pm} in {mins} minutes.',
+        'A {gs} Game Score was enough to top the entire league tonight, and he got there in only {mins} minutes of work.',
+        'He posted a {gs} Game Score, which was the best of anyone tonight, and every part of the stat line pulled its weight.'],
+      ['The performance moves his Elo {up} {delta} points to {post}, which bumps him from number {prev} to number {rank} in our rankings.',
+        'His Elo climbs {delta} points to {post}, and that’s good for a jump from {prev} to {rank} in the rankings.',
+        'All told, his Player of the Day score came out to {ns}, combining his Game Score with a sixth of the {delta} Elo points he gained.',
+        'That’s worth {delta} points of Elo, which leaves him at {post} heading into his next game.']],
+    shoot: [['What really stands out is the efficiency, because he went {fgline} from the field and {tpline} on his way to {ts} true shooting.',
+        'He shot {fgline} from the field and {ftline} at the line, which works out to {ts} true shooting on a high-volume night.',
+        'He made {fg} of his {fga} shots, including {tpline}, and that kind of efficiency is hard to argue with.',
+        'He was {fgpct} from the field on {fga} attempts, and he never had to force anything to get there.'],
+      ['He’s averaging {spts} points a game this season, so tonight was {ptsOver} above his norm and then some.',
+        'Through {gp} games he’s been a {sgs} Game Score player, which makes tonight’s {gs} all the more impressive.',
+        'Compare that to his {spts} points per game on the season, and you get a sense of how far above his baseline this was.',
+        'That’s as efficient as it gets with that kind of volume, and his season numbers show just how rare a night like this is.']],
+    vs: [['Stack tonight up against his season averages and the gap jumps right off the screen.', 'Here’s tonight next to what he usually gives you, and it isn’t close.', 'Let’s put the night in context with his season averages, because that’s where it really stands out.'],
+      ['He averages {spts} points, {sreb} rebounds and {sast} assists through {gp} games, and tonight he cleared those marks with room to spare.',
+        'His season Game Score sits at {sgs}, which means tonight’s {gs} was more than double his typical output.{dbl}',
+        'He came into tonight averaging {spts} points a game, so the {pts} he dropped was {ptsOver} better than usual.',
+        'He’s been a {sgs} Game Score player through {gp} games, and tonight he showed what his ceiling looks like.']],
   },
-  career: [['Here’s his whole career in one line.', 'Let’s zoom out to his career.', 'Put that in context with his career Elo.', 'This is every game of his career.', 'Here’s the long view.'],
-    ['He’s played {cgames} career games, peaking at {peak}.', 'His career peak is {peak}, and tonight puts him at {post}.', 'He’s {peakGap} points off his career peak of {peak}.', 'Tonight’s {post} is a new career high.{newPeak}', 'He started tonight at {pre} and leaves at {post}.'],
-    ['That jump at the end is tonight.', 'You can see tonight’s spike at the far right.', 'The line doesn’t lie.', 'Every big night shows up on this chart, and this was one of them.', 'That last point on the chart is tonight.']],
-  seasonGraph: [['Here’s his season so far.', 'Let’s look at his season in Elo.', 'This is every game of his season.'],
-    ['He came into tonight at {pre} after {gp} games.', 'He started tonight at {pre} and leaves at {post}.', 'Tonight’s game moved him {up} {delta}.'],
-    ['That last point is tonight.', 'You can see the jump at the far right.', 'The chart tells the story.']],
-  box: [['Here’s the box score from that one.', 'The full box.', 'Let’s look at the whole game.', 'Here’s how the rest of the box shook out.'],
-    ['{tmName} added {tmPts} for the {team}.', '{oppTop} led the {opp} with {oppPts}.', 'The {team} got {tmPts} from {tmName} as well.', 'On the other side, {oppTop} had {oppPts}.'],
-    ['But this was his night.', 'His row is the one you’ll remember.', 'Final score, {score}.', 'Tap the screen to open the full box score.']],
+  career: [['Zoom out to his whole career and you can see exactly where tonight fits, with the line climbing to {post} after {cgames} career games.',
+      'Here’s every game of his career in one line, and that spike on the far right is tonight pushing him up to {post}.',
+      'His career Elo peaked at {peak}, and tonight put him back within {peakGap} points of that mark.',
+      'Tonight’s {post} is a new career high, and you can see the line breaking through on the far right of the chart.{newPeak}',
+      'He started tonight at {pre}, and after one big night he leaves at {post}, which shows up clearly at the end of the chart.'],
+    ['Every big night leaves a mark on this chart, and this one stands out.', 'The line doesn’t lie, and it’s been trending in the right direction.', 'That last point on the chart is tonight, and it’s one he’ll want to remember.', 'It’s a good reminder that one great night can move the needle in a big way.']],
+  seasonGraph: [['Here’s his season so far in Elo, and that jump at the far right is tonight.', 'Let’s look at his season in Elo, where tonight moved him {up} {delta} points to {post}.', 'This is every game of his season, and he came into tonight at {pre} after {gp} games.'],
+    ['The chart tells the story, and the story is trending up.', 'Nights like this are what move a season, and you can see it in the line.', 'It’s been a steady climb, and tonight was one of the bigger steps.']],
   upset: {
-    intro: [['Upset alert.', 'Stop me if you saw this coming.', 'The forecast did not see this one.', 'Biggest stunner of the night.', 'Here’s your upset of the night.', 'Nobody had this one.', 'Chalk got broken tonight.', 'We have an upset.', 'Throw out the numbers on this one.', 'Your upset special.'],
-      ['The {win} came in at just {chance} and beat the {lose} {score}.', 'The {win}, given a {chance} chance, knocked off the {lose}, {score}.', 'At {chance}, the {win} took down the {lose} {score}.', 'The {lose} were {fav} favorites and still fell to the {win}, {score}.', 'The {win} beat the {lose} {score} as {chance} underdogs.'],
-      ['Let’s break it down.', 'Here’s how it happened.', 'Let’s go to the numbers.']],
-    wp: [['Here’s what the forecast said before tipoff.', 'Look at the pre-game win chance.', 'Before the game, the numbers were clear.', 'Here’s how lopsided it looked on paper.'],
-      ['Our Elo forecast had the {lose} at {fav}.', 'The {win} were given a {chance} chance to win this game.', 'That’s roughly a one-in-{oneIn} shot for the {win}.', '{fav} for the {lose}. {chance} for the {win}.'],
-      ['The {win} won anyway, {score}{otTail}.', 'And the {win} won by {margin}.', 'It didn’t matter. Final, {score}{otTail}.', 'Final score: {score}{otTail}.']],
-    lineup: [['Here’s why they were favored.', 'Compare the lineups.', 'Lineup Elo tells you what each team put on the floor.'],
-      ['The {lose} lineup came in rated {loseElo}, against {winElo} for the {win}.', 'That’s a {eloGap}-point gap in lineup Elo, and the {win} closed it.', 'The {win} were outrated by {eloGap} points.'],
-      ['That’s why upsets move the ratings so much.', 'Beat a better team and the ratings notice.', 'The Elo swing on both rosters shows it.']],
-    box: [['Here’s how they pulled it off.', 'The box score from the upset.', 'Inside the box.', 'The key lines from that one.'],
-      ['{wtop} led the {win} with {wpts}.', '{wtop} carried the {win} with {wpts} points.', '{wpts} from {wtop} was the difference.', 'The {win} got {wpts} from {wtop}.'],
-      ['{ltop} had {lpts} in the loss.', 'On the other side, {ltop} scored {lpts}.', '{ltop} dropped {lpts} and it wasn’t enough.', 'Even {lpts} from {ltop} couldn’t save the {lose}.']],
-    hero: [['The best card from the upset belongs to {name}.', 'Give the credit to {name}.', 'The upset’s top performer was {name}.'],
-      ['{pts} points, {reb} rebounds, {ast} assists and a {gs} Game Score.', 'He finished a {pm} with {pts} points.', 'A {gs} Game Score on {fgline} shooting.'],
-      ['He gained {delta} Elo on the night.', 'His Elo climbs to {post}.', 'That moves him to number {rank} in the rankings.']],
+    intro: [['Our upset of the night came from the {win}, who were given just a {chance} chance and still knocked off the {lose}, {score}.',
+        'The {lose} came in as {fav} favorites, but the {win} had other plans and pulled off the biggest upset of the night, {score}.',
+        'Nobody saw this one coming, because the {win} were {chance} underdogs and still walked away with a {score} win over the {lose}.',
+        'The forecast had the {lose} at {fav}, and the {win} beat them anyway, {score}, for the biggest stunner of the night.'],
+      ['{star} led the way for the {win}, and his {starGs} Game Score was the biggest reason the forecast missed.',
+        'The difference-maker was {star}, who put up {starPts} points and carried the {win} when it mattered most.',
+        'It was {star} who made the difference, finishing with {starPts} points and a {starGs} Game Score.']],
+    wp: [['Before tipoff the forecast had the {lose} at {fav}, which made the {win} roughly one-in-{oneIn} underdogs, and they won anyway.',
+        'The pre-game numbers gave the {win} a {chance} chance, and the {lose} were supposed to handle this one comfortably.',
+        'Here’s how lopsided it looked on paper, with the {lose} at {fav} before the opening tip.'],
+      ['{star} didn’t care much about the odds, and neither did his teammates.', 'It’s a reminder that the players decide these things, not the forecast.', 'Upsets like this move the ratings in a big way, and {star} was the biggest beneficiary.']],
+    hero: [['{name} finished with {pts} points, {reb} rebounds and {ast} assists, and his {gs} Game Score led everyone in the game.',
+        '{name} went {fgline} from the field on his way to {pts} points, and he finished a {pm} in {mins} minutes.',
+        '{name} put up {pts} points and a {gs} Game Score, and he picked his spots perfectly down the stretch.'],
+      ['The win moves him {up} {delta} Elo points to {post}, and he climbs to number {rank} in the rankings.',
+        'He picks up {delta} Elo points in the process, which leaves him at {post}.',
+        'Beating a better team pays off in the ratings, and he gains {delta} points to land at {post}.']],
   },
   careerGame: {
-    intro: [['Career night alert.', 'Put this one in the scrapbook.', 'A career best tonight.', 'Never been better.', 'Personal best, right here.', 'We have a career game.', 'Circle this one.', 'Mark the date.', 'A new high-water mark.'],
-      ['{name} posted a career-best {gs} Game Score against the {opp}.', '{name} went for {pts}, {reb} and {ast}, the best game of his career by Game Score.', 'A {gs} Game Score for {name}, the best he’s ever had.', '{name} had the game of his life, {pts} points on {fgline} shooting.'],
-      ['Let’s look at it.', 'Here’s the card.', 'This one goes in the binder.']],
-    hero: [['Here’s the card.', 'Look at this line.', 'The card for the record book.'],
-      ['{pts} points, {reb} rebounds and {ast} assists, {fgline} from the field.', 'A {gs} Game Score in {mins} minutes.', 'He was a {pm} in {mins} minutes.'],
-      ['The {team} {rv} the {opp}, {score}.', 'His Elo moves {up} {delta} to {post}.', 'He climbs to number {rank}.']],
-    vs: [['Compare it to his season.', 'Here’s how far above his norm that was.', 'Tonight versus his season averages.'],
-      ['He’s averaging {spts} points and a {sgs} Game Score through {gp} games.', 'Through {gp} games he averages {spts}, {sreb} and {sast}.', 'His career Game Score average is {cgs}.'],
-      ['Tonight he went for {pts} and a {gs}.', 'That’s {ptsOver} points above his average.', 'Nights like this don’t come around often.']],
-    career: 'career',
-    list: [['He wasn’t the only one.', 'It was a big night for personal bests.', 'More career nights around the league.'],
-      ['{careerN} players set career-best Game Scores tonight.', 'Here are the rest of tonight’s career games.', 'Here’s everybody who had the best game of his career tonight.', '{c2} had a {c2gs} of his own, the best game of his career.'],
-      ['Every one of those cards gets a star.', 'That’s a lot of new career highs.', 'Tap a card on the board to open it.']],
+    intro: [['We had a career night from {name}, who posted a {gs} Game Score against the {opp}, the best mark of his career.',
+        '{name} has never been better than he was tonight, putting up {pts} points, {reb} rebounds and {ast} assists for a career-best {gs} Game Score.',
+        'Mark the date, because {name} had the game of his life against the {opp}, scoring {pts} on {fgline} shooting.',
+        'Put this one in the scrapbook, because {name} just set a new career high with a {gs} Game Score against the {opp}.'],
+      ['Let’s take a look at the card that goes along with it.', 'Here’s the card, and it’s going straight into the binder.', 'This one deserves a closer look, so let’s start with the card.']],
+    hero: [['He finished with {pts} points, {reb} rebounds and {ast} assists in {mins} minutes, and he did it on {fgline} shooting.',
+        'He scored {pts} on {fgline} shooting and finished a {pm} in {mins} minutes, which is about as complete as it gets.',
+        'It was a {gs} Game Score in {mins} minutes, and every part of the line pulled its weight.'],
+      ['The {team} {rv} the {opp}, {score}, and his Elo moves {up} {delta} points to {post}.',
+        'His Elo climbs {delta} points to {post}, and he moves up to number {rank} in the rankings.',
+        'That’s good for {delta} points of Elo, which leaves him at {post}.']],
+    vs: [['Compare it to his season and you see just how far above his norm this was.', 'Here’s tonight against his season averages, and the gap is enormous.'],
+      ['He’s averaging {spts} points and a {sgs} Game Score through {gp} games, so tonight’s {pts} points and {gs} Game Score were in a different league.',
+        'His career Game Score average is {cgs}, which makes tonight’s {gs} an outlier in the best possible way.',
+        'He came in averaging {spts} points a game, so tonight was {ptsOver} above his usual output, and then some.']],
+    list: [['He wasn’t the only one, either, because {careerN} players set career-best Game Scores tonight.', 'It was a big night for personal bests all around the league, and here’s everybody who joined the club.'],
+      ['{c2} had a {c2gs} of his own, and every one of these cards gets a star on the wall.', 'Every one of these cards gets a star, and a few of them could end up being keepers.']],
   },
   milestone: {
-    intro: [['Milestone alert.', 'Watch out for this one in the rankings.', 'Movin’ on up.', 'A big jump in the rankings.', 'Rankings shake-up.', 'New neighborhood in the rankings.', 'Look who’s climbing.'],
-      ['{name} hit a milestone tonight against the {opp}.', '{name} had a night worth marking.', 'It took a {gs} Game Score from {name} to get here.'],
-      ['Here’s the move.', 'Let’s look at it.', 'Take a look.']],
-    rank: [['Here’s the move.', 'Look at that jump.', 'The rankings, before and after.'],
-      ['{name} jumps from number {prev} to number {rank}.', 'From {prev} to {rank} for {name}.', '{name} climbs {jump} spots to number {rank}.', '{stamp}'],
-      ['{stamp}', 'He went for {pts} points and a {gs} Game Score against the {opp}.', 'His Elo is up to {post}.']],
-    career: 'career',
-    list: [['Around the league, more milestones.', 'He wasn’t alone.', 'Here are the rest.'],
-      ['There were {milN} milestones on the night.', '{milN} players hit a milestone tonight.'],
-      ['Every one gets a diamond on the ticker.', 'Tap any of them on the board below.']],
+    intro: [['{name} hit a milestone tonight against the {opp}, and it took a {gs} Game Score to get him there.',
+        '{name} had a night worth marking, putting up {pts} points against the {opp} and moving into new territory in the rankings.',
+        'Here’s a milestone worth celebrating, because {name} climbed the rankings in a big way after a {pts}-point night against the {opp}.'],
+      ['Here’s the card and the move that goes with it.', 'Let’s look at the card and the jump.']],
+    rank: [['{name} jumps from number {prev} to number {rank} after a {gs} Game Score against the {opp}.',
+        '{name} climbs {jump} spots to number {rank}, which is what a {pts}-point night will do for you.',
+        'After a {gs} Game Score against the {opp}, {name} moves from {prev} to {rank} in the rankings.'],
+      ['{stamp}', '{stamp} His Elo is up to {post}.', '{stamp} It’s been a long time coming.']],
+    list: [['He wasn’t alone, because {milN} players hit milestones tonight, and here are a few of the biggest.', 'Around the league, {milN} players hit milestones tonight, and these are the cards that go with them.'],
+      ['Each of these cards gets a diamond on the ticker, and you can tap any of them on the board below.', 'Every one of these players moved into new territory tonight, and the binders will notice.']],
   },
   movers: {
-    bars: [['Let’s check the movers.', 'Biggest swings of the night.', 'Elo winners and losers.', 'Who gained, who slipped.', 'Up and down the ladder.', 'The night’s Elo swings.'],
-      ['{rname} gained {rdelta}, the most of anyone.', 'Nobody climbed more than {rname}, up {rdelta}.', 'Top riser: {rname}, plus {rdelta}.', 'A {rdelta} gain for {rname}.'],
-      ['{fname} dropped {fdelta}, the biggest fall.', 'On the other end, {fname} lost {fdelta}.', 'Tough night for {fname}, down {fdelta}.', 'Biggest faller: {fname}, minus {fdelta}.']],
-    riser: [['Let’s look at the biggest riser.', 'Here’s the top riser’s card.', 'The biggest gain of the night.'],
-      ['{name} went for {pts}, {reb} and {ast} against the {opp}.', 'A {gs} Game Score from {name}.', '{name} shot {fgline} against the {opp}.'],
-      ['That moves him from {pre} to {post}.', 'He jumps from number {prev} to {rank}.', 'Big nights against good teams pay off.']],
-    faller: [['And the other end.', 'Here’s the biggest drop.', 'Not every card goes up.'],
-      ['{name} managed a {gs} Game Score against the {opp}.', '{name} went {fgline} from the field.', '{name} had {pts} points in {mins} minutes.'],
-      ['That costs him {delta}, down to {post}.', 'He slides from {pre} to {post}.', 'He’ll get a chance to win it back.']],
+    intro: [['{rname} was the biggest riser of the night, gaining {rdelta} Elo points, while {fname} went the other way and dropped {fdelta}.',
+        'Let’s check the biggest swings of the night, starting with {rname}, who gained {rdelta}, and ending with {fname}, who lost {fdelta}.',
+        'Nobody gained more Elo tonight than {rname}, who picked up {rdelta} points, while {fname} had the roughest night and gave back {fdelta}.'],
+      ['Here are the cards behind those numbers.', 'Let’s put the cards on the screen.']],
+    fan: [['{r2} was next among the risers at {r2d}, followed by {r3} at {r3d}, and every one of them earned it with a big night.',
+        'Behind {rname}, {r2} gained {r2d} and {r3} gained {r3d}, so it was a good night to be a riser.',
+        'Elo rewards production against good competition, and {r2} and {r3} both cashed in, with gains of {r2d} and {r3d}.'],
+      ['On the other end, {f2} had the second-biggest drop at {f2d}, so not every card is headed in the right direction.',
+        '{f2} slid {f2d}, which shows you how quickly the ratings can turn on an off night.',
+        'Every one of these swings came from a single game, and that’s what makes the ratings fun to watch.']],
+    riser: [['{name} went for {pts}, {reb} and {ast} against the {opp}, and his {gs} Game Score was enough to make him the biggest riser of the night.',
+        '{name} shot {fgline} against the {opp} and finished with a {gs} Game Score, which was worth {delta} Elo points.',
+        'A {gs} Game Score from {name} against the {opp} was all it took, and he made the most of his {mins} minutes.'],
+      ['That moves him from {pre} to {post}, and he climbs from number {prev} to {rank} in the rankings.', 'He jumps to {post} in the process, and big nights against good teams always pay off.']],
+    faller: [['{name} managed a {gs} Game Score against the {opp}, and on a {fgline} shooting night, the ratings weren’t kind.',
+        '{name} had {pts} points in {mins} minutes against the {opp}, and it wasn’t enough to keep his Elo from sliding.',
+        'It was a rough one for {name}, who posted a {gs} Game Score against the {opp}.'],
+      ['That costs him {delta} points, which drops him to {post}, but he’ll get a chance to win it back.', 'He slides from {pre} to {post}, and he’ll be looking to bounce back next time out.']],
   },
   duel: {
-    intro: [['Duel of the Day.', 'Our heavyweight bout.', 'Main event time.', 'Best one-on-one of the night.', 'Two stars, one winner.', 'Tonight’s marquee matchup.', 'Head to head.', 'Star versus star.'],
-      ['{a} and {b} squared off, and both of them delivered.', '{a} against {b}, two players rated {apre} and {bpre}.', 'It was {a} for the {ateam} against {b} for the {bteam}.'],
-      ['Here’s the card.', 'Let’s go to the tape.', 'Let’s see how it played out.']],
-    card: [['Here’s the duel card.', 'Look at this card.', 'The Duel of the Day card.'],
-      ['{a} edged {b}, {ag} to {bg} in Game Score.', '{a} topped {b} with a {ag} Game Score to {bg}.', '{ag} for {a}, {bg} for {b}. Advantage {alast}.'],
-      ['Both of them played well enough to win most nights.', 'That card is a good one.', 'Duel card unlocked.']],
-    tape: [['Tale of the tape.', 'Side by side.', 'Let’s compare them stat for stat.'],
-      ['{a} had {apts} points; {b} had {bpts}.', '{alast} won the Game Score battle, {ag} to {bg}.', '{a} came in rated {apre}; {b} came in at {bpre}.'],
-      ['Instant classic.', 'That’s why you stay up late.', 'Give them both credit.', 'Neither one played badly.']],
-    box: [['Here’s the box from that game.', 'The full box score.', 'Here are both lines in the box.'],
-      ['The {winT} won it, {score}.', 'Final score, {score}.', 'Look at the two rows that matter.'],
-      ['Tap the screen for the full box score.', 'Two stars, one box score.', 'Both rows are highlighted.']],
+    intro: [['{a} and {b} squared off in the Duel of the Day, and while both of them delivered, {alast} came out on top.',
+        '{a} for the {ateam} against {b} for the {bteam} was the best one-on-one of the night, with two players rated {apre} and {bpre} going right at each other.',
+        'Our main event pitted {a} against {b}, and it lived up to the billing from start to finish.'],
+      ['Here’s the card that goes with it.', 'Let’s start with the duel card.']],
+    card: [['{a} edged {b} {ag} to {bg} in Game Score, and both of them played well enough to win the duel on most nights.',
+        '{alast} won the Game Score battle {ag} to {bg}, and this card captures both sides of it.',
+        'It was {ag} for {a} and {bg} for {b}, which was enough to give {alast} the edge in a close one.'],
+      ['Both players gain from a night like this, and the card is a good one.', 'That card is a keeper, whichever side of it you were rooting for.']],
+    tape: [['{a} finished with {apts} points while {b} answered with {bpts}, and the Game Score battle went to {alast}, {ag} to {bg}.',
+        '{a} came in rated {apre} and {b} came in at {bpre}, so on paper this was about as even as it gets.',
+        'Side by side, you can see how close it was, with {a} at {apts} points and {b} at {bpts}.'],
+      ['It was an instant classic, and both cards are worth keeping.', 'Neither player had a bad night, and that’s what made this one fun.', 'That’s why you stay up late, and both of these players gave us our money’s worth.']],
   },
   slayer: {
-    intro: [['Giant-Slayer of the Day.', 'David, meet Goliath.', 'Talk about punching up.', 'Giant-slayer alert.', 'The longest odds of the night.', 'Underdog story.', 'Upset of a different kind.'],
-      ['{a} outplayed {b}, who was {gap} Elo points ahead of him.', '{a} beat {b} by Game Score with a {gap}-point Elo gap.', 'Rated {gap} below {b}, {a} won the duel anyway.'],
-      ['Here’s the card.', 'Let’s look at the odds.', 'Let’s go to the tape.']],
-    card: [['Here’s the giant-slayer card.', 'Look at this one.', 'The Giant-Slayer card.'],
-      ['The odds of {a} winning that matchup were {chance}.', 'A {chance} chance, and {a} still outscored {b}.', '{a} over {b}. The odds said {chance}.'],
-      ['Big night for the little guy.', 'Respect.', 'He’ll be hearing about that one.']],
-    tape: [['Tale of the tape.', 'Side by side.', 'Look at the gap.'],
-      ['{a} came in at {apre}; {b} came in at {bpre}.', '{alast} won the Game Score battle, {ag} to {bg}.', '{a} had {apts} points; {b} had {bpts}.'],
-      ['Goliath goes home.', 'Rare stuff.', 'Elo loves an upset.']],
+    intro: [['{a} was our Giant-Slayer of the Day, outplaying {b}, who came in rated {gap} Elo points higher.',
+        'Talk about punching up, because {a} beat {b} by Game Score despite a {gap}-point gap in Elo.',
+        'The longest odds of the night belonged to {a}, who took down {b} in their head-to-head with just a {chance} chance.'],
+      ['Here’s the card that goes with it.', 'Let’s look at the card and the odds.']],
+    card: [['The odds of {a} winning that matchup were {chance}, and he did it anyway with a {ag} Game Score to {bg}.',
+        'At {chance}, {a} still got the better of {b}, and this card is the proof.',
+        '{a} over {b} came at {chance} odds, which makes this one of the rarest cards of the night.'],
+      ['It was a big night for the little guy, and he’ll be hearing about it for a while.', 'Respect to him, because nights like this don’t come around often.']],
+    tape: [['{a} came in at {apre} and {b} came in at {bpre}, and yet {alast} won the Game Score battle {ag} to {bg}.',
+        'Side by side, {a} had {apts} points while {b} had {bpts}, and that’s how a giant falls.'],
+      ['Goliath goes home, and the ratings love an upset like this.', 'It’s rare stuff, and it shows up in the Elo swing for both of them.']],
   },
   close: {
-    fan: [['That’s the show.', 'That’s going to do it for us.', 'And that’s a wrap.', 'That’s all for tonight.', 'We’ll leave it there.', 'That’s our time.'],
-      ['One more look at tonight’s Cards of the Day.', 'Here are tonight’s cards one last time.', 'Every card from tonight is waiting on the wall.'],
-      ['Tap any TV for the full box score.', 'Every box score is one tap away.', 'Check the board below for every table.', 'Make your picks before the next tip.']],
-    end: [['For FanSided Tonight, good night.', 'See you next time on FanSided Tonight.', 'Thanks for watching FanSided Tonight.', 'Get some sleep, and we’ll see you next time.'],
-      ['Open your pack.', 'Until next time.', 'We’ll be here tomorrow.']],
+    fan: [['That’s going to do it for us tonight, so let’s take one more look at tonight’s Cards of the Day.',
+        'Before we go, here are tonight’s cards one last time, and every one of them is waiting for you on the wall.',
+        'That’s our show, and these are the cards that defined the night.'],
+      ['Tap any TV for the full box score, and check the board below for every table from tonight.', 'Every box score is one tap away, and the board below has every table from the night.', 'Make your picks before the next tip, because there’s another set of cards on the way.']],
+    end: [['If you take one thing away from tonight, let it be {potd}, and we’ll see you next time on FanSided Tonight.',
+        'For everyone here at the FanSided desk, thanks for watching, and we’ll see you next time.',
+        'Get some sleep and open your pack, because we’ll be back tomorrow with another night of cards.',
+        'That’s FanSided Tonight, and until next time, good night.']],
   },
 }
 
 // Runners-up: the podium and the near misses in every category
 const RU = {
-  podium: [['Here’s the podium.', 'Let’s see the top three.', 'The Player of the Day podium.', 'It wasn’t a one-man race.', 'Here’s how the race for Player of the Day finished.'],
-    ['{n2} finished second with a {s2} on the Player of the Day scale, {p2line} against the {o2}.', 'Silver goes to {n2}, who put up {p2line} against the {o2}.', '{n2} came in second at {s2}, with {p2line}.', 'The runner-up was {n2}: {p2line} against the {o2}.'],
-    ['{n3} took the bronze with {p3line}.', '{n3} rounded out the podium at {s3}.', 'Third place went to {n3}, {p3line} against the {o3}.', '{n3} grabbed the last spot on the podium, a {s3}.'],
-    ['But nobody caught {n1}, at {s1}.', 'The gap between first and second was {gap12} points.', '{n1} won it by {gap12}.', 'It was close at the top, just {gap12} points.{tight}', 'This one wasn’t close. {n1} won by {gap12}.{wide}']],
-  upsets: [['It wasn’t the only upset.', 'There were more surprises around the league.', 'The favorites had a rough night overall.', 'Here are the rest of tonight’s upsets.'],
-    ['The {u2w} beat the {u2l} as {u2c} underdogs.', 'The {u2w} also won at {u2c}, beating the {u2l} {u2s}.', 'At {u2c}, the {u2w} knocked off the {u2l}.'],
-    ['The {u3w} pulled one off too, at {u3c}.', 'And the {u3w} took down the {u3l} at {u3c}.', 'That’s {upN} upsets on the night.', 'Check your pick’em sheet.']],
-  duel: [['The runner-up duel.', 'Honorable mention goes to another matchup.', 'Just missing the cut was this one.', 'The second-best duel of the night.'],
-    ['{ra} and {rb} went at it, {rag} to {rbg} in Game Score.', '{ra} edged {rb}, {rag} to {rbg}.', '{ra} for the {rateam} against {rb} for the {rbteam}, {rag} to {rbg}.'],
-    ['That one would have won most nights.', 'Good, just not quite the main event.', 'A strong second place.', 'Both of those cards are worth keeping too.']],
-  slayer: [['The runner-up giant-slayer.', 'Another long shot came through.', 'Honorable mention for punching up.', 'One more giant fell tonight.'],
-    ['{ra} outplayed {rb}, who was rated {rgap} points higher.', '{ra} beat {rb} by Game Score, {rag} to {rbg}, at {rchance} odds.', 'At {rchance}, {ra} still got the better of {rb}.'],
-    ['Not quite as wild, but close.', 'Two giants fell tonight.', 'Respect to him too.']],
+  podium: [['It wasn’t a one-man race, though, because {n2} finished second with a {s2} on the Player of the Day scale after putting up {p2line} against the {o2}.',
+      'Silver goes to {n2}, who posted {p2line} against the {o2}, while {n3} took the bronze with {p3line}.',
+      'Here’s the podium, and {n2} made {n1} work for it with {p2line} against the {o2}.',
+      'The race for Player of the Day had three real contenders, and {n2} came closest with a {s2} after {p2line} against the {o2}.'],
+    ['{n3} rounded out the podium at {s3}, and in the end {n1} won it by {gap12} points.',
+      '{n3} finished third with {p3line}, but nobody caught {n1}, who won it by {gap12}.',
+      'It came down to just {gap12} points at the top, which makes it one of the closer races we’ve seen.{tight}',
+      'In the end it wasn’t close, because {n1} won it by {gap12} points.{wide}']],
+  upsets: [['It wasn’t the only upset tonight, and each of these players had a hand in knocking off a favorite.',
+      'The favorites had a rough night overall, and these are the players who made it happen.',
+      'There were {upN} upsets in all tonight, and every one of them had a star of its own.'],
+    ['{u2star} led the {u2w} past the {u2l} as {u2c} underdogs, while {u3star} did the same for the {u3w} at {u3c}.',
+      '{u2star} carried the {u2w} to a win at {u2c} with {u2pts} points, and that’s one more card worth keeping.',
+      '{u2star} scored {u2pts} to help the {u2w} beat the {u2l}, and {u3star} came through for the {u3w} too.']],
+  duel: [['The runner-up duel was no slouch either, with {ra} edging {rb} {rag} to {rbg} in Game Score.',
+      'Just missing the cut was {ra} against {rb}, a matchup {ra} won {rag} to {rbg}.',
+      '{ra} for the {rateam} and {rb} for the {rbteam} gave us the second-best duel of the night, and it went to {ra}, {rag} to {rbg}.'],
+    ['On most nights that one would have been the main event, and both cards are worth keeping.', 'It was good, just not quite as good as the main event.']],
+  slayer: [['The runner-up giant-slayer was {ra}, who outplayed {rb} despite being rated {rgap} points lower.',
+      'Another long shot came through when {ra} beat {rb} by Game Score, {rag} to {rbg}, at {rchance} odds.',
+      'At {rchance}, {ra} still got the better of {rb}, which gives us two giant-slayers on the same night.'],
+    ['It wasn’t quite as wild as the winner, but it was close.', 'Two giants fell tonight, and he deserves credit too.']],
 }
 
-// Live look-ins: games still in progress, woven through the show
+// Live look-ins: games still in progress, woven through the show, led by the players in them
 const L = {
-  board: [['And the night isn’t over.', 'We’re not done yet, either.', 'Meanwhile, the action is still going.', 'But first, a look at what’s still being played.'],
-    ['We’ve got {liveTxt} in progress right now.', 'There {liveAre} still {liveTxt} going as we speak.', '{liveTxt} {liveIs} still on the floor.'],
-    ['We’ll check in on them throughout the show.', 'We’ll bring you live look-ins as we go.', 'Stay with us for updates all show long.', 'We’ll keep an eye on every one of them.']],
-  intro: [['Let’s take a quick look at a game in progress.', 'We’ve got a game going right now.', 'Live look-in time.', 'Let’s check in on a game that’s still going.', 'Time for a live update.', 'Somewhere in the league, they’re still playing.', 'Let’s send it to a game in progress.', 'Quick check on a game that’s still on.'],
-    ['It’s the {away} at the {home}, and the {leader} lead {leadScore} {clock}.', 'The {leader} are up {margin} on the {trailer} {clock}.', 'The {away} and the {home} are all tied up at {tieScore} {clock}.', '{away} at {home}, {leadScore} {leader} {clock}.'],
-    ['Here’s where it stands.', 'Let’s look at the live numbers.', 'Here’s the live picture.', 'Let’s go to the board.']],
-  bug: [['Before tipoff, the {fav} were {favPct} favorites.', 'The pre-game forecast had the {fav} at {favPct}.', 'Coming in, the {fav} were the pick at {favPct}.', 'The {fav} came in as {favPct} favorites.'],
-    ['Right now our live model gives the {liveLead} a {livePct} chance.', 'With the clock running, the {liveLead} are at {livePct}.', 'The live win chance has the {liveLead} at {livePct}.', 'As of now, it’s {livePct} for the {liveLead}.'],
-    ['That’s an upset watch.{uw}', 'The underdog has the edge right now, so keep an eye on this one.{uw}', 'We project a final of {projLine}.', 'Our projected final: {projLine}.', 'There’s plenty of basketball left.{early}', 'This one could come down to the wire.{late}', 'The favorite is in control.{safe}']],
-  box: [['Here’s who’s carrying the load so far.', 'The top performers so far.', 'The live leaders.', 'Here’s who’s shining in this one.'],
-    ['{t1} has {t1pts} points, {t1reb} rebounds and {t1ast} assists for the {t1team}.', '{t1} leads everybody with a {t1gs} Game Score so far.', '{t1} is up to {t1pts} points for the {t1team}.', '{t1} has been the best player on the floor, {t1pts} points and counting.'],
-    ['{t2} has {t2pts} for the {t2team}.', 'On the other side, {t2} has {t2pts}.', '{t2} is keeping the {t2team} in it with {t2pts}.', '{t2} has a {t2gs} Game Score of his own.'],
-    ['We’ll come back to this one.', 'We’ll check back in later in the show.', 'Back to the rest of the night.', 'Keep it here for updates.']],
+  board: [['And the night isn’t over, because we’ve got {liveTxt} in progress right now, and we’ll check in on them throughout the show.',
+      'Meanwhile, {liveTxt} {liveIs} still going as we speak, and we’ll bring you live look-ins as we go.',
+      'We’re not done yet, either, since {liveTxt} {liveIs} still being played, and we’ll keep an eye on every one of them.']],
+  intro: [['Let’s check in on a game that’s still going, where {t1} has {t1pts} points for the {t1team} {clock}.',
+      'We’ve got a game in progress, and {t1} is putting on a show with {t1pts} points {clock}.',
+      'Time for a live look-in, and {t1} is the story so far with {t1pts} points for the {t1team} {clock}.',
+      'Let’s send it to the {away} and {home}, where {t1} already has {t1pts} points {clock}.'],
+    ['The {leader} lead the {trailer} {leadScore}, and he’s a big reason why.{t1lead}', 'The {leader} are up {margin}, but the {t1team} are still within striking distance thanks to him.{t1trail}', 'It’s {leadScore} {leader} right now, and we’ll see how it plays out.', 'It’s all tied up at {tieScore}, so every bucket matters from here.']],
+  box: [['{t1} has {t1pts} points, {t1reb} rebounds and {t1ast} assists so far, and his {t1gs} Game Score leads everybody on the floor.',
+      'His {t1gs} Game Score is the best in the game so far, and he’s getting it done on {t1fg} shooting.',
+      '{t1} has been the best player on the floor, with {t1pts} points and a {t1gs} Game Score so far.'],
+    ['{t2} is doing his best to answer for the {t2team} with {t2pts} points, and we’ll see if he can keep it up.',
+      'On the other side, {t2} has {t2pts} for the {t2team}, and he’s the one to watch the rest of the way.',
+      '{t2} has a {t2gs} Game Score of his own, so this one has the makings of a duel.']],
+  bug: [['Before tipoff the {fav} were {favPct} favorites, and right now our live model gives the {liveLead} a {livePct} chance.',
+      'The {fav} came in at {favPct}, and as of now it’s {livePct} for the {liveLead}.',
+      'The pre-game forecast had the {fav} at {favPct}, and with the clock running, the {liveLead} are at {livePct}.'],
+    ['That’s an upset watch, so keep an eye on this one.{uw}', 'We project a final of {projLine}, and we’ll check back in later in the show.', 'There’s plenty of basketball left, so we’ll come back to this one.{early}', 'This one could come down to the wire, so stay close.{late}', 'The favorite looks to be in control, but we’ll keep watching.{safe}']],
 }
 const LiveCtx = createContext(null)
 const ORD = ['first', 'second', 'third', 'fourth']
@@ -192,7 +261,9 @@ const stampLine = t => STAMP_LINE[t] || (t.startsWith('Promoted to ') ? `That ma
 
 const rng = seed => { let x = seed % 2147483647 || 1; return () => (x = (x * 48271) % 2147483647) / 2147483647 }
 const usable = (t, v) => [...t.matchAll(/\{(\w+)\}/g)].every(m => v[m[1]] != null)
-const fill = (t, v) => t.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? '').replace(/\.\./g, '.').replace(/\.,/g, ',')
+// "an 18.2", "an 8-point", "an 11 of 18", but "a 33.5"
+const anFix = t => t.replace(/\b([Aa]) (\d[\d,]*)/g, (m, a, num) => { const i = num.split(/[.,]/)[0]; return /^8/.test(i) || i === '11' || i === '18' ? `${a}n ${num}` : m })
+const fill = (t, v) => anFix(t.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? '').replace(/\.\./g, '.').replace(/\.,/g, ','))
 const say = (banks, v, r) => banks.map(b => { const ok = b.filter(t => usable(t, v)); if (!ok.length) return ''; return fill(ok[Math.floor(r() * ok.length)], v) }).filter(Boolean).join(' ')
 const combos = banks => banks.reduce((n, b) => n * b.length, 1)
 const bn = n => n.replace(/\s*\(.*\)$/, '')
@@ -411,15 +482,17 @@ function LiveLines({ ps, kit, k }) {
 }
 
 // The night, read off the finals
-function buildNight({ finals, side }) {
-  const G = finals.map(({ c, f }) => {
+function buildNight({ finals, live = [], side }) {
+  const wrap = ({ c, f }) => {
     const g = c.g
     const pts = { [g.teams[0]]: g.pts[0], [g.teams[1]]: g.pts[1] }
     const win = pts[g.teams[0]] > pts[g.teams[1]] ? g.teams[0] : g.teams[1]
-    return { g, f, pts, win, lose: g.teams.find(t => t !== win), home: f.home, away: f.away }
-  })
-  const byId = new Map(G.map(x => [x.g.id, x]))
-  const all = G.flatMap(x => x.g.players.map(p => ({ p, x }))).filter(({ p }) => p.mp == null || p.mp > 0)
+    return { g, f, pts, win, lose: g.teams.find(t => t !== win), home: f.home, away: f.away, live: c.state === 'in' }
+  }
+  const G = finals.map(wrap)
+  const LG = live.filter(x => x.c.g).map(wrap)
+  const byId = new Map([...G, ...LG].map(x => [x.g.id, x]))
+  const all = [...G, ...LG].flatMap(x => x.g.players.map(p => ({ p, x }))).filter(({ p }) => p.mp == null || p.mp > 0)
   const potd = side.picks.find(x => x[0] === 'Player of the Day')?.[1]
   const pd = potd && byId.get(potd.g.id) && { p: potd.p, x: byId.get(potd.g.id) }
   const ups = G.filter(x => x.f.upset && x.f.wp).sort((a, b) => a.f.wp[a.win] - b.f.wp[b.win])
@@ -436,7 +509,7 @@ function buildNight({ finals, side }) {
   const podium = [...all].sort((a, b) => ns(b.p) - ns(a.p)).slice(0, 3).map(o => ({ ...o, ns: ns(o.p) }))
   // Each game's best duel and widest giant-slayer gap; the runner-up comes from a different game than the winner
   const duels = [], slayers = []
-  for (const x of G) {
+  for (const x of [...G, ...LG]) {
     const ps = x.g.players
     let d = null, sl = null
     for (const a of ps) for (const b of ps) {
@@ -450,7 +523,8 @@ function buildNight({ finals, side }) {
   }
   duels.sort((a, b) => b.sc - a.sc); slayers.sort((a, b) => b.gap - a.gap)
   const dd = pick('duel'), ss = pick('slayer')
-  return { G, pd, ups, careers, podium, duel2: dd && duels.find(d => d.x.g.id !== dd.g.id), slayer2: ss && slayers.find(d => d.x.g.id !== ss.g.id), cg, mils, mil, risers, fallers: [...risers].reverse(), duel: pick('duel'), slayer: pick('slayer'),
+  const top5 = [...all].sort((a, b) => b.p.gs - a.p.gs).slice(0, 5)
+  return { G, pd, ups, careers, podium, top5, duel2: dd && duels.find(d => d.x.g.id !== dd.g.id), slayer2: ss && slayers.find(d => d.x.g.id !== ss.g.id), cg, mils, mil, risers, fallers: [...risers].reverse(), duel: pick('duel'), slayer: pick('slayer'),
     big: [...G].sort((a, b) => margin(b) - margin(a))[0] || null, close: [...G].sort((a, b) => margin(a) - margin(b))[0] || null,
     hi: G.flatMap(x => [x.win, x.lose].map(t => ({ t, v: x.pts[t] }))).sort((a, b) => b.v - a.v)[0] || null }
 }
@@ -473,7 +547,8 @@ function buildShow(N, kit, seed, act, side, live) {
       tpline: p.tpa >= 3 ? `${p.tp} of ${p.tpa} from three` : null, ftline: p.fta >= 3 ? `${p.ft} of ${p.fta}` : null, ts: ts ? `${ts}%` : null,
       delta: Math.abs(p.post - p.pre).toFixed(1), up: p.post >= p.pre ? 'up' : 'down', pre: r0(p.pre), post: r0(p.post),
       rank: p.lrp != null && p.lrp <= 150 ? p.lrp : null, prev: p.lr != null && p.lr <= 300 ? p.lr : null, ns: (p.gs + (p.post - p.pre) / 6).toFixed(1),
-      rv: won ? 'beat' : 'fell to', rn: won ? 'win' : 'loss', score: `${x.pts[x.win]}–${x.pts[x.lose]}`,
+      rv: x.live ? (won ? 'lead' : 'trail') : won ? 'beat' : 'fell to', rn: x.live ? 'game still in progress' : won ? 'win' : 'loss', score: `${x.pts[x.win]}–${x.pts[x.lose]}`,
+      dbl: S && p.gs >= 2 * S.gs ? '' : null,
       spts: S ? f1(S.pts) : null, sreb: S ? f1(S.trb) : null, sast: S ? f1(S.ast) : null, sgs: S ? f1(S.gs) : null, gp: S?.gp ?? null,
       ptsOver: S && p.pts - S.pts >= 3 ? `${Math.round(p.pts - S.pts)} points` : null,
       peak: peak ? r0(peak) : null, peakGap: peak && peak - p.post >= 5 ? r0(peak - p.post) : null, newPeak: peak && p.post >= peak ? '' : null,
@@ -510,7 +585,7 @@ function buildShow(N, kit, seed, act, side, live) {
   const chartBeat = (p, x, v) => {
     const c = chartFor(p, x)
     if (!c) return null
-    return { gfx: true, head: [c.kind === 'career' ? 'Career Elo' : 'Season Elo', bn(p.n), c.right], view: <div className={s.chartWrap}>{c.node}</div>,
+    return { gfx: true, head: [c.kind === 'career' ? 'Career Elo' : 'Season Elo', bn(p.n), c.right], view: <div className={s.split2}>{card(p, x, 250)}<div className={s.chartWrap}>{c.node}</div></div>,
       line: say(c.kind === 'career' ? B.career : B.seasonGraph, v, r), go: () => act.card(x.g, p) }
   }
   const vsBeat = (p, x, v, banks, head) => {
@@ -550,15 +625,16 @@ function buildShow(N, kit, seed, act, side, live) {
       early: per && per <= 2 && !f.upset ? '' : null, late: per >= 4 && Math.abs(hs - as) <= 6 ? '' : null, safe: pl != null && Math.max(pl, 1 - pl) >= 0.9 && liveLead === f.fav ? '' : null }
     const ps = c.g ? [...c.g.players].filter(p => p.gs != null).sort((a, b) => b.gs - a.gs) : []
     const t1 = ps[0], t2 = t1 && ps.find(p => p.t !== t1.t)
-    Object.assign(v, t1 ? { t1: bn(t1.n), t1pts: t1.pts, t1reb: t1.trb ?? null, t1ast: t1.ast ?? null, t1gs: t1.gs.toFixed(1), t1team: tShort(t1.t) } : {},
+    Object.assign(v, t1 ? { t1: bn(t1.n), t1pts: t1.pts, t1reb: t1.trb ?? null, t1ast: t1.ast ?? null, t1gs: t1.gs.toFixed(1), t1team: tShort(t1.t), t1fg: t1.fga ? `${t1.fg}-of-${t1.fga}` : null,
+      t1lead: leader && t1.t === leader ? '' : null, t1trail: leader && t1.t !== leader ? '' : null } : {},
       t2 ? { t2: bn(t2.n), t2pts: t2.pts, t2gs: t2.gs.toFixed(1), t2team: tShort(t2.t) } : {})
     const title = `Live: ${tCode(away)} at ${tCode(home)}`
     const open = c.g ? () => act.box(c.g) : null
     return { id: `live-${c.key}`, title, live: true, takes: combos(L.intro) * combos(L.bug) * combos(L.box), beats: [
-      anchor(<span className={s.miniBug}>{[away, home].map(t => <span key={t}><i style={{ background: tColor(t) }} /><b>{tCode(t)}</b><strong>{pts[t] ?? 0}</strong></span>)}<em><u />LIVE</em></span>, 'Live look-in', say(L.intro, v, r), open),
-      { gfx: true, head: ['Live', tCode(away) + ' @ ' + tCode(home), String(lv.detail || '')], view: <LiveBug k={c.key} snap={{ c, f }} kit={kit} />, line: say(L.bug, v, r), go: open },
+      anchor(t1 ? <Slot h={196}>{kit.miniCard(c.g, t1)}</Slot> : <span className={s.miniBug}>{[away, home].map(t => <span key={t}><i style={{ background: tColor(t) }} /><b>{tCode(t)}</b><strong>{pts[t] ?? 0}</strong></span>)}<em><u />LIVE</em></span>, 'Live look-in', say(t1 ? L.intro : [['Let’s check in on a game that’s still going between the {away} and the {home}.'], L.intro[1]], v, r), t1 ? () => act.card(c.g, t1) : open),
       t1 && t2 && { gfx: true, head: ['Leaders so far', 'Live', `${tShort(away)} at ${tShort(home)}`], go: open,
         view: <div className={s.tape}><Slot h={250}>{kit.miniCard(c.g, t1)}</Slot><LiveLines ps={[t1, t2]} kit={kit} k={c.key} /><Slot h={250} i={1}>{kit.miniCard(c.g, t2)}</Slot></div>, line: say(L.box, v, r) },
+      { gfx: true, head: ['Live', tCode(away) + ' @ ' + tCode(home), String(lv.detail || '')], view: <LiveBug k={c.key} snap={{ c, f }} kit={kit} />, line: say(L.bug, v, r), go: open },
     ].filter(Boolean) }
   }
 
@@ -577,26 +653,27 @@ function buildShow(N, kit, seed, act, side, live) {
   const fanView = picks => <div className={s.fan}>{picks.map(([label, v, kind], i) => (
     <span key={label} className={s.fanItem} style={{ '--d': `${0.25 * i + 0.2}s` }}>
       <Slot h={picks.length > 4 ? 226 : 250} tilt={(i - (picks.length - 1) / 2) * 4}>{kind ? kit.duelCard(kind, v) : kit.miniCard(v.g, v.p)}</Slot><small>{label}</small></span>))}</div>
+  const T5 = N.top5
+  const tv = T5.length >= 3 ? { t1: bn(T5[0].p.n), t1gs: T5[0].p.gs.toFixed(1), t1pts: T5[0].p.pts, t1opp: tShort(opp(T5[0].p, T5[0].x)),
+    t2: bn(T5[1].p.n), t2gs: T5[1].p.gs.toFixed(1), t2pts: T5[1].p.pts, t2team: tShort(T5[1].p.t), t3: bn(T5[2].p.n), t3pts: T5[2].p.pts, t3team: tShort(T5[2].p.t) } : {}
+  const topFan = <div className={s.fan}>{T5.map((m, i) => <span key={m.p.n} className={s.fanItem} style={{ '--d': `${0.25 * i + 0.2}s` }}>{card(m.p, m.x, T5.length > 4 ? 226 : 250, 0, (i - (T5.length - 1) / 2) * 3)}<small>{i + 1}. {m.p.gs.toFixed(1)} GMSC{m.x.live ? ' · LIVE' : ''}</small></span>)}</div>
   const liveBoard = ln > 0 && { gfx: true, head: ['Live right now', 'In progress', `${ln} game${ln === 1 ? '' : 's'}`], view: <LiveGrid live={live} kit={kit} onOpen={act.live} />, line: say(L.board, ov, r) }
   if (!n) seg('open', 'Tonight’s games', [
-    anchor(<><span className={s.big2}>{ln}</span><span className={s.big2l}>LIVE</span></>, 'In progress', say([OPENERS, ['No finals yet, but there’s plenty going on.', 'The night is still young.', 'Nothing’s final yet, so let’s go around the league.']], ov, r)),
+    anchor(N.top5[0] ? card(N.top5[0].p, N.top5[0].x, 196) : <><span className={s.big2}>{ln}</span><span className={s.big2l}>LIVE</span></>, 'In progress', say([OPENERS, ['No finals yet, but there’s plenty going on.', 'The night is still young.', 'Nothing’s final yet, so let’s go around the league.']], ov, r)),
     liveBoard,
+    N.top5.length >= 3 && { gfx: true, head: ['Top performers so far', 'Game Score', 'Live'], view: topFan, line: say(B.open.top, tv, r) },
   ], combos(OPENERS) * tkL(L.board))
   else seg('open', 'Tonight’s finals', [
-    anchor(<><span className={s.big2}>{n}</span><span className={s.big2l}>FINAL{n === 1 ? '' : 'S'}</span></>, 'All final', say(B.open.intro, ov, r)),
-    { gfx: true, head: ['Around the league', 'Final'], view: <div className={s.scores}>{N.G.map((x, i) => (
-      <button key={x.g.id} type="button" style={{ animationDelay: `${0.08 * i}s` }} onClick={() => act.box(x.g)}>
-        {[x.away, x.home].map(t => <span key={t} data-w={t === x.win ? '' : undefined}><i style={{ background: tColor(t) }} /><b>{tCode(t)}</b><b>{x.pts[t]}</b></span>)}
-        {x.f.upset && x.f.wp ? <em>UPSET · {pct(x.f.wp[x.win])}</em> : <em data-q>FINAL{x.g.ot ? `/${x.g.ot}` : ''}</em>}
-      </button>))}</div>, line: say(B.open.scores, ov, r) },
+    anchor(N.pd ? card(N.pd.p, N.pd.x, 196) : <><span className={s.big2}>{n}</span><span className={s.big2l}>FINAL{n === 1 ? '' : 'S'}</span></>, N.pd ? 'Player of the Day' : 'All final', say(B.open.intro, ov, r)),
+    N.top5.length >= 3 && { gfx: true, head: ['Top performers', 'Game Score', 'Tonight'], view: topFan, line: say(B.open.top, tv, r) },
     liveBoard,
     side.picks.length > 1 && { gfx: true, head: ['Cards of the Day', 'Tonight'], view: fanView(side.picks), line: say(B.open.fan, ov, r) },
-  ], tk(B.open))
+  ], combos(OPENERS) * combos(B.open.top) * combos(B.open.fan))
 
   // 2 · Player of the Day
   if (N.pd) {
     const { p, x } = N.pd, v = facts(p, x)
-    seg('potd', 'Player of the Day', [
+    seg('potd', x.live ? 'Player of the Day race' : 'Player of the Day', [
       anchor(card(p, x, 196), 'Player of the Day', say(B.potd.intro, v, r), () => act.card(x.g, p)),
       heroBeat(p, x, v, B.potd.hero, ['Player of the Day', 'Top performer', `${tShort(p.t)} vs ${tShort(opp(p, x))}`]),
       N.podium.length >= 3 && N.podium[0].p === p && (() => {
@@ -608,9 +685,9 @@ function buildShow(N, kit, seed, act, side, live) {
       })(),
       p.fga ? { gfx: true, head: ['Shooting', bn(p.n), p.fga >= 5 ? `${Math.round(p.pts / (2 * (p.fga + 0.44 * (p.fta || 0))) * 100)}% true shooting` : ''],
         view: <div className={s.split2}>{card(p, x, 300)}<Splits p={p} S={kit.seasonOf(p.n)} /></div>, line: say(B.potd.shoot, v, r), go: () => act.card(x.g, p) } : null,
+      vsBeat(p, x, v, B.potd.vs, ['Tonight vs his season', 'Player of the Day', bn(p.n)]),
       chartBeat(p, x, v),
-      boxBeat(x, [p.n], v, B.box, ['The box score', 'Final', `${tShort(x.win)} ${x.pts[x.win]}, ${tShort(x.lose)} ${x.pts[x.lose]}`]),
-    ], tk(B.potd) * combos(B.career) * combos(B.box))
+    ], tk(B.potd) * combos(B.career))
   }
 
   // 3 · Upset
@@ -623,26 +700,24 @@ function buildShow(N, kit, seed, act, side, live) {
     const v = { win: tShort(x.win), lose: tShort(x.lose), chance: pct(wp[x.win]), fav: pct(wp[x.lose]), score: `${x.pts[x.win]}–${x.pts[x.lose]}`,
       oneIn: wp[x.win] < 0.34 ? Math.round(1 / wp[x.win]) : null, margin: (m => (m === 1 ? 'a single point' : `${m}`))(x.pts[x.win] - x.pts[x.lose]),
       otTail: g.ot ? ` in ${g.ot === 'OT' ? 'overtime' : g.ot}` : '', wtop: w && bn(w.n), wpts: w?.pts, ltop: l && bn(l.n), lpts: l?.pts,
-      winElo: eloW ? r0(eloW) : null, loseElo: eloL ? r0(eloL) : null, eloGap: eloW && eloL && eloL > eloW ? r0(eloL - eloW) : null }
+      winElo: eloW ? r0(eloW) : null, loseElo: eloL ? r0(eloL) : null, eloGap: eloW && eloL && eloL > eloW ? r0(eloL - eloW) : null,
+      star: star && bn(star.n), starGs: star?.gs.toFixed(1), starPts: star?.pts }
     seg('upset', 'Upset alert', [
-      anchor(<><span className={s.big2}>{pct(wp[x.win])}</span><span className={s.big2l}>{tCode(x.win)} PRE-GAME</span></>, 'Upset alert', say(B.upset.intro, v, r), () => act.box(g)),
+      anchor(star ? card(star, x, 196) : <><span className={s.big2}>{pct(wp[x.win])}</span><span className={s.big2l}>{tCode(x.win)} PRE-GAME</span></>, 'Upset alert', say(B.upset.intro, v, r), star ? () => act.card(g, star) : () => act.box(g)),
+      star && heroBeat(star, x, facts(star, x), B.upset.hero, ['Upset star', tCode(x.win), bn(star.n)]),
       { gfx: true, head: ['Upset alert', 'Final', `${tShort(x.away)} at ${tShort(x.home)}`], go: () => act.box(g), view: <><div className={s.wpg}>
         {[x.away, x.home].map(t => <div key={t} className={s.wpRow}><span className={s.tm} style={{ '--c': tColor(t) }}>{tName(t).toUpperCase()}</span><span className={s.sc} data-w={t === x.win ? '' : undefined}>{x.pts[t]}</span></div>)}
         <div className={s.wpLab}><span>{tCode(x.away)} {pct(wp[x.away])}</span><span>PRE-GAME WIN CHANCE</span><span>{pct(wp[x.home])} {tCode(x.home)}</span></div>
         <div className={s.wpBar}><i style={{ width: `${wp[x.away] * 100}%`, background: tColor(x.away) }} /><i style={{ flex: 1, background: tColor(x.home) }} /></div>
       </div><div className={s.stamp}>UPSET</div></>, line: say(B.upset.wp, v, r) },
-      v.eloGap && { gfx: true, head: ['The lineups', 'Elo', `${v.eloGap} points apart`], go: () => act.box(g),
-        view: <VsBars color={tColor(x.win)} rows={[x.win, x.lose].map(t => ({ l: `${tName(t)} lineup`, a: Math.max(1, g.elo[t].pre - Math.min(eloW, eloL) + 120), fa: r0(g.elo[t].pre), c: t === x.win ? '#ffd34d' : '#d6223a' }))} />, line: say(B.upset.lineup, v, r), noLegend: true },
-      w && l && boxBeat(x, [w.n, l.n], v, B.upset.box, ['The box score', 'Final', `${tShort(x.win)} ${x.pts[x.win]}, ${tShort(x.lose)} ${x.pts[x.lose]}`]),
-      star && heroBeat(star, x, facts(star, x), B.upset.hero, ['Upset star', tCode(x.win), bn(star.n)]),
       N.ups.length > 1 && (() => {
         const [, u2, u3] = N.ups
-        const uv = { u2w: tShort(u2.win), u2l: tShort(u2.lose), u2c: pct(u2.f.wp[u2.win]), u2s: `${u2.pts[u2.win]}–${u2.pts[u2.lose]}`,
+        const st = y => [...y.g.players].filter(q => q.t === y.win).sort((a, b) => b.gs - a.gs)[0]
+        const s2 = st(u2), s3 = u3 && st(u3)
+        const uv = { u2star: s2 && bn(s2.n), u2pts: s2?.pts, u3star: s3 && bn(s3.n), u2w: tShort(u2.win), u2l: tShort(u2.lose), u2c: pct(u2.f.wp[u2.win]), u2s: `${u2.pts[u2.win]}–${u2.pts[u2.lose]}`,
           u3w: u3 ? tShort(u3.win) : null, u3l: u3 ? tShort(u3.lose) : null, u3c: u3 ? pct(u3.f.wp[u3.win]) : null, upN: N.ups.length > 2 ? N.ups.length : null }
-        return { gfx: true, head: ['More upsets', 'Final', `${N.ups.length} tonight`], view: <div className={s.list}>{N.ups.map((y, i) => (
-          <button key={y.g.id} type="button" style={{ animationDelay: `${0.25 * i + 0.3}s` }} onClick={() => act.box(y.g)} data-first={i === 0 ? '' : undefined}>
-            <span className={s.upPct}>{pct(y.f.wp[y.win])}</span><b>{tName(y.win)}</b><small>over {tCode(y.lose)}</small>
-            <em className={s.upBar}><i style={{ width: `${y.f.wp[y.win] * 100}%` }} /><span>{y.pts[y.win]}–{y.pts[y.lose]}{y.g.ot ? ` ${y.g.ot}` : ''}</span></em></button>))}</div>,
+        return { gfx: true, head: ['More upsets', 'Upset stars', `${N.ups.length} tonight`], view: <div className={s.fan}>{N.ups.slice(0, 5).map((y, i) => { const q = st(y); return q && (
+          <span key={y.g.id} className={s.fanItem} style={{ '--d': `${0.25 * i + 0.2}s` }}>{card(q, y, N.ups.length > 4 ? 226 : 250, 0, (i - 2) * 3)}<small>{tCode(y.win)} over {tCode(y.lose)} · {pct(y.f.wp[y.win])}</small></span>) })}</div>,
           line: say(RU.upsets, uv, r) }
       })(),
     ], tk(B.upset))
@@ -671,14 +746,13 @@ function buildShow(N, kit, seed, act, side, live) {
     const v = { ...facts(p, x), jump: p.lr != null && p.lrp != null && p.lr > p.lrp ? p.lr - p.lrp : null, stamp: stampLine(stamp.text), milN: N.mils.length > 1 ? N.mils.length : null }
     if (!(p.lr > p.lrp)) { v.prev = null; v.rank = null }
     seg('climb', 'Milestone', [
-      anchor(<><span className={s.big2}>#{p.lrp}</span><span className={s.big2l}>{lastName(p.n).toUpperCase()}</span></>, 'Milestone ◆', say(B.milestone.intro, v, r), () => act.card(x.g, p)),
+      anchor(card(p, x, 196), 'Milestone ◆', say(B.milestone.intro, v, r), () => act.card(x.g, p)),
       { gfx: true, head: ['Milestone', '◆', bn(p.n)], go: () => act.card(x.g, p), view: <div className={s.split2}>{card(p, x, 300)}<div className={s.rank}>
         {p.lr != null && p.lr !== p.lrp && <><span className={s.from}>#{p.lr}</span><span className={s.arrow}>→</span></>}<span className={s.to}>#{p.lrp}</span>
         <span className={s.stamps}>{N.mil.stamps.map((t, i) => <span key={t.text} className={s.tierB} data-down={t.up ? undefined : ''} style={{ animationDelay: `${1.1 + i * 0.3}s` }}>{t.text.toUpperCase()}</span>)}</span></div></div>,
         line: say(B.milestone.rank, v, r) },
       chartBeat(p, x, v),
-      N.mils.length > 1 && { gfx: true, head: ['Milestones', '◆', `${N.mils.length} tonight`], view: <div className={s.list}>{N.mils.slice(0, 7).map((m, i) => (
-        <button key={m.p.n} type="button" style={{ animationDelay: `${0.2 * i + 0.3}s` }} onClick={() => act.card(m.x.g, m.p)}><span className={s.dia}>◆</span><b>{bn(m.p.n)}</b><small>{tCode(m.p.t)}</small><em>{m.stamps.map(t => t.text).join(' · ')}</em></button>))}</div>,
+      N.mils.length > 1 && { gfx: true, head: ['Milestones', '◆', `${N.mils.length} tonight`], view: <div className={s.fan}>{[...N.mils].filter(m => m.p.n !== p.n).sort((a, b) => (b.stamps.some(t => t.up) ? 1 : 0) - (a.stamps.some(t => t.up) ? 1 : 0)).slice(0, 5).map((m, i, a) => <span key={m.p.n} className={s.fanItem} style={{ '--d': `${0.25 * i + 0.2}s` }}>{card(m.p, m.x, a.length > 4 ? 226 : 250, 0, (i - (a.length - 1) / 2) * 3)}<small>◆ {(m.stamps.find(t => t.up) || m.stamps[0]).text}</small></span>)}</div>,
         line: say(B.milestone.list, v, r) },
     ], tk(B.milestone) * combos(B.career))
   }
@@ -687,15 +761,11 @@ function buildShow(N, kit, seed, act, side, live) {
   const R = N.risers[0], F = N.fallers[0]
   if (R && F && R.p !== F.p) {
     const rows = [...N.risers.slice(0, 3), ...N.fallers.slice(0, 2)]
-    const mx = Math.max(R.p.post - R.p.pre, F.p.pre - F.p.post, 1)
     seg('movers', 'Elo movers', [
-      anchor(card(R.p, R.x, 196), 'Elo movers', say(B.movers.bars, { rname: bn(R.p.n), rdelta: f1(R.p.post - R.p.pre), fname: bn(F.p.n), fdelta: f1(F.p.pre - F.p.post) }, r)),
-      { gfx: true, head: ['Elo movers', 'Risers & fallers', 'Tonight'], view: <div className={s.movers}>{rows.map(({ p, x }, i) => { const d = p.post - p.pre; return (
-        <button key={p.n + i} type="button" className={s.mv} onClick={() => act.card(x.g, p)} style={{ animationDelay: `${0.25 * i + 0.2}s` }}><span><b>{kit.shortName(p.n)}</b><small>{tCode(p.t)} · {r0(p.pre)} → {r0(p.post)}</small></span>
-          <span className={s.mvBar}><i style={{ left: `${d >= 0 ? 50 : 50 - Math.abs(d) / mx * 50}%`, width: `${Math.abs(d) / mx * 50}%`, background: d >= 0 ? '#2fae5c' : '#d6223a', animationDelay: `${0.25 * i + 0.4}s` }} /><i className={s.mid} /></span>
-          <strong className={d >= 0 ? s.up : s.dn}>{sgn(d)}</strong></button>) })}</div>,
-        line: say([['The full board.', 'Here are the top three risers and the two biggest fallers.', 'Up top, the gainers. Down below, the drops.'],
-          ['{r2} was next, up {r2d}, followed by {r3} at {r3d}.', 'Behind him, {r2} gained {r2d} and {r3} gained {r3d}.', '{r2} finished second among the risers at {r2d}.', '{f2} had the second-biggest drop, {f2d}.'], ['Big nights against highly rated opponents are what move the needle.', 'Elo rewards production against good competition.', 'Every one of these swings came from a single game.']], { r2: N.risers[1] && bn(N.risers[1].p.n), r2d: N.risers[1] && f1(N.risers[1].p.post - N.risers[1].p.pre),
+      anchor(card(R.p, R.x, 196), 'Elo movers', say(B.movers.intro, { rname: bn(R.p.n), rdelta: f1(R.p.post - R.p.pre), fname: bn(F.p.n), fdelta: f1(F.p.pre - F.p.post) }, r), () => act.card(R.x.g, R.p)),
+      { gfx: true, head: ['Elo movers', 'Risers & fallers', 'Tonight'], view: <div className={s.fan}>{rows.map(({ p, x }, i) => { const d = p.post - p.pre; return (
+        <span key={p.n + i} className={s.fanItem} style={{ '--d': `${0.25 * i + 0.2}s` }}>{card(p, x, 226, 0, (i - 2) * 3)}<small className={d >= 0 ? s.up : s.dn}>{sgn(d)} ELO</small></span>) })}</div>,
+        line: say(B.movers.fan, { rname: bn(R.p.n), r2: N.risers[1] && bn(N.risers[1].p.n), r2d: N.risers[1] && f1(N.risers[1].p.post - N.risers[1].p.pre),
           r3: N.risers[2] && bn(N.risers[2].p.n), r3d: N.risers[2] && f1(N.risers[2].p.post - N.risers[2].p.pre), f2: N.fallers[1] && bn(N.fallers[1].p.n), f2d: N.fallers[1] && f1(N.fallers[1].p.pre - N.fallers[1].p.post) }, r) },
       heroBeat(R.p, R.x, facts(R.p, R.x), B.movers.riser, ['Top riser', sgn(R.p.post - R.p.pre), bn(R.p.n)]),
       chartBeat(R.p, R.x, facts(R.p, R.x)),
@@ -746,7 +816,7 @@ function buildShow(N, kit, seed, act, side, live) {
   // 9 · Sign-off
   seg('close', 'Sign-off', [
     side.picks.length > 1 ? { gfx: true, head: ['Cards of the Day', 'One more look'], view: fanView(side.picks), line: say(B.close.fan, ov, r) } : null,
-    anchor(<span className={s.wordmark}><i>FS</i>TONIGHT</span>, 'FanSided Tonight', say(ln ? [['We’ll keep watching the games still going.', 'There’s still basketball being played, so keep the TVs on.', 'The live games are on the wall.'], ...B.close.end] : B.close.end, ov, r)),
+    anchor(N.pd ? card(N.pd.p, N.pd.x, 196) : <span className={s.wordmark}><i>FS</i>TONIGHT</span>, 'FanSided Tonight', say(B.close.end, ov, r)),
   ], tk(B.close))
   return segs
 }
@@ -759,7 +829,7 @@ export default function FanSidedTonight({ kit, day, finals, live = [], side, sho
   // The script is rewritten when a game ends or a new one tips; live scores update inside the graphics
   const liveSig = live.map(x => x.c.key).join('|')
   const liveMap = useMemo(() => new Map(live.map(x => [x.c.key, x])), [live])
-  const segs = useMemo(() => buildShow(buildNight({ finals, side }), kit, seed, act, side, live), [sig, liveSig, seed, shots, hv])
+  const segs = useMemo(() => buildShow(buildNight({ finals, live, side }), kit, seed, act, side, live), [sig, liveSig, seed, shots, hv])
   const [seg, setSeg] = useState(0)
   const [beat, setBeat] = useState(0)
   const [playing, setPlaying] = useState(true)
