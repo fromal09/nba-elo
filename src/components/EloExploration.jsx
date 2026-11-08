@@ -1,6 +1,5 @@
 import { CURRENT_SEASON_YEAR } from '../season'
 import { hrefFor, linkTo } from '../nav.js'
-import { FeatureCard } from './Homepage'
 
 // Elo Exploration: every deep-dive page, one card each
 export default function EloExploration({ data, setView }) {
@@ -116,5 +115,44 @@ export default function EloExploration({ data, setView }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// One feature box: a link, so it opens in a new tab with a right-click or Cmd/Ctrl-click
+function FeatureCard({ card, href, onGo }) {
+  return (
+    <a {...linkTo(href, onGo)}
+      style={{
+        display: 'block', textDecoration: 'none', color: 'inherit',
+        background: '#fff',
+        border: '0.5px solid #e0e0e0',
+        borderRadius: 14, padding: 24,
+        cursor: 'pointer', transition: 'all 0.2s',
+        position: 'relative',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = '#173657'
+        e.currentTarget.style.transform = 'translateY(-2px)'
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(26,46,26,0.1)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = '#e0e0e0'
+        e.currentTarget.style.transform = 'none'
+        e.currentTarget.style.boxShadow = 'none'
+      }}
+    >
+      <div style={{
+        width: 36, height: 36, borderRadius: 8,
+        background: card.color, display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        marginBottom: 14, fontSize: 18,
+      }}>
+        {card.icon}
+      </div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>{card.title}</div>
+      <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5, marginBottom: 12 }}>{card.desc}</div>
+      <div style={{ fontSize: 12, color: '#173657', fontWeight: 500 }}>{card.meta}</div>
+      <div style={{ position: 'absolute', top: 20, right: 20, color: '#ccc', fontSize: 16 }}>→</div>
+    </a>
   )
 }

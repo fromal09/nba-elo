@@ -10,6 +10,7 @@ import { usePrizes, prizeNote } from './Prizes'
 import { useIndex as usePlayerIndex, search as searchPlayers } from './PlayerSearch'
 import { Serial, SpecialFace, SpecialModal, isSpecial, specialTitle } from './SpecialCards'
 import { cardPoints } from '../../api/_lib/points.js'
+import { useAutoTour } from './Tour'
 
 /*
  * Binders: a player's season (A), a player's career (C shelf + D album), a team's season (F) and a franchise (G).
@@ -1373,6 +1374,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const C = env.collector
   const prizes = usePrizes(C) // prize cards waiting to be chosen (a button on the left page and the phone dock)
   const mine = !pub
+  useAutoTour(mine ? 'binder' : null)
   const [view, setView] = useState(startView || 'all')     // all | team | decade | starred | sets | predict | badges
   const [group, setGroup] = useState(null)    // the franchise or decade shown
   const [mode, setMode] = useState('cards')   // cards | checklist, on the franchise and decade shelves

@@ -361,3 +361,8 @@
 .doors span { font-size: 13px; color: #d9c7ad; }
 .doors i { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); font-style: normal; font-size: 22px; color: #e7c160; }
 @media (max-width: 640px) { .doors { grid-template-columns: 1fr; padding: 16px 12px 28px; } }
+
+/* The daily checklist sits beside the binder; the desk objects run along below them */
+.clipSpot { flex: 0 1 400px; min-width: 0; display: flex; justify-content: center; }
+.scene:has(.clipSpot) .props { flex-basis: 100%; }
+@media (max-width: 760px) { .clipSpot { flex-basis: 100%; } }

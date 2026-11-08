@@ -431,8 +431,15 @@ export async function predSummary(sql, userId, today) {
       (select count(*)::int from pred_games where day = ${today} and state <> 'off' and line->'duel' is not null and coalesce(line->'duel'->>'void', '') = '') as duels,
       (select count(*)::int from duel_picks where user_id = ${userId} and day = ${today}) as duels_picked,
       (select count(*)::int from potd_picks where user_id = ${userId} and day = ${today}) as potd,
+      (select count(*)::int from predictions where user_id = ${userId} and day = ${today} and lock) as locked,
+      (select count(*)::int from lineups where user_id = ${userId} and day = ${today}) as lineup,
+      (select count(*)::int from pred_games where day = ${today} and state = 'post') as finals,
+      (select min(tip) from pred_games where day = ${today} and state = 'pre' and tip > now()) as next_tip,
       (select count(*)::int from pred_days where user_id = ${userId} and reward is not null and claimed_ref is null)
         + (select count(*)::int from duel_days where user_id = ${userId} and reward in ('rare', 'legend') and claimed_ref is null) as unclaimed`
+  // The week's Five Challenge entries (the table is the Five Challenge's own; a missing one counts as none)
+  const [f] = await sql`select count(*)::int as n from challenge_entries where user_id = ${userId} and week = ${weekStart(today)}`.catch(() => [{ n: 0 }])
+  x.five = f?.n || 0
   return x
 }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { BRAND } from '../brand.js'
 import styles from './BinderRoom.module.css'
 import shelf from './TrophyRoom.module.css'
 import { LEAGUE_SETS, cardRef, leagueEntries } from './Binders'
@@ -11,6 +12,7 @@ import { useShelf } from './ShelfFx'
 import { norm } from './predict'
 import { goTo, goTo as navTo, hrefFor } from '../nav.js'
 import { usePrizes, prizeNote } from './Prizes'
+import DeskClipboard from './DeskClipboard'
 import { fromIndex, Fit } from './Binders'
 import { MiniCard, DuelCard } from './PlayerCard'
 
@@ -30,11 +32,11 @@ const DRAWERS = [['player', 'Players'], ['franchise', 'Franchises'], ['season', 
 const Hubs = () => <span className={styles.hubs} aria-hidden="true"><i className={styles.hub} /><i className={styles.hub} /></span>
 const Corners = () => <span className={styles.corners} aria-hidden="true"><i /><i /><i /><i /></span>
 
-// Your desk: your binder lying closed under the lamp (your best card showing through its cover window), and the
+// Your desk: your binder lying closed on the desk (your best card showing through its cover window), and the
 // things you use every day as objects beside it: today's foil pack, the coin stack (Store), the Pick'em notepad
 // (tonight's predictions, in the Game Room), a brass nameplate with your standing and the punch card toward the next big pull
 function Foil({ label, sub, tone }) {
-  return <span className={styles.foil} data-tone={tone}><span>FPR</span><b>{label}</b><span>{sub}</span></span>
+  return <span className={styles.foil} data-tone={tone}><span>{BRAND.short}</span><b>{label}</b><span>{sub}</span></span>
 }
 
 function Desk({ C, shots, setOpen, env }) {
@@ -59,6 +61,8 @@ function Desk({ C, shots, setOpen, env }) {
         </span>
         <span className={styles.tag}>{me ? 'Open my binder' : 'Start your binder'}</span>
       </button>
+
+      {me && <div className={styles.clipSpot}><DeskClipboard C={C} onPrize={() => prizes.waiting[0] && setOpen({ kind: 'prize', day: prizes.waiting[0].day, which: prizes.waiting[0].which })} /></div>}
 
       <div className={styles.props}>
         <div className={styles.nameplate}>

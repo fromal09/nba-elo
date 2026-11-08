@@ -3,12 +3,13 @@
 // their own paths; every other view is /?view=<id>.
 
 export const TOP = [
-  { id: 'rankings', label: 'Current Rankings' },
-  { id: 'scoreboard', label: 'Scoreboard' },
-  { id: 'binders', label: 'My Desk' },
-  { id: 'library', label: 'The Library' },
-  { id: 'gameroom', label: 'The Game Room' },
-  { id: 'elo', label: 'Elo Exploration' },
+  { id: 'binders', label: 'My Desk', short: 'Desk' },
+  { id: 'library', label: 'The Library', short: 'Library' },
+  { id: 'scoreboard', label: 'The Scoreboard', short: 'Scores' },
+  { id: 'gameroom', label: 'The Game Room', short: 'Games' },
+  { id: 'store', label: 'The Store', short: 'Store' },
+  { id: 'rankings', label: 'Current Rankings', short: 'Rankings' },
+  { id: 'elo', label: 'Elo Exploration', short: 'Elo' },
 ]
 
 export const ELO_SUBS = [

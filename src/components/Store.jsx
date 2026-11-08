@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { BRAND } from '../brand.js'
+import { useAutoTour } from './Tour'
 import { HOLIDAYS } from './holidays'
 import styles from './Store.module.css'
 import { Fit, usePull, fromIndex } from './Binders'
@@ -52,6 +54,7 @@ function Pips({ p, n = 3 }) {
 }
 
 export function StoreBook({ env, onClose, onMine }) {
+  useAutoTour('store')
   const Ccards = useCollector().cards
   const C = env.collector
   const [store, setStore] = useState(null)
@@ -123,7 +126,7 @@ export function StoreBook({ env, onClose, onMine }) {
                       <span className={styles.hook} aria-hidden="true" />
                       <span className={styles.stack} style={{ '--a': a, '--b': b, '--ink': ink }}>
                         <span className={styles.pk} data-back="2" /><span className={styles.pk} data-back="1" />
-                        <span className={styles.pk}><span>FPR</span><b style={{ fontSize: fs(p.name) }}>{short(p.name)}</b>{p.kind === 'goat' && <i>★</i>}</span>
+                        <span className={styles.pk}><span>{BRAND.short}</span><b style={{ fontSize: fs(p.name) }}>{short(p.name)}</b>{p.kind === 'goat' && <i>★</i>}</span>
                       </span>
                       <span className={styles.talker}><small>{p.kind === 'era' ? `${(store.era?.years || '').toUpperCase()}` : TAG[p.kind] || 'PACK'}</small><Coin size={11} />{n0(p.price)}</span>
                     </button>
@@ -137,7 +140,7 @@ export function StoreBook({ env, onClose, onMine }) {
               {pk && <div className={styles.sheetDim} onClick={() => setPick(null)}>
                 <div className={styles.pickCard} role="dialog" aria-label={pk.name} onClick={e => e.stopPropagation()}>
                   <span className={styles.grab} aria-hidden="true" />
-                  <span className={styles.pickPack} style={{ '--a': foilOf(pk)[0], '--b': foilOf(pk)[1], '--ink': foilOf(pk)[2] }}><span className={styles.pk}><span>FPR</span><b style={{ fontSize: fs(pk.name) }}>{short(pk.name)}</b></span></span>
+                  <span className={styles.pickPack} style={{ '--a': foilOf(pk)[0], '--b': foilOf(pk)[1], '--ink': foilOf(pk)[2] }}><span className={styles.pk}><span>{BRAND.short}</span><b style={{ fontSize: fs(pk.name) }}>{short(pk.name)}</b></span></span>
                   <span className={styles.pickText}><small>{TAG[pk.kind] || 'PACK'}</small><b>{pk.name}</b>{pk.desc}</span>
                   <span className={styles.pickBuy}>
                     <button type="button" className={styles.buy} disabled={bal < pk.price || !!busy} onClick={() => buyPack(pk.kind)}>

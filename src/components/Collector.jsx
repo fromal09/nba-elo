@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { BRAND } from '../brand.js'
 import { hrefFor, linkTo } from '../nav.js'
 import styles from './Collector.module.css'
 import { MiniCard, DuelCard } from './PlayerCard'
@@ -360,11 +361,11 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
             style={kind === 'team' || kind === 'storeteam' || kind.startsWith('banner') ? { '--pc': binderTeamInfo(pack.team).color || '#173657' } : kind === 'holiday' && holidayNear(pack.day) ? { '--pc': holidayNear(pack.day).b } : undefined} data-kind={kind === 'storeteam' || kind === 'holiday' || kind.startsWith('banner') ? 'team' : kind} onClick={tear} aria-label="Tear the pack open">
             <span className={styles.packTop} />
             <span className={styles.packBody}>
-              <small>Floor Performance Rankings</small>
+              <small>{BRAND.name}</small>
               <b>{packTitle(pack)}</b>
               <em>Pick {pack.slots.length} · one of three at a time</em>
               {pack.pity && <strong>★ Guaranteed big pull inside</strong>}
-              <i>{kind === 'team' || kind === 'storeteam' || kind.startsWith('banner') ? binderTeamInfo(pack.team).abbr : kind === 'goat' ? '★' : 'FPR'}</i>
+              <i>{kind === 'team' || kind === 'storeteam' || kind.startsWith('banner') ? binderTeamInfo(pack.team).abbr : kind === 'goat' ? '★' : BRAND.short}</i>
             </span>
           </button>
           <div className={styles.hintLine}>Tap the pack to tear it open</div>

@@ -6,6 +6,7 @@ import { Coin, TIER_NAME, useCollector } from './Collector'
 import { binderLogo, binderTeamInfo } from './SeasonExplorer'
 import { usePoll, gamesHot } from './poll'
 import { Explain, PayList } from './Explainer'
+import PrizeCalendar from './PrizeCalendar'
 
 /*
  * Predictions, a page of My binder, for today's and tomorrow's games. Everything locks at each game's tipoff
@@ -368,50 +369,6 @@ function StandingsTab() {
 }
 
 // ── History ──────────────────────────────────────────────────────────────────
-function HistoryRow({ h, env, onReward, all }) {
-  const G = h.games, D = h.duels, L = h.lineup
-  const perfect = G && G.correct === G.total
-  const [open, setOpen] = useState(!!all)
-  useEffect(() => setOpen(!!all), [all])
-  const thumb = card => { const c = fromIndex(env, card, { key: card.date + card.kind }); return <span className={styles.histThumb}><Fit>{c.duel ? <DuelCard {...c.duel} /> : <MiniCard name={c.name} row={c.row} game={c.game} team={c.team} headshot={env.headshot(c.name)} />}</Fit></span> }
-  return (
-    <div className={styles.histWrap}>
-    <div className={`${styles.hist} ${perfect ? styles.histPerfect : G?.reward ? styles.histWin : ''} ${open ? styles.histOpen : ''}`}
-      role="button" tabIndex={0} aria-expanded={open} onClick={e => { if (!e.target.closest('button')) setOpen(o => !o) }} onKeyDown={e => { if (e.key === 'Enter') setOpen(o => !o) }}>
-      <span className={styles.histDay}><b>{fmtDay(h.day, { month: 'short', day: 'numeric' })}</b><small>{fmtDay(h.day, { weekday: 'short' })}</small></span>
-      <span className={styles.histParts}>
-        <span className={styles.histPart}>
-          <small>Games</small>
-          {G ? <><b>{G.correct} of {G.total}{perfect ? ' · Perfect' : ''}</b>
-            <span className={styles.setBar} style={{ '--c': perfect ? '#c99a2e' : '#1a7a4a' }}><em style={{ width: `${(G.correct / G.total) * 100}%` }} /></span>
-            <small>{G.lock ? `Lock ${G.lock === 'win' ? '✓' : G.lock === 'loss' ? '✗' : '—'} · ` : ''}{G.upsets ? `${G.upsets} upset${G.upsets === 1 ? '' : 's'}` : 'no upsets'}</small></>
-            : h.open ? <><b>{h.open.correct} right</b><small>{h.open.graded} of {h.open.picked} graded</small></> : <small>—</small>}
-        </span>
-        <span className={styles.histPart}>
-          <small>Matchups</small>
-          {D ? <><b>{D.correct} of {D.total}</b><small>{D.reward === 'duel' ? 'Duel of the Day card won' : D.reward ? 'card earned' : `${Math.max(0, need(D.total) - D.correct)} short`}</small></>
-            : h.dopen ? <small>{h.dopen.picked} picked · graded when the games are final</small> : <small>—</small>}
-        </span>
-        <span className={styles.histPart}>
-          <small>PotD</small>
-          {h.potd ? <><b>{shortName(h.potd.player)}</b><small>{h.potd.result === 'win' ? '✓ called it · ruby card' : h.potd.result === 'loss' ? '✗ missed' : h.day >= etToday() ? 'not decided yet' : 'graded when the day’s cards are in'}{h.potd.rank ? ` · No. ${h.potd.rank} · ${(+h.potd.score).toFixed(1)}` : ''}</small></> : <small>—</small>}
-        </span>
-        <span className={styles.histPart}>
-          <small>Lineup</small>
-          {L ? <><b>{Number(L.total).toFixed(1)}</b><small>+{L.coins} Coins</small></> : h.lopen ? <small>set · scored when the games are final</small> : <small>—</small>}
-        </span>
-      </span>
-      <span className={styles.histRewards}>
-        {G?.claimed ? thumb(G.claimed.card) : G?.reward && <button type="button" className={styles.claimBtn} onClick={() => onReward(h.day, 'games')}>{G.reward === 'any' ? 'Choose any card' : 'Choose a card'}</button>}
-        {D?.claimed ? thumb(D.claimed.card) : D?.reward && D.reward !== 'duel' && <button type="button" className={styles.claimBtn} onClick={() => onReward(h.day, 'duels')}>Matchup card</button>}
-      </span>
-      <span className={styles.histChev}>{open ? '▴' : '▾'}</span>
-    </div>
-    {open && <DayDetail day={h.day} env={env} />}
-    </div>
-  )
-}
-
 // A day in full: each game and your pick, each matchup, the lineup
 const pctS = p => (p == null ? '' : `${Math.round(p * 100)}%`)
 function DayDetail({ day, env }) {
@@ -559,7 +516,6 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
   const [di, setDi] = useState('0') // '-1' yesterday, '0' today (the default), '1' tomorrow
   const [busy, setBusy] = useState(null)
   const [reward, setReward] = useState(null) // { day, kind }
-  const [allOpen, setAllOpen] = useState(false) // History: every day expanded
   useEffect(() => { C.loadPredictions().catch(e => setErr(e.message)) }, [])
   // Every minute while a game is on (or about to tip), only while the tab is visible
   usePoll(() => C.loadPredictions().catch(() => {}), 60e3, gamesHot(d?.slates))
@@ -624,11 +580,9 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
   if (tab === 'standings') { title = 'Pick’em standings'; sub = 'picks, matchups and locks'; body = <StandingsTab /> }
   else if (tab === 'history') {
     title = 'Your days'; sub = `${s.days} day${s.days === 1 ? '' : 's'} closed · ${s.rewards} earned a card`
-    body = d.history.length ? <>
-      <div className={styles.histTools}><span className={styles.light}>{d.history.length} day{d.history.length === 1 ? '' : 's'} played · tap a day for every pick</span>
-        <button type="button" className={styles.histBtn} onClick={() => setAllOpen(v => !v)}>{allOpen ? 'Collapse all' : 'Show every pick'}</button></div>
-      <div className={styles.histList}>{d.history.map(h => <HistoryRow key={h.day} h={h} env={env} all={allOpen} onReward={(day, kind) => setReward({ day, kind })} />)}</div>
-    </>
+    body = d.history.length ? <PrizeCalendar history={d.history} stats={s} today={etToday()} onReward={(day, kind) => setReward({ day, kind })}
+      renderDay={day => <DayDetail day={day} env={env} />}
+      renderThumb={card => { const c = fromIndex(env, card, { key: card.date + card.kind }); return <span className={styles.histThumb}><Fit>{c.duel ? <DuelCard {...c.duel} /> : <MiniCard name={c.name} row={c.row} game={c.game} team={c.team} headshot={env.headshot(c.name)} />}</Fit></span> }} />
       : <div className={styles.empty}><b>No days played yet</b><span>Make your picks for today’s games. Your record, streaks and rewards show up here.</span></div>
   } else {
     title = fmtDay(slate.day); sub = `${games.length} game${games.length === 1 ? '' : 's'} · times in your time zone`

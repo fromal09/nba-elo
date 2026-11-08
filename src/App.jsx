@@ -18,12 +18,14 @@ import { CollectorProvider, useCollector } from './components/Collector'
 import Methodology from './components/Methodology'
 import PlayerModal from './components/PlayerModal'
 import Nav from './components/Nav'
-import FanSidedHeader from './components/FanSidedHeader'
 import Homepage from './components/Homepage'
 import EloExploration from './components/EloExploration'
 import styles from './App.module.css'
 import { viewFromUrl, hrefFor, TITLES, goTo } from './nav.js'
 import { installCardSave } from './cardSave.js'
+import { BRAND } from './brand.js'
+import { TourHost, useAutoTour, useWelcomeTour } from './components/Tour'
+import { ROOM_TOUR, STATION_TOUR } from './components/tours'
 import { registerPlayers, ensureHistory, onHistory } from './history.js'
 import { buildRatings } from './components/live.js'
 import { useLivePlayers } from './components/liveFeed.js'
@@ -54,7 +56,7 @@ export default function App() {
 
   useEffect(() => {
     if (viewFromUrl() !== view) window.history.pushState(null, '', hrefFor(view))
-    document.title = view === 'home' ? 'NBA Floor Performance Rankings' : `${TITLES[view] || 'NBA'} · FPR`
+    document.title = view === 'home' ? BRAND.full : `${TITLES[view] || 'NBA'} · ${BRAND.full}`
   }, [view])
 
   useEffect(() => installCardSave(), []) // right-click a card: Save card image
@@ -96,7 +98,7 @@ export default function App() {
   if (loading) return (
     <div className={styles.splash}>
       <div className={styles.splashInner}>
-        <div className={styles.splashTitle}>NBA · FPR</div>
+        <div className={styles.splashTitle}>{BRAND.full}</div>
         <div className={styles.splashSub}>Loading player ratings…</div>
         <div className={styles.spinner} />
       </div>
@@ -115,12 +117,11 @@ export default function App() {
   return (
     <CollectorProvider onOpenMine={openMine} onOpenStore={openStore} onOpenPredict={openPredict}>
     <ExploreCoins view={view} profile={!!selectedPlayer} />
+    <TourHost />
+    <RoomTours view={view} />
     <div className={styles.app}>
-      <FanSidedHeader />
-      {view !== 'home' && (
-        <Nav meta={data} live={live} view={view} setView={setView} players={players} onSelectPlayer={setSelectedPlayer} onMine={openMine} onStore={openStore} />
-      )}
-      {view === 'home' && <Homepage data={{ ...data, players }} setView={setView} onSelectPlayer={setSelectedPlayer} onMine={openMine} />}
+      <Nav meta={data} live={live} view={view} setView={setView} players={players} onSelectPlayer={setSelectedPlayer} onMine={openMine} onStore={openStore} />
+      {view === 'home' && <Homepage players={players} live={live} setView={setView} onMine={openMine} onStore={openStore} />}
       {view === 'elo' && <EloExploration data={{ ...data, players }} setView={setView} />}
       {waiting && (
         <div className={styles.splash} style={{ minHeight: '50vh' }}>
@@ -199,5 +200,18 @@ function ExploreCoins({ view, profile }) {
   const signedIn = !!C.me
   useEffect(() => { if (signedIn && EXPLORE.has(view)) C.explore(view) }, [view, signedIn])
   useEffect(() => { if (signedIn && profile) C.explore('profile') }, [profile, signedIn])
+  return null
+}
+
+// Everest's room tours: each room's starts itself the first time you walk in (the welcome tour on your desk, the
+// first days after you make your binder; a Game Room station's when you first open it)
+function RoomTours({ view }) {
+  const [open, setOpen] = useState(() => new URLSearchParams(window.location.search).get('open'))
+  useEffect(() => {
+    const t = setInterval(() => setOpen(new URLSearchParams(window.location.search).get('open')), 800)
+    return () => clearInterval(t)
+  }, [])
+  useWelcomeTour(view === 'binders' && !open)
+  useAutoTour(view === 'gameroom' && open ? STATION_TOUR[open] : ROOM_TOUR[view])
   return null
 }

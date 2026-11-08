@@ -1,114 +1,53 @@
-.header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 0 24px;
-  height: 52px;
-  background: #173657;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  flex-shrink: 0;
-}
+/* The brand row: FanSided, the site name (home), live status, search and your account */
+.brandRow { display: flex; align-items: center; gap: 14px; padding: 0 20px; height: 56px; background: #173657; border-bottom: 3px solid #5b8fc7;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; flex-shrink: 0; }
+.fs { display: flex; flex: none; }
+.fs img { height: 26px; display: block; }
+.rule { width: 1px; height: 26px; background: rgba(255,255,255,.25); flex: none; }
+.name { display: flex; flex-direction: column; line-height: 1.2; text-decoration: none; color: #fff; min-width: 0; }
+.name b { font-size: 14.5px; font-weight: 700; white-space: nowrap; }
+.name small { font-size: 11px; color: #9fb6d2; font-weight: 500; white-space: nowrap; }
+.name:hover b { color: #f5d98e; }
+.status { margin-left: auto; font-size: 11px; color: rgba(255,255,255,.45); white-space: nowrap; }
+.search, .account { flex-shrink: 0; }
+.tours { flex: none; }
 
-.left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.homeBtn {
-  text-decoration: none;
-  background: none;
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 6px;
-  color: #a8c5a8;
-  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-  font-size: 12px;
-  padding: 4px 10px;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.homeBtn:hover { background: rgba(255,255,255,0.08); color: #fff; }
-
-.divider { width: 1px; height: 20px; background: rgba(255,255,255,0.12); }
-
-.logo {
-  font-family: 'Georgia', serif;
-  font-size: 15px;
-  color: #fff;
-  white-space: nowrap;
-}
-
-.nav {
-  display: flex;
-  gap: 2px;
-  overflow-x: auto;
-  flex: 1;
-  scrollbar-width: none;
-}
-.nav::-webkit-scrollbar { display: none; }
-
-.navBtn {
-  text-decoration: none;
-  display: inline-block;
-  background: none;
-  border: none;
-  color: #6896bd;
-  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
-  letter-spacing: 0.2px;
-}
-.navBtn:hover { background: rgba(255,255,255,0.07); color: #fff; }
-.navBtn.active { background: rgba(255,255,255,0.1); color: #fff; }
-
-.search { flex-shrink: 0; margin-left: auto; }
-.account { flex-shrink: 0; }
-.right {
-  flex-shrink: 0;
-}
-.updated {
-  font-size: 11px;
-  color: rgba(255,255,255,0.3);
-  white-space: nowrap;
-}
-
-/* Five sections: on laptop widths the tabs tighten and the update time steps aside */
-@media (max-width: 1500px) and (min-width: 761px) {
-  .header { gap: 12px; }
-  .navBtn { padding: 6px 8px; }
-  .right { display: none; }
-}
+/* The seven sections: icon tiles that share the width; the current one wears a gold rule */
+.bar { display: flex; gap: 4px; padding: 7px 16px; background: #0d2140; border-bottom: 1px solid #22406a; position: sticky; top: 0; z-index: 100;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; }
+.tile { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 6px; border-radius: 9px;
+  color: #c9d4e2; text-decoration: none; font-weight: 700; font-size: 13px; white-space: nowrap; border: 1px solid transparent; transition: background .15s, border-color .15s; }
+.tile svg { width: 21px; height: 21px; flex: none; }
+.tile:hover { background: rgba(255,255,255,.05); border-color: #2c4c75; color: #fff; }
+.tile.active { background: linear-gradient(180deg, #203f68, #16304f); color: #fff; border-color: #c9a24a; box-shadow: inset 0 -3px 0 #c9a24a; }
+.tile:focus-visible { outline: 2px solid #e7c160; outline-offset: 1px; }
+.short { display: none; }
 
 /* Elo Exploration's pages: a second, lighter row under the bar */
-.sub { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; padding: 6px 24px; background: #1f4268; border-bottom: 1px solid rgba(255,255,255,0.08);
-  position: sticky; top: 52px; z-index: 99; }
+.sub { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; padding: 6px 20px; background: #1f4268; border-bottom: 1px solid rgba(255,255,255,0.08);
+  position: sticky; top: 58px; z-index: 99; }
 .sub::-webkit-scrollbar { display: none; }
 .subBtn { text-decoration: none; color: #a9c4e0; font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; font-weight: 500; padding: 5px 11px;
   border-radius: 14px; white-space: nowrap; transition: all .15s; }
 .subBtn:hover { background: rgba(255,255,255,0.08); color: #fff; }
 .subBtn.active { background: #fff; color: #173657; font-weight: 700; }
 
-/* Phones: brand row on top, tabs on their own full-width scrolling row */
+/* Laptops: the status steps aside, tiles keep their labels */
+@media (max-width: 1280px) { .status { display: none; } .tours { margin-left: auto; } .tile { font-size: 12.5px; gap: 6px; } }
+/* Tablets: short labels */
+@media (max-width: 1000px) { .long { display: none; } .short { display: inline; } }
+
+/* Phones: logo, search and account on top; the sections as a seven-across grid of icons over short labels */
 @media (max-width: 760px) {
-  .header { flex-wrap: wrap; height: auto; padding: 8px 12px 0; gap: 6px 10px; }
-  .left { gap: 10px; }
-  .right { display: none; }
-  .nav { order: 3; flex: 0 0 calc(100% + 24px); margin: 0 -12px; padding: 2px 8px 6px; scroll-padding: 0 12px;
-    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 20px), transparent);
-            mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 20px), transparent); }
-  .navBtn { font-size: 13px; padding: 8px 12px; }
-  .homeBtn { padding: 6px 10px; }
-  .sub { position: static; padding: 6px 10px; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 18px), transparent);
+  .brandRow { height: auto; min-height: 50px; padding: 7px 10px; gap: 8px; border-bottom-width: 2px; flex-wrap: wrap; }
+  .fs img { height: 20px; }
+  .rule, .name { display: none; }
+  .tours { margin-left: auto; }
+  .bar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 5px 3px; }
+  .tile { flex-direction: column; gap: 3px; height: auto; padding: 6px 0 5px; font-size: 9.5px; letter-spacing: .1px; border-radius: 8px; }
+  .tile svg { width: 23px; height: 23px; }
+  .tile.active { box-shadow: inset 0 -2px 0 #c9a24a; border-color: transparent; background: #1d3a61; }
+  .sub { top: 56px; padding: 6px 10px; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 18px), transparent);
             mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 18px), transparent); }
   .subBtn { font-size: 13px; padding: 7px 12px; }
 }

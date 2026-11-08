@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react'
+import { markTonight } from './DeskClipboard'
 import s from './FanSidedTonight.module.css'
 import { useCareerHistory } from '../history.js'
 
@@ -1014,6 +1015,7 @@ function buildShow(N, kit, seed, act, side, live) {
 }
 
 export default function FanSidedTonight({ kit, day, finals, live = [], side, shots, phone, openBox, openCard, liveN, onLive }) {
+  useEffect(() => { markTonight() }, []) // ticks “Watch FanSided Tonight” on the desk checklist
   const hv = useCareerHistory(true)
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 2e9) + 1)
   const sig = finals.map(x => x.c.g.id + x.c.g.pts.join('-')).join('|')
