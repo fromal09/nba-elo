@@ -55,7 +55,13 @@ export async function slate(sql, day, { fresh = false, origin = null } = {}) {
     const ahead = games.filter(g => Date.parse(g.tip) > Date.now())
     // Matchups already published stay as they are (or go void if a player is ruled out)
     const kept = ahead.length ? await sql`select id, line from pred_games where id = any(${ahead.map(g => g.id)})`.catch(() => []) : []
-    const keep = Object.fromEntries(kept.filter(r => r.line?.duel).map(r => [r.id, r.line.duel]))
+    // Matchups stored before featured matchups (top player vs top player) are redrawn as featured ones for any day after
+    // today, as long as nobody has called them yet; today's, and any with a call on them, stay as they are
+    const later = day > etDay(new Date().toISOString())
+    const called = later && kept.some(r => r.line?.duel && !r.line.duel.f)
+      ? await sql`select distinct game_id from duel_picks where game_id = any(${kept.map(r => r.id)})`.then(rs => new Set(rs.map(r => r.game_id))).catch(() => null) : null // unsure: keep them all
+    const old = r => later && !r.line.duel.f && !r.line.duel.void && called && !called.has(r.id)
+    const keep = Object.fromEntries(kept.filter(r => r.line?.duel && !old(r)).map(r => [r.id, r.line.duel]))
     const fc = origin && ahead.length ? await forecast(origin, ahead, keep).catch(e => { console.error('forecast', e.message); return {} }) : {}
     for (const g of games) g.line = fc[g.id] ? { ...fc[g.id], src: 'elo' } : null
     // Only games that changed are written: rewriting every game every minute kept the database awake and busy

@@ -66,7 +66,8 @@ export async function forecast(origin, games, keep = {}) {
       const pHome = Math.round((proj ? proj.win(proj.margin(fg)) : fg.pHome) * 1000) / 1000
       const a = featured(fg.away, g.id), b = featured(fg.home, g.id)
       const k = keep[g.id]
-      let duel = a && b ? { a: a.name, b: b.name, ae: Math.round(a.elo), be: Math.round(b.elo) } : null
+      // f: drawn as a featured matchup (matchups stored before featured matchups have no f)
+      let duel = a && b ? { a: a.name, b: b.name, ae: Math.round(a.elo), be: Math.round(b.elo), f: 1 } : null
       if (k?.void) duel = k
       else if (k?.a && k?.b) {
         const outs = [[k.a, fg.away], [k.b, fg.home]].filter(([n, side]) => side.rows.some(r => r.name === n && r.out)).map(([n]) => n)
