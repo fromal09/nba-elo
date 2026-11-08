@@ -14,6 +14,7 @@ import PlayerOfWeek from './PlayerOfWeek'
 import { FaceFit } from './TrophyRoom'
 import { usePoll, gamesHot } from './poll'
 import { goTo, hrefFor } from '../nav.js'
+import { Explain } from './Explainer'
 
 /*
  * The Game Room: every game on the site, out of the binder and into an arcade. A chalkboard over the room holds
@@ -90,6 +91,10 @@ function useLastCards(env, names) {
       const out = {}
       const miss = find(sd, out, want)
       if (miss.length) { try { find(await env.loadSeason(prevOf(newest)), out, miss) } catch {} }
+      // This season's Elo change: from his first game of the newest season to his latest
+      const first = {}
+      for (const g of sd.games) for (const p of g.players) if (out[p.n]?.sd === sd && !(p.n in first) && p.pre != null) first[p.n] = p.pre
+      for (const n of Object.keys(out)) if (n in first) out[n] = { ...out[n], start: first[n], season: sd.season || newest }
       if (live) setMap(out)
     }).catch(() => {})
     return () => { live = false }
@@ -105,8 +110,9 @@ function LastCard({ name, x, env, big }) {
 }
 const lastLine = x => (x ? `Last game, ${fmtDay(x.g.date, { month: 'short', day: 'numeric' })}: ${x.row.pts} pts, ${x.row.trb} reb, ${x.row.ast} ast, ${(+x.row.gs).toFixed(1)} Game Score` : 'No recent game on record')
 
-// The Floor Times: a newspaper preview of one game, its top matchup's last cards printed in it
-function Clipping({ g, env, last, day }) {
+// The Floor Times: a newspaper preview of one game, its featured matchup's last cards printed in it.
+// With onDuel, the two photos are the matchup pick: tap the player you think posts the higher Game Score
+function Clipping({ g, env, last, day, onDuel, busyDuel }) {
   const d = g.duel || g.line?.duel
   const pH = g.line?.pHome
   const fav = pH == null ? null : pH >= 0.5 ? g.home : g.away, dog = fav && (fav === g.home ? g.away : g.home)
@@ -123,14 +129,22 @@ function Clipping({ g, env, last, day }) {
       <p className={styles.dek}>{fav ? <>The Elo forecast gives the {teamName(fav)} a {pct(favP)} chance{bonus > 0 ? <>; calling the {nick(dog)} pays an upset bonus of {bonus} Coins</> : ''}.</> : <>{teamName(g.away)} at {teamName(g.home)}.</>}
         {g.crowd ? <> {pct(Math.max(g.crowd.home, 1 - g.crowd.home))} of collectors in the room are on the {nick(g.crowd.home >= 0.5 ? g.home : g.away)}.</> : ''}</p>
       {d && <div className={styles.photos}>
-        {[[d.a, d.ae, g.away], [d.b, d.be, g.home]].map(([n, e, t]) => (
-          <figure key={n}>
+        {[[d.a, d.ae, g.away], [d.b, d.be, g.home]].map(([n, e, t]) => {
+          const pickable = onDuel && g.duel && !d.void
+          const mine = g.duel?.pick === n
+          const inner = <>
             <LastCard name={n} x={last[n]} env={env} />
+            {mine && <i className={styles.photoStamp} data-r={d.result || undefined}>{d.result === 'win' ? '✓ Called it' : d.result === 'loss' ? '✗ Beaten' : 'Your pick'}</i>}
             <figcaption><b>{baseName(n)}</b> <span>{nick(t)} · {n0(e)} Elo</span><span>{lastLine(last[n])}</span></figcaption>
-          </figure>
-        ))}
+          </>
+          return pickable
+            ? <button key={n} type="button" className={styles.photoPick} data-mine={mine ? '' : undefined} disabled={!g.open || busyDuel} aria-pressed={mine}
+              onClick={() => onDuel(g, n)} aria-label={`Matchup pick: ${baseName(n)} posts the higher Game Score`}><figure>{inner}</figure></button>
+            : <figure key={n}>{inner}</figure>
+        })}
       </div>}
-      {d && <p className={styles.dek}>Top matchup: {baseName(d.a)} against {baseName(d.b)}{d.ae && d.be ? `, ${n0(Math.abs(d.ae - d.be))} Elo apart` : ''}.</p>}
+      {d && <p className={styles.dek}>Featured matchup: {baseName(d.a)} against {baseName(d.b)}{d.ae && d.be ? `, ${n0(Math.abs(d.ae - d.be))} Elo apart` : ''}.
+        {d.void ? ' Off: a player was ruled out.' : onDuel && g.duel && g.open ? (g.duel.pick ? ` You have ${baseName(g.duel.pick)} for the higher Game Score.` : ' Tap a photo to call the higher Game Score.') : ''}</p>}
     </article>
   )
 }
@@ -171,7 +185,7 @@ function Question({ g, i, env, busy, lockFixed, onPick, onLock }) {
   )
 }
 
-function Handout({ games, slate, env, busy, lockFixed, dayWord, need, onPick, onLock }) {
+function Handout({ games, slate, env, busy, lockFixed, dayWord, need, onPick, onLock, onDuel }) {
   const C = env.collector
   const last = useLastCards(env, games.flatMap(g => { const d = g.duel || g.line?.duel; return d ? [d.a, d.b] : [] }))
   const picked = games.filter(g => g.pick).length, right = games.filter(g => g.result === 'win').length, graded = games.filter(g => g.result === 'win' || g.result === 'loss').length
@@ -186,13 +200,18 @@ function Handout({ games, slate, env, busy, lockFixed, dayWord, need, onPick, on
           <span>Date <b className={styles.ink}>{fmtDay(slate.day, { month: 'numeric', day: 'numeric' })}</b></span>
           <span>Score <b className={styles.ink}>{graded ? `${right} / ${graded}` : `${picked} / ${games.length}`}</b></span>
         </div>
-        <p className={styles.hRules}>Circle one team per game, any time before it tips off. Get {need} of {games.length} right for a Legend-or-below card from {night}’s games; all {games.length} for any card. Star one answer as your lock: double Coins if right, the day’s pick Coins if wrong.</p>
+        <div className={styles.hRules}><span>Circle a team in each game. Tap a player’s photo to call the featured matchup.</span>
+          <Explain title="How Pick’em Night pays">
+            <p>Circle one team per game, any time before it tips off. Get {need} of {games.length} right for a Legend-or-below card from {night}’s games; all {games.length} for any card.</p>
+            <p>Star one answer as your lock: double Coins if right, the day’s pick Coins if wrong.</p>
+            <p>Each clipping prints the game’s featured matchup. Tap the player you think posts the higher Game Score; it counts on the Tale of the Tape too.</p>
+          </Explain></div>
       </header>
       <ol className={styles.qs}>
         {games.map((g, i) => (
           <li key={g.id} className={styles.q} data-lock={g.lock ? '' : undefined}>
             <Question g={g} i={i} env={env} busy={busy === g.id} lockFixed={lockFixed} onPick={onPick} onLock={onLock} />
-            <Clipping g={g} env={env} last={last} day={slate.day} />
+            <Clipping g={g} env={env} last={last} day={slate.day} onDuel={onDuel} busyDuel={busy === `d${g.id}`} />
           </li>
         ))}
       </ol>
@@ -200,8 +219,31 @@ function Handout({ games, slate, env, busy, lockFixed, dayWord, need, onPick, on
   )
 }
 
+// Head-to-head duel records for each pair: { 'a|b': { w, l, t } } from a's rivals file (every game the two played on
+// opposite sides, won by the higher Game Score), seasons summed
+function useHeadToHead(env, pairs) {
+  const [map, setMap] = useState({})
+  const key = pairs.map(p => p.join('|')).sort().join('||')
+  useEffect(() => {
+    if (!key || !env.rivals) return
+    let live = true
+    Promise.all(pairs.map(async ([a, b]) => {
+      const f = await env.rivals(a)
+      const L = f?.o?.[b] || []
+      let w = 0, l = 0, t = 0
+      for (let i = 0; i + 5 < L.length + 1; i += 6) { w += L[i + 1] || 0; l += L[i + 2] || 0; t += L[i + 3] || 0 }
+      return [`${a}|${b}`, { w, l, t }]
+    })).then(rows => { if (live) setMap(Object.fromEntries(rows)) }).catch(() => {})
+    return () => { live = false }
+  }, [key])
+  return map
+}
+const sgnN = v => (v > 0 ? `+${n0(v)}` : v < 0 ? `−${n0(-v)}` : '0')
+const boxLine = r => (r ? `${r.pts} pts · ${r.trb} reb · ${r.ast} ast` : '—')
+const shotLine = r => (r && r.fga != null ? `${r.fg}–${r.fga} FG${r.tpa ? ` · ${r.tp}–${r.tpa} 3P` : ''}${r.stl || r.blk ? ` · ${r.stl || 0} stl · ${r.blk || 0} blk` : ''}` : '')
+
 // Player matchups: one fight poster per game, the tale of the tape under the two corners
-function Poster({ g, env, last, busy, onPick }) {
+function Poster({ g, env, last, h2h, busy, onPick }) {
   const d = g.duel
   const corner = (name, team, side) => {
     const mine = d.pick === name, out = d.void && (d.out || []).includes(name)
@@ -215,9 +257,19 @@ function Poster({ g, env, last, busy, onPick }) {
       </button>
     )
   }
-  const la = last[d.a]?.row, lb = last[d.b]?.row
-  const rows = [['Elo', n0(d.ae), n0(d.be)], ['Last game', la ? `${(+la.gs).toFixed(1)} GmSc` : '—', lb ? `${(+lb.gs).toFixed(1)} GmSc` : '—'], ['Points', la ? la.pts : '—', lb ? lb.pts : '—'],
-    ['Reb · Ast', la ? `${la.trb} · ${la.ast}` : '—', lb ? `${lb.trb} · ${lb.ast}` : '—']]
+  const xa = last[d.a], xb = last[d.b], la = xa?.row, lb = xb?.row
+  const cur = (x, e) => (x?.row?.post != null ? x.row.post : e)
+  const season = xa?.season || xb?.season
+  const delta = x => (x?.start != null && x.row?.post != null ? sgnN(Math.round(x.row.post - x.start)) : '—')
+  const hh = h2h[`${d.a}|${d.b}`]
+  const rows = [
+    ['Elo', n0(cur(xa, d.ae)), n0(cur(xb, d.be))],
+    [season ? `${season} Elo` : 'This season', delta(xa), delta(xb)],
+    ['Last game', la ? `${(+la.gs).toFixed(1)} GmSc` : '—', lb ? `${(+lb.gs).toFixed(1)} GmSc` : '—'],
+    ['Box score', <>{boxLine(la)}{shotLine(la) && <small>{shotLine(la)}</small>}</>, <>{boxLine(lb)}{shotLine(lb) && <small>{shotLine(lb)}</small>}</>],
+    ['Head-to-head', hh ? hh.w : '…', hh ? hh.l : '…'],
+  ]
+  const hhNote = hh && (hh.w + hh.l + hh.t ? `${hh.w + hh.l + hh.t} career duels${hh.t ? `, ${hh.t} tied` : ''} · higher Game Score wins` : 'First meeting')
   const foot = d.void ? `Bout off · ${(d.out || []).map(baseName).join(' and ') || 'a player'} ruled out` : d.result === 'void' ? 'No contest (a player sat)'
     : d.result ? (d.result === 'win' ? 'Called it · +10 Coins' : 'Missed') : g.state === 'post' ? 'Judges’ cards are in: grading…' : !g.open ? 'In progress' : 'Pick the higher Game Score'
   return (
@@ -225,18 +277,25 @@ function Poster({ g, env, last, busy, onPick }) {
       <header><small>{statusOf(g)} · {g.away} at {g.home}</small><b>Tonight</b></header>
       <div className={styles.bout}>{corner(d.a, g.away, 'a')}<span className={styles.vs}>VS</span>{corner(d.b, g.home, 'b')}</div>
       <table className={styles.tot}><tbody>{rows.map(r => <tr key={r[0]}><td>{r[1]}</td><th>{r[0]}</th><td>{r[2]}</td></tr>)}</tbody></table>
+      {hhNote && <p className={styles.hhNote}>{hhNote}</p>}
       <footer>{foot}</footer>
     </article>
   )
 }
 function TaleOfTape({ games, env, busy, need, voided, onPick, dayWord }) {
   const last = useLastCards(env, games.flatMap(g => [g.duel.a, g.duel.b]))
+  const h2h = useHeadToHead(env, games.map(g => [g.duel.a, g.duel.b]))
   const live = games.filter(g => !g.duel.void)
   const picked = live.filter(g => g.duel.pick).length, right = live.filter(g => g.duel.result === 'win').length
   return (
     <div className={styles.tape}>
-      <p className={styles.tapeLede}><b>{picked} of {live.length} picked{right ? ` · ${right} right` : ''}</b> Who posts the higher Game Score in each game’s top matchup {dayWord}? Get {need} right for a Rare or Common from the day; all {live.length} for the Duel of the Day card.{voided ? ` ${voided} bout${voided === 1 ? ' is' : 's are'} off (a player ruled out) and ${voided === 1 ? 'doesn’t' : 'don’t'} count.` : ''}</p>
-      <div className={styles.posters}>{games.map(g => <Poster key={g.id} g={g} env={env} last={last} busy={busy === `d${g.id}`} onPick={onPick} />)}</div>
+      <div className={styles.tapeLede}><span><b>{picked} of {live.length} picked{right ? ` · ${right} right` : ''}</b> Who posts the higher Game Score {dayWord}?{voided ? ` ${voided} bout${voided === 1 ? ' is' : 's are'} off.` : ''}</span>
+        <Explain title="Tale of the Tape" tone="light">
+          <p>Each game has a featured matchup: one player from each side, drawn at random from those rated 2,000 or more who aren’t on the injury report, so some bouts are lopsided and the underdog can be worth calling.</p>
+          <p>Pick who posts the higher Game Score. Get {need} right for a Rare or Common from the day; all {live.length} for the Duel of the Day card. Each correct call pays 10 Coins.</p>
+          <p>If a player is ruled out before tipoff or doesn’t play, the bout is off and doesn’t count. Head-to-head is every game the two have played against each other: the higher Game Score wins the duel.</p>
+        </Explain></div>
+      <div className={styles.posters}>{games.map(g => <Poster key={g.id} g={g} env={env} last={last} h2h={h2h} busy={busy === `d${g.id}`} onPick={onPick} />)}</div>
     </div>
   )
 }
@@ -280,6 +339,7 @@ export function GameScreen({ station, env, onClose, ratings, onSelectPlayer }) {
 
 // ── The room ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
+// The chalkboard: tonight's slate. Tap a team to pick it right here (no previews needed), or open any of the four pick sheets
 function Chalkboard({ C, preds, go }) {
   const me = C.me
   const S = preds?.slates || []
@@ -288,32 +348,48 @@ function Chalkboard({ C, preds, go }) {
   const games = slate?.games || []
   const picked = games.filter(g => g.pick).length
   const lu = slate?.lineup, slots = preds?.rates?.slots || 5
+  const duels = games.filter(g => g.duel && !g.duel.void), dPicked = duels.filter(g => g.duel.pick).length
+  const [busy, setBusy] = useState(null)
+  const pick = async (g, t) => { if (busy || !g.open || g.pick === t) return; setBusy(g.id); try { await C.predict(g.id, t) } catch {} finally { setBusy(null) } }
+  const team = (g, t) => {
+    const attrs = { 'data-pick': g.pick === t ? '' : undefined, 'data-won': g.winner === t ? '' : undefined }
+    return me && g.open
+      ? <button type="button" className={styles.chalkTeam} {...attrs} disabled={busy === g.id} onClick={() => pick(g, t)} aria-pressed={g.pick === t} aria-label={`Pick ${nick(t)}`}>{t}</button>
+      : <span {...attrs}>{t}</span>
+  }
+  const open = games.some(g => g.open)
+  const sheets = [
+    ['predict', 'Games', `${picked}/${games.length}`, open && picked < games.filter(g => g.open || g.pick).length],
+    ['matchups', 'Matchups', duels.length ? `${dPicked}/${duels.length}` : '—', open && dPicked < duels.filter(g => g.open || g.duel.pick).length],
+    ['lineup', 'Lineup', lu ? `${lu.slots.length}/${slots}` : '—', open && lu && lu.slots.length < slots],
+    ['potd', 'Player of the Day', slate?.potd?.pick ? '✓' : '—', !!(slate?.potd?.open && !slate.potd.pick)],
+  ]
   return (
     <section className={styles.chalk} aria-label="Tonight’s predictions">
       <div className={styles.slate}>
         <div className={styles.chalkHead}>
           <h2>{when}{slate ? <small> · {fmtDay(slate.day, { weekday: 'short', month: 'short', day: 'numeric' })}</small> : ''}</h2>
-          {me && games.length > 0 && <span className={styles.tally}>{picked} of {games.length} picked{slate.potd?.pick ? ' · PotD ✓' : ''}{lu ? ` · lineup ${lu.slots.length}/${slots}` : ''}</span>}
+          {me && games.length > 0 && <span className={styles.tally}>{open ? 'Tap a team to pick it' : `${picked} of ${games.length} picked`}</span>}
         </div>
         {!me ? <p className={styles.chalkLine}>Pick every winner, call the matchups, set a lineup. <button type="button" onClick={() => C.openAuth('signup')}>Sign in to play →</button></p>
           : !preds ? <p className={styles.chalkLine}>Chalking up the slate…</p>
           : !games.length ? <p className={styles.chalkLine}>No games on the board. Check back when the schedule resumes.</p>
           : <ul className={styles.chalkGames}>
-            {games.slice(0, 12).map(g => (
-              <li key={g.id}>
-                <span data-pick={g.pick === g.away ? '' : undefined} data-won={g.winner === g.away ? '' : undefined}>{g.away}</span>
+            {games.slice(0, 15).map(g => (
+              <li key={g.id} data-busy={busy === g.id ? '' : undefined}>
+                {team(g, g.away)}
                 <i>@</i>
-                <span data-pick={g.pick === g.home ? '' : undefined} data-won={g.winner === g.home ? '' : undefined}>{g.home}</span>
+                {team(g, g.home)}
                 {g.lock && <b className={styles.star} title="Your lock">★</b>}
                 <small>{g.state === 'post' ? `F ${g.as}–${g.hs}` : g.state === 'in' ? 'LIVE' : tipTime(g.tip)}</small>
               </li>
             ))}
           </ul>}
         {me && <div className={styles.chalkBtns}>
-          <button type="button" className={styles.chalkGo} onClick={() => go('predict')}>{picked < games.length && games.some(g => g.open) ? 'Make your picks →' : 'See your picks →'}</button>
-          <button type="button" onClick={() => go('matchups')}>Matchups</button>
-          <button type="button" onClick={() => go('lineup')}>Lineup</button>
-          <button type="button" onClick={() => go('potd')}>Player of the Day</button>
+          <span className={styles.chalkLab}>Your picks</span>
+          {sheets.map(([k, label, n, todo]) => (
+            <button key={k} type="button" className={todo ? styles.chalkGo : undefined} onClick={() => go(k)}>{label} <em>{n}</em></button>
+          ))}
         </div>}
       </div>
       <div className={styles.tray} aria-hidden="true"><i /><i /><b /></div>
@@ -523,7 +599,7 @@ export default function GameRoom({ players, onSelectPlayer, ratings }) {
       <header className={styles.sign}>
         <h1><span>The</span> Game Room</h1>
         <p>Every game on the site under one roof. Call tonight’s slate on the chalkboard, play your cards at the cabinets, and cash in at the prize counter.</p>
-        <a className={styles.doorBack} href="/binders" onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); goTo('binders') }}>← The Binder Room</a>
+        <a className={styles.doorBack} href="/desk" onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); goTo('binders') }}>← My Desk</a>
       </header>
       <div className={styles.hall}>
         <h3 className={styles.zoneHead} data-z="tonight">Tonight’s picks</h3>

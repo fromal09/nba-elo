@@ -350,3 +350,14 @@
 .sgap small { writing-mode: vertical-rl; transform: rotate(180deg); font: 700 9px 'Inter', sans-serif; letter-spacing: 1px; text-transform: uppercase; color: rgba(245,217,142,.7); white-space: nowrap; }
 @media (max-width: 640px) { .sspine { height: 206px; } .row[data-seasons] .sspine { scroll-snap-align: start; } }
 @media (prefers-reduced-motion: reduce) { .sspine, .sspine:hover, .sspine[data-up] { transition: none; transform: none; } }
+
+/* My Desk: doors to the other rooms under the desk */
+.doors { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 1100px; margin: 0 auto; padding: 22px 16px 40px; }
+.doors a { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 16px 48px 16px 18px; border-radius: 10px; text-decoration: none; color: #fff;
+  background: linear-gradient(180deg, #2a1a0e, #1a0f07); border: 2px solid #7a4a26; box-shadow: inset 0 0 0 2px rgba(201,162,74,.25), 0 10px 22px rgba(0,0,0,.35); transition: transform .15s, border-color .15s; }
+.doors a:hover { transform: translateY(-2px); border-color: #c9a24a; }
+.doors small { font: 800 10.5px 'Inter', sans-serif; letter-spacing: 2px; text-transform: uppercase; color: #e7c160; }
+.doors b { font: 700 20px 'Libre Baskerville', Georgia, serif; }
+.doors span { font-size: 13px; color: #d9c7ad; }
+.doors i { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); font-style: normal; font-size: 22px; color: #e7c160; }
+@media (max-width: 640px) { .doors { grid-template-columns: 1fr; padding: 16px 12px 28px; } }

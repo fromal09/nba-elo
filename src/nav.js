@@ -1,11 +1,12 @@
-// Site navigation: the five top-level sections, the Elo Exploration pages under them, and a URL for every view,
-// so any menu item opens in a new tab (right-click, or Cmd/Ctrl-click). /scoreboard, /binders and /timemachine have
+// Site navigation: the top-level sections, the Elo Exploration pages under them, and a URL for every view,
+// so any menu item opens in a new tab (right-click, or Cmd/Ctrl-click). /scoreboard, /desk, /library and /timemachine have
 // their own paths; every other view is /?view=<id>.
 
 export const TOP = [
   { id: 'rankings', label: 'Current Rankings' },
   { id: 'scoreboard', label: 'Scoreboard' },
-  { id: 'binders', label: 'The Binder Room' },
+  { id: 'binders', label: 'My Desk' },
+  { id: 'library', label: 'The Library' },
   { id: 'gameroom', label: 'The Game Room' },
   { id: 'elo', label: 'Elo Exploration' },
 ]
@@ -27,7 +28,7 @@ export const ELO_SUBS = [
 const SUB_IDS = new Set(ELO_SUBS.map(s => s.view))
 // The Scoreboard's three tabs: games by day, standings (the season explorer), my predictions
 export const SCOREBOARD_VIEWS = ['scoreboard', 'explorer', 'mypicks', 'potw']
-const KNOWN = new Set(['home', 'rankings', 'elo', 'binders', 'gameroom', ...SCOREBOARD_VIEWS, ...SUB_IDS])
+const KNOWN = new Set(['home', 'rankings', 'elo', 'binders', 'library', 'gameroom', ...SCOREBOARD_VIEWS, ...SUB_IDS])
 
 // Which top-level section a view sits under
 export const topOf = v => (v === 'elo' || SUB_IDS.has(v) ? 'elo' : SCOREBOARD_VIEWS.includes(v) ? 'scoreboard' : v)
@@ -39,7 +40,9 @@ export function hrefFor(view, opts = {}) {
   if (view === 'mypicks') return '/scoreboard?tab=picks'
   if (view === 'potw') return '/scoreboard?tab=potw'
   if (view === 'timemachine') return '/timemachine'
-  if (view === 'binders') return opts.open ? `/binders?open=${opts.open}` : '/binders'
+  // My Desk is still the 'binders' view: /binders links from before the split land on it
+  if (view === 'binders') return opts.open ? `/desk?open=${opts.open}` : '/desk'
+  if (view === 'library') return '/library'
   if (view === 'gameroom') return opts.open ? `/?view=gameroom&open=${opts.open}` : '/?view=gameroom'
   return `/?view=${view}`
 }
@@ -49,7 +52,8 @@ export function viewFromUrl() {
   const q = new URLSearchParams(window.location.search)
   if (p === '/scoreboard') return q.get('tab') === 'standings' ? 'explorer' : q.get('tab') === 'picks' ? 'mypicks' : q.get('tab') === 'potw' ? 'potw' : 'scoreboard'
   if (p === '/timemachine') return 'timemachine'
-  if (p === '/binders') return 'binders'
+  if (p === '/binders' || p === '/desk') return 'binders'
+  if (p === '/library') return 'library'
   const v = q.get('view')
   return v && KNOWN.has(v) ? v : 'home'
 }
@@ -65,7 +69,7 @@ export const linkTo = (href, go) => ({
   },
 })
 
-export const TITLES = { scoreboard: 'Scoreboard', explorer: 'Standings', mypicks: 'My Predictions', potw: 'Player of the Week', binders: 'The Binder Room', gameroom: 'The Game Room', rankings: 'Current Rankings', elo: 'Elo Exploration',
+export const TITLES = { scoreboard: 'Scoreboard', explorer: 'Standings', mypicks: 'My Predictions', potw: 'Player of the Week', binders: 'My Desk', library: 'The Library', gameroom: 'The Game Room', rankings: 'Current Rankings', elo: 'Elo Exploration',
   ...Object.fromEntries(ELO_SUBS.map(s => [s.view, s.label])) }
 
 // Go to a view from anywhere (a button inside a binder, the desk): push its URL and let App pick it up from popstate

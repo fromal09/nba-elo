@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/desk",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/library",
+      "destination": "/index.html"
+    },
+    {
       "source": "/binders",
       "destination": "/index.html"
     },

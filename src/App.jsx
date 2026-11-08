@@ -169,7 +169,8 @@ export default function App() {
           onMode={m => setView(m === 'today' ? 'scoreboard' : m === 'picks' ? 'mypicks' : m === 'potw' ? 'potw' : 'explorer')} />
       )}
       {view === 'timemachine' && <TimeMachine />}
-      {view === 'binders' && <BinderRoom players={data.players} onSelectPlayer={setSelectedPlayer} start={binderStart} />}
+      {view === 'binders' && <BinderRoom part="desk" players={data.players} onSelectPlayer={setSelectedPlayer} start={binderStart} />}
+      {view === 'library' && <BinderRoom part="library" players={data.players} onSelectPlayer={setSelectedPlayer} />}
       {view === 'gameroom' && <GameRoom players={data.players} onSelectPlayer={setSelectedPlayer} ratings={ratings} />}
       {view === 'methodology' && <Methodology />}
 

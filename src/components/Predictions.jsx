@@ -5,6 +5,7 @@ import { MiniCard, DuelCard } from './PlayerCard'
 import { Coin, TIER_NAME, useCollector } from './Collector'
 import { binderLogo, binderTeamInfo } from './SeasonExplorer'
 import { usePoll, gamesHot } from './poll'
+import { Explain, PayList } from './Explainer'
 
 /*
  * Predictions, a page of My binder, for today's and tomorrow's games. Everything locks at each game's tipoff
@@ -125,7 +126,7 @@ function Goal({ items, total, text }) {
     <div className={styles.goal}>
       <div className={styles.goalBar}>{items.map(x => <i key={x.id} data-r={x.r || (x.pick ? 'picked' : x.open ? 'open' : 'missed')} />)}</div>
       <span><b>{picked} of {total} picked</b>{graded ? ` · ${right} of ${graded} right so far` : ''}{open ? ` · ${open} still open` : ''}</span>
-      <span className={styles.goalText}>{text}</span>
+      <Explain title="How it works"><p>{text}</p></Explain>
     </div>
   )
 }
@@ -178,25 +179,46 @@ function SortBy({ v, set }) {
   return <span className={styles.sortBy}>{[['elo', 'Elo'], ['proj', 'Projection']].map(([k, l]) => <button key={k} type="button" aria-pressed={v === k} onClick={() => set(k)}>{l}</button>)}</span>
 }
 
+// The candidate list's filters, on their own line under the sort toggle: a search box and a team menu
+function Filters({ q, setQ, team, setTeam, list }) {
+  const teams = [...new Set(list.map(c => c.team))].sort()
+  return (
+    <div className={styles.filters}>
+      <input className={styles.search} value={q} onChange={e => setQ(e.target.value)} placeholder="Find a player" aria-label="Find a player" type="search" />
+      <select className={styles.teamSel} value={team} onChange={e => setTeam(e.target.value)} aria-label="Filter by team">
+        <option value="">All teams</option>
+        {teams.map(t => <option key={t} value={t}>{t}</option>)}
+      </select>
+    </div>
+  )
+}
+const fold0 = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const matches = (c, q, team) => (!team || c.team === team) && (!q || fold0(c.name).includes(fold0(q)) || c.team.toLowerCase() === q.toLowerCase())
+
 function TierX({ tier, mult }) {
   return <span className={styles.tierX} data-tier={tier}>{TIER_NAME[tier] || tier} <b>{xFmt(mult)}</b></span>
 }
 
 function LineupTab({ day, dayWord, lu, env, busy, onSet, slots, R }) {
   const [q, setQ] = useState('')
+  const [team, setTeam] = useState('')
   const [pickCard, setPickCard] = useState({}) // player name → chosen card id
   const taken = new Set(lu.slots.map(s => s.player))
   const free = [...Array(slots).keys()].find(i => !lu.slots.some(s => s.slot === i))
   const total = lu.slots.reduce((a, s) => a + (s.pts ?? 0), 0)
   const [sort, setSort] = useState('elo')
-  const list0 = lu.candidates.filter(c => !q || c.name.toLowerCase().includes(q.toLowerCase()) || c.team.toLowerCase() === q.toLowerCase())
+  const list0 = lu.candidates.filter(c => matches(c, q, team))
   const list = sort === 'proj' ? [...list0].sort((a, b) => b.open - a.open || (b.proj?.gs ?? -99) * b.mult - (a.proj?.gs ?? -99) * a.mult) : list0
   const top3 = projTop(lu.candidates)
   const M = R.lineupMult || {}, Rest = R.lineupRest || {}
   return <>
     <div className={styles.goal}>
       <span><b>{lu.slots.length} of {slots} slots filled</b>{lu.graded ? ` · ${lu.graded.total} points · +${lu.graded.coins} Coins` : ''}</span>
-      <span className={styles.goalText}>Put five cards from your binder in your lineup, of players who play {dayWord}. Each scores its player’s Game Score times the card’s multiplier: 1 Coin a point, up to {R.lineupMax}. Each slot locks when that player’s game tips off and scores once every game of the day is final. Have the Player of the Day in it and it scores {R.lineupPotd ?? 10} more, Coins included.</span>
+      <Explain title="How the Daily Lineup scores">
+        <p>Put five cards from your binder in your lineup, of players who play {dayWord}. Each scores its player’s Game Score times the card’s multiplier: 1 Coin a point, up to {R.lineupMax}.</p>
+        <p>Each slot locks when that player’s game tips off and scores once every game of the day is final. Have the Player of the Day in it and it scores {R.lineupPotd ?? 10} more, Coins included.</p>
+        <p>The best cards need rest between games: {MULT_TIERS.filter(t => Rest[t]).map(t => `${TIER_NAME[t]} ${Rest[t]} days`).join(', ')}.</p>
+      </Explain>
     </div>
     <div className={styles.multRow}>
       {MULT_TIERS.map(t => <span key={t} className={styles.multCell} data-tier={t}><b>{xFmt(M[t] || 1)}</b><small>{TIER_NAME[t]}{Rest[t] ? ` · ${Rest[t]}-day rest` : ''}</small></span>)}
@@ -221,9 +243,9 @@ function LineupTab({ day, dayWord, lu, env, busy, onSet, slots, R }) {
     </div>
     {lu.graded && <p className={styles.light}>Total {total.toFixed(1)} points.</p>}
     {lu.candidates.length > 0 && <>
-      <div className={styles.candHead}><span className={styles.boxLab}>Your players {dayWord} · {lu.candidates.length}</span>
-        {lu.candidates.some(c => c.proj) && <SortBy v={sort} set={setSort} />}
-        <input className={styles.search} value={q} onChange={e => setQ(e.target.value)} placeholder="Find a player or team" aria-label="Find a player" /></div>
+      <div className={styles.candHead}><span className={styles.boxLab}>Your players {dayWord} · {list.length < lu.candidates.length ? `${list.length} of ` : ''}{lu.candidates.length}</span>
+        {lu.candidates.some(c => c.proj) && <SortBy v={sort} set={setSort} />}</div>
+      <Filters q={q} setQ={setQ} team={team} setTeam={setTeam} list={lu.candidates} />
       <div className={styles.cands}>
         {[...list.filter(c => !c.out), ...list.filter(c => c.out)].map((c, i, all) => {
           const cards = c.cards || [{ cardId: c.cardId, tier: c.tier, mult: c.mult, resting: c.resting }]
@@ -261,19 +283,23 @@ function LineupTab({ day, dayWord, lu, env, busy, onSet, slots, R }) {
 const fold = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 function PotdTab({ dayWord, p, env, busy, onPick, R }) {
   const [q, setQ] = useState('')
+  const [team, setTeam] = useState('')
   const [more, setMore] = useState(false)
   const pick = p.pick
   const [sort, setSort] = useState('elo')
-  const list0 = p.candidates.filter(c => !q || fold(c.name).includes(fold(q)) || c.team.toLowerCase() === q.toLowerCase())
+  const list0 = p.candidates.filter(c => matches(c, q, team))
   const list = sort === 'proj' ? [...list0].sort((a, b) => (b.proj?.gs ?? -99) - (a.proj?.gs ?? -99)) : list0
   const top3 = projTop(p.candidates)
-  const shown = q || more ? list : list.slice(0, 30)
+  const shown = q || team || more ? list : list.slice(0, 30)
   const W = p.winner
   const thumb = W && (() => { const e = fromIndex(env, W.ruby ? { ...W.card, ruby: true } : W.card, { key: 'potd' }); return <span className={styles.potdThumb}><Fit><MiniCard name={e.name} row={e.row} game={e.game} team={e.team} headshot={env.headshot(e.name)} /></Fit></span> })()
   return <>
     <div className={styles.goal}>
       <span><b>{pick ? `Your pick: ${baseName(pick.player)}` : 'No pick yet'}</b>{p.lock ? ` · ${p.open ? `locks at ${tipTime(p.lock)}, the first tipoff` : 'locked at the first tipoff'}` : ''}</span>
-      <span className={styles.goalText}>Who will be the Player of the Day {dayWord}? It’s the night’s best Game Score plus a sixth of the Elo gained, across every game. Call it and you get that card in ruby, at twice its points, plus {R.potd} Coins and {R.potdStand} pick’em points. One pick a day; change it until the first game tips off.</span>
+      <Explain title="Calling the Player of the Day" tone="light">
+        <p>Who will be the Player of the Day {dayWord}? It’s the night’s best Game Score plus a sixth of the Elo gained, across every game.</p>
+        <p>Call it and you get that card in ruby, at twice its points, plus {R.potd} Coins and {R.potdStand} pick’em points. One pick a day; change it until the first game tips off.</p>
+      </Explain>
     </div>
     {pick && <div className={styles.potdMine} data-r={pick.result || (p.open ? 'open' : 'live')}>
       <Logo t={pick.team} size={34} />
@@ -288,8 +314,8 @@ function PotdTab({ dayWord, p, env, busy, onPick, R }) {
     </div>}
     {p.open && p.candidates.length > 0 && <>
       <div className={styles.candHead}><span className={styles.boxLab}>Players {dayWord} · by {sort === 'proj' ? 'projected Game Score' : 'Elo'}</span>
-        {p.candidates.some(c => c.proj) && <SortBy v={sort} set={setSort} />}
-        <input className={styles.search} value={q} onChange={e => setQ(e.target.value)} placeholder="Find a player or team" aria-label="Find a player" /></div>
+        {p.candidates.some(c => c.proj) && <SortBy v={sort} set={setSort} />}</div>
+      <Filters q={q} setQ={setQ} team={team} setTeam={setTeam} list={p.candidates} />
       <div className={styles.cands}>
         {shown.map(c => {
           const on = pick && fold(pick.player) === fold(c.name)
@@ -304,7 +330,7 @@ function PotdTab({ dayWord, p, env, busy, onPick, R }) {
           )
         })}
       </div>
-      {!q && !more && list.length > 30 && <button type="button" className={styles.histBtn} onClick={() => setMore(true)}>Show all {list.length} players</button>}
+      {!q && !team && !more && list.length > 30 && <button type="button" className={styles.histBtn} onClick={() => setMore(true)}>Show all {list.length} players</button>}
     </>}
     {!p.open && !pick && !W && <div className={styles.empty}><b>No pick {dayWord}</b><span>Player of the Day picks close at the day’s first tipoff.</span></div>}
   </>
@@ -330,7 +356,10 @@ function StandingsTab() {
       <Seg value={scope} onChange={setScope} options={[['week', 'This week'], ['season', 'Season']]} />
       {s && <span className={styles.light}>{s.entrants} collector{s.entrants === 1 ? '' : 's'}{s.payouts ? ` · top 10 win ${s.payouts.top10} Coins, top 50 win ${s.payouts.top50}, paid Monday` : ''}</span>}
     </div>
-    <p className={styles.light}>1 point for each correct pick, 1 for each correct matchup, 1 more for a correct lock, 2 for a correct Player of the Day. Ties go to whoever beat the forecast by more. The week’s No. 1 also gets that week’s Player of the Week card; a tie for No. 1 shares it, numbered.</p>
+    <Explain title="How the standings score">
+      <p>1 point for each correct pick, 1 for each correct matchup, 1 more for a correct lock, 2 for a correct Player of the Day. Ties go to whoever beat the forecast by more.</p>
+      <p>The week’s No. 1 also gets that week’s Player of the Week card; a tie for No. 1 shares it, numbered.</p>
+    </Explain>
     {!s ? <p className={styles.light}>Loading…</p> : s.leaders.length ? <div className={styles.stList}>
       {s.leaders.map(x => row(x))}
       {s.you && s.you.rank > 25 && row(s.you, true)}
@@ -550,7 +579,7 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
 
   const left = <>
     <div className={styles.boxLab}>Predictions</div>
-    {!phone && <p className={styles.line}>Pick winners, matchups and a lineup. Everything locks at tipoff and can change until then.</p>}
+    <Explain title="Pick’em: rules and rewards" label="Rules and rewards"><PickemRules R={R} /></Explain>
     <div className={styles.stats}>
       <div className={styles.statWide}><b className={styles.green}>{s.wins}–{s.losses}</b><small>Record</small></div>
       <div><b>{pct(s.pct)}</b><small>Right</small></div>
@@ -579,29 +608,6 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
     </div>
     {unclaimed.length > 0 && <button type="button" className={styles.claimBig} onClick={() => setReward(unclaimed[0])}>
       {unclaimed.length === 1 ? `Choose your card from ${fmtDay(unclaimed[0].day, { month: 'short', day: 'numeric' })}` : `${unclaimed.length} cards to choose`}</button>}
-    <div className={styles.boxLab}>Rewards</div>
-    <div className={styles.rules}>
-      <div><b>Every pick</b><span>+{R.pick}</span></div>
-      <div><b>Correct pick</b><span>+{R.correct}</span></div>
-      <div><b>Upset called</b><span>+{R.upsetMin}–{R.upsetMax}</span></div>
-      <div><b>Lock of the Day</b><span>×2 if right · lose the day’s pick Coins if wrong</span></div>
-      <div><b>Perfect day</b><span>+{R.perfectPer} a game · any card from the day</span></div>
-      <div><b>More than half the games</b><span>a Legend-or-below card</span></div>
-      <div><b>Correct matchup</b><span>+{R.duel}</span></div>
-      <div><b>More than half the matchups</b><span>a Rare or Common</span></div>
-      <div><b>Every matchup</b><span>the Duel of the Day card</span></div>
-      <div><b>Lineup</b><span>Game Score × card multiplier, 1 Coin a point, up to {R.lineupMax}</span></div>
-      <div><b>Player of the Day called</b><span>+{R.potd} · that card in ruby</span></div>
-      <div><b>No. 1 in the weekly standings</b><span>the Player of the Week card</span></div>
-    </div>
-    <details className={styles.help}>
-      <summary>How it works</summary>
-      <p>Pick a winner in each of the day’s games, any time before it tips off. You can change a pick until that game starts; then it locks. You can also pick from the game cards on the Scoreboard.
-        The underdog is the team the site’s Elo forecast (the one on the Scoreboard) gives under 50% when the game tips off; calling one pays (50% − its chance) × 200 Coins, from {R.upsetMin} to {R.upsetMax}.</p>
-      <p>Make one pick a day your Lock of the Day. If it’s right, its Coins double, upset bonus included. If it’s wrong, you lose the Coins you earned for that day’s picks. You can move the lock until its game tips off.</p>
-      <p>Matchups are each game’s top player matchup, each side’s highest-Elo healthy player when it’s set: pick who posts the higher Game Score. Once set, a matchup never changes. If either player is ruled out before tipoff, doesn’t play, or they tie, it’s void for everyone and doesn’t count toward the day. Matchups and lineups are graded from the box scores once the day’s games are final.</p>
-      <p>A day closes when its last game is final. Games you didn’t pick count as misses. Standings: 1 point per correct pick or matchup, 1 more for a correct lock; the week’s top 10 win {R.weeklyTop10} Coins and the top 50 win {R.weeklyTop50}, paid Monday.</p>
-    </details>
     {s.teams.length > 0 && <>
       <div className={styles.boxLab}>Teams you pick most</div>
       <div className={styles.teamsList}>{s.teams.map(t => <span key={t.team}><b>{t.team}</b> {t.w}–{t.l}</span>)}</div>
@@ -630,7 +636,8 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
     else if (tab === 'games') {
       const k = need(games.length)
       body = renderGames ? renderGames({ games, slate, env, busy, lockFixed, dayWord, need: k,
-        onPick: (g_, t) => g_.pick !== t && run(g_.id, () => C.predict(g_.id, t)), onLock: (g_, on) => run(g_.id, () => C.lock(g_.id, on)) }) : <>
+        onPick: (g_, t) => g_.pick !== t && run(g_.id, () => C.predict(g_.id, t)), onLock: (g_, on) => run(g_.id, () => C.lock(g_.id, on)),
+        onDuel: (g_, p) => g_.duel && g_.duel.pick !== p && run(`d${g_.id}`, () => C.duelPick(g_.id, p)) }) : <>
         <Goal items={games.map(g => ({ id: g.id, pick: g.pick, open: g.open, r: g.result }))} total={games.length}
           text={`Get ${k} right to choose a Legend-or-below card from the day’s games. Get all ${games.length} for any card. Star one pick as your Lock of the Day.`} />
         <div className={styles.games}>{games.map(g => <GameRow key={g.id} g={g} env={env} busy={busy === g.id} lockFixed={lockFixed}
@@ -642,7 +649,7 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
       body = m.length ? renderMatchups ? renderMatchups({ games: m, live: live_, slate, env, busy, dayWord, need: need(live_.length), voided: nv,
         onPick: (g_, p) => g_.duel.pick !== p && run(`d${g_.id}`, () => C.duelPick(g_.id, p)) }) : <>
         <Goal items={live_.map(g => ({ id: g.id, pick: g.duel.pick, open: g.open, r: g.duel.result }))} total={live_.length}
-          text={`Who posts the higher Game Score in each game’s top player matchup? Get ${need(live_.length)} right to choose a Rare or Common from the day. Get all ${live_.length} for the Duel of the Day card.${nv ? ` ${nv} matchup${nv === 1 ? ' is' : 's are'} void (a player ruled out) and ${nv === 1 ? 'doesn’t' : 'don’t'} count.` : ''}`} />
+          text={`Who posts the higher Game Score in each game’s featured matchup? Get ${need(live_.length)} right to choose a Rare or Common from the day. Get all ${live_.length} for the Duel of the Day card.${nv ? ` ${nv} matchup${nv === 1 ? ' is' : 's are'} void (a player ruled out) and ${nv === 1 ? 'doesn’t' : 'don’t'} count.` : ''}`} />
         <div className={styles.games}>{m.map(g => <MatchupRow key={g.id} g={g} busy={busy === `d${g.id}`} onPick={(g_, p) => g_.duel.pick !== p && run(`d${g_.id}`, () => C.duelPick(g_.id, p))} />)}</div>
       </> : <div className={styles.empty}><b>Matchups aren’t set yet</b><span>They come from the Elo forecast and appear before tipoff.</span></div>
     } else if (tab === 'potd') body = <PotdTab dayWord={dayWord} env={envX} R={R} busy={busy === 'potd'} p={slate.potd || { pick: null, open: false, candidates: [], winner: null }}
@@ -666,6 +673,24 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
     {reward && <RewardPicker day={reward.day} kind={reward.kind} env={env} onClose={() => setReward(null)} onDone={() => setReward(null)} />}
   </>
 }
+
+// Every Pick'em rule and reward, for the explainer
+function PickemRules({ R }) {
+  return <>
+    <p>Pick winners, matchups and a lineup. Everything locks at tipoff and can change until then.</p>
+    <PayList rows={[['Every pick', `+${R.pick}`], ['Correct pick', `+${R.correct}`], ['Upset called', `+${R.upsetMin}–${R.upsetMax}`],
+      ['Lock of the Day', '×2 if right · lose the day’s pick Coins if wrong'], ['Perfect day', `+${R.perfectPer} a game · any card from the day`],
+      ['More than half the games', 'a Legend-or-below card'], ['Correct matchup', `+${R.duel}`], ['More than half the matchups', 'a Rare or Common'],
+      ['Every matchup', 'the Duel of the Day card'], ['Lineup', `Game Score × card multiplier, 1 Coin a point, up to ${R.lineupMax}`],
+      ['Player of the Day called', `+${R.potd} · that card in ruby`], ['No. 1 in the weekly standings', 'the Player of the Week card']]} />
+    <p>Pick a winner in each of the day’s games, any time before it tips off. You can change a pick until that game starts; then it locks. You can also pick from the game cards on the Scoreboard or straight from the chalkboard.
+      The underdog is the team the site’s Elo forecast gives under 50% when the game tips off; calling one pays (50% − its chance) × 200 Coins, from {R.upsetMin} to {R.upsetMax}.</p>
+    <p>Make one pick a day your Lock of the Day. If it’s right, its Coins double, upset bonus included. If it’s wrong, you lose the Coins you earned for that day’s picks. You can move the lock until its game tips off.</p>
+    <p>Matchups are each game’s featured matchup: one player from each side, drawn at random from those rated 2,000 or more who aren’t on the injury report when it’s set, so some are lopsided and the underdog is worth a look. Pick who posts the higher Game Score. Once set, a matchup never changes. If either player is ruled out before tipoff, doesn’t play, or they tie, it’s void for everyone and doesn’t count toward the day. Matchups and lineups are graded from the box scores once the day’s games are final.</p>
+    <p>A day closes when its last game is final. Games you didn’t pick count as misses. Standings: 1 point per correct pick or matchup, 1 more for a correct lock; the week’s top 10 win {R.weeklyTop10} Coins and the top 50 win {R.weeklyTop50}, paid Monday.</p>
+  </>
+}
+export { PickemRules }
 
 // ── On the Scoreboard: a pick bar under each of today's and tomorrow's game cards ──
 const etToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })

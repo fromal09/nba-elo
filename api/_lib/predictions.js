@@ -330,7 +330,7 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
             const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, 'duel', ${refOf(c)}, ${t.json(c)}, ${cardPoints(c).points}, 'matchups')
               on conflict (user_id, ref) do nothing returning id`
             claimed = c
-            if (row) awards.push({ kind: 'predreward', amount: 0, label: `Every matchup right: the Duel of the Day card is in your binder` })
+            if (row) awards.push({ kind: 'duelcard', amount: 0, label: `Every matchup right: the Duel of the Day card is in your binder`, card: c, why: 'Every matchup right' })
           } else reward = 'legend' // no game produced a Duel of the Day: choose a Legend or below instead
         }
         await t`insert into duel_days (user_id, day, total, picked, correct, reward, claimed_ref, claimed_card, claimed_at)
@@ -362,7 +362,7 @@ export async function settle(sql, userId, today, { onlyStale = false, origin = n
           const c = rubyOf(potd, pp.p)
           const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, ${c.tier}, ${refOf(c)}, ${t.json(c)}, ${cardPoints(c).points}, 'potd')
             on conflict (user_id, ref) do nothing returning id`
-          if (row) awards.push({ kind: 'potdcard', amount: 0, label: `You called the Player of the Day: ruby ${potd.row.n} is in your binder` })
+          if (row) awards.push({ kind: 'potdcard', amount: 0, label: `You called the Player of the Day: ruby ${potd.row.n} is in your binder`, card: c, why: 'You called the Player of the Day' })
           push(await grant(t, userId, today, 'potdcorrect', PRED.potd, { ref: day, label: `Player of the Day called: ${potd.row.n}` }))
         }
         const st = standingOf(potdBoard(file, day), pp.player)
@@ -392,7 +392,7 @@ async function repairPotd(sql, userId, today, origin) {
       const c = rubyOf(potd, r.p)
       const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, ${c.tier}, ${refOf(c)}, ${t.json(c)}, ${cardPoints(c).points}, 'potd')
         on conflict (user_id, ref) do nothing returning id`
-      if (row) out.push({ kind: 'potdcard', amount: 0, label: `You called the Player of the Day after all: ruby ${potd.row.n} is in your binder` })
+      if (row) out.push({ kind: 'potdcard', amount: 0, label: `You called the Player of the Day after all: ruby ${potd.row.n} is in your binder`, card: c, why: 'You called the Player of the Day' })
       const a = await grant(t, userId, today, 'potdcorrect', PRED.potd, { ref: day, label: `Player of the Day called: ${potd.row.n}` })
       if (a) out.push(a)
     })

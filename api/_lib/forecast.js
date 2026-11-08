@@ -2,7 +2,8 @@
 // (src/components/predict.js), from the same inputs: player Elo, rotation minutes, ESPN rosters and
 // injuries, games played, and the scoring model.
 //   - The underdog in a pick is the team this forecast gives under 50% when the game tips off.
-//   - A game's top player matchup is each side's highest-Elo healthy player, as on the Scoreboard card.
+//   - A game's featured matchup is one player from each side, drawn at random from those rated 2,000+ who are in the
+//     rotation and not on the injury report (the side's best healthy player when nobody qualifies).
 //   - Lineups draw on the same rosters (who plays for whom tonight, who's out).
 import { buildForecaster, winChance, makeProjector } from '../../src/components/predict.js'
 
@@ -40,10 +41,18 @@ async function model(origin, day) {
   return { f, proj: makeProjector(scoring, sched) }
 }
 const best = side => [...side.rows].filter(r => !r.out).sort((a, b) => b.elo - a.elo)[0]
+// The same draw every time the slate refreshes before it's published: seeded by the game and the team
+const seed = str => { let h = 2166136261; for (const ch of str) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return (h >>> 0) / 4294967296 }
+export const FEATURED_MIN = 2000
+function featured(side, gameId) {
+  const pool = side.rows.filter(r => !r.out && !r.status && r.rated !== false && (r.mp ?? r.base ?? 0) > 0 && r.elo >= FEATURED_MIN)
+    .sort((a, b) => a.name.localeCompare(b.name))
+  return pool.length ? pool[Math.floor(seed(`${gameId}|${side.team}`) * pool.length)] : best(side)
+}
 
 /**
- * For each game ({ id, day, home, away }): { pHome, duel: { a, b, ae, be } }, as the Scoreboard shows it.
- * duel.a is the away side's top player, duel.b the home side's.
+ * For each game ({ id, day, home, away }): { pHome, duel: { a, b, ae, be } }.
+ * duel is the featured matchup: duel.a from the away side, duel.b from the home side (see featured()).
  * keep: { gameId: duel } matchups already published. A published matchup never changes to other players: if either of
  * its players is ruled out before tipoff, it's void ({ ...duel, void: 'injury', out: [names] }) and can't be picked.
  */
@@ -55,7 +64,7 @@ export async function forecast(origin, games, keep = {}) {
     try {
       const fg = f.game(g.home, g.away, g.day)
       const pHome = Math.round((proj ? proj.win(proj.margin(fg)) : fg.pHome) * 1000) / 1000
-      const a = best(fg.away), b = best(fg.home)
+      const a = featured(fg.away, g.id), b = featured(fg.home, g.id)
       const k = keep[g.id]
       let duel = a && b ? { a: a.name, b: b.name, ae: Math.round(a.elo), be: Math.round(b.elo) } : null
       if (k?.void) duel = k

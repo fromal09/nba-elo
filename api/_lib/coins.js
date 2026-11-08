@@ -160,7 +160,7 @@ export async function awardSet(t, userId, day, fc, s, roster, origin) {
     players, k: n + 1, at: day, by: u?.username || null, final: over, thru: over ? null : team?.d || day }
   const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, 'set', ${ref}, ${t.json(card)}, ${cardPoints(card).points}, 'set')
     on conflict (user_id, ref) do nothing returning id`
-  return row ? { kind: 'setcard', amount: 0, label: `Complete Set: every ${s} ${card.tn} player. Your set card is in your binder` } : null
+  return row ? { kind: 'setcard', amount: 0, label: `Complete Set: every ${s} ${card.tn} player. Your set card is in your binder`, card, why: `Every ${s} ${card.tn} player` } : null
 }
 
 // ── In-season and Final ─────────────────────────────────────────────────────
@@ -273,7 +273,7 @@ export async function forgeSeasons(t, userId, day, origin, only = null) {
     }
     const [row] = await t`insert into cards (user_id, pack_id, tier, ref, card, points, source) values (${userId}, null, 'season', ${ref}, ${t.json(card)}, ${cardPoints(card).points}, 'forged')
       on conflict (user_id, ref) do nothing returning id`
-    if (row) out.push({ kind: 'season', amount: 0, label: over ? `Season card forged: ${x.n}, ${x.s}` : `In-season card: ${x.n}, ${x.s} · every game so far (${games})` })
+    if (row) out.push({ kind: 'season', amount: 0, label: over ? `Season card forged: ${x.n}, ${x.s}` : `In-season card: ${x.n}, ${x.s} · every game so far (${games})`, card, why: `Every ${x.n} game of ${x.s}` })
   }
   return out
 }

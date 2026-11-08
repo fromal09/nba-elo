@@ -9,7 +9,7 @@ import TrophyRoom, { FaceFit, Plate } from './TrophyRoom'
 import CardDatabase from './CardDatabase'
 import { useShelf } from './ShelfFx'
 import { norm } from './predict'
-import { goTo } from '../nav.js'
+import { goTo, goTo as navTo, hrefFor } from '../nav.js'
 import { usePrizes, prizeNote } from './Prizes'
 import { fromIndex, Fit } from './Binders'
 import { MiniCard, DuelCard } from './PlayerCard'
@@ -108,7 +108,10 @@ function Desk({ C, shots, setOpen, env }) {
   )
 }
 
-export default function BinderRoom({ players, onSelectPlayer, start }) {
+// Two rooms from one component: My Desk (part="desk": your binder and the things you use every day) and The Library
+// (part="library": every league-wide binder, the trophy case and the card catalog)
+export default function BinderRoom({ players, onSelectPlayer, start, part = 'desk' }) {
+  const library = part === 'library'
   const [index, setIndex] = useState(null)
   const [league, setLeague] = useState(null)
   const [seasons, setSeasons] = useState(null)
@@ -132,8 +135,8 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
   }, [start?.n, C.me === undefined, !!C.me])
   // The address names the open page of yours, so it can be shared or opened in a new tab
   useEffect(() => {
-    if (window.location.pathname.replace(/\/+$/, '') !== '/binders') return
-    const url = open && ['mine', 'store'].includes(open.kind) ? `/binders?open=${open.kind}` : '/binders'
+    if (!['/binders', '/desk'].includes(window.location.pathname.replace(/\/+$/, ''))) return
+    const url = open && ['mine', 'store'].includes(open.kind) ? `/desk?open=${open.kind}` : '/desk'
     if (window.location.pathname + window.location.search !== url) window.history.replaceState(null, '', url)
   }, [open?.kind, open?.n])
   useEffect(() => {
@@ -160,22 +163,31 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
 
   return (
     <div className={styles.page}>
-      <header className={styles.hero}>
+      <header className={styles.hero} data-part={part}>
         <div className={styles.plaque}>
-          <span>EST. 1946</span>
-          <h1>The Binder Room</h1>
+          <span>{library ? 'EST. 1946' : 'YOURS'}</span>
+          <h1>{library ? 'The Library' : 'My Desk'}</h1>
         </div>
-        <p>Every game on record is a card. One bookcase holds them all: your binder, the leaders, every set, every franchise and every legend.</p>
-        <PlayerSearch players={players} variant="hero" label="Find any player’s career binder" action="to open the career binder"
-          onSelect={p => setOpen({ kind: 'career', name: p.name })} />
-        <nav className={styles.jump} aria-label="Shelves">
-          {SHELVES.filter(([id]) => id !== 'br-desk' || ready).map(([id, label]) => <button key={id} type="button" onClick={() => goTo(id)}>{label}</button>)}
-        </nav>
+        <p>{library ? 'Every game on record is a card, and every league-wide binder is on these shelves: the leaders, every set, every season, every franchise and every legend.'
+          : 'Your binder, today’s pack and the prize cards you’ve won. Everything that’s yours, in one place.'}</p>
+        {library && <>
+          <PlayerSearch players={players} variant="hero" label="Find any player’s career binder" action="to open the career binder"
+            onSelect={p => setOpen({ kind: 'career', name: p.name })} />
+          <nav className={styles.jump} aria-label="Shelves">
+            {SHELVES.filter(([id]) => id !== 'br-desk').map(([id, label]) => <button key={id} type="button" onClick={() => goTo(id)}>{label}</button>)}
+          </nav>
+        </>}
       </header>
 
-      {ready && <section id="br-desk" className={styles.desk} aria-label="Your desk"><Desk C={C} shots={shots} setOpen={setOpen} env={env} /></section>}
+      {!library && ready && <section id="br-desk" className={styles.desk} aria-label="Your desk"><Desk C={C} shots={shots} setOpen={setOpen} env={env} /></section>}
+      {!library && <nav className={styles.doors} aria-label="Other rooms">
+        <a href={hrefFor('library')} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navTo('library') }}>
+          <small>Down the hall</small><b>The Library</b><span>Season binders, league sets, franchises, legends and the card catalog</span><i aria-hidden="true">→</i></a>
+        <a href={hrefFor('gameroom')} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navTo('gameroom') }}>
+          <small>Next door</small><b>The Game Room</b><span>Pick’em, Tale of the Tape, Daily Lineup and the cabinets</span><i aria-hidden="true">→</i></a>
+      </nav>}
 
-      <div className={styles.caseWrap}>
+      {library && <div className={styles.caseWrap}>
         <div className={styles.bookcase}>
           <TrophyRoom id="br-trophy" shots={shots} onOpen={setOpen} />
 
@@ -212,11 +224,13 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
             </div>
             {seasons && !seasons.length ? <p className={styles.note}>The season binders aren’t built yet. They appear after the next data update.</p>
             : <div className={styles.row} data-seasons="">
-              {(seasons || []).map((x, i, all) => {
+              {/* Newest season first; a marker stands where the NBA seasons the data doesn't cover would be */}
+              {[...(seasons || [])].reverse().map((x, i, all) => {
                 const yr = `${x.s.slice(0, 4)}–${x.s.slice(5)}`, c = x.cc || '#3b4656'
-                const gap = i > 0 && +x.s.slice(0, 4) - +all[i - 1].s.slice(0, 4) > 1
+                const yr0 = +x.s.slice(0, 4), gap = i > 0 && +all[i - 1].s.slice(0, 4) - yr0 > 1
+                const lastNba = gap && Math.max(...all.slice(i).filter(y => y.lg === 'NBA').map(y => +y.s.slice(0, 4)))
                 return [
-                  gap && <span key={`gap-${x.key}`} className={styles.sgap} aria-hidden="true"><small>NBA {+(all.slice(0, i).filter(y => y.lg === x.lg).pop()?.s.slice(0, 4) || 0) + 1}–{x.s.slice(2, 4)} · not on record</small></span>,
+                  gap && <span key={`gap-${x.key}`} className={styles.sgap} aria-hidden="true"><small>NBA {lastNba + 1}–{String(+all[i - 1].s.slice(0, 4)).slice(2)} · not on record</small></span>,
                   <button key={x.key} type="button" className={styles.sspine} data-lg={x.lg} data-live={x.live ? '' : undefined} style={{ '--c': c }}
                     {...fx.bind({ key: `s-${x.key}`, kind: `${x.lg} season binder`, title: `${yr} ${x.lg}`, color: c, ink: c, initials: x.lg,
                       desc: `${x.live ? 'The season so far.' : `Champions: ${x.cn}.`} Every Player of the Day and every Player of the Week.`,
@@ -303,16 +317,16 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
               </div>
               <div className={styles.chalk}>
                 <Plate as="h2">To the Game Room</Plate>
-                <a className={styles.door} href="/?view=gameroom" onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); goTo('gameroom') }}>
+                <a className={styles.door} href="/?view=gameroom" onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navTo('gameroom') }}>
                   <b>THE GAME ROOM</b><span>Predictions · King of the Court · Hang the Banner · Five Challenge</span><i aria-hidden="true">→</i>
                 </a>
                 {picks && picks.leaders.length > 0 && <div className={styles.board}>
                   {picks.leaders.slice(0, 5).map(l => (
-                    <button key={l.username} type="button" data-you={C.me?.user.username === l.username ? '' : undefined} onClick={() => goTo('gameroom', { open: 'standings' })}>
+                    <button key={l.username} type="button" data-you={C.me?.user.username === l.username ? '' : undefined} onClick={() => navTo('gameroom', { open: 'standings' })}>
                       <b>{l.rank}</b><span>{l.username}</span><small>{l.picks[0]}–{l.picks[1]}</small><strong>{l.score}</strong>
                     </button>
                   ))}
-                  {picks.you?.rank > 5 && <button type="button" data-you="" onClick={() => goTo('gameroom', { open: 'standings' })}>
+                  {picks.you?.rank > 5 && <button type="button" data-you="" onClick={() => navTo('gameroom', { open: 'standings' })}>
                     <b>{picks.you.rank}</b><span>{picks.you.username} (you)</span><small>{picks.you.picks[0]}–{picks.you.picks[1]}</small><strong>{picks.you.score}</strong>
                   </button>}
                   <small className={styles.chalkNote}>Pick’em this week · {picks.entrants} collector{picks.entrants === 1 ? '' : 's'} · top 10 win {picks.payouts?.top10} Coins</small>
@@ -322,7 +336,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
           </section>
         </div>
         <div className={styles.base} />
-      </div>
+      </div>}
 
       {fx.layers}
       {db && <CardDatabase league={league} shots={shots} focus={db.focus} covered={!!open} onOpen={setOpen} onClose={() => setDb(null)} />}

@@ -3117,7 +3117,7 @@ export function BinderHost({ start, shots, onClose, onProfile }) {
   const env = useMemo(() => ({
     collector, owned: collector.me ? collector.owned : null,
     players: () => Object.values(CAREER.byName),
-    loadSeason: label => loadSeason(label, label === NEWEST), withTeams, teamInfo, champion, careerSeasons, nightScore, getJSON, slug: rivalSlug, dayDuels: seasonDuels,
+    loadSeason: label => loadSeason(label, label === NEWEST), withTeams, teamInfo, champion, careerSeasons, nightScore, getJSON, slug: rivalSlug, dayDuels: seasonDuels, rivals: getRivals,
     franchiseOf: t => MERGE_FRANCHISE[t] || t,
     cardGameInfo, headshot: n => shots?.[norm(n)]?.headshot,
     renderCard: ({ name, g, sd, serial, ruby, onClose: close }) => {

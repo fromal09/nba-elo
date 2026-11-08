@@ -180,6 +180,11 @@
 .slotLock { font-size: 10.5px; font-weight: 700; color: #6b7783; }
 .ghostSm { height: 24px; padding: 0 10px; border: 1px solid #d5cfbf; border-radius: 12px; background: #fff; font: inherit; font-size: 11px; font-weight: 700; color: #a83232; cursor: pointer; }
 .candHead { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
+/* Search and team filter: their own full-width line under the sort toggle */
+.filters { display: flex; gap: 8px; align-items: center; margin: 6px 0 2px; }
+.filters .search { flex: 1; width: auto; height: 36px; border-radius: 18px; font-size: 14px; }
+.teamSel { flex: none; height: 36px; padding: 0 30px 0 12px; border: 1px solid #d5cfbf; border-radius: 18px; background: #fff; font: inherit; font-size: 13.5px; font-weight: 700; color: #173657; }
+.right[data-skin=potd] .teamSel { background: #07160e; border-color: rgba(255,225,74,.3); color: #ffe14a; }
 .search { height: 30px; border: 1px solid #d5cfbf; border-radius: 15px; padding: 0 12px; font: inherit; font-size: 12.5px; background: #fff; min-width: 0; width: 200px; }
 .cands { display: flex; flex-direction: column; gap: 4px; }
 .cand { display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 9px; padding: 6px 10px; }
@@ -227,6 +232,8 @@
   .histRewards { width: 100%; justify-content: flex-end; }
   .histRewards:empty { display: none; }
   .search { width: 140px; }
+  .filters .search { width: auto; font-size: 16px; }
+  .teamSel { font-size: 16px; }
   .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .stats .statWide { grid-column: span 2; }
   .sides { grid-template-columns: minmax(0, 1fr); gap: 4px; }
@@ -333,6 +340,8 @@
 
 /* ── The Game Room's skins (PredictPages arcade): data-skin is the station's tab ───────────────────────────────── */
 .right[data-skin] { background: none; padding: 0; gap: 14px; }
+/* The binder sheet's light paper (.arcade .right) loads later and would win the tie: the skins sit on the room's dark wall, so their neon heads stay readable */
+.right[data-skin][data-skin] { background: none; }
 .right[data-skin] .body { overflow: visible; gap: 12px; }
 .right[data-skin] > .sheetHead { padding: 0 2px; }
 .right[data-skin] .sheetTitle b { font: 400 20px 'Bungee', 'Barlow Condensed', sans-serif; color: #fff2fd; text-shadow: 0 0 8px rgba(255,79,216,.6); }

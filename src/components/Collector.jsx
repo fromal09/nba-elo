@@ -70,13 +70,17 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
   const [down, setDown] = useState(false)        // the API isn't reachable (not deployed yet)
   const [toast, setToast] = useState(null)
   const [coinToasts, setCoinToasts] = useState([]) // Coins just earned
+  const [reveal, setReveal] = useState([])       // cards that just went straight into the binder, shown one at a time
   const [preds, setPreds] = useState(null)       // predictions: today's and tomorrow's slates with your picks
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 5000); return () => clearTimeout(t) }, [toast])
   useEffect(() => { if (!coinToasts.length) return; const t = setTimeout(() => setCoinToasts([]), 4200); return () => clearTimeout(t) }, [coinToasts])
   const celebrate = awards => {
     const got = (awards || []).filter(a => a.amount > 0); if (got.length) setCoinToasts(c => [...c, ...got].slice(-5))
     const card = (awards || []).find(a => a.kind === 'predreward'); if (card) setToast(`${card.label}. Choose it in Predictions.`)
-    const forged = (awards || []).filter(a => a.kind === 'season'); if (forged.length) setToast(forged.map(a => a.label).join(' · ') + '. It’s in Specials in your binder.')
+    const forged = (awards || []).filter(a => a.kind === 'season' && !a.card); if (forged.length) setToast(forged.map(a => a.label).join(' · ') + '. It’s in Specials in your binder.')
+    // A card that went straight into the binder gets the full reveal (once per card, however many responses report it)
+    const drops = (awards || []).filter(a => a.card)
+    if (drops.length) setReveal(q => { const have = new Set(q.map(a => a.label)); return [...q, ...drops.filter(a => !have.has(a.label))] })
   }
 
   const loadCards = useCallback(() => api('collection').then(d => { setCards(d.cards); celebrate(d.awards) }).catch(() => {}), [])
@@ -163,6 +167,8 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
       {coinToasts.length > 0 && <div className={styles.coinToasts} role="status" aria-live="polite">
         {coinToasts.map((a, i) => <div key={i} className={styles.coinToast}><Coin /><b>+{a.amount.toLocaleString()}</b><span>{a.label}</span></div>)}
       </div>}
+      {reveal.length > 0 && !queue && <RewardReveal key={reveal[0].label} a={reveal[0]} more={reveal.length - 1}
+        onNext={() => setReveal(q => q.slice(1))} onMine={() => { setReveal([]); loadCards(); onOpenMine?.() }} />}
       {queue && <PackOpening key={queue[0].id} pack={queue[0]} more={queue.length - 1} me={me} pick={value.pick} cards={cards}
         onNext={() => setQueue(q => (q.length > 1 ? q.slice(1) : null))} onClose={closeQueue}
         onMine={() => { closeQueue(); onOpenMine?.() }} />}
@@ -259,6 +265,40 @@ const pointsWhy = c => cardPoints(c).bonuses.map(([l, v]) => (v ? `${l} ${v}` : 
 export const tierName = c => (isSpecial(c) || c.kind === 'duel' ? specialLabel(c) : `${c.ruby ? 'Ruby ' : ''}${TIER_NAME[c.tier]}`)
 export const cardName = c => (isSpecial(c) || c.kind === 'duel' ? specialTitle(c) : c.row.n)
 const line = c => (isSpecial(c) ? specialLine(c) : null) || [c.row?.pts != null && `${c.row.pts} pts`, c.row.trb && `${c.row.trb} reb`, c.row.ast && `${c.row.ast} ast`].filter(Boolean).join(' · ')
+
+// The reveal for a card that goes straight into your binder (a Duel of the Day sweep, a ruby Player of the Day, a forged
+// Season card, a Complete Set): spotlight, rays, confetti, the card flipping in, then where it went
+const REVEAL_KICK = { duelcard: 'Duel of the Day', potdcard: 'Called it', season: 'Season card forged', setcard: 'Complete Set' }
+function RewardReveal({ a, more, onNext, onMine }) {
+  const [shots, setShots] = useState({})
+  const [shown, setShown] = useState(false)
+  useEffect(() => { binderHeadshots().then(setShots).catch(() => {}) }, [])
+  useEffect(() => { const t = setTimeout(() => setShown(true), 60); return () => clearTimeout(t) }, [])
+  useEffect(() => { const k = e => { if (e.key === 'Escape') onNext() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
+  const vw = typeof window === 'undefined' ? 1200 : window.innerWidth
+  const W = vw < 520 ? Math.min(240, vw - 110) : 300
+  const c = a.card
+  const pts = (() => { try { return cardPoints(c).points } catch { return null } })()
+  return (
+    <div className={styles.reveal} data-on={shown ? '' : undefined} role="dialog" aria-modal="true" aria-label="A new card for your binder" onClick={onNext}>
+      <div className={styles.rvRays} aria-hidden="true" />
+      <div className={styles.rvConfetti} aria-hidden="true">{Array.from({ length: 36 }, (_, i) => <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--d': `${(i % 9) * 0.12}s`, '--r': `${(i * 47) % 360}deg`, '--h': (i * 53) % 360 }} />)}</div>
+      <div className={styles.rvStage} onClick={e => e.stopPropagation()}>
+        <span className={styles.rvKick}>{REVEAL_KICK[a.kind] || 'New card'}</span>
+        <b className={styles.rvWhy}>{a.why || 'A new card'}</b>
+        <div className={styles.rvCard} style={{ width: W }}>
+          <div className={styles.rvFlip}><span className={styles.rvBack} /><span className={styles.rvFront}><CardFace card={c} shots={shots} w={W} />{c.ruby && <i className={styles.rvRuby} />}<i className={styles.rvShine} /></span></div>
+        </div>
+        <span className={styles.rvName}>{cardName(c)}{pts ? <small> · {pts.toLocaleString()} points</small> : ''}</span>
+        <span className={styles.rvWhere}>It’s already in your binder.</span>
+        <div className={styles.rvBtns}>
+          <button type="button" className={styles.rvGo} onClick={onMine}>See it in my binder</button>
+          <button type="button" onClick={onNext}>{more ? `Next card (${more} more)` : 'Nice'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, cards }) {
   const shots = useShots()

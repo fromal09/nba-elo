@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
 import { HOLIDAYS } from './holidays'
 import styles from './Binders.module.css'
+import { Explain } from './Explainer'
 import { MiniCard, DuelCard, tierFor, TIERS, momentsFor } from './PlayerCard'
 import { Meter, CURRENT_TEAMS } from './Collector'
 import { ChallengeModal } from './KingOfTheCourt'
@@ -1200,8 +1201,7 @@ function Badges({ list, mine, onAll }) {
 
 function PointsHelp() {
   return (
-    <details className={styles.help}>
-      <summary>How points work</summary>
+    <Explain title="How points work" label="How points work">
       <p><b>Points = how hard the card was to get × how notable it is.</b> A pulled card is 10 × scarcity × significance × occasion.</p>
       <p><b>Scarcity</b> comes from the pack odds: the square root of how many times rarer the card is to pull than a Common.
         Game cards: Common ×1, Rare ×1.3, Standout ×2, Legend ×2.8, Icon ×5, GOAT ×9.1. Special cards are rarer: a Peak ×30–150, a Starting Five ×20–690,
@@ -1213,7 +1213,7 @@ function PointsHelp() {
         priced by his pre-game chance of being Player of the Day, so calling a long shot pays more than calling a star. Duel of the Day is priced by the matchups you got right;
         Player of the Week by how many collectors entered.</p>
       <p>Season cards, Complete Sets, All-Star Rosters, Franchise History, Completed Franchise and Banners keep their current prices for now.</p>
-    </details>
+    </Explain>
   )
 }
 
