@@ -4,7 +4,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import styles from './SeasonExplorer.module.css'
 import { RewardPicker } from './Predictions'
 import PlayerCard, { MiniCard, DuelCard, DuelModal, tierFor, momentsFor, setFirstGameLookup } from './PlayerCard'
-import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder, CollectionBinder, PublicBinder, usePull, fromIndex } from './Binders'
+import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder, LeagueSeasonBinder, CollectionBinder, PublicBinder, usePull, fromIndex } from './Binders'
 import { useCollector } from './Collector'
 import { StoreBook } from './Store'
 import MyPredictions, { LineupStrip, useMyDay } from './MyPredictions'
@@ -3142,6 +3142,7 @@ export function BinderHost({ start, shots, onClose, onProfile }) {
     onPrize={w => push({ kind: 'prize', day: w.day, which: w.which })} />
   if (top.kind === 'card') return <CardOnly card={top.card} env={env} onClose={back} />
   if (top.kind === 'prize') return <RewardPicker key={stack.length} day={top.day} kind={top.which} env={env} onClose={back} onDone={back} />
+  if (top.kind === 'lgseason') return <LeagueSeasonBinder key={stack.length} k={top.key} env={env} onClose={back} onCareer={n => push({ kind: 'career', name: n })} onChampion={openTeam} />
   if (top.kind === 'league') return <LeagueBinder key={stack.length} set={top.set} env={env} onClose={back} onCareer={n => push({ kind: 'career', name: n })} />
   return null
 }

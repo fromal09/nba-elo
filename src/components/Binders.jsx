@@ -990,6 +990,85 @@ function leagueEntries_(env, def, list) {
   })
 }
 
+// A league season's binder (the Seasons shelf): every Player of the Day and every Player of the Week, in the champion's color
+const LG_SETS = [
+  { id: 'potd', title: 'Players of the Day', desc: 'The night’s best player, every day the league played: Game Score plus a sixth of his Elo change.' },
+  { id: 'potw', title: 'Players of the Week', desc: 'The best Monday-to-Sunday week, every week of the season: the same score added up over two or more games.' },
+]
+const LG_NAME = { NBA: 'NBA', ABA: 'ABA', BAA: 'BAA' }
+const weekShort = c => `${new Date(c.week + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}–${new Date(c.end + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+export function LeagueSeasonBinder({ k, env, onClose, onCareer, onChampion }) {
+  const phone = useIsPhone()
+  const per = 9
+  const [data, setData] = useState(null)
+  const [err, setErr] = useState(false)
+  const [set, setSet] = useState('potd')
+  const [order, setOrder] = useState('set')
+  const [mineOnly, setMineOnly] = useState(false)
+  const P = usePull(env, null)
+  useEffect(() => { env.getJSON(`/data/explorer/binders/lg/${k}.json`).then(setData).catch(() => setErr(true)) }, [k])
+  const def = LG_SETS.find(x => x.id === set)
+  const color = data?.cc || '#3b4656'
+  const entries = useMemo(() => {
+    if (!data) return []
+    const po = data.potd.find(c => c.band)?.date
+    const month = d => (po && d >= po ? 'Playoffs' : new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short' }))
+    return set === 'potd'
+    ? data.potd.map((c, i) => fromIndex(env, c, { rank: i + 1, date: c.date, month: month(c.date), gs: (c.row.gs || 0) + ((c.row.post - c.row.pre) || 0) / 6, label: shortName(c.row.n),
+      sub: `${new Date(c.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${c.row.gs} GmSc`, owned: !!env.owned?.has(`${c.s}|${c.id}|${c.row.n}`) }))
+    : data.potw.map((c, i) => fromIndex(env, { ...c, k: 1, of: 1 }, { rank: i + 1, date: c.week, month: month(c.end), gs: c.score, name: c.n, label: shortName(c.n), sub: weekShort(c), owned: !!env.owned?.has(`potw|${c.week}`) }))
+  }, [data, set, env])
+  const sorted = useMemo(() => (order === 'set' ? entries : [...entries].sort((a, b) => b.gs - a.gs)), [entries, order])
+  const mineList = useMemo(() => mineOf(sorted, '', env), [sorted, env])
+  const S = useSheets(mineOnly ? mineList : sorted, per)
+  const tabs = order === 'set' && !mineOnly && monthTabs(sorted, per, S)
+  const [s, lg] = [k.slice(0, 7), k.slice(8)]
+  const head = <>
+    <div className={styles.kicker}>{LG_NAME[lg]} season binder</div>
+    <h2 className={styles.title} style={{ color }}>{s.replace('-', '–')} {lg}</h2>
+  </>
+  if (err || !data) {
+    return <Book tc={color} phone={phone} onClose={onClose} head={head}
+      left={<p className={styles.line}>{err ? 'This season’s binder isn’t built yet. It appears after the next data update.' : 'Loading…'}</p>} right={<div className={styles.right} />} />
+  }
+  const people = new Set(entries.map(e => e.name))
+  const most = [...entries.reduce((m, e) => m.set(e.name, (m.get(e.name) || 0) + 1), new Map())].sort((a, b) => b[1] - a[1])[0]
+  const switchSet = id => { setSet(id); setOrder('set'); setMineOnly(false); S.reset() }
+  const left = <>
+    <p className={styles.line}>{data.live ? `The ${s.replace('-', '–')} season so far. The binder takes the champion’s color once the title is won.` : <>Champions: <b>{data.cn}</b>.</>} {def.desc}</p>
+    {env.owned && <div className={styles.ownLine}><b>{entries.filter(e => e.owned).length}</b> of {entries.length} in your binder</div>}
+    <div className={styles.stats}>
+      <div><b>{entries.length}</b><small>Cards</small></div>
+      <div><b>{people.size}</b><small>Players</small></div>
+      {most && most[1] > 1 && <div className={styles.statWide}><b>{most[1]}</b><small>Most: {baseName(most[0])}</small></div>}
+    </div>
+    <div className={styles.btnRow}>
+      {data.champ && onChampion && <button type="button" className={styles.linkBtn} onClick={() => onChampion(data.champ, data.s)}>{nick(data.cn)} team binder</button>}
+      {most && most[1] > 1 && onCareer && <button type="button" className={styles.linkBtn} onClick={() => onCareer(most[0])}>{baseName(most[0])}’s career binder</button>}
+    </div>
+    <div className={styles.boxLab}>In this binder</div>
+    <div className={styles.setList}>
+      {LG_SETS.map(x => (
+        <button key={x.id} type="button" className={x.id === set ? styles.setOn : ''} style={{ '--c': color }} onClick={() => switchSet(x.id)}>
+          <i />{x.title}<span>{data[x.id].length}</span>
+        </button>
+      ))}
+    </div>
+    <Checklist entries={mineOnly ? mineList : sorted} per={per} cur={S.cur} onJump={S.jump} label={`Checklist · ${entries.length} cards`} />
+  </>
+  const pg = S.page.filter(Boolean)
+  const right = <Sheet S={S} per={per} name="" env={env} onPull={P.pull} pulled={P.pulled} phone={phone} tabs={tabs}
+    title={`${def.title} · sheet ${S.cur + 1} of ${S.sheets}`}
+    sub={order === 'set' && pg[0] ? `${fullDay(pg[0].date).replace(/, \d{4}$/, '')} – ${fullDay(pg[pg.length - 1].date)}` : ''}
+    tools={<>{phone && <Seg value={set} onChange={switchSet} options={[['potd', `Day · ${data.potd.length}`], ['potw', `Week · ${data.potw.length}`]]} />}<MineToggle env={env} on={mineOnly} set={v => { setMineOnly(v); S.reset() }} n={mineList.length} of={sorted.length} /><Seg value={order} onChange={v => { setOrder(v); S.reset() }} options={[['set', 'Chronological'], ['best', 'Best first']]} /></>} />
+  return <>
+    <Book tc={color} phone={phone} onClose={onClose} head={head} left={left} right={right} tabs={tabs}
+      summary={<span><b>{data.potd.length} Players of the Day · {data.potw.length} Players of the Week</b>{data.cn ? ` · ${data.cn}` : ''}</span>}
+      onKey={e => { if (P.open) return true; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />
+    {P.view}
+  </>
+}
+
 export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
   const phone = useIsPhone()
   const per = 9 // a 3 × 3 sheet on every screen

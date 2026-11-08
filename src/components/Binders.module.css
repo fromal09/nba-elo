@@ -726,3 +726,4 @@
 .lPrize:not(:disabled) small { color: #4a3304; }
 @keyframes prizeGlow { 50% { box-shadow: 0 0 16px 2px rgba(244,210,122,.55); } }
 @media (prefers-reduced-motion: reduce) { .lPrize:not(:disabled) { animation: none; } }
+.btnRow { display: flex; flex-wrap: wrap; gap: 6px; }

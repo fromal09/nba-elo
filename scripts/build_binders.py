@@ -24,7 +24,7 @@ Player of the Game / Day and playoff rounds match the site's own rules (markHono
        "sets": {"titles", "debuts", "games", "stat", "crowns", "peaks", "swings": [card, ...],
                 "slayers", "duels": [{"k", "s", "id", "date", "a": card, "b": card, "gap"|"score"}]}}
 
-Run after build_timemachine.py:  python3 scripts/build_binders.py   (also builds the pack pool and the special cards: build_packs.py, build_specials.py)
+Run after build_timemachine.py:  python3 scripts/build_binders.py   (also builds the pack pool, the special cards and the season binders: build_packs.py, build_specials.py, build_season_binders.py)
 """
 import heapq, itertools, json, sys
 from collections import defaultdict
@@ -425,3 +425,5 @@ if __name__ == "__main__":
     build_honors()
     from build_specials import main as build_specials
     build_specials()
+    from build_season_binders import main as build_season_binders   # the Seasons shelf: Players of the Day and Week per league season
+    build_season_binders()

@@ -58,7 +58,7 @@
 /* A row of album spines standing on a plank: grained leather, raised bands, a framed gold label, brass corner caps */
 .row { display: flex; align-items: flex-end; gap: 5px; height: 270px; overflow-x: auto; padding: 18px 2px 0; scrollbar-width: thin; }
 .row[data-tall] { height: 320px; }
-.lspine, .tspine, .gspine { position: relative; border: 0; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #fff;
+.lspine, .tspine, .gspine, .sspine { position: relative; border: 0; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #fff;
   background-color: var(--c);
   background-image: linear-gradient(90deg, rgba(255,255,255,.2), rgba(255,255,255,0) 28%, rgba(0,0,0,0) 62%, rgba(0,0,0,.38)), radial-gradient(rgba(0,0,0,.1) 1px, transparent 1.6px);
   background-size: auto, 4px 4px; border-radius: 5px 5px 3px 3px; box-shadow: 0 5px 10px rgba(0,0,0,.45); transition: transform .15s ease-out; }
@@ -166,7 +166,7 @@
 }
 
 /* Lighting: warm light from the top of the bay reaches the albums; a hovered album tips out of the row */
-.lspine, .tspine, .gspine { background-image: linear-gradient(180deg, rgba(255,210,150,.2), rgba(255,210,150,0) 38%), linear-gradient(90deg, rgba(255,255,255,.2), rgba(255,255,255,0) 28%, rgba(0,0,0,0) 62%, rgba(0,0,0,.38)), radial-gradient(rgba(0,0,0,.1) 1px, transparent 1.6px);
+.lspine, .tspine, .gspine, .sspine { background-image: linear-gradient(180deg, rgba(255,210,150,.2), rgba(255,210,150,0) 38%), linear-gradient(90deg, rgba(255,255,255,.2), rgba(255,255,255,0) 28%, rgba(0,0,0,0) 62%, rgba(0,0,0,.38)), radial-gradient(rgba(0,0,0,.1) 1px, transparent 1.6px);
   background-size: auto, auto, 4px 4px; transform-origin: 50% 100%; transition: transform .25s cubic-bezier(.2,.9,.3,1.2), box-shadow .25s; }
 .lspine[data-up], .tspine[data-up], .gspine[data-up] { transform: translateY(-26px) rotate(-5deg); box-shadow: 0 22px 30px rgba(0,0,0,.6); z-index: 2; }
 .lspine:hover, .tspine:hover, .gspine:hover { transform: translateY(-8px); }
@@ -329,3 +329,24 @@
 .envelope::before { height: 50px; }
 .seal { top: 30px; width: 26px; height: 26px; font-size: 13px; }
 @media (max-width: 760px) { .envelope { height: 76px; } .envelope::before { height: 42px; } .seal { top: 24px; } }
+
+/* The Seasons shelf: one binder per league season in the champion's color. League tag on top, the season down the spine */
+.row[data-seasons] { gap: 3px; }
+.sspine { flex: none; width: 34px; height: 236px; gap: 7px; padding: 12px 0 12px; box-sizing: border-box; }
+.sspine em { font: 800 8.5px 'Inter', sans-serif; font-style: normal; letter-spacing: .5px; color: #1b2636; background: #f5e7c2; border-radius: 3px; padding: 2px 3px; box-shadow: 0 0 0 1px #c9a24a; }
+.sspine[data-lg="ABA"] em { background: #fff; color: #b5121b; box-shadow: 0 0 0 1px #1d3c8f; }
+.sspine[data-lg="BAA"] em { background: #e9e4d6; color: #5a3f08; }
+.sspine .frame { margin: 0 5px; }
+.sspine .frame b { font: 800 11px 'Inter', sans-serif; letter-spacing: 1px; }
+.sspine small { font: 800 10px 'Inter', sans-serif; color: #f5d98e; min-height: 13px; }
+.sspine[data-live] small { color: #fff; background: #c8102e; border-radius: 3px; padding: 1px 3px; font-size: 8px; letter-spacing: .5px; }
+.sspine .hub { height: 6px; }
+.sspine .corners i { width: 8px; height: 8px; }
+.sspine:hover { transform: translateY(-8px); }
+.sspine[data-up] { transform: translateY(-26px) rotate(-5deg); box-shadow: 0 22px 30px rgba(0,0,0,.6); z-index: 2; }
+.sspine:focus-visible { outline: 2px solid #e7c160; outline-offset: 2px; }
+.sgap { flex: none; align-self: flex-end; width: 26px; height: 150px; margin: 0 6px; display: flex; align-items: center; justify-content: center; border-radius: 3px;
+  background: repeating-linear-gradient(135deg, rgba(255,255,255,.05) 0 6px, rgba(255,255,255,0) 6px 12px); box-shadow: inset 0 0 0 1px rgba(201,162,74,.35); }
+.sgap small { writing-mode: vertical-rl; transform: rotate(180deg); font: 700 9px 'Inter', sans-serif; letter-spacing: 1px; text-transform: uppercase; color: rgba(245,217,142,.7); white-space: nowrap; }
+@media (max-width: 640px) { .sspine { height: 206px; } .row[data-seasons] .sspine { scroll-snap-align: start; } }
+@media (prefers-reduced-motion: reduce) { .sspine, .sspine:hover, .sspine[data-up] { transition: none; transform: none; } }

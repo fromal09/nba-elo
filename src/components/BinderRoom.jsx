@@ -23,7 +23,7 @@ import { MiniCard, DuelCard } from './PlayerCard'
 const baseName = n => n.replace(/\s*\(.*\)$/, '')
 // A franchise's spine name: the nickname ("Trail Blazers" stays whole)
 const nickOf = name => { const w = name.replace(/\s*\(.*\)$/, '').split(' '); return w.length > 2 && ['Trail', 'Golden'].includes(w[w.length - 2]) ? w.slice(-2).join(' ') : w[w.length - 1] }
-const SHELVES = [['br-desk', 'Your desk'], ['br-trophy', 'Trophy case'], ['br-sets', 'League sets'], ['br-teams', 'Franchises'], ['br-legends', 'Legends'], ['br-catalog', 'Card catalog']]
+const SHELVES = [['br-desk', 'Your desk'], ['br-trophy', 'Trophy case'], ['br-sets', 'League sets'], ['br-seasons', 'Seasons'], ['br-teams', 'Franchises'], ['br-legends', 'Legends'], ['br-catalog', 'Card catalog']]
 const DRAWERS = [['player', 'Players'], ['franchise', 'Franchises'], ['season', 'Seasons'], ['set', 'Sets'], ['special', 'Specials'], ['tier', 'Tiers']]
 
 // Album spine hardware: raised bands, and brass caps on the four corners
@@ -111,6 +111,7 @@ function Desk({ C, shots, setOpen, env }) {
 export default function BinderRoom({ players, onSelectPlayer, start }) {
   const [index, setIndex] = useState(null)
   const [league, setLeague] = useState(null)
+  const [seasons, setSeasons] = useState(null)
   const [err, setErr] = useState(false)
   const [shots, setShots] = useState({})
   const [best, setBest] = useState(null)
@@ -138,6 +139,7 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
   useEffect(() => {
     binderJSON('/data/explorer/index.json').then(setIndex).catch(() => {})
     binderJSON('/data/explorer/binders/league.json').then(setLeague).catch(() => setErr(true))
+    binderJSON('/data/explorer/binders/seasons.json').then(setSeasons).catch(() => setSeasons([]))
     binderJSON('/data/explorer/ranks.json').then(setBest).catch(() => {})
     binderHeadshots().then(setShots)
   }, [])
@@ -200,6 +202,37 @@ export default function BinderRoom({ players, onSelectPlayer, start }) {
               <span className={styles.bookend} aria-hidden="true" />
             </div>}
             {fx.peekIn('br-sets')}
+            <div className={shelf.plank} />
+          </section>
+
+          <section id="br-seasons" className={shelf.bay} aria-labelledby="br-seasons-h">
+            <div className={shelf.bayHead}>
+              <Plate id="br-seasons-h">Seasons · {seasons?.length || ''}</Plate>
+              <span className={shelf.lede}>Every Player of the Day and Player of the Week, one binder per league season, bound in the champion’s colors</span>
+            </div>
+            {seasons && !seasons.length ? <p className={styles.note}>The season binders aren’t built yet. They appear after the next data update.</p>
+            : <div className={styles.row} data-seasons="">
+              {(seasons || []).map((x, i, all) => {
+                const yr = `${x.s.slice(0, 4)}–${x.s.slice(5)}`, c = x.cc || '#3b4656'
+                const gap = i > 0 && +x.s.slice(0, 4) - +all[i - 1].s.slice(0, 4) > 1
+                return [
+                  gap && <span key={`gap-${x.key}`} className={styles.sgap} aria-hidden="true"><small>NBA {+(all.slice(0, i).filter(y => y.lg === x.lg).pop()?.s.slice(0, 4) || 0) + 1}–{x.s.slice(2, 4)} · not on record</small></span>,
+                  <button key={x.key} type="button" className={styles.sspine} data-lg={x.lg} data-live={x.live ? '' : undefined} style={{ '--c': c }}
+                    {...fx.bind({ key: `s-${x.key}`, kind: `${x.lg} season binder`, title: `${yr} ${x.lg}`, color: c, ink: c, initials: x.lg,
+                      desc: `${x.live ? 'The season so far.' : `Champions: ${x.cn}.`} Every Player of the Day and every Player of the Week.`,
+                      meta: `${x.potd} Players of the Day · ${x.potw} of the Week`, target: { kind: 'lgseason', key: x.key } })}
+                    aria-label={`${yr} ${x.lg} season binder${x.cn ? `, champions ${x.cn}` : ', in progress'}`}>
+                    <i className={styles.hub} aria-hidden="true" />
+                    <em>{x.lg}</em>
+                    <span className={styles.frame}><b>{yr}</b></span>
+                    <small>{x.live ? 'LIVE' : '★'}</small>
+                    <i className={styles.hub} aria-hidden="true" />
+                    <Corners />
+                  </button>,
+                ]
+              })}
+            </div>}
+            {fx.peekIn('br-seasons')}
             <div className={shelf.plank} />
           </section>
 

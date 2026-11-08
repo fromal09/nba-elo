@@ -29,6 +29,46 @@ const shortName = n => { const [f, ...r] = baseName(n).split(' '); return r.leng
 const teamName = t => binderTeamInfo(t)?.name || t
 const nick = t => { const n = teamName(t); return /Trail Blazers$/.test(n) ? 'Trail Blazers' : n.split(' ').pop() }
 const Logo = ({ t, size = 34 }) => <span className={styles.logo} style={{ width: size, height: size }}>{binderLogo(t) ? <img src={binderLogo(t)} alt="" style={{ width: size, height: size }} /> : <b>{t}</b>}</span>
+
+// Confidence check: per team, in the graded games it played, how often you picked it against how often it won.
+// Over: you back a team more often than it wins. Under: it wins more often than you back it. Gaps are in games, so a big sample counts for more
+function Confidence({ calib }) {
+  const rows = (calib || []).map(c => ({ ...c, gap: c.picked - c.won }))
+  const over = rows.filter(c => c.gap > 0).sort((a, b) => b.gap - a.gap || b.n - a.n).slice(0, 3)
+  const under = rows.filter(c => c.gap < 0).sort((a, b) => a.gap - b.gap || b.n - a.n).slice(0, 3)
+  const even = rows.filter(c => c.gap === 0).sort((a, b) => b.n - a.n)[0]
+  if (!rows.length) return <div className={styles.conf}><div className={styles.confHead}><small>Confidence check</small><b>Not enough games yet</b></div>
+    <p className={styles.confNote}>Once a team has played 3 of your graded games, this shows whether you back it more or less often than it wins.</p></div>
+  const top = over[0] && (!under[0] || over[0].gap >= -under[0].gap) ? over[0] : under[0]
+  const pc = (a, n) => `${Math.round(a / n * 100)}%`
+  const Row = ({ c, k }) => (
+    <div className={styles.confRow} data-k={k}>
+      <Logo t={c.team} size={26} />
+      <div className={styles.confMid}>
+        <div className={styles.confName}><b>{nick(c.team)}</b><small>{c.n} games{c.fx != null ? ` · forecast ${c.fx.toFixed(1)} wins` : ''}</small></div>
+        <div className={styles.confBar} title={`Picked ${c.picked} of ${c.n} · won ${c.won} of ${c.n}`}>
+          <i className={styles.confPick} style={{ width: pc(c.picked, c.n) }} />
+          <i className={styles.confWon} style={{ left: pc(c.won, c.n) }} />
+        </div>
+        <div className={styles.confNums}><span>Picked <b>{c.picked}</b> · {pc(c.picked, c.n)}</span><span>Won <b>{c.won}</b> · {pc(c.won, c.n)}</span></div>
+      </div>
+      <span className={styles.confGap}>{c.gap > 0 ? '+' : '−'}{Math.abs(c.gap)}</span>
+    </div>
+  )
+  return (
+    <div className={styles.conf}>
+      <div className={styles.confHead}>
+        <small>Confidence check</small>
+        <b>{top.gap > 0 ? `You back the ${nick(top.team)} more than they win` : `The ${nick(top.team)} win more than you back them`}</b>
+        <span>{top.gap > 0 ? `You picked them ${top.picked} times in their ${top.n} games; they won ${top.won}.` : `They won ${top.won} of their ${top.n} games; you picked them ${top.picked} times.`}</span>
+      </div>
+      <div className={styles.confKey}><span><i className={styles.confPick} /> you picked them</span><span><i className={styles.confWon} /> they won</span></div>
+      {over.length > 0 && <><div className={styles.confLab} data-k="over">Overconfident <small>picked more than they won</small></div>{over.map(c => <Row key={c.team} c={c} k="over" />)}</>}
+      {under.length > 0 && <><div className={styles.confLab} data-k="under">Underconfident <small>won more than you picked them</small></div>{under.map(c => <Row key={c.team} c={c} k="under" />)}</>}
+      {even && <p className={styles.confNote}>Spot on: the <b>{nick(even.team)}</b>, picked {even.picked} times and won {even.won} of {even.n}.</p>}
+    </div>
+  )
+}
 const statusOf = g => (g.state === 'pre' ? (g.open ? tipTime(g.tip) : 'In progress') : g.state === 'post' ? 'Final' : g.detail ? `In progress · ${g.detail}` : 'In progress')
 
 // ── Games ────────────────────────────────────────────────────────────────────
@@ -523,6 +563,7 @@ export function PredictPages({ env, phone, tools, children, initialTab = 'games'
       <span>{F.rated ? <>You’re {F.wins}–{F.rated - F.wins} on forecast games; the Elo forecast expected {F.expected.toFixed(1)} wins from your picks. Its favorites went {F.favW}–{F.favL} in them.</>
         : 'Once your picks are graded, this compares your wins with what the Elo forecast expected from them.'}</span>
     </div>
+    <Confidence calib={s.calib} />
     <div className={styles.stats}>
       <div><b>{s.locks.w}–{s.locks.l}</b><small>Locks</small></div>
       <div><b>{s.duels.w}–{s.duels.l}</b><small>Matchups</small></div>

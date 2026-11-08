@@ -452,6 +452,19 @@ function stats({ picks, days, duels, duelDays, lineDays, coins }) {
   const byTeam = {}
   graded.forEach(r => { const b = (byTeam[r.pick] = byTeam[r.pick] || [0, 0]); b[r.result === 'win' ? 0 : 1]++ })
   const teams = Object.entries(byTeam).map(([t, [w, l]]) => ({ team: t, w, l })).sort((a, b) => b.w + b.l - (a.w + a.l) || b.w - a.w)
+  // Confidence by team: in the graded games a team played, how often you picked it against how often it won
+  // (and how often the forecast expected it to). Over: you back it more than it wins; under: it wins more than you back it
+  const cal = {}
+  graded.forEach(r => {
+    if (!r.home || !r.away) return
+    const won = r.result === 'win' ? r.pick : r.pick === r.home ? r.away : r.home
+    for (const t of [r.home, r.away]) {
+      const c = (cal[t] = cal[t] || { team: t, n: 0, picked: 0, won: 0, fx: 0, fn: 0 })
+      c.n++; if (r.pick === t) c.picked++; if (won === t) c.won++
+      if (r.chance != null) { c.fx += r.pick === t ? r.chance : 1 - r.chance; c.fn++ }
+    }
+  })
+  const calib = Object.values(cal).filter(c => c.n >= 3).map(c => ({ team: c.team, n: c.n, picked: c.picked, won: c.won, fx: c.fn === c.n ? Math.round(c.fx * 10) / 10 : null }))
   const dg = duels.filter(r => r.result === 'win' || r.result === 'loss')
   return {
     picks: graded.length, wins, losses: graded.length - wins, pct: graded.length ? wins / graded.length : null,
@@ -462,7 +475,7 @@ function stats({ picks, days, duels, duelDays, lineDays, coins }) {
     locks: { w: locks.filter(r => r.result === 'win').length, l: locks.filter(r => r.result === 'loss').length },
     duels: { w: dg.filter(r => r.result === 'win').length, l: dg.filter(r => r.result === 'loss').length, cards: duelDays.filter(d => d.reward === 'duel' && d.claimed_ref).length },
     lineup: { days: lineDays.length, best: lineDays.reduce((m, d) => Math.max(m, d.total), 0), avg: lineDays.length ? Math.round(lineDays.reduce((a, d) => a + d.total, 0) / lineDays.length * 10) / 10 : null },
-    teams: teams.slice(0, 6),
+    teams: teams.slice(0, 6), calib,
   }
 }
 
@@ -588,7 +601,7 @@ export async function predView(sql, u, today, tomorrow, origin) {
       potd: await potdView(sql, u, origin, day, slates[i]).catch(e => { console.error('potd', e); return { pick: null, open: false, candidates: [], winner: null } }) }
   }))
   const view = all.slice(0, 2), prev = all[2]
-  const picks = await sql`select p.game_id, p.pick, p.result, p.chance, p.bonus, p.lock, p.day, g.tip from predictions p join pred_games g on g.id = p.game_id where p.user_id = ${u.id}`
+  const picks = await sql`select p.game_id, p.pick, p.result, p.chance, p.bonus, p.lock, p.day, g.tip, g.home, g.away from predictions p join pred_games g on g.id = p.game_id where p.user_id = ${u.id}`
   const duels = await sql`select game_id, pick, result, day from duel_picks where user_id = ${u.id}`
   const days = await sql`select * from pred_days where user_id = ${u.id} order by day desc`
   const duelDays = await sql`select * from duel_days where user_id = ${u.id} order by day desc`
