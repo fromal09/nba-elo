@@ -492,3 +492,21 @@
   .room .frames { flex-direction: row; }
   .room .frame { width: 84px; }
 }
+
+/* The Floor Times' injury notes: a sidebar set under the photos, the two teams side by side */
+.injNotes { margin-top: 10px; padding-top: 6px; border-top: 1px solid #1e1a14; display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.injNotes h5 { grid-column: 1 / -1; margin: 0 0 4px; padding-bottom: 3px; border-bottom: 3px double #1e1a14; font: 900 12.5px 'Playfair Display', Georgia, serif; letter-spacing: 1.6px; text-transform: uppercase; }
+.injNotes > div { min-width: 0; }
+.injNotes > div + div { border-left: 1px solid rgba(30,26,20,.35); padding-left: 12px; }
+.injNotes h6 { margin: 5px 0 3px; font: 700 10.5px 'Inter', sans-serif; letter-spacing: 1px; text-transform: uppercase; color: #4a4232; }
+.injNotes p { margin: 0 0 3px; font-size: 11.5px; line-height: 1.4; color: #2e281e; }
+.injNotes p b { font-weight: 700; color: #1e1a14; }
+.injTag { display: inline-block; min-width: 26px; margin-right: 4px; padding: 0 4px; border-radius: 3px; font: 800 9px/15px 'Inter', sans-serif; letter-spacing: .6px; text-transform: uppercase; text-align: center; color: #fff; background: #c43c3c; vertical-align: 1px; }
+.injTag[data-s="Questionable"], .injTag[data-s="Day-to-day"], .injTag[data-s="Doubtful"] { background: #d99a1e; color: #2a1c05; }
+.injTag[data-s="Doubtful"] { background: #d9702b; color: #fff; }
+.injTag[data-s="Probable"] { background: #3f8f5c; }
+.injClean { font-style: italic; color: #6b6255 !important; }
+.injStamp { position: absolute; left: 50%; top: 22%; transform: translate(-50%, -50%) rotate(-12deg); z-index: 3; padding: 2px 7px; border: 2px solid #d99a1e; border-radius: 4px;
+  background: rgba(30,20,0,.6); color: #f0b93a; font: 800 11px 'Inter', sans-serif; letter-spacing: 1.5px; text-transform: uppercase; white-space: nowrap; pointer-events: none; }
+.voidLine { margin: 6px 0 0; padding: 5px 8px; border-left: 3px solid #d99a1e; background: rgba(240,185,58,.18); font-size: 12px; font-style: italic; line-height: 1.4; color: #5a3d00; }
+@media (max-width: 420px) { .injNotes { grid-template-columns: 1fr; } .injNotes > div + div { border-left: 0; padding-left: 0; } }

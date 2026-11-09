@@ -77,6 +77,7 @@ async function injuries() {
       name: i.athlete?.displayName || '',
       status: i.status || i.type?.description || '',
       detail: i.shortComment || i.details?.type || '',
+      part: i.details?.type || null,
       ret: i.details?.returnDate || null,
       date: i.date || null,
     })).filter(i => i.name)
@@ -88,6 +89,14 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   const now = new Date()
   const seasonStart = Number(req.query?.season) || (now.getUTCMonth() >= 8 ? now.getUTCFullYear() : now.getUTCFullYear() - 1)
+  // Just the injury report (the Scoreboard's Injury Wire and Pick'em's injury notes): cached minutes, not hours
+  if (req.query?.only === 'injuries') {
+    try {
+      const inj = await injuries()
+      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
+      return res.status(200).json({ fetched: now.toISOString(), injuries: inj })
+    } catch (e) { return res.status(502).json({ error: e.message }) }
+  }
   try {
     const errors = []
     const [games, inj] = await Promise.all([schedule(seasonStart, errors), injuries().catch(e => { errors.push(`injuries: ${e.message}`); return {} })])
