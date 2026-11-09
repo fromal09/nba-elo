@@ -2,6 +2,7 @@ import { historyReady, useCareerHistory } from '../history.js'
 import { useState, useEffect, useMemo, useRef, Fragment, createContext, useContext } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import styles from './SeasonExplorer.module.css'
+import { setInjuryRatings } from './injuries'
 import { RewardPicker } from './Predictions'
 import PlayerCard, { MiniCard, DuelCard, DuelModal, tierFor, momentsFor, setFirstGameLookup } from './PlayerCard'
 import { SeasonBinder, CareerBinder, TeamBinder, FranchiseBinder, LeagueBinder, LeagueSeasonBinder, CollectionBinder, PublicBinder, usePull, fromIndex } from './Binders'
@@ -343,6 +344,7 @@ function teamGames(sd, team) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }) {
+  useMemo(() => setInjuryRatings(players), [players]) // the Injury Wire ranks absences by Elo
   const [index, setIndex] = useState(null)
   const [err, setErr] = useState(null)
   const [season, setSeason] = useState(null)

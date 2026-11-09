@@ -1,0 +1,73 @@
+/* The Injury Wire: a gold-lit panel beside the Sportsbook wall */
+.panel { position: sticky; top: 70px; max-height: calc(100vh - 86px); overflow-y: auto; scrollbar-width: thin; border: 1px solid #3a2f12; border-radius: 10px;
+  background: linear-gradient(180deg, #1a150b, #110e09); color: #f3ead2; font: 500 12px 'Inter', sans-serif; text-align: left; }
+.head { display: flex; align-items: center; padding: 10px 12px 4px; background: linear-gradient(90deg, #2a1f0a, #16110a); }
+.head b { flex: 1; font: 700 16px 'Oswald', 'Barlow Condensed', sans-serif; letter-spacing: 3.5px; text-transform: uppercase; color: #ffe1a0; }
+.fold { width: 26px; height: 26px; flex: none; border-radius: 6px; border: 1px solid #4a3c18; background: none; display: grid; place-items: center; color: #e7c160; font: 800 14px 'Inter', sans-serif; cursor: pointer; }
+.fold:hover { background: #2a2010; }
+.tot { display: flex; align-items: center; gap: 10px; padding: 3px 12px 9px; background: linear-gradient(90deg, #2a1f0a, #16110a); border-bottom: 1px solid #3a2f12; font-weight: 700; color: #e8dcb8; }
+.tot small { margin-left: auto; color: #a89a78; font-weight: 600; font-size: 10.5px; }
+i[data-s] { font-style: normal; font: 800 10.5px 'Inter', sans-serif; padding: 1px 5px; border-radius: 4px; color: #fff; background: #d64545; }
+i[data-s="Questionable"] { background: #e0a526; color: #2a1c05; }
+.tools { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid #2c2410; }
+.seg { display: flex; background: rgba(0,0,0,.35); border: 1px solid #4a3c18; border-radius: 8px; padding: 2px; }
+.seg button, .rot { border: 0; background: none; padding: 4px 9px; border-radius: 6px; font: 700 11px 'Inter', sans-serif; color: #cdbf9a; cursor: pointer; }
+.seg button[data-on], .rot[data-on] { background: #c9a24a; color: #1b1305; }
+.rot { border: 1px solid #4a3c18; }
+.lab { padding: 9px 12px 4px; font: 800 10px 'Inter', sans-serif; letter-spacing: 1.4px; text-transform: uppercase; color: #a89a78; }
+.lab small { margin-left: 4px; font-weight: 600; letter-spacing: 0; text-transform: none; color: #7d7356; }
+.ab { width: 100%; display: flex; align-items: center; gap: 8px; padding: 5px 12px; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+.ab:hover { background: #1c160b; }
+.hs { width: 28px; height: 28px; flex: none; border-radius: 50%; overflow: hidden; display: grid; place-items: center; }
+.hs > * { width: 100% !important; height: 100% !important; }
+.abn { flex: 1; min-width: 0; line-height: 1.2; }
+.abn b { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.abn small { display: block; color: #9c916f; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag { display: inline-flex; justify-content: center; align-items: center; min-width: 38px; height: 19px; padding: 0 5px; border-radius: 5px; font: 800 10px 'Inter', sans-serif;
+  letter-spacing: .6px; text-transform: uppercase; color: #fff; background: #d64545; flex: none; }
+.tag[data-s="Questionable"], .tag[data-s="Day-to-day"] { background: #e0a526; color: #2a1c05; }
+.tag[data-s="Doubtful"] { background: #e06a2b; }
+.tag[data-s="Probable"] { background: #3f9c63; }
+.game { border-top: 1px solid #241d0e; }
+.game[data-on] { background: #16110a; }
+.gh { width: 100%; display: flex; align-items: center; gap: 5px; padding: 8px 12px; border: 0; background: none; color: inherit; cursor: pointer; text-align: left; }
+.gh:hover, .game[data-on] .gh { background: #1f1809; }
+.tm { display: inline-block; font: 800 10.5px 'Inter', sans-serif; padding: 1px 5px; border-radius: 4px; background: var(--c); color: #fff; letter-spacing: .3px; }
+.at { color: #7d7356; font-weight: 700; }
+.gh small { margin-left: 4px; color: #a89a78; font-weight: 600; }
+.ct { margin-left: auto; display: flex; gap: 3px; }
+.cv { width: 12px; color: #e7c160; text-align: right; }
+.gb { padding: 2px 12px 10px; }
+.team h5 { margin: 8px 0 3px; display: flex; align-items: center; gap: 6px; font: 800 10.5px 'Inter', sans-serif; letter-spacing: 1.2px; text-transform: uppercase; color: #e8dcb8; }
+.team h5 i { width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+.pl { display: grid; grid-template-columns: 42px 1fr auto; gap: 1px 8px; align-items: center; padding: 4px 0; border-top: 1px solid #241d0e; }
+.nm { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ret { font-size: 11px; color: #c9bb93; white-space: nowrap; }
+.why { grid-column: 2 / 4; font-size: 11px; color: #9c916f; }
+.none { padding: 4px 0; font-size: 11.5px; color: #7d7356; }
+.more { margin-top: 3px; padding: 0; border: 0; background: none; font: 700 11px 'Inter', sans-serif; color: #e7c160; cursor: pointer; }
+.foot { margin: 0; padding: 9px 12px 11px; border-top: 1px solid #241d0e; color: #7d7356; font-size: 10.5px; }
+
+/* Folded: a rail with the totals and the top absences */
+.rail { position: sticky; top: 70px; width: 46px; min-height: 360px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0; border: 1px solid #3a2f12; border-radius: 10px;
+  background: linear-gradient(180deg, #2a1f0a, #110e09); color: #ffe1a0; cursor: pointer; }
+.rail:hover { border-color: #c9a24a; }
+.rv { writing-mode: vertical-rl; transform: rotate(180deg); font: 700 13px 'Oswald', 'Barlow Condensed', sans-serif; letter-spacing: 3px; text-transform: uppercase; }
+.rc { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.rd { position: relative; }
+.rd em { position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #110e09; background: #d64545; }
+.rd em[data-s="Questionable"], .rd em[data-s="Day-to-day"], .rd em[data-s="Doubtful"] { background: #e0a526; }
+
+/* Phone: a tab on the right edge, and the panel as a drawer */
+.etab { position: fixed; right: 0; top: 46%; z-index: 90; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 6px; border: 1px solid #4a3c18; border-right: 0;
+  border-radius: 10px 0 0 10px; background: linear-gradient(180deg, #2a1f0a, #16110a); box-shadow: -6px 6px 18px rgba(0,0,0,.5); cursor: pointer; }
+.etab span { writing-mode: vertical-rl; transform: rotate(180deg); font: 700 12px 'Oswald', 'Barlow Condensed', sans-serif; letter-spacing: 2.5px; text-transform: uppercase; color: #ffe1a0; }
+.scrim { position: fixed; inset: 0; z-index: 1200; background: rgba(0,0,0,.55); }
+.drawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(88vw, 380px); box-shadow: -12px 0 30px rgba(0,0,0,.6); animation: wireIn .2s ease-out; }
+.drawer .panel { position: static; height: 100%; max-height: none; border-radius: 0; border-width: 0 0 0 1px; }
+@keyframes wireIn { from { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .drawer { animation: none; } }
+
+/* A tile's badge */
+.badge { display: inline-flex; gap: 3px; }
+.badge i { font-size: 9.5px; text-transform: uppercase; letter-spacing: .5px; }

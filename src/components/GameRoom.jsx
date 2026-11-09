@@ -15,6 +15,7 @@ import { FaceFit } from './TrophyRoom'
 import { usePoll, gamesHot } from './poll'
 import { goTo, hrefFor } from '../nav.js'
 import { Explain } from './Explainer'
+import { useInjuries, teamReport, INJ_TAG, injPart, retShort, retAhead, lateAdd, setInjuryRatings } from './injuries'
 
 /*
  * The Game Room: every game on the site, out of the binder and into an arcade. A chalkboard over the room holds
@@ -111,61 +112,20 @@ function LastCard({ name, x, env, big }) {
 const lastLine = x => (x ? `Last game, ${fmtDay(x.g.date, { month: 'short', day: 'numeric' })}: ${x.row.pts} pts, ${x.row.trb} reb, ${x.row.ast} ast, ${(+x.row.gs).toFixed(1)} Game Score` : 'No recent game on record')
 
 
-// ── The injury report (ESPN's, through /api/schedule?only=injuries: refreshed every few minutes) ──
-// ESPN marks a player Out or Day-To-Day; the finer status (questionable, doubtful, probable) is in its note
-let injCache = null, injAt = 0
-const INJ_MS = 5 * 60e3
-function useInjuries() {
-  const [inj, setInj] = useState(injCache)
-  useEffect(() => {
-    let live = true
-    const load = () => {
-      if (injCache && Date.now() - injAt < INJ_MS) { setInj(injCache); return }
-      fetch('/api/schedule?only=injuries').then(r => (r.ok ? r.json() : null)).then(d => { if (d?.injuries && live) { injCache = d.injuries; injAt = Date.now(); setInj(d.injuries) } }).catch(() => {})
-    }
-    load()
-    const t = setInterval(load, INJ_MS)
-    return () => { live = false; clearInterval(t) }
-  }, [])
-  return inj
-}
-const normName = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[.'’]/g, '').replace(/\b(jr|sr|ii|iii|iv)\b/g, '').replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim()
-const INJ_ORDER = { Out: 0, Doubtful: 1, Questionable: 2, 'Day-to-day': 3, Probable: 4 }
-const INJ_TAG = { Out: 'Out', Doubtful: 'Doubt', Questionable: 'Q', 'Day-to-day': 'GTD', Probable: 'Prob' }
-function injStatus(i) {
-  const t = `${i.detail || ''}`.toLowerCase()
-  if (/\bprobable\b/.test(t)) return 'Probable'
-  if (/\bdoubtful\b/.test(t)) return 'Doubtful'
-  if (/\bquestionable\b/.test(t)) return 'Questionable'
-  if (/^out$/i.test(i.status || '') || /ruled out|will not play|won't play|is out\b/.test(t)) return 'Out'
-  return 'Day-to-day'
-}
-// A team's report as the notes print it: game-time decisions always; Out only for players who matter (1,800+ Elo),
-// so two-way and season-long names don't crowd the column
-let ELO = null // player name (normalized) → current Elo, set by the Game Room from the ratings
-function teamReport(inj, team) {
-  return (inj?.[team] || []).map(i => ({ ...i, st: injStatus(i), elo: ELO?.get(normName(i.name)) ?? null }))
-    .filter(i => i.st !== 'Out' || (i.elo ?? 0) >= 1800)
-    .sort((a, b) => INJ_ORDER[a.st] - INJ_ORDER[b.st] || (b.elo ?? 0) - (a.elo ?? 0))
-}
-const injPart = i => (i.part || '').toLowerCase()
-const retShort = d => (d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '')
-function InjuryNotes({ inj, g }) {
+function InjuryNotes({ inj, g, day }) {
   if (!inj) return null
   const side = t => {
-    const L = teamReport(inj, t)
+    const L = teamReport(inj, t, day)
     return <div key={t}>
       <h6>{teamName(t)}</h6>
       {L.length ? L.slice(0, 6).map(i => <p key={i.name}><span className={styles.injTag} data-s={i.st}>{INJ_TAG[i.st]}</span><b>{lastName(i.name)}</b>
-        {injPart(i) ? ` (${injPart(i)})` : ''}{i.st === 'Out' && i.ret ? `, back ~${retShort(i.ret)}` : ''}.</p>)
+        {injPart(i) ? ` (${injPart(i)})` : ''}{i.st === 'Out' && retAhead(i, day) ? `, back ~${retShort(i.ret)}` : ''}.</p>)
         : <p className={styles.injClean}>A clean bill of health.</p>}
       {L.length > 6 && <p className={styles.injClean}>and {L.length - 6} more</p>}
     </div>
   }
   return <aside className={styles.injNotes} aria-label="Injury notes"><h5>Injury Notes</h5>{side(g.away)}{side(g.home)}</aside>
 }
-// A featured player who landed on the report after his matchup was set (anything but Probable)
-const lateAdd = (inj, name, team) => { const i = (inj?.[team] || []).find(x => normName(x.name) === normName(name)); const st = i && injStatus(i); return st && st !== 'Probable' ? st : null }
 
 // The Floor Times: a newspaper preview of one game, its featured matchup's last cards printed in it.
 // With onDuel, the two photos are the matchup pick: tap the player you think posts the higher Game Score
@@ -179,7 +139,7 @@ function Clipping({ g, env, last, day, onDuel, busyDuel, inj }) {
     : !fav ? `${nick(g.away)} visit the ${nick(g.home)}`
     : favP >= 0.7 ? `${nick(fav)} heavy favorites over ${nick(dog)}` : favP >= 0.56 ? `${nick(fav)} favored against ${nick(dog)}` : `Toss-up: ${nick(g.away)} at ${nick(g.home)}`
   const bonus = dog && g.upset?.[dog]
-  const late = d && !d.void && g.state === 'pre' ? [[d.a, g.away], [d.b, g.home]].map(([n, t]) => [n, lateAdd(inj, n, t)]).filter(x => x[1]) : []
+  const late = d && !d.void && g.state === 'pre' ? [[d.a, g.away], [d.b, g.home]].map(([n, t]) => [n, lateAdd(inj, n, t, day)]).filter(x => x[1]) : []
   return (
     <article className={styles.clip}>
       <div className={styles.mast}><b>The Floor Times</b><span>{fmtDay(day, { weekday: 'short', month: 'short', day: 'numeric' })} · {statusOf(g)}</span></div>
@@ -206,7 +166,7 @@ function Clipping({ g, env, last, day, onDuel, busyDuel, inj }) {
       {d && <p className={styles.dek}>Featured matchup: {baseName(d.a)} against {baseName(d.b)}{d.ae && d.be ? `, ${n0(Math.abs(d.ae - d.be))} Elo apart` : ''}.
         {d.void ? ' Off: a player was ruled out.' : onDuel && g.duel && g.open ? (g.duel.pick ? ` You have ${baseName(g.duel.pick)} for the higher Game Score.` : ' Tap a photo to call the higher Game Score.') : ''}</p>}
       {late.length > 0 && <p className={styles.voidLine}>{late.map(([n, st]) => `${baseName(n)} is ${st === 'Day-to-day' ? 'day-to-day' : st.toLowerCase()}`).join(' and ')}, listed after this matchup was set. If {late.length > 1 ? 'either' : 'he'} doesn’t play, the matchup is void and won’t count.</p>}
-      {g.state === 'pre' && <InjuryNotes inj={inj} g={g} />}</div>
+      {g.state === 'pre' && <InjuryNotes inj={inj} g={g} day={day} />}</div>
     </article>
   )
 }
@@ -633,7 +593,7 @@ export default function GameRoom({ players, onSelectPlayer, ratings }) {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
   primeBinders(players, index, best)
-  useMemo(() => { if (players?.length) ELO = new Map(players.map(p => [normName(p.name), Math.round(p.current_elo)])) }, [players])
+  useMemo(() => setInjuryRatings(players), [players])
   const ready = !C.down && C.me !== undefined
   useEffect(() => { if (ready && C.me) C.loadPredictions().catch(() => {}) }, [ready, !!C.me])
   useEffect(() => { if (ready) C.loadStandings?.('week').then(setPicks).catch(() => {}) }, [ready])

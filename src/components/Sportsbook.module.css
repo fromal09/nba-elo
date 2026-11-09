@@ -308,3 +308,11 @@ button.tile { cursor: pointer; } button.tile:hover { box-shadow: inset 0 0 0 1px
 .wpLive + .wp { opacity: .5; height: 3px; }
 .tickLive { flex-direction: column; flex-wrap: nowrap; gap: 1px; }
 .liveRow { color: #ffd7db; } .liveRow b { color: #fff; }
+
+/* The Injury Wire beside the wall: the wall drops to three columns while it's open */
+.wallRow { display: block; }
+.wallRow[data-wire="open"] { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; margin-top: 12px; }
+.wallRow[data-wire="folded"] { display: grid; grid-template-columns: minmax(0, 1fr) 46px; gap: 12px; align-items: start; margin-top: 12px; }
+.wallRow[data-wire] > .wallF { margin-top: 0; }
+.wall[data-cols="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wall[data-cols="3"] .showCell { grid-column: 1 / -1; }

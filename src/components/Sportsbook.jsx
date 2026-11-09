@@ -6,6 +6,8 @@ import { TIER_NAME } from './Collector'
 import { norm } from './predict'
 import { goTo } from '../nav.js'
 import FanSidedTonight from './FanSidedTonight'
+import InjuryWire, { InjuryBadge, useWireFold } from './InjuryWire'
+import { useInjuries } from './injuries'
 
 /*
  * The Sportsbook Scoreboard: the same Scoreboard, dressed as a casino sportsbook. Every piece comes from the Classic one
@@ -167,6 +169,10 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
   // The main TV: FanSided Tonight once any game has tipped (finals and live look-ins), else the featured game; either can be picked
   const [tvPick, setTvPick] = useState(null)
   useEffect(() => { setTvPick(null) }, [day])
+  // The Injury Wire: today's (and later days') games that haven't tipped
+  const inj = useInjuries()
+  const [wireFolded, setWireFolded] = useWireFold()
+  const etDay = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
   if (loading) return <div className={sb.msg}>Warming up the screens…</div>
   if (feedErr && !cards.length) return <div className={sb.msg}>Couldn’t load the games: {feedErr}</div>
   if (!cards.length) return <div className={sb.msg}>No games on {fmtDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}.</div>
@@ -221,7 +227,7 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
             <span className={sb.bug}>
               {mineIn(c).length > 0 && <span className={sb.yours} title="Your lineup">{mineIn(c).map(x => <b key={x.s.slot}>{shortName(x.s.player).split(' ').slice(-1)[0]} {x.pts != null ? x.pts.toFixed(1) : '—'}</b>)}</span>}
               <span className={sb.marks}>{m.car > 0 && <span title="Career games in this game">★{m.car > 1 ? m.car : ''}</span>}{m.mil > 0 && <u title="Milestones in this game">◆{m.mil}</u>}</span>
-              <span className={sb.tags}>{(g || c.x)?.post && <em className={sb.po}>Playoffs</em>}{upset && <em className={sb.up}>{c.state === 'in' ? 'Upset watch' : `Upset${wp && lead ? ` · ${Math.round(wp[lead] * 100)}%` : ''}`}</em>}<i data-state={c.state}>{status}</i></span>
+              <span className={sb.tags}>{c.state === 'pre' && day >= etDay && <InjuryBadge inj={inj} away={away} home={home} day={day} />}{(g || c.x)?.post && <em className={sb.po}>Playoffs</em>}{upset && <em className={sb.up}>{c.state === 'in' ? 'Upset watch' : `Upset${wp && lead ? ` · ${Math.round(wp[lead] * 100)}%` : ''}`}</em>}<i data-state={c.state}>{status}</i></span>
             </span>
             {big && <span className={sb.why}>Featured · {why}</span>}
             {[away, home].map(t => (
@@ -249,11 +255,15 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
     )
   }
 
+  const tipOf = c => { const t = c.x?.tip || c.g?.tip; return t ? new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '' }
+  const pre = day >= etDay ? F.filter(x => x.c.state === 'pre').map(x => ({ key: x.c.key, away: x.f.away, home: x.f.home, tip: tipOf(x.c) })) : []
+  const wireOn = !!inj && pre.length > 0
+  const cols = wireOn && !phone && !wireFolded ? 3 : 4
   const rest = showOn ? F : F.filter(x => x !== feat)
   const ups = F.filter(x => x.c.state === 'post' && x.f.upset).length
   const liveN = F.filter(x => x.c.state === 'in').length
   // Fill the wall's last row with the night's numbers and moments
-  const fill = phone ? 0 : (4 - ((rest.length + (showOn ? 6 : 4)) % 4)) % 4
+  const fill = phone ? 0 : (cols - ((rest.length + (showOn ? 6 : 4)) % cols)) % cols
   const tiles = [
     <div key="n" className={sb.tile}><h6>Tonight in numbers</h6>
       <p><b>{F.length}</b> game{F.length === 1 ? '' : 's'}{liveN ? <> · <b>{liveN}</b> live</> : ''}{scored.length ? <> · <b>{ups}</b> upset{ups === 1 ? '' : 's'}</> : ''}</p>
@@ -311,11 +321,14 @@ export function SportsbookDay({ kit, day, cards, scored, side, tables, pickCard,
           </button>
         ))}</span>
       </div>}
-      <div className={sb.wallF}><div className={sb.wall} data-show={showOn ? '' : undefined}>
+      <div className={sb.wallRow} data-wire={wireOn && !phone ? (wireFolded ? 'folded' : 'open') : undefined}>
+      <div className={sb.wallF}><div className={sb.wall} data-show={showOn ? '' : undefined} data-cols={cols}>
         {showOn ? <div className={`${sb.cell} ${sb.showCell}`}><FanSidedTonight kit={kit} day={day} finals={finals} live={liveF} side={side} shots={shots} phone={phone}
           openBox={openBox} openCard={openCard} liveN={liveCount} onLive={() => setTvPick('game')} /></div> : tv(feat, true)}
-        {rest.map((x, i) => tv(x, false, showOn && !phone && i < 2))}{tiles}
+        {rest.map((x, i) => tv(x, false, showOn && !phone && cols === 4 && i < 2))}{tiles}
       </div></div>
+      {wireOn && <InjuryWire inj={inj} games={pre} day={day} kit={kit} shots={shots} phone={phone} folded={wireFolded} setFolded={setWireFolded} />}
+      </div>
 
       {side.picks.length > 0 && <>
         <div className={sb.lab}><b>Cards of the Day</b><span>The night’s featured cards · tap one to open it</span></div>
