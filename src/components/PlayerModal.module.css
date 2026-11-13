@@ -123,12 +123,12 @@
 
 /* Rank lines on the trajectory: the Elo it took to be No. 1, top 20, top 50, top 100 */
 .mk { fill: none; stroke-width: 1.2; }
-.m1 { stroke: #e7c160; stroke-width: 1.4; }
+.m1 { stroke: #a8955f; stroke-width: 1; stroke-dasharray: 10 4; opacity: .6; }
 .m20 { stroke: #b9c6d6; stroke-dasharray: 6 3; opacity: .8; }
 .m50 { stroke: #c08a5a; stroke-dasharray: 3 3; opacity: .75; }
 .m100 { stroke: #5d6e86; stroke-dasharray: 1.5 3; }
 .legend i.lMk { height: 0; border-top: 2px solid; background: none; }
-.legend i.m1 { border-color: #e7c160; } .legend i.m20 { border-top-style: dashed; border-color: #b9c6d6; }
+.legend i.m1 { border-top-style: dashed; border-color: #a8955f; opacity: .8; } .legend i.m20 { border-top-style: dashed; border-color: #b9c6d6; }
 .legend i.m50 { border-top-style: dashed; border-color: #c08a5a; } .legend i.m100 { border-top-style: dotted; border-color: #7d8ea6; }
 .worth { color: #9fb0c6; font-size: 11px; }
 
