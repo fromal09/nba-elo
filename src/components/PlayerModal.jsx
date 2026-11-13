@@ -45,13 +45,11 @@ function seasonsFromHistory(h) {
   })
 }
 
-// "192× FPR #1" → 192× on the medal, "FPR #1" under it; "(#6)" → #6; "1080-Game FPR #1 Streak" → 1080
+// "955 Games at No. 1" → 955 on the medal, "Games at No. 1" under it; "Peak Rank Top 5 (#3)" → #3
 function medalOf(b) {
   let label = b.label, tag = ''
-  let m = label.match(/^([\d,]+)×\s*(.*)$/)
-  if (m) { tag = `${m[1]}×`; label = m[2] }
-  m = label.match(/^([\d,]+)-Game\s+(.*)$/)
-  if (m) { tag = m[1]; label = m[2] }
+  let m = label.match(/^([\d,]+) (Games? at No\. 1)$/)
+  if (m) { tag = m[1]; label = 'Games at No. 1' }
   m = label.match(/^(.*?)\s*\((#\d+)\)$/)
   if (m) { label = m[1]; tag = m[2] }
   return { ...b, label, tag }

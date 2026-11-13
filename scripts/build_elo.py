@@ -18,10 +18,11 @@ Pass multiple CSVs to concatenate. Output: public/data/elo.json + spaghetti.json
 #                career_gmsc_avg, recent_gmsc_avg
 # games.json score: normalized 0-100 (max game = 100)
 # fpr_rank: rank among is_fpr_eligible players only (None if ineligible)
+# peak_fpr_rank: best rank reached among active players (played in the last 250 days); 9999 if never ranked
 # ═══════════════════════════════════════════════════════════════════════════
 import sys, json, io, os as _os
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime, timedelta
 import math
 import math
 from collections import defaultdict
@@ -504,11 +505,14 @@ def build_elo(df):
     games_played = {}
     elo_hist     = defaultdict(list)
     peak_elo     = {}
-    peak_fpr_rank_map = {}  # best global rank ever achieved
-    games_at_1_map    = {}  # total game-days held global #1
-    cur_streak_map    = {}  # current streak (game-days) at #1
-    max_streak_map    = {}  # best streak at #1
-    last_date_at_1    = {}  # last date each player was #1 (dedup per day)
+    # Ranks are among ACTIVE players: anyone who has played in the last ACTIVE_DAYS days (long enough to carry stars
+    # through an offseason or a lockout, short enough that a retired player's frozen Elo stops counting)
+    ACTIVE_DAYS       = 250
+    active            = set()
+    active_day        = None
+    leader            = None               # No. 1 among active players after the last game
+    peak_fpr_rank_map = {}                 # best rank ever reached among active players
+    games_at_1_map    = defaultdict(int)   # his own games played as No. 1: ranked No. 1 going into the game or coming out of it
     gmsc_hist    = defaultdict(list)  # kept for computing recent/career avg scalars
     team_hist    = defaultdict(list)   # only records team changes
     opp_map      = {}                  # opponent per game
@@ -609,23 +613,22 @@ def build_elo(df):
         season_explorer.record_game(game_id, date_str, players, group_by_player, team_map,
                                     pre_elo, pre_gp, gmsc, elo, xw, wins)
 
-        sorted_by_elo = sorted(players, key=lambda p: -elo[p])
-        # Global FPR rank snapshot — sort ALL players after every game
-        global_sorted = sorted(elo.keys(), key=lambda p: -elo[p])
-        top_player = global_sorted[0]
-        for global_rank, p in enumerate(global_sorted, 1):
-            if p not in peak_fpr_rank_map or global_rank < peak_fpr_rank_map[p]:
-                peak_fpr_rank_map[p] = global_rank
-            # Track game-days at #1 (once per calendar date, not per game)
-            if global_rank == 1:
-                if last_date_at_1.get(p) != date_str:
-                    games_at_1_map[p] = games_at_1_map.get(p, 0) + 1
-                    last_date_at_1[p] = date_str
-                cur_streak_map[p] = cur_streak_map.get(p, 0) + 1
-                if cur_streak_map[p] > max_streak_map.get(p, 0):
-                    max_streak_map[p] = cur_streak_map[p]
-            else:
-                cur_streak_map[p] = 0
+        # Ranks among active players after this game: everyone's best rank reached (the top 100, and the players
+        # in this game), and a game at No. 1 for whoever went into it or came out of it as No. 1
+        went_in = leader if leader in players else None
+        active.update(players)
+        if date_str != active_day:
+            cutoff = (datetime.strptime(date_str, "%Y-%m-%d") - timedelta(days=ACTIVE_DAYS)).strftime("%Y-%m-%d")
+            active = {q for q in active if last_played.get(q, "") >= cutoff}
+            active_day = date_str
+        in_game = set(players)
+        for r, q in enumerate(sorted(active, key=lambda q: -elo[q]), 1):
+            if r == 1:
+                leader = q
+            if (r <= 100 or q in in_game) and r < peak_fpr_rank_map.get(q, 9999):
+                peak_fpr_rank_map[q] = r
+        for q in {went_in, leader if leader in in_game else None} - {None}:
+            games_at_1_map[q] += 1
 
     all_players = sorted(elo.keys(), key=lambda p: -elo[p])
 
@@ -666,7 +669,6 @@ def build_elo(df):
             "is_fpr_eligible":  team in team_cutoff and lp >= team_cutoff[team],
             "peak_fpr_rank":    peak_fpr_rank_map.get(player, 9999),
             "_games_at_1":      games_at_1_map.get(player, 0),
-            "_max_streak":      max_streak_map.get(player, 0),
             "elo_history":      elo_hist[player],
             "team_history":     team_hist[player],
         })
@@ -709,49 +711,21 @@ def build_elo(df):
     def compute_badges(p):
         badges = []
         name         = p["name"]
-        curr_rank    = p["current_tpr_rank"]
         peak         = p["peak_elo"]
         gp           = p["games_played"]
-        fpr_eligible = p["is_fpr_eligible"]
         pfpr         = peak_fpr_rank_map.get(name, 9999)
         games_at_1   = p.get("_games_at_1", 0)
-        streak       = p.get("_max_streak", 0)
 
-        def rank_tier(r):
-            if r == 1: return 0
-            if r <= 5: return 1
-            if r <= 10: return 2
-            if r <= 25: return 3
-            if r <= 50: return 4
-            if r <= 100: return 5
-            return 6
-
-        # ── FPR: Current rank (exclusive) ───────────────────────────────
-        if fpr_eligible:
-            t = rank_tier(curr_rank)
-            if t == 0:   badges.append({"cat":"fpr","id":"current_1",     "label":"Current FPR #1",              "emoji":"🏆"})
-            elif t == 1: badges.append({"cat":"fpr","id":"current_top5",  "label":f"Current FPR Top 5 (#{curr_rank})", "emoji":"⭐"})
-            elif t == 2: badges.append({"cat":"fpr","id":"current_top10", "label":f"Current FPR Top 10 (#{curr_rank})","emoji":"⭐"})
-            elif t == 3: badges.append({"cat":"fpr","id":"current_top25", "label":f"Current FPR Top 25 (#{curr_rank})","emoji":"📈"})
-            elif t == 4: badges.append({"cat":"fpr","id":"current_top50", "label":f"Current FPR Top 50 (#{curr_rank})","emoji":"📈"})
-            elif t == 5: badges.append({"cat":"fpr","id":"current_top100","label":f"Current FPR Top 100 (#{curr_rank})","emoji":"📈"})
-
-        # ── FPR: Former rank (only if more impressive than current) ─────
-        curr_tier = rank_tier(curr_rank) if fpr_eligible else 6
-        peak_tier = rank_tier(pfpr)
-        if peak_tier < curr_tier:
-            if pfpr == 1:      badges.append({"cat":"fpr","id":"former_1",     "label":"Former FPR #1",              "emoji":"🔱"})
-            elif pfpr <= 5:    badges.append({"cat":"fpr","id":"former_top5",  "label":f"Former FPR Top 5 (#{pfpr})", "emoji":"🔱"})
-            elif pfpr <= 10:   badges.append({"cat":"fpr","id":"former_top10", "label":f"Former FPR Top 10 (#{pfpr})","emoji":"🏅"})
-            elif pfpr <= 25:   badges.append({"cat":"fpr","id":"former_top25", "label":f"Former FPR Top 25 (#{pfpr})","emoji":"🏅"})
-            elif pfpr <= 50:   badges.append({"cat":"fpr","id":"former_top50", "label":f"Former FPR Top 50 (#{pfpr})","emoji":"🏅"})
-            elif pfpr <= 100:  badges.append({"cat":"fpr","id":"former_top100","label":f"Former FPR Top 100 (#{pfpr})","emoji":"🏅"})
-
-        # ── FPR: Games at #1 and streak (both shown if qualified) ───────
+        # ── Rank: games played as No. 1, or the best rank he reached ─────
+        # Ranks are among active players at the time. Today's rank isn't a badge: the card and the rankings show it live.
         if games_at_1 >= 1:
-            badges.append({"cat":"fpr","id":"games_at_1","label":f"{games_at_1}× FPR #1","emoji":"👑"})
-        if streak >= 5:
-            badges.append({"cat":"fpr","id":"streak_at_1","label":f"{streak}-Game FPR #1 Streak","emoji":"🔥"})
+            badges.append({"cat":"fpr","id":"games_at_1","label":f"{games_at_1:,} Game{'' if games_at_1 == 1 else 's'} at No. 1","emoji":"👑"})
+        elif pfpr == 1:    badges.append({"cat":"fpr","id":"former_1",    "label":"Former No. 1",                "emoji":"🔱"})
+        elif pfpr <= 5:    badges.append({"cat":"fpr","id":"peak_rank5",  "label":f"Peak Rank Top 5 (#{pfpr})",  "emoji":"🔱"})
+        elif pfpr <= 10:   badges.append({"cat":"fpr","id":"peak_rank10", "label":f"Peak Rank Top 10 (#{pfpr})", "emoji":"🏅"})
+        elif pfpr <= 25:   badges.append({"cat":"fpr","id":"peak_rank25", "label":f"Peak Rank Top 25 (#{pfpr})", "emoji":"🏅"})
+        elif pfpr <= 50:   badges.append({"cat":"fpr","id":"peak_rank50", "label":f"Peak Rank Top 50 (#{pfpr})", "emoji":"🏅"})
+        elif pfpr <= 100:  badges.append({"cat":"fpr","id":"peak_rank100","label":f"Peak Rank Top 100 (#{pfpr})","emoji":"🏅"})
 
         # ── Elo Club (exclusive — highest threshold only) ────────────────
         for threshold in [3000, 2900, 2700, 2500, 2200, 2000]:
@@ -804,7 +778,6 @@ def build_elo(df):
     for p in players_out:
         p["badges"] = compute_badges(p)
         p.pop("_games_at_1", None)
-        p.pop("_max_streak", None)
 
     return {
         "season":        season_label(),
