@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import styles from './HangBanner.module.css'
 import fs from './FiveChallenge.module.css'
 import { Fit, fromIndex } from './Binders'
@@ -29,10 +29,95 @@ const fits = (fc, cur, c) => {
 const windowText = cur => (!cur.window ? 'any season in franchise history' : cur.window[0] === cur.window[1] ? `the ${cur.s} season only`
   : `${cur.window[0]}-${String(cur.window[0] + 1).slice(2)} to ${cur.window[1]}-${String(cur.window[1] + 1).slice(2)}`)
 
+// Phone layout (the wall and the rafters size down)
+function usePhone() {
+  const q = '(max-width: 760px)'
+  const [p, setP] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(q).matches)
+  useEffect(() => { const m = matchMedia(q), h = () => setP(m.matches); m.addEventListener('change', h); return () => m.removeEventListener('change', h) }, [])
+  return p
+}
+const tColor = fc => binderTeamInfo(fc)?.color || '#173657'
+// A franchise's banner: its color, its code, the rungs beaten (a star once it's hung)
+function Banner({ fc, w, cleared, rungs, dim }) {
+  const hung = cleared >= rungs
+  return <span className={styles.bn} style={{ '--c': tColor(fc), '--w': `${w}px` }} data-hung={hung ? '' : undefined} data-none={!cleared ? '' : undefined} data-dim={dim ? '' : undefined}>
+    <b>{fc}</b>{!hung && <small>{cleared}/{rungs}</small>}
+  </span>
+}
+
+// The franchise list as an arena ceiling: every banner hangs from a rafter, hauled up by the rungs you've beaten.
+// Rafters hold 10 banners across a wide sheet, 6 on a medium one, 5 on a phone.
+function Rafters({ sections, ready, fieldable, onOpen }) {
+  const ref = useRef(null), [w, setW] = useState(0)
+  useEffect(() => {
+    const el = ref.current; if (!el) return
+    const ro = new ResizeObserver(([e]) => setW(e.contentRect.width)); ro.observe(el); return () => ro.disconnect()
+  }, [])
+  const K = w >= 700 ? 10 : w >= 470 ? 6 : 5, small = w < 470
+  const bw = small ? 42 : 56, bh = bw * 1.45, rowH = small ? 128 : 190, maxDrop = rowH - bh - 20
+  return (
+    <div ref={ref} className={styles.raft}>
+      {w > 0 && sections.map(([label, L]) => <div key={label}>
+        <div className={styles.rSec}>{label}</div>
+        {!L.length ? <p className={styles.rNone}>{label.startsWith('Ready') ? 'No ladder is ready: every next rung needs more players from its window than you can field. Team packs fill the gaps.' : 'Nothing here.'}</p>
+          : Array.from({ length: Math.ceil(L.length / K) }, (_, r) => <div key={r} className={styles.rafter}>
+            <div className={styles.rBeam} />
+            <div className={styles.rRow} style={{ height: rowH, gridTemplateColumns: `repeat(${K}, 1fr)` }}>
+              {L.slice(r * K, r * K + K).map(f => {
+                const frac = f.cleared / f.rungs, ok = ready(f), drop = !f.cleared ? maxDrop : Math.round(4 + (1 - frac) * (maxDrop - 16))
+                const status = f.banner ? 'Banner hung' : f.cleared ? `rung ${Math.min(f.cleared + 1, f.rungs)} of ${f.rungs}` : `${f.rungs} rungs, not started`
+                return <button key={f.fc} type="button" className={styles.rSlot} data-hung={f.banner ? '' : undefined} onClick={() => onOpen(f.fc)}
+                  aria-label={`${teamName(f.fc)}: ${status}${ok ? '' : `, you can field ${fieldable[f.fc] ?? 0} of 5 players`}`}
+                  title={`${teamName(f.fc)} · ${status}${ok ? '' : ` · you can field ${fieldable[f.fc] ?? 0} of the 5 players the next rung needs`}`}>
+                  <i className={styles.rRope} style={{ height: drop + 3, marginLeft: -bw * 0.34 }} /><i className={styles.rRope} style={{ height: drop + 3, marginLeft: bw * 0.34 }} />
+                  <span className={styles.rHang} style={{ top: drop }}>
+                    <Banner fc={f.fc} w={bw} cleared={f.cleared} rungs={f.rungs} dim={!ok && !f.banner} />
+                    <span className={styles.rLbl} data-short={!ok && !f.banner ? '' : undefined}>{f.banner ? '★ hung' : !ok ? `${fieldable[f.fc] ?? 0} of 5` : f.cleared ? `${Math.round(frac * 100)}%` : ''}</span>
+                  </span>
+                </button>
+              })}
+            </div>
+          </div>)}
+      </div>)}
+      {w > 0 && <div className={styles.rFloor} />}
+      <p className={styles.rKey}>Height: rungs beaten · ★ Banner hung · “3 of 5”: players you can field for the next rung</p>
+    </div>
+  )
+}
+
+// One franchise's own rafters: the banner hangs against a wall marked with the stages, its tip at where you are.
+// A win winches it up (the top eases to its new height).
+function Wall({ fc, det, stages, phone, rose }) {
+  const H = phone ? 330 : 400, bw = phone ? 82 : 110, bh = bw * 1.45, t0 = 26, rng = H - 36 - t0 - bh
+  const f = det.cleared / det.rungs, hung = !!det.banner, ty = Math.round(t0 + (1 - f) * rng)
+  const curStage = det.current?.stage
+  const marks = [...stages.map((S, k) => { const i = det.ladder.findIndex(r => r.stage === k + 1); return i < 0 ? null : { name: S.name.replace(/^Within the /, ''), x: i / det.rungs, k: k + 1 } }).filter(Boolean), { name: 'Banner', x: 1, k: 0 }]
+  return (
+    <div className={styles.wall} style={{ height: H, '--c': tColor(fc) }}>
+      <div className={styles.rBeam} />
+      {!hung && <span className={styles.wGhost} style={{ top: t0, marginLeft: -bw / 2 }}><Banner fc={fc} w={bw} cleared={det.rungs} rungs={det.rungs} /></span>}
+      <i className={styles.wRope} style={{ height: ty, marginLeft: -bw * 0.33 }} /><i className={styles.wRope} style={{ height: ty, marginLeft: bw * 0.33 }} />
+      <span className={styles.wBig} data-rose={rose ? '' : undefined} style={{ top: ty, marginLeft: -bw / 2 }}><Banner fc={fc} w={bw} cleared={det.cleared} rungs={det.rungs} /></span>
+      <div className={styles.wScale} style={{ top: Math.round(t0 + bh), height: Math.round(rng) }}>
+        <i className={styles.wFill} style={{ height: Math.round(f * rng) }} />
+        {marks.map(m => <div key={m.name} className={styles.wMk} style={{ bottom: Math.round(m.x * rng) }} data-on={m.k === curStage ? '' : undefined} data-done={m.k !== curStage && m.x <= f ? '' : undefined}>{m.name}</div>)}
+      </div>
+      <div className={styles.wPct}>{hung ? <>★ Banner hung</> : <>{Math.round(f * 100)}%<small>hoisted · {det.cleared} of {det.rungs} rungs</small></>}</div>
+    </div>
+  )
+}
+
 const SEEN = 'fpr.bannerSeen'
 const seenGet = () => { try { return new Set(JSON.parse(localStorage.getItem(SEEN) || '[]')) } catch { return new Set() } }
 const seenAdd = k => { try { const x = seenGet(); x.add(k); localStorage.setItem(SEEN, JSON.stringify([...x].slice(-400))) } catch { /* private window */ } }
 const TIER_REST = t => ({ goat: 10, icon: 8, legend: 6, standout: 4, rare: 2 })[t] || 0
+const TIER_REST_DAYS = t => ({ goat: 5, icon: 4, legend: 3, standout: 2, rare: 1 })[t] || 0
+const NO_REST_STAGE = 5 // Within the core and Final: no rest
+// A resting card's way back: { r: rungs left, until: the ET day it's back }
+const etToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+const plusDay = d => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10) }
+const backDay = (d, short) => d === plusDay(etToday()) ? 'tomorrow' : `${short ? '' : 'on '}${new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: short ? 'short' : 'long', timeZone: 'UTC' })}`
+const restLine = o => `Back after ${o.r} more rung${o.r === 1 ? '' : 's'} or ${backDay(o.until)}`
 // Lineup spots on a half court, guards up top and bigs underneath
 const SPOTS = [['PG', 50, 24], ['SG', 15, 42], ['SF', 85, 42], ['PF', 37, 75], ['C', 63, 75]]
 const posRank = p => (/^PG|^G$/.test(p || '') ? 0 : /SG|G/.test(p || '') ? 1 : /SF/.test(p || '') ? 2 : /PF|F/.test(p || '') ? 3 : /C/.test(p || '') ? 4 : 2)
@@ -55,30 +140,55 @@ export default function HangBanner({ env, tools }) {
     return out
   }, [list, C.cards])
   const ready = f => !f.cur || (fieldable[f.fc] ?? 0) >= 5
-  const order = list ? [...list.franchises].sort((a, b) => ready(b) - ready(a) || (b.cleared > 0) - (a.cleared > 0) || b.cleared / b.rungs - a.cleared / a.rungs || teamName(a.fc).localeCompare(teamName(b.fc))) : []
+  const [mode, setMode] = useState('all') // all | ready | az
+  const byName = (a, b) => teamName(a.fc).localeCompare(teamName(b.fc))
+  const hi = (a, b) => b.cleared / b.rungs - a.cleared / a.rungs || byName(a, b)
+  const all = list?.franchises || []
+  const sections = mode === 'az' ? [['A–Z', [...all].sort(byName)]]
+    : mode === 'ready' ? [['Ready for the next rung · highest first', all.filter(f => !f.banner && ready(f)).sort(hi)]]
+    : [['In the rafters · highest first', all.filter(f => f.cleared > 0).sort(hi)], ['Still on the floor', all.filter(f => !f.cleared).sort(byName)]]
+  const phone = usePhone()
   return (
     <div className={fs.right}>
       <div className={fs.sheetHead}><div className={fs.sheetTitle}><b>Hang the Banner</b><span>{fc ? teamName(fc) : list ? `${list.franchises.filter(f => f.banner).length} banner${list.franchises.filter(f => f.banner).length === 1 ? '' : 's'} hung` : ''}</span></div>{tools}</div>
       <div className={fs.body}>
         {err && <p className={styles.err}>{err}</p>}
         {!fc && <>
-          <p className={fs.intro}>Every franchise has a ladder: one rung for each of its NBA seasons, its weakest best five first and its greatest last. Challenge a rung to unveil the five you’re up against, then set your own five from your cards of the franchise. As the rungs get harder, your cards have to come from closer to that season, until the final stretch takes cards from that season alone. Every win opens a pack of the franchise’s cards, better the higher you climb, and a winning card rests for a few rungs by its tier. Beat them all to hang its Banner.</p>
+          <p className={fs.intro}>Every franchise has a ladder: one rung for each of its NBA seasons, its weakest best five first and its greatest last. Challenge a rung to unveil the five you’re up against, then set your own five from your cards of the franchise. As the rungs get harder, your cards have to come from closer to that season, until the final stretch takes cards from that season alone. Every win opens a pack of the franchise’s cards, better the higher you climb, and a winning card rests for a few rungs or days by its tier, whichever ends first. Beat them all to hang its Banner.</p>
           {!list && !err && <p className={fs.note}>Loading the ladders…</p>}
-          <div className={styles.grid}>
-            {order.map(f => (
-              <button key={f.fc} type="button" className={styles.tile} data-short={ready(f) ? undefined : ''} style={{ '--c': binderTeamInfo(f.fc)?.color || '#173657' }} onClick={() => setFc(f.fc)}
-                title={ready(f) ? undefined : `You can field ${fieldable[f.fc] ?? 0} of the 5 players the next rung needs`}>
-                <Logo t={f.fc} size={36} />
-                <span className={styles.tileText}><b>{teamName(f.fc)}</b><small>{f.banner ? '★ Banner hung' : f.cleared ? `Rung ${Math.min(f.cleared + 1, f.rungs)} of ${f.rungs}` : `${f.rungs} rungs`}
-                  {!ready(f) && <em className={styles.short}> · {fieldable[f.fc] ?? 0} of 5 players</em>}</small>
-                  <span className={styles.meter}><i style={{ width: `${(f.cleared / f.rungs) * 100}%` }} /></span></span>
-              </button>
-            ))}
-          </div>
+          {list && <>
+            <div className={styles.chips} role="group" aria-label="Show">
+              {[['all', `All ${all.length}`], ['ready', 'Ready to climb'], ['az', 'A–Z']].map(([v, l]) => <button key={v} type="button" data-on={mode === v ? '' : undefined} aria-pressed={mode === v} onClick={() => setMode(v)}>{l}</button>)}
+            </div>
+            <Rafters sections={sections} ready={ready} fieldable={fieldable} onOpen={setFc} />
+          </>}
         </>}
         {fc && <>
           <button type="button" className={styles.back} onClick={() => { setFc(null); C.loadBanner().then(setList).catch(() => {}) }}>← All franchises</button>
           {!det && <p className={fs.note}>Loading the {teamName(fc)} ladder…</p>}
+          {det && <div className={styles.hero} style={{ '--c': binderTeamInfo(fc)?.color || '#173657' }}>
+            <Wall fc={fc} det={det} stages={d.stages} phone={phone} rose={!!res?.won} />
+            <div className={styles.board}>
+              {!cur ? <div className={styles.done}><b>★ Banner hung</b><p>Every {teamName(fc)} rung beaten. New seasons join the ladder in the offseason; your Banner card stays yours.</p></div> : <>
+                <div className={styles.next} style={{ '--c': binderTeamInfo(fc)?.color || '#173657' }}>
+                  <small>Next rung · stage {cur.stage} of {d.stages.length}</small>
+                  <b>{cur.stageName}</b>
+                  <span>Rung {cur.i} of {det.rungs} · {seen ? <>the {cur.s} five · {n0(cur.elo * 5)} combined Elo</> : 'a mystery five. Challenge it to unveil the season, its strength and its cards.'}</span>
+                  <span>Your cards: {windowText(cur)}</span>
+                  <span>Win: a {teamName(fc)} pack · {cur.pack}</span>
+                  <button type="button" className={fs.primary} onClick={() => { setCourt(true); setRes(null) }}>{seen ? 'Back to the court' : 'Challenge this rung'}</button>
+                </div>
+              </>}
+              {res?.won && <p className={styles.won}>Rung {res.rung} beaten, {n0(res.score * 5)} to {n0(res.target * 5)}. Your pack is open.{res.banner ? ' The Banner card is in your binder.' : ''}</p>}
+              <div className={styles.climb}>
+                <h4>The climb · {det.cleared} of {det.rungs}</h4>
+                <div className={styles.trail}>{det.ladder.map((r, k) => <i key={r.i} data-st={r.status} data-new={k > 0 && det.ladder[k - 1].stage !== r.stage ? '' : undefined}
+                  title={`Rung ${r.i}${r.status === 'won' ? ` · ${r.s} ✓` : r.status === 'current' ? ' · next' : ''}`} />)}</div>
+                <small>Gold top: a new stage starts</small>
+              </div>
+              {cur && <div className={styles.rule}><b>Rest:</b> a card in a winning five sits out this ladder’s next rungs or next days, whichever ends first: GOAT 10 rungs or 5 days, Icon 8 or 4, Legend 6 or 3, Standout 4 or 2, Rare 2 or 1. Commons never rest, and nothing rests in the last two stages.</div>}
+            </div>
+          </div>}
           {det && <div className={styles.lad} style={{ '--c': binderTeamInfo(fc)?.color || '#173657' }}>
             <div className={styles.rungs}>
               <div className={styles.ladHead}><Logo t={fc} size={30} /><span><b>{det.cleared} of {det.rungs}</b><small>{det.banner ? '★ Banner hung' : 'rungs beaten'}</small></span></div>
@@ -94,20 +204,6 @@ export default function HangBanner({ env, tools }) {
                   </div>
                 </div>
               })}
-            </div>
-            <div className={styles.board}>
-              {!cur ? <div className={styles.done}><b>★ Banner hung</b><p>Every {teamName(fc)} rung beaten. New seasons join the ladder in the offseason; your Banner card stays yours.</p></div> : <>
-                <div className={styles.next} style={{ '--c': binderTeamInfo(fc)?.color || '#173657' }}>
-                  <small>Rung {cur.i} of {det.rungs} · stage {cur.stage}</small>
-                  <b>{cur.stageName}</b>
-                  <span>{seen ? <>The {cur.s} five · {n0(cur.elo * 5)} combined Elo</> : 'A mystery five. Challenge it to unveil the season, its strength and its cards.'}</span>
-                  <span>Your cards: {windowText(cur)}</span>
-                  <span>Win: a {teamName(fc)} pack · {cur.pack}</span>
-                  <button type="button" className={fs.primary} onClick={() => { setCourt(true); setRes(null) }}>{seen ? 'Back to the court' : 'Challenge this rung'}</button>
-                </div>
-                <div className={styles.rule}><b>Rest:</b> a card in a winning five sits out the next rungs of this ladder: GOAT 10, Icon 8, Legend 6, Standout 4, Rare 2. Commons never rest.</div>
-              </>}
-              {res?.won && <p className={styles.won}>Rung {res.rung} beaten, {n0(res.score * 5)} to {n0(res.target * 5)}. Your pack is open.{res.banner ? ' The Banner card is in your binder.' : ''}</p>}
             </div>
           </div>}
         </>}
@@ -220,13 +316,13 @@ function CourtModal({ env, fc, cur, rungs, resting, reveal, onSeen, onClose, onP
               // His other cards: each rests on its own, so a second card of his plays while the first cools down
               const alts = l.length > 1 && <div className={styles.alts}><span>His other cards</span>{l.slice(1).map(y => {
                 const r = resting[Number(y.id)]
-                return <button key={y.id} type="button" className={styles.alt} disabled={!!r || chosen.length >= 5} onClick={() => add(y)} title={r ? `Resting ${r} more rung${r === 1 ? '' : 's'}` : 'Put this card on the court'}>
-                  {y.card.s.slice(2)} · {fmt(y.card.date)} · <b>{n0(y.card.row.pre)}</b>{r ? <em> · rests {r}</em> : null}</button>
+                return <button key={y.id} type="button" className={styles.alt} disabled={!!r || chosen.length >= 5} onClick={() => add(y)} title={r ? restLine(r) : 'Put this card on the court'}>
+                  {y.card.s.slice(2)} · {fmt(y.card.date)} · <b>{n0(y.card.row.pre)}</b>{r ? <em> · back {backDay(r.until, true)} or {r.r} rung{r.r === 1 ? '' : 's'}</em> : null}</button>
               })}</div>
               return <div key={x.card.row.n} className={styles.pgroup}><button type="button" className={styles.prow} disabled={!!rest || chosen.length >= 5} onClick={() => add(x)}>
                 <span className={styles.pcard}>{face(x.card)}</span>
                 <span className={styles.ptext}><b>{baseName(x.card.row.n)}</b><small>{x.card.s} · {fmt(x.card.date)} vs {x.card.o} · {TIER_NAME[x.card.tier] || ''}</small>
-                  {rest ? <em>Resting {rest} more rung{rest === 1 ? '' : 's'}</em> : TIER_REST(x.card.tier) ? <em className={styles.restNote}>Rests {TIER_REST(x.card.tier)} rungs if he wins</em> : null}</span>
+                  {rest ? <em>Resting · {restLine(rest).toLowerCase()}</em> : TIER_REST(x.card.tier) && cur.stage < NO_REST_STAGE ? <em className={styles.restNote}>Rests {TIER_REST(x.card.tier)} rungs or {TIER_REST_DAYS(x.card.tier)} day{TIER_REST_DAYS(x.card.tier) === 1 ? '' : 's'} if he wins</em> : null}</span>
                 <strong>{n0(x.card.row.pre)}<small>Elo</small></strong>
               </button>{alts}</div>
             })}

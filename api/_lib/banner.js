@@ -13,8 +13,10 @@
 // (packs.js SLOTS banner1–banner6; no guaranteed big pulls or special cards in them). Beating every rung earns the
 // franchise's Banner card. A season added after it finishes slots into its place as a new rung; the Banner card is
 // yours to keep.
-// Rest: a card in a winning lineup sits out the franchise's next rungs by its tier: GOAT 10, Icon 8, Legend 6,
-// Standout 4, Rare 2, Common none.
+// Rest: a card in a winning lineup sits out the franchise's next rungs or the next days, whichever ends first, by its
+// tier: GOAT 10 rungs or 5 days, Icon 8 or 4, Legend 6 or 3, Standout 4 or 2, Rare 2 or 1, Common none. Days are
+// Eastern-time days, so a GOAT that wins on the 13th is back on the 18th. No rest on the last two stages' rungs (Within
+// the core, Final): their one-to-three-season windows already leave few cards to choose from.
 import { nbaSeasonOf, seasonOver, newReward, franchiseName } from './coins.js'
 
 export const STAGES = [null,
@@ -23,6 +25,11 @@ export const STAGES = [null,
   { id: 5, name: 'Within the core', win: 1, pack: '3 up to Rare and 2 up to Legend' }, { id: 6, name: 'Final', win: 0, pack: '3 up to Rare and 2 up to Icon' }]
 // Rungs a card sits out after a winning lineup, by tier
 export const BANNER_REST = { goat: 10, icon: 8, legend: 6, standout: 4, rare: 2, common: 0 }
+export const BANNER_REST_DAYS = { goat: 5, icon: 4, legend: 3, standout: 2, rare: 1, common: 0 }
+export const BANNER_NO_REST_STAGE = 5
+const etOf = t => new Date(t).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+const addDays = (d, n) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
+const weekday = d => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })
 export const BANNER_POINTS_PER = 150
 const MERGE = { 'DEN@ABA': 'DEN', 'IND@ABA': 'IND', 'SAS@ABA': 'SAS', 'BKN@ABA': 'BKN' }
 const fail = (status, message) => Object.assign(new Error(message), { status })
@@ -39,25 +46,34 @@ export async function ensureBannerSchema(t) {
   await t`alter table banner_wins add column if not exists step int`
   await t`alter table banner_wins add column if not exists tiers text[]`
 }
-// Cards resting on your next rung of a ladder: { cardId: rungs left }. wins: that ladder's banner_wins rows, oldest first
+// Cards resting on your next rung of a ladder: { cardId: { r: rungs left, until: the ET day it's back } }. wins: that ladder's banner_wins rows, oldest first
 async function fillTiers(sql, wins) {
   const need = wins.filter(w => !w.tiers).flatMap(w => w.ids)
   if (!need.length) return
   const m = new Map((await sql`select id, tier from cards where id = any(${need})`).map(c => [String(c.id), c.tier]))
   for (const w of wins) if (!w.tiers) w.tiers = w.ids.map(id => m.get(String(id)) || 'common')
 }
-function restOf(wins) {
+// day: today (ET); stage: the next rung's stage (none from BANNER_NO_REST_STAGE on)
+export function restOf(wins, day, stage) {
+  if (!stage || stage >= BANNER_NO_REST_STAGE) return {}
   const next = wins.length + 1, out = {}
   for (const [k, w] of wins.entries()) {
     const step = w.step || k + 1
-    w.ids.forEach((id, i) => { const left = step + (BANNER_REST[w.tiers[i]] || 0) - next + 1; if (left > 0) out[Number(id)] = Math.max(out[Number(id)] || 0, left) })
+    w.ids.forEach((id, i) => {
+      const t = w.tiers[i], r = step + (BANNER_REST[t] || 0) - next + 1
+      if (r <= 0) return
+      const until = addDays(etOf(w.won_at), BANNER_REST_DAYS[t] || 0)
+      if (until <= day) return
+      const o = out[Number(id)]
+      out[Number(id)] = o ? { r: Math.max(o.r, r), until: o.until > until ? o.until : until } : { r, until }
+    })
   }
   return out
 }
-async function resting(sql, userId, fc) {
+async function resting(sql, userId, fc, day, stage) {
   const wins = await sql`select ids, tiers, step, won_at from banner_wins where user_id = ${userId} and fc = ${fc} order by won_at`
   await fillTiers(sql, wins)
-  return restOf(wins)
+  return restOf(wins, day, stage)
 }
 
 let fivesP = null, fivesAt = 0
@@ -97,7 +113,7 @@ export async function bannerView(sql, u, origin, day, fc) {
     // The next rung's card window and the cards resting on it, so the list can tell which ladders you can field five for
     const next = L.find(r => !mine.has(r.s))
     franchises.push({ fc: f, rungs: L.length, cleared: L.filter(r => mine.has(r.s)).length, banner: banners.has(f),
-      cur: next ? { s: next.s, window: windowOf(next.stage, next.s) } : null, resting: next ? restOf(fw) : {} })
+      cur: next ? { s: next.s, window: windowOf(next.stage, next.s) } : null, resting: next ? restOf(fw, day, next.stage) : {} })
   }
   let detail = null
   if (fc) {
@@ -113,10 +129,10 @@ export async function bannerView(sql, u, origin, day, fc) {
         return { i: r.i, stage: r.stage, status: 'locked' }
       }),
       current: cur && { ...cur, stageName: STAGES[cur.stage].name, pack: STAGES[cur.stage].pack, window: windowOf(cur.stage, cur.s) },
-      resting: await resting(sql, u.id, fc), step: L.filter(r => mine.has(r.s)).length + 1,
+      resting: await resting(sql, u.id, fc, day, cur?.stage), step: L.filter(r => mine.has(r.s)).length + 1,
     }
   }
-  return { franchises, detail, stages: STAGES.slice(1), rest: BANNER_REST }
+  return { franchises, detail, stages: STAGES.slice(1), rest: BANNER_REST, restDays: BANNER_REST_DAYS, noRestStage: BANNER_NO_REST_STAGE }
 }
 
 // Does a card fit the rung? A game card of the franchise (its NBA seasons) in the stage's window
@@ -141,9 +157,12 @@ export async function playRung(sql, u, origin, day, { fc, ids }) {
   const bad = cards.find(c => !fitsRung(fc, rung, c.card))
   if (bad) throw fail(400, `${bad.card.row?.n || 'A card'} doesn’t fit this rung.`)
   if (new Set(cards.map(c => c.card.row.n)).size !== 5) throw fail(400, 'Five different players.')
-  const rest = await resting(sql, u.id, fc)
+  const rest = await resting(sql, u.id, fc, day, rung.stage)
   const tired = cards.find(c => rest[Number(c.id)])
-  if (tired) throw fail(409, `${tired.card.row.n}’s card is resting for ${rest[Number(tired.id)]} more rung${rest[Number(tired.id)] === 1 ? '' : 's'}.`)
+  if (tired) {
+    const o = rest[Number(tired.id)]
+    throw fail(409, `${tired.card.row.n}’s card is resting: back after ${o.r} more rung${o.r === 1 ? '' : 's'} or ${o.until === addDays(day, 1) ? 'tomorrow' : `on ${weekday(o.until)}`}.`)
+  }
   const score = Math.round((cards.reduce((a, c) => a + c.card.row.pre, 0) / 5) * 10) / 10
   const won = score > rung.elo
   if (!won) return { won, score, target: rung.elo, rung: rung.i }

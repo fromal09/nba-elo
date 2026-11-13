@@ -121,7 +121,7 @@ export const TOURS = [
   {
     id: 'banner', name: 'Hang the Banner', group: 'The Game Room', route: ['gameroom', { open: 'banner' }], wait: 'main, body',
     steps: [
-      [null, 'Hang the Banner', 'Pick a franchise. Its ladder has a rung for every finished season, weakest first. Beat a rung’s five with five of your cards of that team, and the window of seasons your cards can come from narrows as you climb. Every win opens a pack; the top rung hangs the Banner card in your binder.', 'hands_high'],
+      [null, 'Hang the Banner', 'Every franchise’s banner hangs from the rafters, higher the more of its ladder you’ve climbed. Tap one to open its ladder: a rung for every finished season, weakest first. Beat a rung’s five with five of your cards of that team, and the window of seasons your cards can come from narrows as you climb. Every win opens a pack; the top rung hangs the Banner card in your binder.', 'hands_high'],
     ],
   },
   {
