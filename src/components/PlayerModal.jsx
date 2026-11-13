@@ -1,385 +1,291 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
+import styles from './PlayerModal.module.css'
+import { binderTeamInfo, binderLogo, binderHeadshots } from './SeasonExplorer'
+import { norm } from './predict'
 
-let spagCache = null
-let spagPromise = null
-function getSpagData() {
-  if (spagCache) return Promise.resolve(spagCache)
-  if (!spagPromise) {
-    spagPromise = fetch('/data/spaghetti.json')
-      .then(r => r.json())
-      .then(d => { spagCache = d; return d })
-  }
-  return spagPromise
+/*
+ * The player card: a career profile (not a collectible). The hero (headshot, team, rank seal), four headline numbers, the career
+ * line against the league (its No. 1, the top 10% and the median, month by month), badges as medals, career highs, and the
+ * season-by-season ledger.
+ *
+ * Season lines come from /data/careers/<shard>.json (scripts/build_careers.py, nightly): Elo going in, at the end, at its peak and on
+ * average, where he finished among players with 20+ rated games, per-game box-score averages and the best game. Until a player's
+ * file is there, the card builds the Elo part of each season from his game-by-game history and leaves the box scores out.
+ */
+
+const SHARDS = 64
+const shard = name => { let h = 0; for (const c of name) h = (h * 31 + c.codePointAt(0)) % SHARDS; return h }
+const cache = new Map()
+const getJSON = url => {
+  if (!cache.has(url)) cache.set(url, fetch(url).then(r => (r.ok ? r.json() : null)).catch(() => null))
+  return cache.get(url)
 }
 
-function drawChart(data, focusIdx, svg, eloHist, careerMode, onTooltip = () => {}) {
-  while (svg.firstChild) svg.removeChild(svg.firstChild)
-  const W = svg.clientWidth || 560
-  const H = 160
-  svg.setAttribute('viewBox', `0 0 ${W} ${H + 20}`)
-  const ns = 'http://www.w3.org/2000/svg'
-  const { dates, players } = data
+const fmt = v => (v == null ? '—' : Math.round(v).toLocaleString())
+const md = (d, year = true) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(year ? { year: 'numeric' } : {}), timeZone: 'UTC' })
+const tInfo = t => binderTeamInfo(t) || {}
+const tColor = t => tInfo(t).color || '#3a5578'
+const initials = n => n.replace(/\s*\(.*\)$/, '').split(/[\s-]+/).map(w => w[0]).join('').slice(0, 3).toUpperCase()
+const SCALE = [1500, 3150] // the ledger bars' Elo range
 
-  if (!players || focusIdx < 0 || focusIdx >= players.length) return
-
-  // If careerMode, find date range from player's elo_history
-  let dateStart = 0, dateEnd = dates.length - 1
-  if (careerMode && eloHist && eloHist.length) {
-    const first = eloHist[0][0], last = eloHist[eloHist.length - 1][0]
-    const si = dates.findIndex(d => d >= first)
-    // findLastIndex polyfill
-    let ei = -1
-    for (let i = dates.length - 1; i >= 0; i--) {
-      if (dates[i] <= last) { ei = i; break }
-    }
-    if (si !== -1) dateStart = si
-    if (ei !== -1) dateEnd = ei
+// Season lines from the game-by-game history, for a player whose career file isn't built yet (no ranks or box scores)
+function seasonsFromHistory(h) {
+  const S = new Map()
+  for (const [d, e, , , t] of h || []) {
+    const y = +d.slice(0, 4), m = +d.slice(5, 7), s0 = m >= 8 ? y : y - 1, s = `${s0}-${String(s0 + 1).slice(2)}`
+    if (!S.has(s)) S.set(s, [])
+    S.get(s).push([e, t])
   }
-
-  const focusPts = (players[focusIdx] || []).filter(([i]) => i >= dateStart && i <= dateEnd)
-  if (!focusPts.length) return
-
-  // Min/max across ALL players in window (career mode still shows all players)
-  let minV = Infinity, maxV = -Infinity
-  for (const pts of players) {
-    for (const [i, v] of pts) {
-      if (i < dateStart || i > dateEnd) continue
-      if (v < minV) minV = v
-      if (v > maxV) maxV = v
-    }
-  }
-  if (!isFinite(minV)) return
-  minV -= 30; maxV += 30
-  const xScale = i => ((i - dateStart) / Math.max(dateEnd - dateStart, 1)) * W
-  const yScale = v => H - ((v - minV) / (maxV - minV)) * H
-
-  // Grid lines
-  for (const v of [1600, 1800, 2000, 2200, 2400, 2600, 2800, 3000]) {
-    if (v < minV || v > maxV) continue
-    const y = yScale(v)
-    const line = document.createElementNS(ns, 'line')
-    line.setAttribute('x1', 0); line.setAttribute('y1', y)
-    line.setAttribute('x2', W); line.setAttribute('y2', y)
-    line.setAttribute('stroke', 'rgba(0,0,0,0.06)'); line.setAttribute('stroke-width', '0.5')
-    svg.appendChild(line)
-    const txt = document.createElementNS(ns, 'text')
-    txt.setAttribute('x', 4); txt.setAttribute('y', y - 3)
-    txt.setAttribute('font-size', '8'); txt.setAttribute('fill', 'rgba(0,0,0,0.18)')
-    txt.setAttribute('font-family', 'sans-serif')
-    txt.textContent = v
-    svg.appendChild(txt)
-  }
-
-  // Dynamic x-axis labels — step size based on visible year range
-  const yr0 = parseInt(dates[dateStart]?.slice(0,4) || '1946')
-  const yr1 = parseInt(dates[dateEnd]?.slice(0,4) || '2026')
-  const yearSpan = yr1 - yr0 || 1
-  const maxLabels = Math.floor(W / 52)
-  let labelStep = 1
-  for (const step of [1,2,3,5,10,15,20,25,30,40,50]) {
-    if (Math.ceil(yearSpan / step) <= maxLabels) { labelStep = step; break }
-  }
-  let lastLabelX = -999
-  dates.slice(dateStart, dateEnd + 1).forEach((d, idx) => {
-    const yr = parseInt(d.slice(0, 4))
-    if (yr % labelStep !== 0) return
-    const x = xScale(dateStart + idx)
-    if (x - lastLabelX < 48) return
-    lastLabelX = x
-    const txt = document.createElementNS(ns, 'text')
-    txt.setAttribute('x', x); txt.setAttribute('y', H + 14)
-    txt.setAttribute('font-size', '9'); txt.setAttribute('fill', 'rgba(0,0,0,0.3)')
-    txt.setAttribute('font-family', 'sans-serif'); txt.setAttribute('text-anchor', 'middle')
-    txt.textContent = yr
-    svg.appendChild(txt)
+  let prev = null
+  return [...S].map(([s, L]) => {
+    const es = L.map(x => x[0])
+    const line = { s, t: [...new Set(L.map(x => x[1]))], g: L.length, st: Math.round(prev ?? es[0]), en: Math.round(es.at(-1)), pk: Math.round(Math.max(...es)), av: Math.round(es.reduce((a, b) => a + b, 0) / es.length) }
+    prev = es.at(-1)
+    return line
   })
-
-  // Background players — always shown in both modes
-  players.forEach((pts, idx) => {
-    if (idx === focusIdx) return
-    const filtered = pts.filter(([i]) => i >= dateStart && i <= dateEnd)
-    if (filtered.length < 2) return
-    const d = filtered.map(([i, v], k) => `${k === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ')
-    const path = document.createElementNS(ns, 'path')
-    path.setAttribute('d', d); path.setAttribute('fill', 'none')
-    path.setAttribute('stroke', 'rgba(150,150,150,0.1)'); path.setAttribute('stroke-width', '1')
-    svg.appendChild(path)
-  })
-
-  // Team colors
-  const TEAM_COLORS = {
-    ATL:'#C8102E', BOS:'#007A33', BKN:'#000000', CHA:'#00788C', CHO:'#00788C',
-    CHI:'#CE1141', CLE:'#860038', DAL:'#00538C', DEN:'#0E2240', DET:'#C8102E',
-    GSW:'#1D428A', HOU:'#CE1141', IND:'#002D62', LAC:'#C8102E', LAL:'#552583',
-    MEM:'#5D76A9', MIA:'#98002E', MIL:'#00471B', MIN:'#0C2340', NOP:'#0C2340',
-    NOH:'#0C2340', NOK:'#0C2340', NYK:'#006BB6', OKC:'#007AC1', ORL:'#0077C0',
-    PHI:'#006BB6', PHO:'#1D1160', POR:'#E03A3E', SAC:'#5A2D81', SAS:'#000000',
-    SEA:'#00653A', TOR:'#CE1141', UTA:'#002B5C', WAS:'#002B5C', MNL:'#552583',
-    FTW:'#C8102E', SYR:'#006BB6', ROC:'#5A2D81', NOJ:'#002B5C',
-  }
-  const dateToTeam = {}
-  if (eloHist) { for (const e of eloHist) { if (e[0] && e[4]) dateToTeam[e[0]] = e[4] } }
-
-  if (focusPts.length >= 2) {
-    let segPts = [], segTeam = null
-    const flushSeg = () => {
-      if (segPts.length < 2) { segPts = []; return }
-      const color = TEAM_COLORS[segTeam] || '#173657'
-      const d = segPts.map(([i, v], k) => `${k === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ')
-      const path = document.createElementNS(ns, 'path')
-      path.setAttribute('d', d); path.setAttribute('fill', 'none')
-      path.setAttribute('stroke', color); path.setAttribute('stroke-width', '2.5')
-      path.setAttribute('stroke-linecap', 'round'); path.setAttribute('stroke-linejoin', 'round')
-      svg.appendChild(path)
-      segPts = []
-    }
-    for (const pt of focusPts) {
-      const team = dateToTeam[dates[pt[0]]] || null
-      if (team !== segTeam && segPts.length > 0) {
-        segPts.push(pt); flushSeg(); segTeam = team; segPts = [pt]
-      } else { segTeam = team; segPts.push(pt) }
-    }
-    flushSeg()
-    const last = focusPts[focusPts.length - 1]
-    const lastTeam = dateToTeam[dates[last[0]]] || null
-    const dot = document.createElementNS(ns, 'circle')
-    dot.setAttribute('cx', xScale(last[0])); dot.setAttribute('cy', yScale(last[1]))
-    dot.setAttribute('r', '4'); dot.setAttribute('fill', TEAM_COLORS[lastTeam] || '#173657')
-    svg.appendChild(dot)
-
-    // Invisible hit targets for tooltip
-    for (const pt of focusPts) {
-      const date = dates[pt[0]]
-      const team = dateToTeam[date] || ''
-      const elo  = pt[1]
-      const cx = xScale(pt[0]), cy = yScale(elo)
-      const hit = document.createElementNS(ns, 'circle')
-      hit.setAttribute('cx', cx); hit.setAttribute('cy', cy)
-      hit.setAttribute('r', '8'); hit.setAttribute('fill', 'transparent')
-      hit.setAttribute('style', 'cursor:crosshair')
-      hit.addEventListener('mouseenter', () => onTooltip({ x: cx, y: cy, date, elo: Math.round(elo), team }))
-      hit.addEventListener('mouseleave', () => onTooltip(null))
-      svg.appendChild(hit)
-    }
-  }
 }
 
-function SpagChart({ playerIndex, playerName, eloHist }) {
-  const svgRef       = useRef(null)
-  const wrapRef      = useRef(null)
-  const eloHistRef   = useRef(eloHist)
-  const [loaded,     setLoaded]     = useState(false)
-  const [careerMode, setCareerMode] = useState(false)
-  const [spagData,   setSpagData]   = useState(null)
-  const [tooltip,    setTooltip]    = useState(null)
-
-  // Load spaghetti data once
-  useEffect(() => {
-    let cancelled = false
-    getSpagData()
-      .then(d => { if (!cancelled) setSpagData(d) })
-      .catch(err => console.error('spaghetti load failed:', err))
-    return () => { cancelled = true }
-  }, [])
-
-  // Draw whenever data or mode changes
-  useEffect(() => {
-    if (!spagData || !svgRef.current || !wrapRef.current) return
-    const w = wrapRef.current.clientWidth || 560
-    svgRef.current.style.width = w + 'px'
-    drawChart(spagData, playerIndex, svgRef.current, eloHistRef.current, careerMode, setTooltip)
-    setLoaded(true)
-  }, [spagData, playerIndex, careerMode])
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa' }}>
-          {careerMode ? `Career view · all players in gray` : `All players in gray · ${playerName} highlighted`}
-        </div>
-        <div style={{ display: 'flex', flexShrink: 0, border: '0.5px solid #e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
-          {[['All-Time', false],['Career', true]].map(([label, mode]) => (
-            <button
-              key={label}
-              onClick={() => setCareerMode(mode)}
-              style={{
-                padding: '6px 10px', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap',
-                background: careerMode === mode ? '#173657' : 'transparent',
-                color: careerMode === mode ? '#fff' : '#888',
-                borderRight: mode === false ? '0.5px solid #e0e0e0' : 'none',
-              }}
-            >{label}</button>
-          ))}
-        </div>
-      </div>
-      <div ref={wrapRef} style={{ background: '#f8f8f8', borderRadius: 8, border: '0.5px solid #e0e0e0', padding: '8px 4px 0', minHeight: 188, position: 'relative' }}>
-        {!loaded && <div style={{ textAlign: 'center', padding: 20, fontSize: 12, color: '#aaa' }}>Loading…</div>}
-        <svg ref={svgRef} style={{ width: '100%', display: loaded ? 'block' : 'none' }} />
-        {tooltip && (() => {
-          const svgW = svgRef.current?.clientWidth || 560
-          const svgH = svgRef.current?.clientHeight || 188
-          const isRight = tooltip.x > svgW * 0.65
-          return (
-            <div style={{
-              position: 'absolute',
-              left: `${(tooltip.x / svgW) * 100}%`,
-              top: `${(tooltip.y / svgH) * 100}%`,
-              transform: isRight ? 'translate(-110%,-50%)' : 'translate(10%,-50%)',
-              background: '#1a1a1a', color: '#fff',
-              borderRadius: 8, padding: '8px 12px',
-              fontSize: 12, lineHeight: 1.7,
-              pointerEvents: 'none', zIndex: 10,
-              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-              whiteSpace: 'nowrap',
-            }}>
-              <div style={{ fontWeight: 600, marginBottom: 2 }}>{tooltip.date}</div>
-              <div>Elo <span style={{ color: '#ffd700', fontWeight: 600 }}>{tooltip.elo.toLocaleString()}</span></div>
-              <div>Team <span style={{ color: '#ccc' }}>{tooltip.team || '—'}</span></div>
-            </div>
-          )
-        })()}
-      </div>
-    </div>
-  )
+// "192× FPR #1" → 192× on the medal, "FPR #1" under it; "(#6)" → #6; "1080-Game FPR #1 Streak" → 1080
+function medalOf(b) {
+  let label = b.label, tag = ''
+  let m = label.match(/^([\d,]+)×\s*(.*)$/)
+  if (m) { tag = `${m[1]}×`; label = m[2] }
+  m = label.match(/^([\d,]+)-Game\s+(.*)$/)
+  if (m) { tag = m[1]; label = m[2] }
+  m = label.match(/^(.*?)\s*\((#\d+)\)$/)
+  if (m) { label = m[1]; tag = m[2] }
+  return { ...b, label, tag }
 }
+const CAT = { fpr: 'Rank', elo: 'Elo', longevity: 'Longevity', era: 'Era' }
 
-const BADGE_STYLES = {
-  fpr:       { bg: '#e8f0e0', color: '#2d5a1a', border: '#c0d8a0' },
-  elo:       { bg: '#faf0dc', color: '#7a4f0a', border: '#f0d090' },
-  longevity: { bg: '#ede8f8', color: '#4a2a8a', border: '#c8b8f0' },
-  era:       { bg: '#e0eaf8', color: '#1a3a6e', border: '#b0c8f0' },
-}
-
-function Badge({ b }) {
-  const style = BADGE_STYLES[b.cat] || BADGE_STYLES.fpr
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500,
-      background: style.bg, color: style.color, border: `0.5px solid ${style.border}`,
-    }}>
-      <span>{b.emoji}</span> {b.label}
-    </span>
-  )
+function usePhone() {
+  const q = '(max-width: 760px)'
+  const [p, setP] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(q).matches)
+  useEffect(() => { const m = matchMedia(q), h = () => setP(m.matches); m.addEventListener('change', h); return () => m.removeEventListener('change', h) }, [])
+  return p
 }
 
 export default function PlayerModal({ player, allPlayers, onClose }) {
   const backdropRef = useRef(null)
   const handleKey = useCallback(e => { if (e.key === 'Escape') onClose() }, [onClose])
-
   useEffect(() => {
     document.addEventListener('keydown', handleKey)
     document.body.style.overflow = 'hidden'
     return () => { document.removeEventListener('keydown', handleKey); document.body.style.overflow = '' }
   }, [handleKey])
 
-  const playerIndex = allPlayers.findIndex(p => p.name === player.name)
+  const name = player.name
+  const [career, setCareer] = useState(undefined), [band, setBand] = useState(null), [shots, setShots] = useState(null)
+  useEffect(() => {
+    let on = true
+    setCareer(undefined)
+    getJSON(`/data/careers/${shard(name)}.json`).then(d => on && setCareer(d?.[name] || null))
+    getJSON('/data/careers/band.json').then(d => on && setBand(d))
+    binderHeadshots().then(s => on && setShots(s))
+    return () => { on = false }
+  }, [name])
+  const phone = usePhone()
 
-  const avgElo = player.elo_history?.length
-    ? Math.round(player.elo_history.reduce((s, [, v]) => s + v, 0) / player.elo_history.length)
-    : Math.round(player.current_elo)
-
-  const careerRange = (() => {
-    const h = player.elo_history || []
-    if (!h.length) return null
-    const y1 = h[0][0].slice(0, 4), y2 = h[h.length - 1][0].slice(0, 4)
-    return y1 === y2 ? y1 : `${y1}–${y2}`
-  })()
-
-  const badgeCats = [
-    { key: 'fpr',       label: 'FPR Rank' },
-    { key: 'elo',       label: 'Elo' },
-    { key: 'longevity', label: 'Longevity' },
-    { key: 'era',       label: 'Era' },
-  ]
+  const hist = player.elo_history || []
+  const seasons = useMemo(() => career || seasonsFromHistory(hist), [career, hist])
+  const full = !!career // box scores and ranks
+  const team = player.team, info = tInfo(team), color = tColor(team)
+  const y1 = hist[0]?.[0]?.slice(0, 4), y2 = hist.at(-1)?.[0]?.slice(0, 4)
+  const active = player.last_played && (Date.now() - Date.parse(player.last_played)) / 864e5 < 400
+  const years = !y1 ? '' : active ? `${y1}–present` : y1 === y2 ? y1 : `${y1}–${y2}`
+  const avgElo = hist.length ? Math.round(hist.reduce((s, x) => s + x[1], 0) / hist.length) : Math.round(player.current_elo)
+  const peakRank = 1 + (allPlayers || []).filter(p => p.peak_elo > player.peak_elo).length
+  const ranked = seasons.filter(s => s.g >= 20)
+  const bestSeason = (ranked.length ? ranked : seasons).reduce((a, b) => (b.av > a.av ? b : a), seasons[0])
+  const jump = seasons.slice(1).reduce((a, b) => (!a || b.en - b.st > a.en - a.st ? b : a), null)
+  const bestGame = full ? seasons.filter(s => s.b).map(s => s.b).reduce((a, b) => (!a || b.gs > a.gs ? b : a), null) : null
+  const mostPts = full ? seasons.filter(s => s.h).map(s => s.h).reduce((a, b) => (!a || b.pts > a.pts ? b : a), null) : null
+  const src = shots?.[norm(name)]?.headshot
+  const logo = binderLogo(team)
+  const seal = active && player.is_fpr_eligible && player.fpr_rank <= 99 ? { top: 'FPR', n: `#${player.fpr_rank}`, sub: 'today' } : peakRank <= 99 ? { top: 'Peak', n: `#${peakRank}`, sub: 'all-time' } : null
+  const medals = (player.badges || []).map(medalOf)
 
   return (
-    <div
-      ref={backdropRef}
-      onClick={e => e.target === backdropRef.current && onClose()}
-      role="dialog" aria-modal="true" aria-label={`${player.name} profile`}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, padding: 24,
-      }}
-      data-m="pm-back"
-    >
-      <div style={{
-        background: '#fff', borderRadius: 14, border: '0.5px solid #e0e0e0',
-        width: '100%', maxWidth: 640, maxHeight: '90vh', overflow: 'auto',
-        boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
-      }} data-m="pm-box">
-        {/* Dark header */}
-        <div style={{ background: '#173657', padding: '24px 24px 0', position: 'relative' }}>
-          <button
-            onClick={onClose}
-            style={{
-              position: 'absolute', top: 16, right: 16,
-              background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 6,
-              color: '#6896bd', width: 32, height: 32, cursor: 'pointer',
-              fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-            aria-label="Close"
-          >✕</button>
-
-          <div style={{ fontFamily: "'Georgia', serif", fontSize: 26, color: '#fff', marginBottom: 4 }}>
-            {player.name}
+    <div ref={backdropRef} className={styles.back} onClick={e => e.target === backdropRef.current && onClose()} role="dialog" aria-modal="true" aria-label={`${name} career`} data-m="pm-back">
+      <div className={styles.card} style={{ '--team': color }} data-m="pm-box">
+        <button type="button" className={styles.x} onClick={onClose} aria-label="Close">×</button>
+        <div className={styles.hero}>
+          <div className={styles.hs}>
+            {src ? <img src={src} alt="" onError={e => { e.currentTarget.style.display = 'none' }} /> : null}
+            <b className={styles.ini}>{initials(name)}</b>
+            <TeamChip team={team} logo={logo} title={info.name || team} />
           </div>
-          <div style={{ fontSize: 12, color: '#6896bd', display: 'flex', gap: 10, marginBottom: 20 }}>
-            <span>{player.team}</span>
-            {careerRange && <><span style={{ opacity: 0.4 }}>·</span><span>{careerRange}</span></>}
-            <span style={{ opacity: 0.4 }}>·</span>
-            <span>{player.games_played.toLocaleString()} games</span>
-            {player.last_played && <><span style={{ opacity: 0.4 }}>·</span><span>Last played {player.last_played.slice(5)}</span></>}
+          <div className={styles.who}>
+            <div className={styles.kick}>{info.name || team}{years ? ` · ${years}` : ''}</div>
+            <h2 className={styles.nm}>{name}</h2>
+            <div className={styles.sub}><b>{fmt(player.games_played)}</b> games{player.career_gmsc_avg != null && <> · career GmSc <b>{player.career_gmsc_avg}</b></>}{player.last_played && <> · last played {md(player.last_played, !active)}</>}</div>
           </div>
-
-          {/* Stat strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '0.5px solid rgba(255,255,255,0.1)', borderLeft: '0.5px solid rgba(255,255,255,0.1)' }}>
-            {[
-              { label: player.live ? 'Current Elo · live' : player.live_change ? 'Current Elo · today' : 'Current Elo', val: Math.round(player.current_elo).toLocaleString(), color: '#fff' },
-              { label: 'Peak Elo',    val: Math.round(player.peak_elo).toLocaleString(),    color: '#ffd700' },
-              { label: 'FPR Rank',    val: player.is_fpr_eligible ? `#${player.fpr_rank}` : `#${player.current_tpr_rank}`,                   color: player.is_fpr_eligible ? '#fff' : '#6896bd' },
-              { label: 'Avg Elo',     val: avgElo.toLocaleString(),                          color: '#a8c5a8' },
-            ].map(({ label, val, color }) => (
-              <div key={label} style={{ padding: '14px 16px', borderRight: '0.5px solid rgba(255,255,255,0.1)', borderBottom: '0.5px solid rgba(255,255,255,0.1)' }}>
-                <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: '#6896bd', marginBottom: 4 }}>{label}</div>
-                <div style={{ fontSize: 18, fontWeight: 500, color, fontVariantNumeric: 'tabular-nums' }}>{val}</div>
-              </div>
-            ))}
-          </div>
+          {seal && <div className={styles.seal}><span><small>{seal.top}</small><b>{seal.n}</b><small>{seal.sub}</small></span></div>}
         </div>
 
-        {/* Body */}
-        <div style={{ padding: '20px 24px' }}>
+        <div className={styles.tiles}>
+          <div><small>{active ? (player.live ? 'Current Elo · live' : 'Current Elo') : 'Final Elo'}</small><b>{fmt(player.current_elo)}</b>
+            <em>{active ? (player.is_fpr_eligible ? `#${player.fpr_rank} in the league` : `#${player.current_tpr_rank} rated · not enough recent games`) : `last game ${md(player.last_played)}`}</em></div>
+          <div><small>Peak Elo</small><b className={styles.gold}>{fmt(player.peak_elo)}</b><em>#{peakRank} all-time</em></div>
+          <div><small>Career average</small><b>{fmt(avgElo)}</b><em>every rated game</em></div>
+          <div><small>Best season</small><b>{bestSeason?.s || '—'}</b><em>{bestSeason ? `${fmt(bestSeason.av)} avg${bestSeason.rk ? ` · #${bestSeason.rk}` : ''}` : ''}</em></div>
+        </div>
 
-          {/* Spaghetti chart */}
-          <div style={{ marginBottom: 20 }}>
-            <SpagChart playerIndex={playerIndex} playerName={player.name} eloHist={player.elo_history} />
-          </div>
+        <section className={styles.sec}>
+          <Trajectory hist={hist} band={band} name={name} />
+        </section>
 
-          {/* Badges */}
-          {player.badges && player.badges.length > 0 && (
-            <div>
-              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#aaa', marginBottom: 12 }}>Badges</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {badgeCats.map(({ key, label }) => {
-                  const catBadges = player.badges.filter(b => b.cat === key)
-                  if (!catBadges.length) return null
-                  return (
-                    <div key={key}>
-                      <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, color: '#bbb', marginBottom: 6 }}>{label}</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {catBadges.map(b => <Badge key={b.id} b={b} />)}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+        {(medals.length > 0 || bestGame || jump) && <section className={`${styles.sec} ${styles.two}`}>
+          {medals.length > 0 && <div>
+            <Head>Badges</Head>
+            <div className={styles.medals}>{medals.map(b => (
+              <div key={b.id} className={styles.md} data-c={b.cat} title={b.label}>
+                <div className={styles.disc}><span>{b.emoji}</span>{b.tag && <b>{b.tag}</b>}</div>
+                <span>{b.label}</span><small>{CAT[b.cat] || ''}</small>
+              </div>))}</div>
+          </div>}
+          <div>
+            <Head>Career highs</Head>
+            <div className={styles.facts}>
+              {bestGame && <Fact icon="🎯" title={`Best game: ${bestGame.gs} GmSc`} sub={`${bestGame.pts} pts, ${bestGame.trb} reb, ${bestGame.ast} ast vs ${bestGame.o} · ${md(bestGame.d)}${bestGame.p ? ' · playoffs' : ''}`} />}
+              {mostPts && <Fact icon="💥" title={`Career high: ${mostPts.pts} points`} sub={`vs ${mostPts.o} · ${md(mostPts.d)}${mostPts.p ? ' · playoffs' : ''}`} />}
+              {bestSeason && <Fact icon="📈" title={`Best season: ${bestSeason.s}`} sub={`${fmt(bestSeason.av)} average Elo${bestSeason.rk ? ` · finished #${bestSeason.rk}` : ''}`} />}
+              {jump && jump.en > jump.st && <Fact icon="🚀" title={`Biggest jump: ${jump.s}`} sub={`▲${fmt(jump.en - jump.st)} Elo${jump.rk && prevRank(seasons, jump) ? ` · #${prevRank(seasons, jump)} to #${jump.rk}` : ''}`} />}
             </div>
-          )}
-        </div>
+          </div>
+        </section>}
+
+        <section className={styles.sec}>
+          <Head>Year by year</Head>
+          {phone ? <SeasonRows seasons={seasons} full={full} /> : <SeasonTable seasons={seasons} full={full} best={bestSeason} />}
+          <p className={styles.note}>{full ? 'GP and per-game numbers: regular season. Games rated includes the playoffs. ' : 'Box scores and ranks fill in after tonight’s update. '}Bar: the season’s Elo going in to its end on a {SCALE[0].toLocaleString()}–{SCALE[1].toLocaleString()} scale; the gold tick is its peak.{full ? ' Rank: where he finished among players with 20+ rated games.' : ''}</p>
+        </section>
       </div>
     </div>
+  )
+}
+
+function TeamChip({ team, logo, title }) {
+  const [bad, setBad] = useState(false)
+  return <span className={styles.tchip} title={title}>{logo && !bad ? <img src={logo} alt="" onError={() => setBad(true)} /> : team}</span>
+}
+const prevRank = (seasons, s) => { const i = seasons.indexOf(s); return i > 0 ? seasons[i - 1].rk : null }
+const Head = ({ children, right }) => <div className={styles.sh}><h3>{children}</h3><i />{right}</div>
+const Fact = ({ icon, title, sub }) => <div className={styles.fact}><i>{icon}</i><b>{title}</b><small>{sub}</small></div>
+const Team = ({ t }) => <span className={styles.tm} style={{ background: tColor(t) }}>{t}</span>
+const Change = ({ s }) => { const d = s.en - s.st; return <span className={d >= 0 ? styles.up : styles.dn}>{d >= 0 ? '▲' : '▼'}{fmt(Math.abs(d))}</span> }
+const Rank = ({ s }) => (s.rk ? <span className={styles.rk} data-top={s.rk <= 5 ? '' : undefined} title={`of ${s.rn}`}>#{s.rk}</span> : <span className={styles.rkNone}>—</span>)
+function Bar({ s }) {
+  const p = v => Math.max(0, Math.min(100, ((v - SCALE[0]) / (SCALE[1] - SCALE[0])) * 100))
+  const a = Math.min(s.st, s.en), b = Math.max(s.st, s.en)
+  return <span className={styles.bar}><i className={styles.tr} /><i className={styles.rg} data-dn={s.en < s.st ? '' : undefined} style={{ left: `${p(a)}%`, width: `${Math.max(1.5, p(b) - p(a))}%` }} /><i className={styles.pk} style={{ left: `${p(s.pk)}%` }} /></span>
+}
+const bestText = g => (g ? <><b>{g.pts} pts</b> vs {g.o}, {md(g.d, false)}{g.p ? ' (playoffs)' : ''}</> : '—')
+
+function SeasonTable({ seasons, full, best }) {
+  return (
+    <div className={styles.tableWrap}>
+      <table className={styles.table}>
+        <thead><tr><th>Season</th><th className={styles.l}>Team</th><th>{full ? 'GP' : 'Games'}</th><th>Elo range</th><th>End</th><th>Peak</th><th>Change</th>{full && <><th>Rank</th><th>Pts / Reb / Ast</th><th>GmSc</th><th className={styles.l}>Best game</th></>}</tr></thead>
+        <tbody>{seasons.map(s => (
+          <tr key={s.s} data-best={s === best ? '' : undefined}>
+            <td className={styles.s}>{s.s}</td>
+            <td className={styles.l}><span className={styles.tms}>{s.t.map(t => <Team key={t} t={t} />)}</span></td>
+            <td title={full ? `${s.g} rated games, playoffs included` : undefined}>{full ? s.gp || s.g : s.g}</td>
+            <td><Bar s={s} /></td><td>{fmt(s.en)}</td><td>{fmt(s.pk)}</td><td><Change s={s} /></td>
+            {full && <><td><Rank s={s} /></td><td>{s.pts != null ? `${s.pts} / ${s.trb} / ${s.ast}` : '—'}</td><td>{s.gs ?? '—'}</td><td className={`${styles.l} ${styles.bg}`}>{bestText(s.b)}</td></>}
+          </tr>))}</tbody>
+      </table>
+    </div>
+  )
+}
+
+function SeasonRows({ seasons, full }) {
+  const rev = [...seasons].reverse()
+  const [open, setOpen] = useState((rev.find(s => s.g >= 10) || rev[0])?.s) // the latest real season, not a week-old one
+  return <div className={styles.rows}>{rev.map(s => {
+    const on = open === s.s
+    return <div key={s.s}>
+      <button type="button" className={styles.srow} data-on={on ? '' : undefined} aria-expanded={on} onClick={() => setOpen(on ? null : s.s)}>
+        <b>{s.s}</b>{full ? <Rank s={s} /> : <Team t={s.t[0]} />}<Bar s={s} /><b>{fmt(s.en)}</b><Change s={s} />
+      </button>
+      {on && <div className={styles.sdet}>
+        <div><small>Team</small><span className={styles.tms}>{s.t.map(t => <Team key={t} t={t} />)}</span></div>
+        <div><small>{full ? 'GP' : 'Games'}</small><b>{full ? s.gp || s.g : s.g}</b></div>
+        <div><small>Peak</small><b>{fmt(s.pk)}</b></div>
+        <div><small>Average</small><b>{fmt(s.av)}</b></div>
+        {full && s.pts != null && <><div><small>Pts</small><b>{s.pts}</b></div><div><small>Reb / Ast</small><b>{s.trb} / {s.ast}</b></div><div><small>GmSc</small><b>{s.gs}</b></div><div><small>Min</small><b>{s.mp}</b></div></>}
+        {full && s.b && <p className={styles.w}>Best game: {bestText(s.b)}</p>}
+      </div>}
+    </div>
+  })}</div>
+}
+
+// The career line, colored by team, against the league: its No. 1, the top 10% band and the median. "His career" frames his years;
+// "All-time" stretches to 1946 so he sits against every era. Hover (or touch) for the date, Elo and team.
+function Trajectory({ hist, band, name }) {
+  const wrap = useRef(null), [w, setW] = useState(0), [mode, setMode] = useState('career'), [tip, setTip] = useState(null)
+  useEffect(() => {
+    const el = wrap.current; if (!el) return
+    const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width))); ro.observe(el); return () => ro.disconnect()
+  }, [])
+  const H = w < 500 ? 200 : 260, pl = 36, pr = 10, pt = 22, pb = 22
+  const geo = useMemo(() => {
+    if (!hist.length || !w) return null
+    const t0 = mode === 'all' ? Date.parse(band?.[0]?.[0] || '1946-11-01') : Date.parse(hist[0][0]) - 60 * 864e5
+    const t1 = mode === 'all' ? Date.parse(band?.at(-1)?.[0] || hist.at(-1)[0]) : Date.parse(hist.at(-1)[0]) + 30 * 864e5
+    const B = (band || []).filter(b => { const t = Date.parse(b[0]); return t >= t0 && t <= t1 })
+    let lo = Math.min(...hist.map(x => x[1])), hi = Math.max(...hist.map(x => x[1]))
+    for (const b of B) { lo = Math.min(lo, b[1]); hi = Math.max(hi, b[3]) }
+    lo = Math.floor((lo - 60) / 100) * 100; hi = Math.ceil((hi + 60) / 100) * 100
+    const X = d => pl + ((Date.parse(d) - t0) / (t1 - t0)) * (w - pl - pr), Y = v => pt + (1 - (v - lo) / (hi - lo)) * (H - pt - pb)
+    // His line, thinned to about one point per pixel; the peak always kept
+    const step = Math.max(1, Math.floor(hist.length / (w - pl - pr)))
+    const pkI = hist.reduce((a, x, i) => (x[1] > hist[a][1] ? i : a), 0)
+    const pts = hist.filter((x, i) => i % step === 0 || i === pkI || i === hist.length - 1)
+    const segs = []
+    for (const x of pts) { const t = x[4]; if (!segs.length || segs.at(-1).t !== t) segs.push({ t, p: segs.length ? [segs.at(-1).p.at(-1)] : [] }); segs.at(-1).p.push([X(x[0]), Y(x[1])]) }
+    const grid = []; for (let v = Math.ceil(lo / 200) * 200; v <= hi; v += 200) grid.push(v)
+    const y0 = new Date(t0).getUTCFullYear(), y1 = new Date(t1).getUTCFullYear(), span = y1 - y0
+    const stepY = [1, 2, 5, 10, 20].find(s => span / s <= (w - pl) / 60) || 20
+    const years = []; for (let y = Math.ceil(y0 / stepY) * stepY; y <= y1; y += stepY) years.push(y)
+    // The band breaks where the league has no months (offseasons, and any gap over 200 days)
+    const runs = []
+    for (const b of B) { const last = runs.at(-1)?.at(-1); if (!last || Date.parse(b[0]) - Date.parse(last[0]) > 200 * 864e5) runs.push([]); runs.at(-1).push(b) }
+    return { X, Y, runs: runs.filter(r => r.length > 1), segs, grid, years, pk: hist[pkI], pts, lo, hi }
+  }, [hist, band, w, mode, H])
+  const move = e => {
+    if (!geo) return
+    const r = e.currentTarget.getBoundingClientRect(), cx = ((e.touches?.[0] || e).clientX - r.left) * (w / r.width)
+    let best = null, bd = 1e9
+    for (const x of geo.pts) { const d = Math.abs(geo.X(x[0]) - cx); if (d < bd) { bd = d; best = x } }
+    if (best) setTip({ x: geo.X(best[0]), y: geo.Y(best[1]), d: best[0], e: best[1], t: best[4] })
+  }
+  const teams = geo ? [...new Set(geo.segs.map(s => s.t))] : []
+  const path = P => `M${P.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('L')}`
+  return (
+    <>
+      <Head right={<span className={styles.seg} role="group" aria-label="Range">{[['career', 'His career'], ['all', 'All-time']].map(([v, l]) => <button key={v} type="button" data-on={mode === v ? '' : undefined} aria-pressed={mode === v} onClick={() => { setMode(v); setTip(null) }}>{l}</button>)}</span>}>Career trajectory</Head>
+      <div className={styles.chart} ref={wrap}>
+        {geo && <svg viewBox={`0 0 ${w} ${H}`} width={w} height={H} onMouseMove={move} onTouchMove={move} onMouseLeave={() => setTip(null)} role="img" aria-label={`${name}'s Elo over his career against the league`}>
+          {geo.grid.map(v => <g key={v}><line x1={pl} x2={w - pr} y1={geo.Y(v)} y2={geo.Y(v)} className={v === 3000 ? styles.g3k : styles.gl} /><text x={2} y={geo.Y(v) + 3} className={styles.ax}>{v}</text></g>)}
+          {geo.years.map(y => <text key={y} x={geo.X(`${y}-01-01`)} y={H - 6} className={styles.ax} textAnchor="middle">{y}</text>)}
+          {geo.runs.map((R, i) => <g key={i}>
+            <path d={`${path(R.map(b => [geo.X(b[0]), geo.Y(b[2])]))}L${R.slice().reverse().map(b => `${geo.X(b[0]).toFixed(1)},${geo.Y(b[3]).toFixed(1)}`).join('L')}Z`} className={styles.band} />
+            <path d={path(R.map(b => [geo.X(b[0]), geo.Y(b[1])]))} className={styles.med} />
+            <path d={path(R.map(b => [geo.X(b[0]), geo.Y(b[3])]))} className={styles.top} />
+          </g>)}
+          {geo.segs.map((s, i) => <path key={i} d={path(s.p)} fill="none" stroke={tColor(s.t)} strokeWidth={mode === 'all' ? 1.8 : 2.4} strokeLinejoin="round" />)}
+          <circle cx={geo.X(geo.pk[0])} cy={geo.Y(geo.pk[1])} r={4.5} className={styles.pkDot} />
+          <text x={geo.X(geo.pk[0]) + (geo.X(geo.pk[0]) > w * 0.6 ? -8 : 8)} y={Math.max(12, geo.Y(geo.pk[1]) - 8)} textAnchor={geo.X(geo.pk[0]) > w * 0.6 ? 'end' : 'start'} className={styles.pkTxt}>Peak {fmt(geo.pk[1])} · {md(geo.pk[0])}</text>
+          {tip && <g><line x1={tip.x} x2={tip.x} y1={pt - 6} y2={H - pb} className={styles.cross} /><circle cx={tip.x} cy={tip.y} r={4} fill={tColor(tip.t)} stroke="#fff" strokeWidth={1.5} /></g>}
+        </svg>}
+        {tip && <div className={styles.tip} style={{ left: tip.x, top: tip.y }} data-r={tip.x > w * 0.65 ? '' : undefined}><b>{md(tip.d)}</b><span>Elo <em>{fmt(tip.e)}</em></span><span>{tInfo(tip.t).name || tip.t}</span></div>}
+        <div className={styles.legend}>
+          {teams.map(t => <span key={t}><i style={{ background: tColor(t) }} />{tInfo(t).name?.split(' ').slice(-1)[0] || t}</span>)}
+          {band && <><span><i className={styles.lTop} />League’s No. 1</span><span><i className={styles.lBand} />Top 10%</span><span><i className={styles.lMed} />League median</span></>}
+        </div>
+      </div>
+    </>
   )
 }

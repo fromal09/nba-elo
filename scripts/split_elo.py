@@ -9,6 +9,7 @@ split_elo.py — the site's two player files, written from public/data/elo.json.
 
 elo.json stays as the pipeline's full record (fetch_espn.py and update_elo.py read it).
 Run after build_elo.py:  python3 scripts/split_elo.py
+Then it runs build_careers.py (public/data/careers/, the player card's season lines).
 """
 import datetime as dt, json
 from pathlib import Path
@@ -38,6 +39,12 @@ def main():
     (DATA / "players.json").write_text(dump(summary), encoding="utf-8")
     (DATA / "history.json").write_text(dump({"epoch": EPOCH.isoformat(), "codes": codes, "h": packed}), encoding="utf-8")
     print(f"  players.json {len(dump(summary)) / 1e6:.1f} MB, history.json {(DATA / 'history.json').stat().st_size / 1e6:.1f} MB")
+    # The player card's career files (build_careers.py) come from the same ratings plus the season files
+    try:
+        import build_careers
+        build_careers.main()
+    except Exception as e:  # the card falls back to the Elo history, so this never stops the nightly run
+        print(f"  careers: skipped ({e})")
 
 
 if __name__ == "__main__":
