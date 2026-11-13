@@ -1,15 +1,20 @@
 """
 build_careers.py — the player card's career data (src/components/PlayerModal.jsx), small enough to open instantly.
 
-  public/data/careers/<0-63>.json  {name: [season, ...]}  players split into 64 files by a hash of the name (shard(), mirrored in
-                                   PlayerModal.jsx), so opening a card loads one ~100 KB file instead of every season file
-  public/data/careers/band.json    the league month by month: [month end, median, 90th percentile, No. 1] Elo of the players who
-                                   played in the 75 days before it (months with fewer than 30 are left out)
+  public/data/careers/<0-63>.json  {name: {"s": [season, ...], "d": [decade, ...]}}  players split into 64 files by a hash of the name
+                                   (shard(), mirrored in PlayerModal.jsx), so opening a card loads one ~100 KB file, not every season file
+  public/data/careers/ranks.json   the league month by month: [month end, No. 1, No. 20, No. 50, No. 100] — the Elo it took to hold each
+                                   rank among active players (played in the last 250 days, as build_elo.py ranks them); null where
+                                   fewer players were active
 
 One line per season: s (season), t (teams, in order), g (rated games, playoffs included), gp (regular-season games with a box score),
 st / en / pk / av (Elo going in, at the end, at its peak, on average), rk / rn (where his end-of-season Elo ranked among the players with
 20+ rated games that season, and how many there were), pts / trb / ast / gs / mp (regular-season per-game averages), b (best game by Game
 Score) and h (most points), each {gs, pts, trb, ast, d (date), o (opponent), p (1 for a playoff game)}.
+
+One line per decade (by the season's start year, so 2009-10 is in the 2000s): d (1990 for the 1990s), n (seasons), g (rated games),
+av / pk (average and peak Elo), ar / an (his average's rank among players with 82+ rated games that decade, of how many),
+pr / pn (his peak's rank among everyone who played that decade, of how many).
 
 Needs elo.json and the explorer season files, so it runs after build_elo.py; split_elo.py calls it.
 """
@@ -21,6 +26,9 @@ DATA = Path(__file__).resolve().parent.parent / "public" / "data"
 OUT = DATA / "careers"
 SHARDS = 64
 MIN_RANKED = 20
+MIN_DECADE = 82
+ACTIVE_DAYS = 250
+RANK_MARKS = (1, 20, 50, 100)
 
 
 def shard(name):
@@ -82,6 +90,19 @@ def main():
             out["p"] = 1
         return out
 
+    # Decades, by season start year: every player's games, average and peak, then the ranks
+    dec = defaultdict(dict)  # decade -> name -> [games, elo sum, peak, seasons]
+    for n, S in by_player.items():
+        for s, L in S.items():
+            d = int(s[:4]) // 10 * 10
+            r = dec[d].setdefault(n, [0, 0.0, 0.0, 0])
+            r[0] += len(L); r[1] += sum(x[1] for x in L); r[2] = max(r[2], max(x[1] for x in L)); r[3] += 1
+    dec_rank = {}
+    for d, M in dec.items():
+        avg = sorted(((v[1] / v[0], n) for n, v in M.items() if v[0] >= MIN_DECADE), reverse=True)
+        pk = sorted(((v[2], n) for n, v in M.items()), reverse=True)
+        dec_rank[d] = ({n: i + 1 for i, (_, n) in enumerate(avg)}, len(avg), {n: i + 1 for i, (_, n) in enumerate(pk)}, len(pk))
+
     shards = defaultdict(dict)
     for p in players:
         n, S, lines, prev = p["name"], by_player[p["name"]], [], None
@@ -105,9 +126,17 @@ def main():
             lines.append(line)
             prev = es[-1]
         if lines:
-            shards[shard(n)][n] = lines
+            ds = []
+            for d in sorted(dk for dk in dec if n in dec[dk]):
+                g, tot, peak, ns = dec[d][n]
+                ar, an, pr, pn = dec_rank[d]
+                row = {"d": d, "n": ns, "g": g, "av": round(tot / g), "pk": round(peak), "pr": pr[n], "pn": pn}
+                if n in ar:
+                    row["ar"], row["an"] = ar[n], an
+                ds.append(row)
+            shards[shard(n)][n] = {"s": lines, "d": ds}
 
-    # The league by month
+    # The league by month: the Elo it took to be No. 1, 20, 50 and 100 among active players
     H = []
     for p in players:
         h = p.get("elo_history") or []
@@ -115,12 +144,12 @@ def main():
             H.append(([x[0] for x in h], [x[1] for x in h]))
     first = min(ds[0] for ds, _ in H)
     last = max(ds[-1] for ds, _ in H)
-    band, d = [], dt.date(int(first[:4]), int(first[5:7]), 1)
+    ranks, d = [], dt.date(int(first[:4]), int(first[5:7]), 1)
     stop = dt.date.fromisoformat(last)
     while True:
         nxt = dt.date(d.year + (d.month == 12), d.month % 12 + 1, 1)
         me = min(nxt - dt.timedelta(days=1), stop)
-        mes, lo = me.isoformat(), (me - dt.timedelta(days=75)).isoformat()
+        mes, lo = me.isoformat(), (me - dt.timedelta(days=ACTIVE_DAYS)).isoformat()
         v = []
         for ds, es in H:
             if ds[0] > mes or ds[-1] < lo:
@@ -128,9 +157,9 @@ def main():
             i = bisect.bisect_right(ds, mes) - 1
             if i >= 0 and ds[i] >= lo:
                 v.append(es[i])
-        if len(v) >= 30:
-            v.sort()
-            band.append([mes, round(v[len(v) // 2]), round(v[int(len(v) * 0.9)]), round(v[-1])])
+        if v:
+            v.sort(reverse=True)
+            ranks.append([mes] + [round(v[k - 1]) if len(v) >= k else None for k in RANK_MARKS])
         if me >= stop:
             break
         d = nxt
@@ -139,9 +168,12 @@ def main():
     dump = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":"))
     for k in range(SHARDS):
         (OUT / f"{k}.json").write_text(dump(shards.get(k, {})), encoding="utf-8")
-    (OUT / "band.json").write_text(dump(band), encoding="utf-8")
+    (OUT / "ranks.json").write_text(dump(ranks), encoding="utf-8")
+    old = OUT / "band.json"
+    if old.exists():
+        old.unlink()
     size = sum((OUT / f"{k}.json").stat().st_size for k in range(SHARDS))
-    print(f"  careers: {sum(len(v) for v in shards.values())} players in {SHARDS} files ({size / 1e6:.1f} MB), band {len(band)} months")
+    print(f"  careers: {sum(len(v) for v in shards.values())} players in {SHARDS} files ({size / 1e6:.1f} MB), rank lines {len(ranks)} months")
 
 
 if __name__ == "__main__":

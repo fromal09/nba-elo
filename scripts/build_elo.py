@@ -747,32 +747,7 @@ def build_elo(df):
                 badges.append({"cat":"longevity","id":f"games_{threshold}","label":f"{threshold:,} Games","emoji":emoji})
                 break
 
-        # ── Era badges (per decade, exclusive within peak and avg) ───────
-        era_emojis = {1940:"📼",1950:"📼",1960:"📼",1970:"📺",1980:"📺",
-                      1990:"💿",2000:"💿",2010:"📱",2020:"📱"}
-        for decade in all_decades:
-            emoji = era_emojis.get(decade, "🏀")
-            ds    = f"{decade}s"
-
-            # Peak in decade (exclusive)
-            pr = decade_rank_map.get(decade, {}).get(name)
-            if pr:
-                if pr == 1:       badges.append({"cat":"era","id":f"d{decade}_p1",   "label":f"{ds} Peak #1",             "emoji":emoji})
-                elif pr <= 5:     badges.append({"cat":"era","id":f"d{decade}_p5",   "label":f"{ds} Peak Top 5 (#{pr})",  "emoji":emoji})
-                elif pr <= 10:    badges.append({"cat":"era","id":f"d{decade}_p10",  "label":f"{ds} Peak Top 10 (#{pr})", "emoji":emoji})
-                elif pr <= 25:    badges.append({"cat":"era","id":f"d{decade}_p25",  "label":f"{ds} Peak Top 25 (#{pr})", "emoji":emoji})
-                elif pr <= 50:    badges.append({"cat":"era","id":f"d{decade}_p50",  "label":f"{ds} Peak Top 50 (#{pr})", "emoji":emoji})
-                elif pr <= 100:   badges.append({"cat":"era","id":f"d{decade}_p100", "label":f"{ds} Peak Top 100 (#{pr})","emoji":emoji})
-
-            # Avg in decade (exclusive)
-            ar = decade_avg_rank_map.get(decade, {}).get(name)
-            if ar:
-                if ar == 1:       badges.append({"cat":"era","id":f"d{decade}_a1",   "label":f"{ds} Avg #1",             "emoji":emoji})
-                elif ar <= 5:     badges.append({"cat":"era","id":f"d{decade}_a5",   "label":f"{ds} Avg Top 5 (#{ar})",  "emoji":emoji})
-                elif ar <= 10:    badges.append({"cat":"era","id":f"d{decade}_a10",  "label":f"{ds} Avg Top 10 (#{ar})", "emoji":emoji})
-                elif ar <= 25:    badges.append({"cat":"era","id":f"d{decade}_a25",  "label":f"{ds} Avg Top 25 (#{ar})", "emoji":emoji})
-                elif ar <= 50:    badges.append({"cat":"era","id":f"d{decade}_a50",  "label":f"{ds} Avg Top 50 (#{ar})", "emoji":emoji})
-                elif ar <= 100:   badges.append({"cat":"era","id":f"d{decade}_a100", "label":f"{ds} Avg Top 100 (#{ar})","emoji":emoji})
+        # Decades aren't badges: the player card has a decades panel (scripts/build_careers.py)
 
         return badges
     for p in players_out:
