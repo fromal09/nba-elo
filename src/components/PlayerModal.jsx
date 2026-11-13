@@ -101,7 +101,8 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
   const src = shots?.[norm(name)]?.headshot
   const logo = binderLogo(team)
   const seal = active && player.is_fpr_eligible && player.fpr_rank <= 99 ? { top: 'FPR', n: `#${player.fpr_rank}`, sub: 'today' } : peakRank <= 99 ? { top: 'Peak', n: `#${peakRank}`, sub: 'all-time' } : null
-  const medals = (player.badges || []).map(medalOf)
+  // Badges from data built before v185 (day counts at No. 1, the streak, today's rank) are left off: the card shows today's rank live
+  const medals = (player.badges || []).filter(b => b.id !== 'streak_at_1' && !b.id.startsWith('current_') && !(b.id === 'games_at_1' && b.label.includes('×'))).map(medalOf)
 
   return (
     <div ref={backdropRef} className={styles.back} onClick={e => e.target === backdropRef.current && onClose()} role="dialog" aria-modal="true" aria-label={`${name} career`} data-m="pm-back">
