@@ -2,13 +2,14 @@ import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import styles from './PlayerModal.module.css'
 import { binderTeamInfo, binderLogo, binderHeadshots } from './SeasonExplorer'
 import { norm } from './predict'
+import { TIERS as CARD_TIERS, tierFor } from './PlayerCard'
 
 /*
  * The player card: a career profile (not a collectible). The hero (headshot, team, rank seal), four headline numbers, where he
  * ranked month by month (or his Elo), badges as medals, career highs, his decades, and the season-by-season ledger.
  *
- * Ranks wear the card foils: No. 1 is a GOAT, 2–5 Icon, 6–20 Legend, 21–50 Standout, 51–100 Rare, Common past that (the
- * mapping the binder sets use).
+ * Ranks wear the card foils, by the cards' own tiers (PlayerCard.jsx TIERS): No. 1 is a GOAT, 2–5 Icon, 6–20 Legend, 21–50 Standout,
+ * 51–125 Rare, Common past that.
  *
  * Season, decade and monthly lines come from /data/careers/<shard>.json (scripts/build_careers.py, nightly): each season's games,
  * Elo at its end, peak and average with where each ranked among players with 20+ rated games, per-game box scores and the best game;
@@ -30,9 +31,12 @@ const md = (d, year = true) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en
 const tInfo = t => binderTeamInfo(t) || {}
 const tColor = t => tInfo(t).color || '#3a5578'
 const initials = n => n.replace(/\s*\(.*\)$/, '').split(/[\s-]+/).map(w => w[0]).join('').slice(0, 3).toUpperCase()
-// Card tiers by rank (as the binder sets map them), for the foils
-const TIERS = [['goat', 'GOAT', 'No. 1'], ['icon', 'Icon', '2–5'], ['legend', 'Legend', '6–20'], ['standout', 'Standout', '21–50'], ['rare', 'Rare', '51–100'], ['common', 'Common', '101+']]
-const tierOf = r => (!r ? 'none' : r === 1 ? 'goat' : r <= 5 ? 'icon' : r <= 20 ? 'legend' : r <= 50 ? 'standout' : r <= 100 ? 'rare' : 'common')
+// Card tiers by rank, straight from the cards (PlayerCard.jsx), for the foils: [id, name, ranks]
+const TIERS = CARD_TIERS.map((t, i) => {
+  const lo = i ? CARD_TIERS[i - 1].max + 1 : 1
+  return [t.id, t.label.replace('★ ', ''), t.max === Infinity ? `${lo}+` : lo === t.max ? `No. ${lo}` : `${lo}–${t.max}`]
+})
+const tierOf = r => (!r ? 'none' : tierFor(r).id)
 
 // Season lines from the game-by-game history, for a player whose career file isn't built yet (no ranks or box scores)
 function seasonsFromHistory(h) {
@@ -95,7 +99,14 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
   useEffect(() => {
     let on = true
     setCareer(undefined)
-    getJSON(`/data/careers/${shard(name)}.json`).then(d => on && setCareer(d?.[name] || null))
+    // A file from before the latest format (no monthly ranks) can still be in a browser or edge cache for a few minutes after a
+    // rebuild: fetch past the cache once
+    const url = `/data/careers/${shard(name)}.json`
+    getJSON(url).then(d => {
+      const c = d?.[name] || null
+      if (c && (Array.isArray(c) || !c.m)) return getJSON(`${url}?t=${Math.floor(Date.now() / 6e4)}`).then(f => f?.[name] || c)
+      return c
+    }).then(c => on && setCareer(c))
     binderHeadshots().then(s => on && setShots(s))
     return () => { on = false }
   }, [name])
@@ -185,7 +196,7 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
           <Head>Year by year</Head>
           <TierKey />
           {phone ? <SeasonHeat seasons={seasons} full={full} decades={decades} /> : <SeasonTable seasons={seasons} full={full} decades={decades} />}
-          <p className={styles.note}>{full ? 'Ranks: among players with 20+ rated games that season, by the Elo he ended it with, his peak and his average. GP and per-game numbers: regular season.' : 'Ranks and box scores fill in after tonight’s update.'}</p>
+          <p className={styles.note}>{full ? <>Ranks: among players with 20+ rated games that season, by the Elo he ended it with, his peak and his average.{seasons.at(-1)?.now ? ` ${seasons.at(-1).s} is in progress: its ranks are among players with ${seasons.at(-1).rmin}+ games so far, and End is where he stands now.` : ''} GP and per-game numbers: regular season.</> : 'Ranks and box scores fill in after tonight’s update.'}</p>
         </section>
       </div>
     </div>
@@ -247,7 +258,7 @@ function SeasonHeat({ seasons, full, decades }) {
         const cell = (rk, v) => <td><Foil r={rk} className={styles.cell}><b>{rk ? `#${rk}` : '—'}</b><small>{fmt(v)}</small></Foil></td>
         return [
           <tr key={s.s} className={styles.hrow} onClick={() => full && setOpen(on ? null : s.s)} aria-expanded={full ? on : undefined}>
-            <td className={styles.hs0}><b>{s.s}</b><small>{full ? s.gp || s.g : s.g} GP · {s.t.at(-1)}</small></td>
+            <td className={styles.hs0}><b>{s.s}</b><small>{full ? s.gp || s.g : s.g} GP · {s.t.at(-1)}</small>{s.now && <em className={styles.sofar}>so far</em>}</td>
             {cell(s.rk, s.en)}{cell(s.pr, s.pk)}{cell(s.ar, s.av)}
           </tr>,
           on && <tr key={`${s.s}x`} className={styles.hx}><td colSpan={4}>
@@ -277,7 +288,7 @@ function SeasonTable({ seasons, full, decades }) {
           const s = r.se
           return (
             <tr key={s.s}>
-              <td className={`${styles.l} ${styles.s}`}>{s.s}</td>
+              <td className={`${styles.l} ${styles.s}`}>{s.s}{s.now && <em className={styles.sofar}>so far</em>}</td>
               <td className={styles.l}><span className={styles.tms}>{s.t.map(t => <Team key={t} t={t} />)}</span></td>
               <td title={full ? `${s.g} rated games, playoffs included` : undefined}>{full ? s.gp || s.g : s.g}</td>
               <td><Foil r={s.rk} className={styles.chip} title={s.rn ? `of ${s.rn}` : undefined} /></td>
@@ -292,10 +303,11 @@ function SeasonTable({ seasons, full, decades }) {
   )
 }
 
-// Where he ranked among active players at each month's end (No. 1 at the top, a log scale down to 150), shaded by card tier, with
+// Where he ranked among active players at each month's end (No. 1 at the top, a log scale down to 500), shaded by card tier, with
 // a dot at each season's final rank; or his Elo. His teams run in a strip underneath. Hover or touch for the month.
-const RMAX = 150
-const BANDS = [[1, 1.45, 'goat'], [1.45, 5.5, 'icon'], [5.5, 20.5, 'legend'], [20.5, 50.5, 'standout'], [50.5, 100.5, 'rare']]
+const RMAX = 500
+// the chart's tier bands, from the card tiers (each band runs to half a rank past its tier's last rank)
+const BANDS = CARD_TIERS.map((t, i) => [i ? CARD_TIERS[i - 1].max + 0.5 : 1, t.max === Infinity ? 500 : t.max + (i ? 0.5 : 0.45), t.id])
 const monthEnd = (f, k) => { const y = +f.slice(0, 4), m = +f.slice(5, 7) - 1 + k; return new Date(Date.UTC(y + Math.floor(m / 12), (m % 12) + 1, 0)).toISOString().slice(0, 10) }
 function Trajectory({ hist, monthly, seasons, name }) {
   const wrap = useRef(null), [w, setW] = useState(0), [mode, setMode] = useState('rank'), [tip, setTip] = useState(null)
@@ -304,7 +316,7 @@ function Trajectory({ hist, monthly, seasons, name }) {
     const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width))); ro.observe(el); return () => ro.disconnect()
   }, [])
   const view = monthly ? mode : 'elo'
-  const H = w < 500 ? 230 : 280, pl = 40, pr = w < 500 ? 12 : 64, pt = 14, pb = 50
+  const H = w < 500 ? 250 : 300, pl = 40, pr = w < 500 ? 12 : 64, pt = 14, pb = 50
   const geo = useMemo(() => {
     if (!hist.length || !w) return null
     const t0 = Date.parse(hist[0][0]) - 40 * 864e5, t1 = Date.parse(hist.at(-1)[0]) + 25 * 864e5
@@ -346,7 +358,7 @@ function Trajectory({ hist, monthly, seasons, name }) {
     else setTip({ x: geo.X(best[0]), y: geo.Y(best[1]), when: md(best[0]), e: best[1], t: best[4] })
   }
   const line = P => `M${P.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('L')}`
-  const tierLab = { goat: 'GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare' }
+  const tierLab = { goat: 'GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare', common: 'Common' }
   return (
     <>
       <Head right={monthly && <span className={styles.seg} role="group" aria-label="Show">{[['rank', 'Rank'], ['elo', 'Elo']].map(([v, l]) => <button key={v} type="button" data-on={view === v ? '' : undefined} aria-pressed={view === v} onClick={() => { setMode(v); setTip(null) }}>{l}</button>)}</span>}>{view === 'rank' ? 'Where he ranked' : 'Career Elo'}</Head>
@@ -355,7 +367,7 @@ function Trajectory({ hist, monthly, seasons, name }) {
           <defs><linearGradient id="pmIcon" x1="0" x2="1"><stop offset="0" stopColor="#ff2d95" /><stop offset=".25" stopColor="#ffd32d" /><stop offset=".5" stopColor="#2dffb4" /><stop offset=".75" stopColor="#2d9bff" /><stop offset="1" stopColor="#b42dff" /></linearGradient></defs>
           {view === 'rank' ? <>
             {BANDS.map(([a, b, t]) => <rect key={t} x={pl} y={geo.Y(a)} width={w - pl - pr} height={geo.Y(b) - geo.Y(a)} className={styles[`b_${t}`]} fill={t === 'icon' ? 'url(#pmIcon)' : undefined} />)}
-            {[1, 5, 20, 50, 100].map(r => <g key={r}><line x1={pl} x2={w - pr} y1={geo.Y(r)} y2={geo.Y(r)} className={r === 1 ? styles.g1 : styles.gl} /><text x={pl - 6} y={geo.Y(r) + 3.5} textAnchor="end" className={styles.ax}>#{r}</text></g>)}
+            {[1, 5, 20, 50, 125, 250, 500].map(r => <g key={r}><line x1={pl} x2={w - pr} y1={geo.Y(r)} y2={geo.Y(r)} className={r === 1 ? styles.g1 : styles.gl} /><text x={pl - 6} y={geo.Y(r) + 3.5} textAnchor="end" className={styles.ax}>#{r}</text></g>)}
             {pr > 30 && BANDS.map(([a, b, t]) => <text key={t} x={w - pr + 6} y={(geo.Y(a) + geo.Y(Math.min(b, RMAX))) / 2 + 3.5} className={`${styles.bl_} ${styles[`bt_${t}`]}`}>{tierLab[t]}</text>)}
             {geo.runs.map((R, i) => <path key={i} d={line(R.map(p => [geo.X(p.d), geo.Y(p.r)]))} className={styles.rline} />)}
             {geo.dots.map(d => <circle key={d.s} cx={geo.X(d.d)} cy={geo.Y(d.r)} r={3.6} className={`${styles.dot} ${styles[`d_${tierOf(d.r)}`]}`}><title>{`${d.s}: finished #${d.r}`}</title></circle>)}

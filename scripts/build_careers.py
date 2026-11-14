@@ -7,7 +7,7 @@ build_careers.py — the player card's career data (src/components/PlayerModal.j
 One line per season: s (season), t (teams, in order), g (rated games, playoffs included), gp (regular-season games with a box score),
 st / en / pk / av (Elo going in, at the end, at its peak, on average), rk / rn (where his end-of-season Elo ranked among the players with
 20+ rated games that season, and how many there were), pr / ar (where his season peak and his season average ranked among those same
-players), pts / trb / ast / gs / mp (regular-season per-game averages), b (best game by Game
+players; for the season in progress the bar is lower, and the line has now: 1 and rmin, the games it took), pts / trb / ast / gs / mp (regular-season per-game averages), b (best game by Game
 Score) and h (most points), each {gs, pts, trb, ast, d (date), o (opponent), p (1 for a playoff game)}.
 
 One line per decade (by the season's start year, so 2009-10 is in the 2000s): d (1990 for the 1990s), n (seasons), g (rated games),
@@ -77,8 +77,18 @@ def main():
         for date, e, opp, post, team in p.get("elo_history") or []:
             S[seas(date)].append((date, e, team))
         by_player[p["name"]] = S
+
+    # The newest season, while it's in progress (nobody near a full season yet), ranks everyone with 40% of the most games anyone has
+    # played in it so far (up to the usual 20), so early-season numbers aren't blank
+    last_day = max(x[-1][0] for S in by_player.values() for x in S.values())
+    cur_season = seas(last_day)
+    most = max((len(S[cur_season]) for S in by_player.values() if cur_season in S), default=0)
+    cur_min = max(1, min(MIN_RANKED, round(most * 0.4)))
+    in_progress = cur_min < MIN_RANKED
+    need = lambda s: cur_min if (in_progress and s == cur_season) else MIN_RANKED
+    for n, S in by_player.items():
         for s, L in S.items():
-            if len(L) >= MIN_RANKED:
+            if len(L) >= need(s):
                 es = [x[1] for x in L]
                 ends[s].append(-es[-1]); peaks[s].append(-max(es)); avgs[s].append(-sum(es) / len(es))
     for T in (ends, peaks, avgs):
@@ -150,9 +160,11 @@ def main():
             start = prev if prev is not None else (G[0][1]["pre"] if G and G[0][1]["pre"] is not None else es[0])
             line = {"s": s, "t": list(dict.fromkeys(x[2] for x in L)), "g": len(L), "gp": len(reg),
                     "st": round(start), "en": round(es[-1]), "pk": round(max(es)), "av": round(sum(es) / len(es))}
-            if len(L) >= MIN_RANKED and ends.get(s):
+            if len(L) >= need(s) and ends.get(s):
                 line["rk"], line["rn"] = rank_in(ends, s, es[-1]), len(ends[s])
                 line["pr"], line["ar"] = rank_in(peaks, s, max(es)), rank_in(avgs, s, sum(es) / len(es))
+            if in_progress and s == cur_season:
+                line["now"], line["rmin"] = 1, cur_min
             if reg:
                 for k in ("pts", "trb", "ast", "gs", "mp"):
                     line[k] = r1(sum((x[1][k] or 0) for x in reg) / len(reg))
