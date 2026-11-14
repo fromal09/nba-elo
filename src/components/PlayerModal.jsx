@@ -4,14 +4,17 @@ import { binderTeamInfo, binderLogo, binderHeadshots } from './SeasonExplorer'
 import { norm } from './predict'
 
 /*
- * The player card: a career profile (not a collectible). The hero (headshot, team, rank seal), four headline numbers, the career
- * line against the league (the Elo it took to be No. 1, top 20, top 50 and top 100, month by month), badges as medals, career
- * highs, his decades, and the season-by-season ledger (grouped by decade).
+ * The player card: a career profile (not a collectible). The hero (headshot, team, rank seal), four headline numbers, where he
+ * ranked month by month (or his Elo), badges as medals, career highs, his decades, and the season-by-season ledger.
  *
- * Season and decade lines come from /data/careers/<shard>.json (scripts/build_careers.py, nightly): Elo going in, at the end, at its
- * peak and on average, where he finished among players with 20+ rated games, per-game box-score averages and the best game; and
- * each decade's games, average and peak with their ranks. Until a player's file is there, the card builds the Elo part of each
- * season and decade from his game-by-game history and leaves the box scores and ranks out.
+ * Ranks wear the card foils: No. 1 is a GOAT, 2–5 Icon, 6–20 Legend, 21–50 Standout, 51–100 Rare, Common past that (the
+ * mapping the binder sets use).
+ *
+ * Season, decade and monthly lines come from /data/careers/<shard>.json (scripts/build_careers.py, nightly): each season's games,
+ * Elo at its end, peak and average with where each ranked among players with 20+ rated games, per-game box scores and the best game;
+ * each decade's games, average and peak with their ranks; and his rank among active players at every month's end. Until a
+ * player's file is there, the card builds the Elo part of each season and decade from his game-by-game history and leaves the
+ * ranks and box scores out.
  */
 
 const SHARDS = 64
@@ -27,7 +30,9 @@ const md = (d, year = true) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en
 const tInfo = t => binderTeamInfo(t) || {}
 const tColor = t => tInfo(t).color || '#3a5578'
 const initials = n => n.replace(/\s*\(.*\)$/, '').split(/[\s-]+/).map(w => w[0]).join('').slice(0, 3).toUpperCase()
-const SCALE = [1500, 3150] // the ledger bars' Elo range
+// Card tiers by rank (as the binder sets map them), for the foils
+const TIERS = [['goat', 'GOAT', 'No. 1'], ['icon', 'Icon', '2–5'], ['legend', 'Legend', '6–20'], ['standout', 'Standout', '21–50'], ['rare', 'Rare', '51–100'], ['common', 'Common', '101+']]
+const tierOf = r => (!r ? 'none' : r === 1 ? 'goat' : r <= 5 ? 'icon' : r <= 20 ? 'legend' : r <= 50 ? 'standout' : r <= 100 ? 'rare' : 'common')
 
 // Season lines from the game-by-game history, for a player whose career file isn't built yet (no ranks or box scores)
 function seasonsFromHistory(h) {
@@ -86,23 +91,23 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
   }, [handleKey])
 
   const name = player.name
-  const [career, setCareer] = useState(undefined), [band, setBand] = useState(null), [shots, setShots] = useState(null)
+  const [career, setCareer] = useState(undefined), [shots, setShots] = useState(null)
   useEffect(() => {
     let on = true
     setCareer(undefined)
     getJSON(`/data/careers/${shard(name)}.json`).then(d => on && setCareer(d?.[name] || null))
-    getJSON('/data/careers/ranks.json').then(d => on && setBand(d))
     binderHeadshots().then(s => on && setShots(s))
     return () => { on = false }
   }, [name])
   const phone = usePhone()
 
   const hist = player.elo_history || []
-  // A career file is {s: seasons, d: decades} (files built before decades were a bare list of seasons)
+  // A career file is {s: seasons, d: decades, m: monthly ranks} (older files were a bare list of seasons)
   const cs = Array.isArray(career) ? career : career?.s
   const seasons = useMemo(() => cs || seasonsFromHistory(hist), [cs, hist])
   const decades = useMemo(() => (career && !Array.isArray(career) && career.d) || decadesFromHistory(hist), [career, hist])
   const full = !!cs // box scores and ranks
+  const monthly = career && !Array.isArray(career) ? career.m : null
   const team = player.team, info = tInfo(team), color = tColor(team)
   const y1 = hist[0]?.[0]?.slice(0, 4), y2 = hist.at(-1)?.[0]?.slice(0, 4)
   const active = player.last_played && (Date.now() - Date.parse(player.last_played)) / 864e5 < 400
@@ -147,7 +152,7 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
         </div>
 
         <section className={styles.sec}>
-          <Trajectory hist={hist} band={band} name={name} />
+          <Trajectory hist={hist} monthly={monthly} seasons={seasons} name={name} />
         </section>
 
         {(medals.length > 0 || bestGame || jump) && <section className={`${styles.sec} ${styles.two}`}>
@@ -178,8 +183,9 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
 
         <section className={styles.sec}>
           <Head>Year by year</Head>
-          {phone ? <SeasonRows seasons={seasons} full={full} decades={decades} /> : <SeasonTable seasons={seasons} full={full} best={bestSeason} decades={decades} />}
-          <p className={styles.note}>{full ? 'GP and per-game numbers: regular season. Games rated includes the playoffs. ' : 'Box scores and ranks fill in after tonight’s update. '}Bar: the season’s Elo going in to its end on a {SCALE[0].toLocaleString()}–{SCALE[1].toLocaleString()} scale; the gold tick is its peak.{full ? ' Rank: where he finished among players with 20+ rated games.' : ''}</p>
+          <TierKey />
+          {phone ? <SeasonHeat seasons={seasons} full={full} decades={decades} /> : <SeasonTable seasons={seasons} full={full} decades={decades} />}
+          <p className={styles.note}>{full ? 'Ranks: among players with 20+ rated games that season, by the Elo he ended it with, his peak and his average. GP and per-game numbers: regular season.' : 'Ranks and box scores fill in after tonight’s update.'}</p>
         </section>
       </div>
     </div>
@@ -194,143 +200,178 @@ const prevRank = (seasons, s) => { const i = seasons.indexOf(s); return i > 0 ? 
 const Head = ({ children, right }) => <div className={styles.sh}><h3>{children}</h3><i />{right}</div>
 const Fact = ({ icon, title, sub }) => <div className={styles.fact}><i>{icon}</i><b>{title}</b><small>{sub}</small></div>
 const Team = ({ t }) => <span className={styles.tm} style={{ background: tColor(t) }}>{t}</span>
-const Change = ({ s }) => { const d = s.en - s.st; return <span className={d >= 0 ? styles.up : styles.dn}>{d >= 0 ? '▲' : '▼'}{fmt(Math.abs(d))}</span> }
-const Rank = ({ s }) => (s.rk ? <span className={styles.rk} data-top={s.rk <= 5 ? '' : undefined} title={`of ${s.rn}`}>#{s.rk}</span> : <span className={styles.rkNone}>—</span>)
-function Bar({ s }) {
-  const p = v => Math.max(0, Math.min(100, ((v - SCALE[0]) / (SCALE[1] - SCALE[0])) * 100))
-  const a = Math.min(s.st, s.en), b = Math.max(s.st, s.en)
-  return <span className={styles.bar}><i className={styles.tr} /><i className={styles.rg} data-dn={s.en < s.st ? '' : undefined} style={{ left: `${p(a)}%`, width: `${Math.max(1.5, p(b) - p(a))}%` }} /><i className={styles.pk} style={{ left: `${p(s.pk)}%` }} /></span>
-}
-const DRank = ({ r, n }) => (r ? <span className={styles.rk} data-top={r <= 5 ? '' : undefined} title={n ? `of ${n.toLocaleString()}` : undefined}>#{r}</span> : null)
+// A rank in its card foil
+const Foil = ({ r, className = '', children, title }) => <span className={`${styles.f} ${className}`} data-t={tierOf(r)} title={title}>{children ?? (r ? `#${r}` : '—')}</span>
+const TierKey = () => <div className={styles.key}>{TIERS.map(([t, l, r]) => <span key={t} className={styles.f} data-t={t}><b>{l}</b><small>{r}</small></span>)}</div>
+
 function Decade({ d }) {
   return (
     <div className={styles.dec} data-top={d.ar === 1 || d.pr === 1 ? '' : undefined}>
       <b className={styles.decName}>{d.d}s</b>
       <span className={styles.decSub}>{d.n} season{d.n === 1 ? '' : 's'} · {fmt(d.g)} games</span>
-      <div className={styles.decRow}><small>Average</small><b>{fmt(d.av)}</b><DRank r={d.ar} n={d.an} /></div>
-      <div className={styles.decRow}><small>Peak</small><b>{fmt(d.pk)}</b><DRank r={d.pr} n={d.pn} /></div>
+      <div className={styles.decRow}><small>Average</small><b>{fmt(d.av)}</b>{d.ar && <Foil r={d.ar} className={styles.chip} title={d.an ? `of ${d.an.toLocaleString()}` : undefined} />}</div>
+      <div className={styles.decRow}><small>Peak</small><b>{fmt(d.pk)}</b>{d.pr && <Foil r={d.pr} className={styles.chip} title={d.pn ? `of ${d.pn.toLocaleString()}` : undefined} />}</div>
     </div>
   )
 }
-const decLine = d => <>{d.d}s<span> · {d.n} season{d.n === 1 ? '' : 's'} · {fmt(d.g)} games · average {fmt(d.av)}{d.ar ? ` (#${d.ar})` : ''} · peak {fmt(d.pk)}{d.pr ? ` (#${d.pr})` : ''}</span></>
 const bestText = g => (g ? <><b>{g.pts} pts</b> vs {g.o}, {md(g.d, false)}{g.p ? ' (playoffs)' : ''}</> : '—')
 
-function SeasonTable({ seasons, full, best, decades }) {
-  const dmap = new Map(decades.map(d => [d.d, d])), cols = full ? 11 : 7
+// Newest season first, with the decade rows and any seasons he missed in the middle of his career
+function ledger(seasons, decades) {
+  const dmap = new Map(decades.map(d => [d.d, d])), out = []
+  let prevY = null, cur = null
+  for (const se of [...seasons].reverse()) {
+    const y = +se.s.slice(0, 4)
+    if (prevY != null) for (let k = prevY - 1; k > y; k--) { const dk = Math.floor(k / 10) * 10; if (dk !== cur) { cur = dk; dmap.get(dk) && out.push({ dec: dmap.get(dk) }) } out.push({ gap: `${k}-${String(k + 1).slice(2)}` }) }
+    const dk = decOf(se)
+    if (dk !== cur) { cur = dk; dmap.get(dk) && out.push({ dec: dmap.get(dk) }) }
+    out.push({ se })
+    prevY = y
+  }
+  return out
+}
+const DecLine = ({ d }) => <>{d.d}s <span className={styles.dim}>· {d.n} season{d.n === 1 ? '' : 's'} · {fmt(d.g)} games{d.ar || d.pr ? '' : ` · average ${fmt(d.av)} · peak ${fmt(d.pk)}`}</span>
+  {d.ar && <> <Foil r={d.ar} className={styles.mini}>Avg #{d.ar}</Foil></>}{d.pr && <> <Foil r={d.pr} className={styles.mini}>Peak #{d.pr}</Foil></>}</>
+
+// Phone: the ranks as foil blocks (end, peak, average), the Elo under each; tap a season for its box-score line
+function SeasonHeat({ seasons, full, decades }) {
+  const rows = ledger(seasons, decades)
+  const [open, setOpen] = useState(null)
+  return (
+    <table className={styles.hm}>
+      <thead><tr><th>Season</th><th>End</th><th>Peak</th><th>Average</th></tr></thead>
+      <tbody>{rows.map((r, i) => {
+        if (r.dec) return <tr key={`d${r.dec.d}`} className={styles.hdec}><td colSpan={4}><DecLine d={r.dec} /></td></tr>
+        if (r.gap) return <tr key={r.gap} className={styles.miss}><td className={styles.hs0}><b>{r.gap}</b></td><td colSpan={3}>didn’t play</td></tr>
+        const s = r.se, on = open === s.s
+        const cell = (rk, v) => <td><Foil r={rk} className={styles.cell}><b>{rk ? `#${rk}` : '—'}</b><small>{fmt(v)}</small></Foil></td>
+        return [
+          <tr key={s.s} className={styles.hrow} onClick={() => full && setOpen(on ? null : s.s)} aria-expanded={full ? on : undefined}>
+            <td className={styles.hs0}><b>{s.s}</b><small>{full ? s.gp || s.g : s.g} GP · {s.t.at(-1)}</small></td>
+            {cell(s.rk, s.en)}{cell(s.pr, s.pk)}{cell(s.ar, s.av)}
+          </tr>,
+          on && <tr key={`${s.s}x`} className={styles.hx}><td colSpan={4}>
+            <span>{s.t.map(t => <Team key={t} t={t} />)}</span>
+            {s.pts != null && <span><b>{s.pts}</b> pts · <b>{s.trb}</b> reb · <b>{s.ast}</b> ast · GmSc <b>{s.gs}</b></span>}
+            {s.b && <span>Best game: {bestText(s.b)}</span>}
+          </td></tr>,
+        ]
+      })}</tbody>
+    </table>
+  )
+}
+
+// Desktop: the full ledger, ranks as foil chips
+function SeasonTable({ seasons, full, decades }) {
+  const rows = ledger(seasons, decades), cols = full ? 11 : 8
   return (
     <div className={styles.tableWrap}>
       <table className={styles.table}>
-        <thead><tr><th>Season</th><th className={styles.l}>Team</th><th>{full ? 'GP' : 'Games'}</th><th>Elo range</th><th>End</th><th>Peak</th><th>Change</th>{full && <><th>Rank</th><th>Pts / Reb / Ast</th><th>GmSc</th><th className={styles.l}>Best game</th></>}</tr></thead>
-        <tbody>{seasons.map((s, i) => [
-          (i === 0 || decOf(seasons[i - 1]) !== decOf(s)) && dmap.get(decOf(s)) && <tr key={`d${decOf(s)}`} className={styles.decTr}><td colSpan={cols}>{decLine(dmap.get(decOf(s)))}</td></tr>,
-          <tr key={s.s} data-best={s === best ? '' : undefined}>
-            <td className={styles.s}>{s.s}</td>
-            <td className={styles.l}><span className={styles.tms}>{s.t.map(t => <Team key={t} t={t} />)}</span></td>
-            <td title={full ? `${s.g} rated games, playoffs included` : undefined}>{full ? s.gp || s.g : s.g}</td>
-            <td><Bar s={s} /></td><td>{fmt(s.en)}</td><td>{fmt(s.pk)}</td><td><Change s={s} /></td>
-            {full && <><td><Rank s={s} /></td><td>{s.pts != null ? `${s.pts} / ${s.trb} / ${s.ast}` : '—'}</td><td>{s.gs ?? '—'}</td><td className={`${styles.l} ${styles.bg}`}>{bestText(s.b)}</td></>}
-          </tr>,
-        ])}</tbody>
+        <thead>
+          <tr className={styles.grpRow}><th colSpan={4} /><th colSpan={2} className={styles.grp}>Peak</th><th colSpan={2} className={styles.grp}>Average</th>{full && <th colSpan={3} className={styles.bl} />}</tr>
+          <tr><th className={styles.l}>Season</th><th className={styles.l}>Team</th><th>{full ? 'GP' : 'Games'}</th><th>End rank</th><th className={styles.bl}>Elo</th><th>Rank</th><th className={styles.bl}>Elo</th><th>Rank</th>{full && <><th className={styles.bl}>Pts / Reb / Ast</th><th>GmSc</th><th className={styles.l}>Best game</th></>}</tr>
+        </thead>
+        <tbody>{rows.map(r => {
+          if (r.dec) return <tr key={`d${r.dec.d}`} className={styles.decTr}><td colSpan={cols}><DecLine d={r.dec} /></td></tr>
+          if (r.gap) return <tr key={r.gap} className={styles.miss}><td className={styles.l}><b>{r.gap}</b></td><td className={styles.l} colSpan={cols - 1}>didn’t play</td></tr>
+          const s = r.se
+          return (
+            <tr key={s.s}>
+              <td className={`${styles.l} ${styles.s}`}>{s.s}</td>
+              <td className={styles.l}><span className={styles.tms}>{s.t.map(t => <Team key={t} t={t} />)}</span></td>
+              <td title={full ? `${s.g} rated games, playoffs included` : undefined}>{full ? s.gp || s.g : s.g}</td>
+              <td><Foil r={s.rk} className={styles.chip} title={s.rn ? `of ${s.rn}` : undefined} /></td>
+              <td className={`${styles.bl} ${styles.w}`}>{fmt(s.pk)}</td><td><Foil r={s.pr} className={styles.chip} /></td>
+              <td className={`${styles.bl} ${styles.w}`}>{fmt(s.av)}</td><td><Foil r={s.ar} className={styles.chip} /></td>
+              {full && <><td className={styles.bl}>{s.pts != null ? `${s.pts} / ${s.trb} / ${s.ast}` : '—'}</td><td>{s.gs ?? '—'}</td><td className={`${styles.l} ${styles.bg}`}>{bestText(s.b)}</td></>}
+            </tr>
+          )
+        })}</tbody>
       </table>
     </div>
   )
 }
 
-function SeasonRows({ seasons, full, decades }) {
-  const rev = [...seasons].reverse(), dmap = new Map(decades.map(d => [d.d, d]))
-  const [open, setOpen] = useState((rev.find(s => s.g >= 10) || rev[0])?.s) // the latest real season, not a week-old one
-  return <div className={styles.rows}>{rev.map((s, i) => {
-    const on = open === s.s, d = (i === 0 || decOf(rev[i - 1]) !== decOf(s)) && dmap.get(decOf(s))
-    return <div key={s.s}>
-      {d && <div className={styles.decDiv}>{decLine(d)}</div>}
-      <button type="button" className={styles.srow} data-on={on ? '' : undefined} aria-expanded={on} onClick={() => setOpen(on ? null : s.s)}>
-        <b>{s.s}</b>{full ? <Rank s={s} /> : <Team t={s.t[0]} />}<Bar s={s} /><b>{fmt(s.en)}</b><Change s={s} />
-      </button>
-      {on && <div className={styles.sdet}>
-        <div><small>Team</small><span className={styles.tms}>{s.t.map(t => <Team key={t} t={t} />)}</span></div>
-        <div><small>{full ? 'GP' : 'Games'}</small><b>{full ? s.gp || s.g : s.g}</b></div>
-        <div><small>Peak</small><b>{fmt(s.pk)}</b></div>
-        <div><small>Average</small><b>{fmt(s.av)}</b></div>
-        {full && s.pts != null && <><div><small>Pts</small><b>{s.pts}</b></div><div><small>Reb / Ast</small><b>{s.trb} / {s.ast}</b></div><div><small>GmSc</small><b>{s.gs}</b></div><div><small>Min</small><b>{s.mp}</b></div></>}
-        {full && s.b && <p className={styles.w}>Best game: {bestText(s.b)}</p>}
-      </div>}
-    </div>
-  })}</div>
-}
-
-// The career line, colored by team, against the league: the Elo it took to be No. 1, top 20, top 50 and top 100 among active
-// players, month by month. "His career" frames his years; "All-time" stretches to 1946 so he sits against every era. Hover (or
-// touch) for the date, Elo, team and the rank that Elo was worth that month.
-const MARKS = [[1, 'No. 1', 'm1'], [2, 'Top 20', 'm20'], [3, 'Top 50', 'm50'], [4, 'Top 100', 'm100']] // [ranks.json column, label, style]
-function Trajectory({ hist, band, name }) {
-  const wrap = useRef(null), [w, setW] = useState(0), [mode, setMode] = useState('career'), [tip, setTip] = useState(null)
+// Where he ranked among active players at each month's end (No. 1 at the top, a log scale down to 150), shaded by card tier, with
+// a dot at each season's final rank; or his Elo. His teams run in a strip underneath. Hover or touch for the month.
+const RMAX = 150
+const BANDS = [[1, 1.45, 'goat'], [1.45, 5.5, 'icon'], [5.5, 20.5, 'legend'], [20.5, 50.5, 'standout'], [50.5, 100.5, 'rare']]
+const monthEnd = (f, k) => { const y = +f.slice(0, 4), m = +f.slice(5, 7) - 1 + k; return new Date(Date.UTC(y + Math.floor(m / 12), (m % 12) + 1, 0)).toISOString().slice(0, 10) }
+function Trajectory({ hist, monthly, seasons, name }) {
+  const wrap = useRef(null), [w, setW] = useState(0), [mode, setMode] = useState('rank'), [tip, setTip] = useState(null)
   useEffect(() => {
     const el = wrap.current; if (!el) return
     const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width))); ro.observe(el); return () => ro.disconnect()
   }, [])
-  const H = w < 500 ? 200 : 260, pl = 36, pr = 10, pt = 22, pb = 22
+  const view = monthly ? mode : 'elo'
+  const H = w < 500 ? 230 : 280, pl = 40, pr = w < 500 ? 12 : 64, pt = 14, pb = 50
   const geo = useMemo(() => {
     if (!hist.length || !w) return null
-    const t0 = mode === 'all' ? Date.parse(band?.[0]?.[0] || '1946-11-01') : Date.parse(hist[0][0]) - 60 * 864e5
-    const t1 = mode === 'all' ? Date.parse(band?.at(-1)?.[0] || hist.at(-1)[0]) : Date.parse(hist.at(-1)[0]) + 30 * 864e5
-    const B = (band || []).filter(b => { const t = Date.parse(b[0]); return t >= t0 && t <= t1 })
+    const t0 = Date.parse(hist[0][0]) - 40 * 864e5, t1 = Date.parse(hist.at(-1)[0]) + 25 * 864e5
+    const X = d => pl + ((Date.parse(d) - t0) / (t1 - t0)) * (w - pl - pr), plotB = H - pb
+    const eloAt = d => { let lo = 0, hi = hist.length - 1, k = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (hist[m][0] <= d) { k = m; lo = m + 1 } else hi = m - 1 } return k < 0 ? null : hist[k] }
+    // team stints for the strip
+    const stints = []
+    for (const x of hist) { if (!stints.length || stints.at(-1).t !== x[4]) stints.push({ t: x[4], a: x[0], b: x[0] }); stints.at(-1).b = x[0] }
+    const y0 = new Date(t0).getUTCFullYear(), y1 = new Date(t1).getUTCFullYear(), span = y1 - y0
+    const stepY = [1, 2, 3, 5, 10].find(s => span / s <= (w - pl - pr) / 46) || 10
+    const years = []; for (let y = Math.ceil((y0 + 1) / stepY) * stepY; y <= y1; y += stepY) years.push(y)
+    if (view === 'rank') {
+      const Y = r => pt + (Math.log(Math.min(r, RMAX)) / Math.log(RMAX)) * (plotB - pt)
+      const pts = monthly.r.map((r, k) => ({ d: monthEnd(monthly.f, k), r })).filter(p => Date.parse(p.d) >= t0 - 31 * 864e5)
+      const runs = []
+      let cur = null
+      for (const p of pts) { if (!p.r) { cur = null; continue } if (!cur) runs.push(cur = []); cur.push(p) }
+      // each season's final rank, at his last active month of that season
+      const dots = seasons.filter(s => s.rk).map(s => { const y = +s.s.slice(0, 4), last = pts.filter(p => p.r && p.d > `${y}-08-01` && p.d < `${y + 1}-08-01`).at(-1); return last ? { d: last.d, r: s.rk, s: s.s } : null }).filter(Boolean)
+      const best = pts.filter(p => p.r).reduce((a, p) => (!a || p.r < a.r ? p : a), null)
+      return { X, Y, runs, dots, best, pts: pts.filter(p => p.r), stints, years, plotB, eloAt }
+    }
     let lo = Math.min(...hist.map(x => x[1])), hi = Math.max(...hist.map(x => x[1]))
-    // The scale fits him and the No. 1 and top-20 lines; the top-50 and top-100 lines are clipped if they run below it
-    for (const b of B) { const v = [b[1], b[2]].filter(x => x != null); if (v.length) { lo = Math.min(lo, ...v); hi = Math.max(hi, ...v) } }
     lo = Math.floor((lo - 60) / 100) * 100; hi = Math.ceil((hi + 60) / 100) * 100
-    const X = d => pl + ((Date.parse(d) - t0) / (t1 - t0)) * (w - pl - pr), Y = v => pt + (1 - (v - lo) / (hi - lo)) * (H - pt - pb)
-    // His line, thinned to about one point per pixel; the peak always kept
+    const Y = v => pt + (1 - (v - lo) / (hi - lo)) * (plotB - pt)
     const step = Math.max(1, Math.floor(hist.length / (w - pl - pr)))
     const pkI = hist.reduce((a, x, i) => (x[1] > hist[a][1] ? i : a), 0)
     const pts = hist.filter((x, i) => i % step === 0 || i === pkI || i === hist.length - 1)
-    const segs = []
-    for (const x of pts) { const t = x[4]; if (!segs.length || segs.at(-1).t !== t) segs.push({ t, p: segs.length ? [segs.at(-1).p.at(-1)] : [] }); segs.at(-1).p.push([X(x[0]), Y(x[1])]) }
     const grid = []; for (let v = Math.ceil(lo / 200) * 200; v <= hi; v += 200) grid.push(v)
-    const y0 = new Date(t0).getUTCFullYear(), y1 = new Date(t1).getUTCFullYear(), span = y1 - y0
-    const stepY = [1, 2, 5, 10, 20].find(s => span / s <= (w - pl) / 60) || 20
-    const years = []; for (let y = Math.ceil(y0 / stepY) * stepY; y <= y1; y += stepY) years.push(y)
-    // Each rank line, broken where that many players weren't active (the early years had fewer than 100)
-    const lines = MARKS.map(([c, label, cls]) => {
-      const runs = []
-      let cur = null
-      for (const b of B) { if (b[c] == null) { cur = null; continue } if (!cur) runs.push(cur = []); cur.push([X(b[0]), Y(b[c])]) }
-      return { label, cls, runs: runs.filter(r => r.length > 1) }
-    })
-    return { X, Y, B, lines, segs, grid, years, pk: hist[pkI], pts, lo, hi }
-  }, [hist, band, w, mode, H])
+    return { X, Y, pts, pk: hist[pkI], grid, stints, years, plotB, eloAt, lo, hi }
+  }, [hist, monthly, seasons, w, view, H, pr])
   const move = e => {
     if (!geo) return
-    const r = e.currentTarget.getBoundingClientRect(), cx = ((e.touches?.[0] || e).clientX - r.left) * (w / r.width)
+    const rc = e.currentTarget.getBoundingClientRect(), cx = ((e.touches?.[0] || e).clientX - rc.left) * (w / rc.width)
     let best = null, bd = 1e9
-    for (const x of geo.pts) { const d = Math.abs(geo.X(x[0]) - cx); if (d < bd) { bd = d; best = x } }
-    if (best) {
-      // The rank his Elo was worth that month, from the rank lines
-      const mo = geo.B.find(b => b[0] >= best[0]) || geo.B.at(-1)
-      const worth = mo && MARKS.map(([c, label]) => [mo[c], label]).find(([v]) => v != null && best[1] >= v)
-      setTip({ x: geo.X(best[0]), y: geo.Y(best[1]), d: best[0], e: best[1], t: best[4], worth: worth ? worth[1] : mo ? 'Outside the top 100' : null })
-    }
+    for (const p of geo.pts) { const d = Math.abs(geo.X(p.d || p[0]) - cx); if (d < bd) { bd = d; best = p } }
+    if (!best) return
+    if (view === 'rank') { const h = geo.eloAt(best.d); setTip({ x: geo.X(best.d), y: geo.Y(best.r), when: new Date(`${best.d}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }), r: best.r, e: h?.[1], t: h?.[4] }) }
+    else setTip({ x: geo.X(best[0]), y: geo.Y(best[1]), when: md(best[0]), e: best[1], t: best[4] })
   }
-  const teams = geo ? [...new Set(geo.segs.map(s => s.t))] : []
-  const path = P => `M${P.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('L')}`
+  const line = P => `M${P.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('L')}`
+  const tierLab = { goat: 'GOAT', icon: 'Icon', legend: 'Legend', standout: 'Standout', rare: 'Rare' }
   return (
     <>
-      <Head right={<span className={styles.seg} role="group" aria-label="Range">{[['career', 'His career'], ['all', 'All-time']].map(([v, l]) => <button key={v} type="button" data-on={mode === v ? '' : undefined} aria-pressed={mode === v} onClick={() => { setMode(v); setTip(null) }}>{l}</button>)}</span>}>Career trajectory</Head>
+      <Head right={monthly && <span className={styles.seg} role="group" aria-label="Show">{[['rank', 'Rank'], ['elo', 'Elo']].map(([v, l]) => <button key={v} type="button" data-on={view === v ? '' : undefined} aria-pressed={view === v} onClick={() => { setMode(v); setTip(null) }}>{l}</button>)}</span>}>{view === 'rank' ? 'Where he ranked' : 'Career Elo'}</Head>
       <div className={styles.chart} ref={wrap}>
-        {geo && <svg viewBox={`0 0 ${w} ${H}`} width={w} height={H} onMouseMove={move} onTouchMove={move} onMouseLeave={() => setTip(null)} role="img" aria-label={`${name}'s Elo over his career against the league`}>
-          {geo.grid.map(v => <g key={v}><line x1={pl} x2={w - pr} y1={geo.Y(v)} y2={geo.Y(v)} className={v === 3000 ? styles.g3k : styles.gl} /><text x={2} y={geo.Y(v) + 3} className={styles.ax}>{v}</text></g>)}
-          {geo.years.map(y => <text key={y} x={geo.X(`${y}-01-01`)} y={H - 6} className={styles.ax} textAnchor="middle">{y}</text>)}
-          <clipPath id="pmPlot"><rect x={pl} y={pt - 8} width={w - pl - pr} height={H - pt - pb + 8} /></clipPath>
-          <g clipPath="url(#pmPlot)">{geo.lines.map(L => L.runs.map((R, i) => <path key={`${L.cls}${i}`} d={path(R)} className={`${styles.mk} ${styles[L.cls]}`} />))}</g>
-          {geo.segs.map((s, i) => <path key={i} d={path(s.p)} fill="none" stroke={tColor(s.t)} strokeWidth={mode === 'all' ? 1.8 : 2.4} strokeLinejoin="round" />)}
-          <circle cx={geo.X(geo.pk[0])} cy={geo.Y(geo.pk[1])} r={4.5} className={styles.pkDot} />
-          <text x={geo.X(geo.pk[0]) + (geo.X(geo.pk[0]) > w * 0.6 ? -8 : 8)} y={Math.max(12, geo.Y(geo.pk[1]) - 8)} textAnchor={geo.X(geo.pk[0]) > w * 0.6 ? 'end' : 'start'} className={styles.pkTxt}>Peak {fmt(geo.pk[1])} · {md(geo.pk[0])}</text>
-          {tip && <g><line x1={tip.x} x2={tip.x} y1={pt - 6} y2={H - pb} className={styles.cross} /><circle cx={tip.x} cy={tip.y} r={4} fill={tColor(tip.t)} stroke="#fff" strokeWidth={1.5} /></g>}
+        {geo && <svg viewBox={`0 0 ${w} ${H}`} width={w} height={H} onMouseMove={move} onTouchMove={move} onMouseLeave={() => setTip(null)} role="img" aria-label={view === 'rank' ? `${name}'s rank among active players, month by month` : `${name}'s Elo over his career`}>
+          <defs><linearGradient id="pmIcon" x1="0" x2="1"><stop offset="0" stopColor="#ff2d95" /><stop offset=".25" stopColor="#ffd32d" /><stop offset=".5" stopColor="#2dffb4" /><stop offset=".75" stopColor="#2d9bff" /><stop offset="1" stopColor="#b42dff" /></linearGradient></defs>
+          {view === 'rank' ? <>
+            {BANDS.map(([a, b, t]) => <rect key={t} x={pl} y={geo.Y(a)} width={w - pl - pr} height={geo.Y(b) - geo.Y(a)} className={styles[`b_${t}`]} fill={t === 'icon' ? 'url(#pmIcon)' : undefined} />)}
+            {[1, 5, 20, 50, 100].map(r => <g key={r}><line x1={pl} x2={w - pr} y1={geo.Y(r)} y2={geo.Y(r)} className={r === 1 ? styles.g1 : styles.gl} /><text x={pl - 6} y={geo.Y(r) + 3.5} textAnchor="end" className={styles.ax}>#{r}</text></g>)}
+            {pr > 30 && BANDS.map(([a, b, t]) => <text key={t} x={w - pr + 6} y={(geo.Y(a) + geo.Y(Math.min(b, RMAX))) / 2 + 3.5} className={`${styles.bl_} ${styles[`bt_${t}`]}`}>{tierLab[t]}</text>)}
+            {geo.runs.map((R, i) => <path key={i} d={line(R.map(p => [geo.X(p.d), geo.Y(p.r)]))} className={styles.rline} />)}
+            {geo.dots.map(d => <circle key={d.s} cx={geo.X(d.d)} cy={geo.Y(d.r)} r={3.6} className={`${styles.dot} ${styles[`d_${tierOf(d.r)}`]}`}><title>{`${d.s}: finished #${d.r}`}</title></circle>)}
+          </> : <>
+            {geo.grid.map(v => <g key={v}><line x1={pl} x2={w - pr} y1={geo.Y(v)} y2={geo.Y(v)} className={styles.gl} /><text x={pl - 6} y={geo.Y(v) + 3} textAnchor="end" className={styles.ax}>{v}</text></g>)}
+            <path d={line(geo.pts.map(x => [geo.X(x[0]), geo.Y(x[1])]))} className={styles.rline} />
+            <circle cx={geo.X(geo.pk[0])} cy={geo.Y(geo.pk[1])} r={4.5} className={styles.pkDot} />
+            <text x={geo.X(geo.pk[0]) + (geo.X(geo.pk[0]) > w * 0.6 ? -8 : 8)} y={Math.max(11, geo.Y(geo.pk[1]) - 8)} textAnchor={geo.X(geo.pk[0]) > w * 0.6 ? 'end' : 'start'} className={styles.pkTxt}>Peak {fmt(geo.pk[1])} · {md(geo.pk[0])}</text>
+          </>}
+          {geo.stints.map((s, i) => { const a = geo.X(s.a), b = Math.max(a + 3, geo.X(s.b)); return <g key={i}><rect x={a} y={geo.plotB + 8} width={b - a} height={18} rx={3} fill={tColor(s.t)} className={styles.stint} />{b - a > 34 && <text x={(a + b) / 2} y={geo.plotB + 21} textAnchor="middle" className={styles.stTxt}>{s.t}</text>}</g> })}
+          {geo.years.map(y => <text key={y} x={geo.X(`${y}-01-01`)} y={H - 6} textAnchor="middle" className={styles.ax}>{geo.years.length > 8 ? `’${String(y).slice(2)}` : y}</text>)}
+          {tip && <g><line x1={tip.x} x2={tip.x} y1={pt - 4} y2={geo.plotB} className={styles.cross} /><circle cx={tip.x} cy={tip.y} r={4} fill="#fff" stroke="#0b121d" strokeWidth={1.5} /></g>}
         </svg>}
-        {tip && <div className={styles.tip} style={{ left: tip.x, top: tip.y }} data-r={tip.x > w * 0.65 ? '' : undefined}><b>{md(tip.d)}</b><span>Elo <em>{fmt(tip.e)}</em></span><span>{tInfo(tip.t).name || tip.t}</span>{tip.worth && <span className={styles.worth}>{tip.worth} that month</span>}</div>}
-        <div className={styles.legend}>
-          {teams.map(t => <span key={t}><i style={{ background: tColor(t) }} />{tInfo(t).name?.split(' ').slice(-1)[0] || t}</span>)}
-          {band && MARKS.map(([, label, cls]) => <span key={cls}><i className={`${styles.lMk} ${styles[cls]}`} />{label} line</span>)}
-        </div>
+        {tip && <div className={styles.tip} style={{ left: tip.x, top: tip.y }} data-r={tip.x > w * 0.62 ? '' : undefined}><b>{tip.when}</b>{tip.r && <span>Ranked <em>#{tip.r}</em></span>}{tip.e != null && <span>Elo {fmt(tip.e)}</span>}{tip.t && <span>{tInfo(tip.t).name || tip.t}</span>}</div>}
+        {view === 'rank' && geo && <div className={styles.legend}>{geo.best && <span className={styles.bestTxt}>Best: #{geo.best.r}, first in {new Date(`${geo.best.d}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })}</span>}<span><i className={styles.lDot} />Season’s final rank</span><span>Ranked among players active in the last 250 days</span></div>}
+        {!monthly && <div className={styles.legend}><span>His month-by-month rank arrives with tonight’s update.</span></div>}
       </div>
     </>
   )

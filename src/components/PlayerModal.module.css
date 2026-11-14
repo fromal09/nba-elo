@@ -121,17 +121,6 @@
 }
 @media (prefers-reduced-motion: reduce) { .card { scroll-behavior: auto; } }
 
-/* Rank lines on the trajectory: the Elo it took to be No. 1, top 20, top 50, top 100 */
-.mk { fill: none; stroke-width: 1.2; }
-.m1 { stroke: #a8955f; stroke-width: 1; stroke-dasharray: 10 4; opacity: .6; }
-.m20 { stroke: #b9c6d6; stroke-dasharray: 6 3; opacity: .8; }
-.m50 { stroke: #c08a5a; stroke-dasharray: 3 3; opacity: .75; }
-.m100 { stroke: #5d6e86; stroke-dasharray: 1.5 3; }
-.legend i.lMk { height: 0; border-top: 2px solid; background: none; }
-.legend i.m1 { border-top-style: dashed; border-color: #a8955f; opacity: .8; } .legend i.m20 { border-top-style: dashed; border-color: #b9c6d6; }
-.legend i.m50 { border-top-style: dashed; border-color: #c08a5a; } .legend i.m100 { border-top-style: dotted; border-color: #7d8ea6; }
-.worth { color: #9fb0c6; font-size: 11px; }
-
 /* By decade */
 .decades { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .dec { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: #0b121d; border: 1px solid #1d2a3f; border-radius: 12px; }
@@ -145,3 +134,78 @@
 .decTr td span, .decDiv span { color: #8d9aab; font-weight: 600; letter-spacing: 0; }
 .decDiv { padding: 12px 2px 6px; border-bottom: 1px solid #2c3d57; font: 800 12px 'Inter', sans-serif; color: #e7c160; line-height: 1.5; }
 @media (max-width: 760px) { .decades { grid-template-columns: 1fr 1fr; } .decName { font-size: 22px; } }
+
+/* ── Card foils for ranks (after PlayerCard.module.css): GOAT No. 1, Icon 2–5, Legend 6–20, Standout 21–50, Rare 51–100, Common ── */
+.f { position: relative; overflow: hidden; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.f::before, .f::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.f > * { position: relative; z-index: 1; }
+.f[data-t=none] { background: #16213a; color: #8d9aab; }
+.f[data-t=common] { background: #233246; color: #cdd5de; }
+.f[data-t=rare] { background: linear-gradient(135deg, #8a5a32, #d08a52 40%, #7a4a26 60%, #c07a42); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.45); }
+.f[data-t=rare]::after { background: linear-gradient(115deg, transparent 30%, rgba(255,190,140,.35) 48%, transparent 62%); background-size: 250% 250%; animation: fSweep 7s ease-in-out infinite; mix-blend-mode: screen; }
+.f[data-t=standout] { background: linear-gradient(135deg, #3b444e 0%, #f7f9fb 14%, #6a7581 28%, #ffffff 42%, #545e69 56%, #e9eef3 70%, #444e58 84%, #f2f5f8 100%); background-size: 260% 260%;
+  animation: fChrome 6s ease-in-out infinite alternate; color: #0f1822; text-shadow: 0 1px 0 rgba(255,255,255,.6); }
+.f[data-t=standout]::after { background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,.85) 50%, transparent 65%); background-size: 300% 100%; mix-blend-mode: overlay; animation: fBand 4.2s ease-in-out infinite; }
+.f[data-t=legend] { background: linear-gradient(135deg, #9a6d12, #f4d27a 25%, #b8871e 48%, #ffe9a8 70%, #a8791a); color: #2a1c00; text-shadow: 0 1px 0 rgba(255,240,200,.55); }
+.f[data-t=legend]::after { background-image: linear-gradient(115deg, #ffd34d 0%, #ff9a3d 18%, #ff6f91 34%, #ffe9a8 50%, #ffd34d 66%, #ffb347 82%, #ffd34d 100%); background-size: 300% 300%;
+  mix-blend-mode: color-dodge; opacity: .3; animation: fHolo 6s ease-in-out infinite alternate; }
+.f[data-t=icon] { background: linear-gradient(120deg, #ff2d95, #ffb52d 14%, #fff3b0 22%, #2dffb4 34%, #2d9bff 48%, #ffffff 56%, #b42dff 66%, #ff2d95 80%, #ffd32d 92%, #2dffb4); background-size: 300% 300%;
+  animation: fHolo 4s linear infinite; color: #1a1030; text-shadow: 0 0 6px rgba(255,255,255,.9), 0 0 2px #fff; box-shadow: 0 0 12px rgba(255,200,120,.3); }
+.f[data-t=icon]::after { background: radial-gradient(1.1px 1.1px at 14% 22%, #fff, transparent), radial-gradient(1px 1px at 70% 30%, #fff, transparent), radial-gradient(1.2px 1.2px at 40% 70%, #fff, transparent), radial-gradient(1px 1px at 85% 80%, #fff, transparent);
+  background-size: 46px 46px; mix-blend-mode: screen; animation: fTwinkle 1.8s ease-in-out infinite alternate; }
+.f[data-t=goat] { background: linear-gradient(135deg, #0a0a0a, #3a2a05 16%, #f5d77a 28%, #0a0a0a 42%, #c99a2e 56%, #fff1c0 66%, #0a0a0a 80%, #d4a63a 92%, #0a0a0a); background-size: 300% 300%;
+  animation: fHolo 6s linear infinite alternate; color: #fff3c8; text-shadow: 0 1px 3px #000, 0 0 8px rgba(0,0,0,.8); box-shadow: 0 0 0 1.5px #f5d77a, 0 0 14px rgba(244,200,90,.45); }
+.f[data-t=goat]::before { background-image: repeating-linear-gradient(32deg, rgba(255,215,120,0) 0 12px, rgba(255,228,160,.5) 12px 13px), repeating-linear-gradient(-58deg, rgba(255,215,120,0) 0 17px, rgba(255,240,200,.4) 17px 18px);
+  background-size: 120px 120px; mix-blend-mode: color-dodge; opacity: .5; animation: fIce 9s linear infinite alternate; }
+.f[data-t=goat]::after { background: radial-gradient(1.3px 1.3px at 12% 18%, #fff3c8, transparent), radial-gradient(1px 1px at 72% 34%, #fff, transparent), radial-gradient(1.5px 1.5px at 38% 62%, #ffe9a8, transparent), radial-gradient(1px 1px at 86% 78%, #fff, transparent);
+  background-size: 40px 40px; mix-blend-mode: screen; animation: fTwinkle 1.4s ease-in-out infinite alternate; }
+@keyframes fHolo { 0% { background-position: 0% 50% } 100% { background-position: 100% 50% } }
+@keyframes fChrome { 0% { background-position: 0% 0% } 100% { background-position: 100% 100% } }
+@keyframes fBand { 0% { background-position: 150% 0 } 70%, 100% { background-position: -50% 0 } }
+@keyframes fSweep { 0%, 100% { background-position: 100% 0 } 50% { background-position: 0 0 } }
+@keyframes fTwinkle { from { opacity: .35 } to { opacity: 1 } }
+@keyframes fIce { 0% { background-position: 0 0, 0 0 } 100% { background-position: 60px 30px, -45px 60px } }
+@media (prefers-reduced-motion: reduce) { .f, .f::before, .f::after { animation: none !important; } }
+.chip { min-width: 44px; height: 26px; padding: 0 8px; font-size: 13px; }
+.mini { height: 20px; padding: 0 7px; border-radius: 5px; font-size: 10.5px; vertical-align: 1px; }
+.key { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; margin-bottom: 10px; }
+.key .f { height: 34px; flex-direction: column; }
+.key b { font: 800 10.5px 'Inter', sans-serif; letter-spacing: .6px; text-transform: uppercase; } .key small { font: 700 9.5px 'Inter', sans-serif; opacity: .85; }
+.dim { color: #8d9aab; font-weight: 600; letter-spacing: 0; }
+.decTr td .dim, .hdec td .dim { color: #8d9aab; }
+
+/* Phone ledger: the foil heatmap */
+.hm { width: 100%; border-collapse: separate; border-spacing: 4px; font-variant-numeric: tabular-nums; }
+.hm th { font: 800 9.5px 'Inter', sans-serif; letter-spacing: 1px; text-transform: uppercase; color: #7f91a8; padding: 4px 2px; text-align: center; }
+.hm th:first-child { text-align: left; }
+.hm td { padding: 0; text-align: center; }
+.hs0 { text-align: left !important; padding: 0 4px !important; }
+.hs0 b { display: block; font: 800 13px 'Inter', sans-serif; color: #fff; } .hs0 small { font: 600 11px 'Inter', sans-serif; color: #8d9aab; white-space: nowrap; }
+.hrow { cursor: pointer; }
+.cell { display: flex; flex-direction: column; width: 100%; height: 48px; border-radius: 8px; }
+.cell b { font: 800 18px/1 'Inter', sans-serif; } .cell small { font: 700 10.5px 'Inter', sans-serif; opacity: .85; margin-top: 3px; }
+.hdec td { padding: 12px 4px 2px; text-align: left; font: 800 12px 'Inter', sans-serif; color: #e7c160; }
+.miss td { color: #66748a; font-style: italic; font-size: 12px; } .miss td b { color: #66748a; }
+.hx td { padding: 2px 6px 10px; text-align: left; font-size: 12px; color: #9fb0c6; }
+.hx td > span { display: block; margin-top: 4px; } .hx td b { color: #fff; }
+
+/* Desktop ledger: peak and average grouped, ranks as foil chips */
+.grpRow th { border-bottom: 0; padding-bottom: 0; }
+.table th.grp { text-align: center; color: #9fb0c6; border-left: 1px solid #223047; }
+.table .bl { border-left: 1px solid #223047; }
+.table td.w { color: #fff; }
+.table td .f { vertical-align: middle; }
+
+/* The rank chart */
+.rline { fill: none; stroke: #fff; stroke-width: 2.2; stroke-linejoin: round; }
+.b_goat { fill: rgba(245, 215, 122, .32); } .b_icon { opacity: .13; } .b_legend { fill: rgba(231, 193, 96, .11); }
+.b_standout { fill: rgba(220, 228, 238, .07); } .b_rare { fill: rgba(208, 138, 82, .07); }
+.g1 { stroke: #8a7440; stroke-width: 1; } 
+.bl_ { font: 800 9.5px 'Inter', sans-serif; letter-spacing: .5px; text-transform: uppercase; }
+.bt_goat { fill: #f5d77a; } .bt_icon { fill: #c9a7ff; } .bt_legend { fill: #e0b040; } .bt_standout { fill: #c9d2dc; } .bt_rare { fill: #d08a52; }
+.dot { stroke: #0b121d; stroke-width: 1.5; }
+.d_goat { fill: #f5d77a; } .d_icon { fill: #c9a7ff; } .d_legend { fill: #e0b040; } .d_standout { fill: #dfe6ee; } .d_rare { fill: #d08a52; } .d_common { fill: #6b7a90; }
+.stint { stroke: rgba(255,255,255,.25); } .stTxt { font: 800 10.5px 'Inter', sans-serif; fill: #fff; }
+.legend i.lDot { width: 9px; height: 9px; border-radius: 50%; background: #e0b040; border: 1.5px solid #0b121d; box-shadow: 0 0 0 1px #e0b040; }
+@media (max-width: 760px) { .key { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.bestTxt { color: #f2cf6b; font-weight: 800; }
