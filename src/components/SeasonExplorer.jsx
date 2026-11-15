@@ -589,7 +589,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           {live.fetched && <span className={styles.muted}>Updated {new Date(live.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
         </div>
       )}
-      {view === 'times' ? (sd && newest ? <FloorTimes sd={sd} fc={fc} shots={shots} players={players} today={etToday()} selectPlayer={selectPlayer} kit={{ tName, tShort, tipTime }} /> : <div className={styles.empty}>Loading the paper…</div>)
+      {view === 'times' ? (sd && newest ? <FloorTimes sd={sd} fc={fc} shots={shots} players={players} today={etToday()} selectPlayer={selectPlayer} kit={{ tName, tShort, tipTime, tColor }} /> : <div className={styles.empty}>Loading the paper…</div>)
         : view === 'potw' ? <PlayerOfWeek day={day} onSelect={selectPlayer} ratings={ratings} /> : view === 'picks' ? <MyPredictions day={day} ratings={ratings} /> : view === 'today' ? (
         <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} book={book} onView={setView} />
       ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (

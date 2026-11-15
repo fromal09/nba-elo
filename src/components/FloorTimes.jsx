@@ -29,6 +29,13 @@ const lastName = n => { const w = baseName(n).split(' '); return /^(Jr\.|Sr\.|II
 const initials = n => baseName(n).split(' ').filter(w => !/^(Jr\.|Sr\.|II|III|IV)$/.test(w)).map(w => w[0]).join('').slice(0, 2)
 const addDays = (day, k) => { const d = new Date(day + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + k); return d.toISOString().slice(0, 10) }
 const fmtDay = (d, o) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', o)
+// Second colors for the art (the site keeps one color per team)
+const ACCENT = { ATL: '#c1d32f', BOS: '#ba9653', BKN: '#ffffff', CHO: '#00788c', CHI: '#000000', CLE: '#fdbb30', DAL: '#b8c4ca', DEN: '#fec524', DET: '#1d42ba',
+  GSW: '#ffc72c', HOU: '#c4ced4', IND: '#fdbb30', LAC: '#1d428a', LAL: '#fdb927', MEM: '#12173f', MIA: '#f9a01b', MIL: '#eee1c6', MIN: '#78be20', NOP: '#c8102e',
+  NYK: '#f58426', OKC: '#ef3b24', ORL: '#c4ced4', PHI: '#ed174c', PHO: '#e56020', POR: '#000000', SAC: '#63727a', SAS: '#c4ced4', TOR: '#000000', UTA: '#79a3dc', WAS: '#e31837' }
+const accent = t => ACCENT[t] || '#e7c160'
+// One day number for the rotations: the lead art alternates by day, the game art by day and slot
+const dayNum = d => Math.floor(Date.parse(d + 'T12:00:00Z') / 864e5)
 const gapTxt = v => (v < 0.005 ? 'less than 0.01 points' : `${v.toFixed(2)} points`)
 
 export default function FloorTimes({ sd, fc, shots, players, today, selectPlayer, kit }) {
@@ -159,7 +166,59 @@ export default function FloorTimes({ sd, fc, shots, players, today, selectPlayer
       <td className={`${styles.r} ${styles.num} ${p.d >= 0 ? styles.up : styles.dn}`}>{sgn(p.d)}</td></tr>)}</tbody></table>
   const Line = ({ g }) => <div className={styles.line}><span>{g.away} at {g.home}</span>{g.win} {g.ws}, {g.lose} {g.ls}{g.ot ? ` (${g.ot})` : ''}<span>Elo had {g.win} {pct(g.pw)}</span></div>
   const go = id => e => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
-  const shot = lead && shots?.[norm(lead.W[0].n)]?.headshot
+  const shotOf = n => shots?.[norm(n)]?.headshot
+  const shot = lead && shotOf(lead.W[0].n)
+  const dn = dayNum(today)
+  // Round headshot on the team's color (initials until it loads, or when there's no photo)
+  const Disc = ({ name, team, size = 58 }) => {
+    const src = shotOf(name)
+    return <span className={styles.disc} style={{ '--c1': kit.tColor(team), '--c2': accent(team), width: size, height: size }}>
+      <b style={{ fontSize: size * 0.3 }}>{initials(name)}</b>{src && <img src={src} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} />}</span>
+  }
+  // The lead's art, rotating by day: A the photo plate (needs his headshot), B the upset meter
+  const leadArt = lead && (shot && dn % 2 === 0 ? 'plate' : 'meter')
+  const Plate = ({ g }) => { const p = g.W[0]
+    return <div className={styles.plate} style={{ '--c1': kit.tColor(g.win), '--c2': accent(g.win) }}>
+      <i className={styles.dots} /><img className={styles.cut} src={shot} alt="" />
+      <div className={styles.big}><b>{p.pts}</b><small>points · {p.n}</small><b className={styles.big2}>{pct(g.pw)}</b><small>chance going in</small></div>
+      <div className={styles.bug}>{g.win} {g.ws} · {g.lose} {g.ls}<span>{g.pw < 0.5 ? 'Upset' : 'Final'}</span></div></div> }
+  const Meter = ({ g }) => {
+    const r = 78, cx = 100, cy = 92, ang = Math.PI * (1 - g.pw), x = cx + r * Math.cos(ang), y = cy - r * Math.sin(ang)
+    return <figure className={styles.meter}><figcaption className={styles.kick}>Elo’s pregame chance for the {nick(g.win)}</figcaption>
+      <svg viewBox="0 0 200 120" role="img" aria-label={`Elo gave the ${nick(g.win)} a ${pct(g.pw)} chance. They won.`}>
+        <path d="M22 92 A78 78 0 0 1 178 92" fill="none" stroke="#d9ceb0" strokeWidth="18" />
+        <path d={`M22 92 A78 78 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}`} fill="none" stroke={kit.tColor(g.win)} strokeWidth="18" />
+        <line x1={cx} y1={cy} x2={x.toFixed(1)} y2={y.toFixed(1)} stroke="#1b1812" strokeWidth="3" /><circle cx={cx} cy={cy} r="6" fill="#1b1812" />
+        <text x={cx} y={cy + 22} textAnchor="middle" fontSize="22" fontWeight="900" fill="#1b1812">{pct(g.pw)}</text>
+        <text x="22" y="112" textAnchor="middle" fontSize="8" fontWeight="700" fill="#7a6e57">0%</text><text x="178" y="112" textAnchor="middle" fontSize="8" fontWeight="700" fill="#7a6e57">100%</text>
+        <g transform={`translate(${g.pw < 0.5 ? 150 : 50} 30) rotate(${g.pw < 0.5 ? 14 : -14})`}><rect x="-34" y="-13" width="68" height="26" fill="none" stroke="#8b1d1d" strokeWidth="2.5" />
+          <text x="0" y="5" textAnchor="middle" fontSize="12" fontWeight="900" fill="#8b1d1d" letterSpacing="1.5">WON</text></g>
+      </svg>
+      <div className={styles.mFoot}><span>{g.win} {g.ws}</span><span>Final</span><span>{g.lose} {g.ls}</span></div></figure>
+  }
+  // In the lead story: every player's Elo change in the game, in team colors
+  const Swing = ({ g }) => {
+    const xs = [...g.all].filter(p => Math.abs(p.d) >= 3).sort((a, b) => b.d - a.d)
+    if (xs.length < 4) return null
+    const W = 360, rowH = 17, mid = W / 2, H = xs.length * rowH + 4, m = Math.max(...xs.map(p => Math.abs(p.d)))
+    return <figure className={styles.swing}><figcaption className={styles.kick}>Who moved the ratings</figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Each player's Elo change in this game">
+        <line x1={mid} y1="0" x2={mid} y2={H} stroke="#1b1812" />
+        {xs.map((p, i) => { const w = Math.abs(p.d) / m * (mid - 80), y = i * rowH + 2, pos = p.d >= 0
+          return <g key={p.n}><rect x={pos ? mid : mid - w} y={y} width={w} height={rowH - 4} fill={kit.tColor(p.t)} />
+            <text x={pos ? mid - 4 : mid + 4} y={y + 10.5} fontSize="10" fontWeight="700" textAnchor={pos ? 'end' : 'start'} fill="#1b1812">{lastName(p.n)}</text>
+            <text x={pos ? mid + w + 3 : mid - w - 3} y={y + 10.5} fontSize="10" fontWeight="800" textAnchor={pos ? 'start' : 'end'} fill={pos ? '#2f6b3a' : '#8b1d1d'}>{sgn(p.d)}</text></g> })}
+      </svg><p className={styles.figCap}>Elo change for everyone who moved at least 3 points, in team colors.</p></figure>
+  }
+  // Game art, rotating by day and slot: A the score bug with the player of the game, C the portrait with a stat line
+  const ScoreBug = ({ g }) => <><div className={styles.sbug}>
+      <div style={{ background: kit.tColor(g.win) }}><span>{g.win}</span>{g.ws}</div><div className={styles.sMid}>Final{g.ot ? ` · ${g.ot}` : ''}<i>Elo had {g.win} {pct(g.pw)}</i></div>
+      <div className={styles.sLose} style={{ background: kit.tColor(g.lose) }}>{g.ls}<span>{g.lose}</span></div></div>
+    <div className={styles.pog}><Disc name={g.W[0].n} team={g.win} /><div><b>{g.W[0].n}</b><small>{g.W[0].pts} pts · {g.W[0].trb} reb · {g.W[0].ast} ast · {sgn(g.W[0].d)} Elo</small></div></div></>
+  const Portrait = ({ g }) => { const p = g.W[0]
+    return <div className={styles.port}><Disc name={p.n} team={g.win} size={88} /><div><span className={styles.ribbon} style={{ background: kit.tColor(g.win) }}>Player of the game</span>
+      <b className={styles.pName}>{p.n}</b><div className={styles.pStat}><div><b>{p.pts}</b><small>PTS</small></div><div><b>{p.trb}</b><small>REB</small></div><div><b>{p.ast}</b><small>AST</small></div>
+      <div><b className={p.d >= 0 ? styles.up : styles.dn}>{sgn(p.d)}</b><small>ELO</small></div></div></div></div> }
 
   return (
     <div className={styles.wrap}>
@@ -180,9 +239,10 @@ export default function FloorTimes({ sd, fc, shots, players, today, selectPlayer
             <h2 className={styles.h1}>{headline(lead)}</h2>
             <div className={styles.dek}>Elo gave the {nick(lead.win)} a {pct(lead.pw)} chance{lead.win === lead.away ? ` in ${city(lead.home)}` : ''}. They won by {lead.ws - lead.ls}.</div>
             <div className={styles.by}>By the Floor Times Elo desk</div>
-            <div className={styles.photo}>{shot ? <img src={shot} alt="" /> : <span>{initials(lead.W[0].n)}</span>}</div>
+            {leadArt === 'plate' ? <Plate g={lead} /> : <Meter g={lead} />}
             <div className={styles.cap}>{lead.W[0].n} scored {lead.W[0].pts} for {city(lead.win)} and {eloLine(lead.W[0])}.</div>
             <div className={styles.cols}>{story(lead, true).map((s, i) => <p key={i}>{s}</p>)}</div>
+            <Swing g={lead} />
             <Mini g={lead} />
           </div>
           <div className={styles.side}>
@@ -206,11 +266,14 @@ export default function FloorTimes({ sd, fc, shots, players, today, selectPlayer
         {games.length > 0 && <>
           <div className={styles.sh} id="ft-games"><h2>Last Night</h2><span>{fmtDay(night.date, { weekday: 'long', month: 'long', day: 'numeric' })} · every game</span></div>
           <section className={styles.games}>
-            {games.map(g => g === lead
-              ? <article key={g.id} className={styles.game}><div className={styles.kick}>Front page</div><h3>{headline(g)}</h3><Line g={g} />
+            {games.map((g, i) => g === lead
+              ? <article key={g.id} className={styles.game}><div className={styles.kick}>Front page</div><h3>{headline(g)}</h3><ScoreBug g={g} />
                 <p className={styles.jump}>The full story leads the front page. <a href="#ft-front" onClick={go('ft-front')}>Read it →</a></p><Mini g={g} />{rankWatch(g)}</article>
-              : <article key={g.id} className={styles.game}><div className={styles.kick}>{g.pw < 0.5 ? 'Upset' : 'Final'}</div><h3>{headline(g)}</h3><Line g={g} />
-                {story(g, false).map((s, i) => <p key={i}>{s}</p>)}<Mini g={g} />{rankWatch(g)}</article>)}
+              : (dn + i) % 2 === 0
+                ? <article key={g.id} className={styles.game}><div className={styles.kick}>{g.pw < 0.5 ? 'Upset' : 'Final'}</div><h3>{headline(g)}</h3><ScoreBug g={g} />
+                  {story(g, false).map((s, k) => <p key={k}>{s}</p>)}<Mini g={g} />{rankWatch(g)}</article>
+                : <article key={g.id} className={styles.game}><div className={styles.kick}>{g.pw < 0.5 ? 'Upset' : 'Final'}</div><Portrait g={g} /><h3>{headline(g)}</h3><Line g={g} />
+                  {story(g, false).map((s, k) => <p key={k}>{s}</p>)}<Mini g={g} />{rankWatch(g)}</article>)}
           </section>
 
           <div className={styles.sh} id="ft-ledger"><h2>The Ledger</h2><span>Who moved, current and all-time</span></div>
@@ -254,11 +317,14 @@ export default function FloorTimes({ sd, fc, shots, players, today, selectPlayer
             return <article key={`${g.away}${g.home}`} className={styles.pv}>
               <div className={styles.tip}><span>{st}</span><span>{g.away} at {g.home}</span></div>
               <h3>{hd}</h3>
-              {g.pHome != null && <div className={styles.bar}><i style={{ width: `${pa * 100}%` }}>{pa >= 0.16 ? `${g.away} ` : ''}{pct(pa)}</i><i style={{ width: `${g.pHome * 100}%` }}>{pct(g.pHome)}{g.pHome >= 0.16 ? ` ${g.home}` : ''}</i></div>}
+              {g.pHome != null && <div className={styles.tug}>
+                <div style={{ width: `${pa * 100}%`, background: kit.tColor(g.away) }}>{pa >= 0.18 && <b>{g.away}</b>}<small>{pct(pa)}</small></div>
+                <div style={{ width: `${g.pHome * 100}%`, background: kit.tColor(g.home) }}>{g.pHome >= 0.18 && <b>{g.home}</b>}<small>{pct(g.pHome)}</small></div></div>}
               {g.proj && <div className={styles.proj}>Projected: {g.away} {g.proj[g.away]}, {g.home} {g.proj[g.home]}</div>}
-              <table className={styles.tbl}><tbody>{g.tops.flatMap(([t, rows]) => rows.map(r => { const p = byName.get(r.name); return <tr key={r.name}>
-                <td><button type="button" className={styles.pl} onClick={() => selectPlayer?.(r.name)}>{r.name}</button> <span className={styles.tm}>{t}</span></td>
-                <td className={styles.r}>{p?.fpr_rank ? <Foil r={p.fpr_rank} className={styles.chip}>{p.fpr_rank}</Foil> : null}</td><td className={`${styles.r} ${styles.num}`}>{Math.round(r.elo).toLocaleString()}</td></tr> }))}</tbody></table>
+              {g.tops.length === 2 && g.tops[0][1][0] && g.tops[1][1][0] && <div className={styles.mq}>
+                {g.tops.map(([t, rows], k) => { const r = rows[0], p = byName.get(r.name); return <button key={r.name} type="button" className={styles.mqP} onClick={() => selectPlayer?.(r.name)}>
+                  <Disc name={r.name} team={t} size={64} /><b>{r.name}</b><small>{Math.round(r.elo).toLocaleString()} Elo{p?.fpr_rank ? ` · No. ${p.fpr_rank}` : ''}</small></button> }).reduce((a, el, k) => k ? [...a, <span key="vs" className={styles.vs}>vs</span>, el] : [el], [])}
+              </div>}
               {g.outs.length > 0 && <div className={styles.out}>Out: {g.outs.join(', ')}</div>}
               {notes.length > 0 && <div className={styles.rw}><b>Milestone watch</b>{notes.join(' ')}</div>}
             </article>
