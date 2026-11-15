@@ -22,6 +22,7 @@ export const tierOf = r => (r ? tierFor(r).id : 'none')
 export const Foil = ({ r, className = '', children, title }) => <span className={`${foil.f} ${className}`} data-t={tierOf(r)} title={title}>{children ?? (r ? `#${r}` : '—')}</span>
 
 const f1 = v => v.toFixed(1)
+const f2 = v => v.toFixed(2)  // all-time scores show hundredths; the three parts stay at tenths
 const gap = v => (v < 0.005 ? 'under 0.01' : v.toFixed(2))
 const baseName = n => n.replace(/\s*\(.*\)$/, '')
 const initials = n => baseName(n).split(' ').filter(w => !/^(Jr\.|Sr\.|II|III|IV)$/.test(w)).map(w => w[0]).join('').slice(0, 2)
@@ -121,7 +122,7 @@ export function AllTimeRankings({ players, onSelectPlayer, lookSwitch }) {
                 <span className={styles.who}><b>{baseName(x.name)}{x.live && <i className={styles.liveTag}>Live</i>}</b>
                   <small>{yearsOf(x)}{m ? <span className={styles.mvTxt}> · {m.d > 0 ? 'up' : 'down'} from #{m.live ? x.base : x.prev} {m.live ? 'tonight' : 'last night'}</span> : ''}</small>
                   <Bar x={x} /></span>
-                <span className={styles.sc}>{f1(part === 'score' ? x.score : x[part])}</span>
+                <span className={styles.sc}>{part === 'score' ? f2(x.score) : f1(x[part])}</span>
                 <span className={styles.mv}><Chip m={m} /></span>
               </button>
               {isOpen && <div className={styles.drawer}><AllTimeProfile x={x} L={L} AT={AT} players={players} chart onCareer={() => { const p = players?.find(q => q.name === x.name); if (p) onSelectPlayer(p) }} /></div>}
@@ -167,7 +168,7 @@ export function AllTimeProfile({ x, L, AT, players, chart, onCareer }) {
   return <div className={styles.prof}>
     {chart && <RankChart name={x.name} win={x.peak_window} />}
     <div className={styles.parts}>
-      <h4>Where the score comes from <span>{f1(x.score)}</span></h4>
+      <h4>Where the score comes from <span>{f2(x.score)}</span></h4>
       <Meter label="Peak" rank={x.peak_rank} v={x.peak} cls={styles.cP} note={`Best three seasons in a row: ${x.peak_window}, at ${x.peak_level.toFixed(2)}× the level of the league’s top three.`} />
       <Meter label="Career" rank={x.career_rank} v={x.career} cls={styles.cC} note={`${ones.toLocaleString()} top-three games in ${x.games.toLocaleString()} games.`} />
       <Meter label="Dominance" rank={x.dom_rank} v={x.dom} cls={styles.cD} note={x.m1 || x.m5 || x.m20 || x.m50 ? `Months at No. 1: ${x.m1} · Nos. 2–5: ${x.m5} · 6–20: ${x.m20 ?? 0} · 21–50: ${x.m50 ?? 0}.` : 'Never ranked in the top 50 at a month’s end.'} />
@@ -177,7 +178,7 @@ export function AllTimeProfile({ x, L, AT, players, chart, onCareer }) {
       <h4>{x.active ? 'Around him' : 'The neighborhood'}</h4>
       {near.map(y => <div key={y.name} className={styles.nRow} data-me={y.name === x.name ? '' : undefined}>
         <Foil r={y.rank} className={styles.nRk} /><span className={styles.nName}>{baseName(y.name)}{y.live && <i className={styles.liveTag}>Live</i>}<small>{yearsOf(y)}</small></span>
-        <span className={styles.nGap}>{y.name === x.name ? '' : `${y.score > x.score ? '+' : '−'}${Math.abs(y.score - x.score).toFixed(2)}`}</span><span className={styles.nSc}>{f1(y.score)}</span></div>)}
+        <span className={styles.nGap}>{y.name === x.name ? '' : `${y.score > x.score ? '+' : '−'}${Math.abs(y.score - x.score).toFixed(2)}`}</span><span className={styles.nSc}>{f2(y.score)}</span></div>)}
       {x.active && up && <div className={styles.next}>
         <b>Next: {baseName(up.name)} for #{up.rank}</b>
         <small>{gap(up.score - x.score)} behind{g ? ` · about ${g} game${g === 1 ? '' : 's'} at his current level` : ''}{down ? ` · the bar runs from #${down.rank} ${baseName(down.name)}` : ''}</small>

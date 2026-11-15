@@ -161,7 +161,7 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
         </div>
 
         <div className={`${styles.tiles} ${atx ? styles.five : ''}`}>
-          {atx && <div className={styles.atTile}><small>All-time{atx.live ? ' · live' : ''}</small><b><AtFoil r={atx.rank} className={styles.atChip}>#{atx.rank.toLocaleString()}</AtFoil></b><em>score {atx.score.toFixed(1)} · {atMove}</em></div>}
+          {atx && <div className={styles.atTile}><small>All-time{atx.live ? ' · live' : ''}</small><b><AtFoil r={atx.rank} className={styles.atChip}>#{atx.rank.toLocaleString()}</AtFoil></b><em>score {atx.score.toFixed(2)} · {atMove}</em></div>}
           <div><small>{active ? (player.live ? 'Current Elo · live' : 'Current Elo') : 'Final Elo'}</small><b>{fmt(player.current_elo)}</b>
             <em>{active ? (player.is_fpr_eligible ? `#${player.fpr_rank} in the league` : `#${player.current_tpr_rank} rated · not enough recent games`) : `last game ${md(player.last_played)}`}</em></div>
           <div><small>Peak Elo</small><b className={styles.gold}>{fmt(player.peak_elo)}</b><em>#{peakRank} highest ever</em></div>

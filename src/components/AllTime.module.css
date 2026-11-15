@@ -90,9 +90,9 @@
 .meter > div span { color: #b8c7da; font-weight: 700; font-variant-numeric: tabular-nums; }
 .track { display: block; height: 7px; margin: 5px 0 4px; border-radius: 4px; overflow: hidden; background: rgba(255,255,255,.08); }
 .track i { display: block; height: 100%; }
-.meter small { color: #9fb6d2; font-size: 12px; line-height: 1.4; }
+.meter small { display: block; color: #9fb6d2; font-size: 12px; line-height: 1.4; }
 .open { margin-top: 14px; height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid #c9a24a; background: rgba(201, 162, 74, .1); color: #e7c160; font: 700 12.5px 'Inter', sans-serif; cursor: pointer; }
-.nRow { display: grid; grid-template-columns: 50px minmax(0, 1fr) 54px 40px; gap: 8px; align-items: center; padding: 6px 4px; border-top: 1px solid rgba(35, 64, 106, .6); font-size: 13px; }
+.nRow { display: grid; grid-template-columns: 50px minmax(0, 1fr) 54px 48px; gap: 8px; align-items: center; padding: 6px 4px; border-top: 1px solid rgba(35, 64, 106, .6); font-size: 13px; }
 .nRow[data-me] { background: rgba(224, 176, 64, .1); border-radius: 8px; box-shadow: inset 3px 0 0 #e0b040; }
 .nRk { height: 22px; min-width: 44px; font-size: 11.5px; border-radius: 5px; }
 .nName { min-width: 0; display: flex; align-items: baseline; gap: 6px; font-weight: 700; white-space: nowrap; overflow: hidden; }
@@ -121,7 +121,7 @@
   .body { padding: 0 10px; gap: 10px; }
   .list { padding: 4px 6px 10px; }
   .cols { display: none; }
-  .row { grid-template-columns: 44px 32px minmax(0, 1fr) 40px auto; gap: 7px; padding: 8px 4px; }
+  .row { grid-template-columns: 44px 32px minmax(0, 1fr) 48px auto; gap: 7px; padding: 8px 4px; }
   .chip { padding: 2px 4px; font-size: 11px; }
   .rk { min-width: 42px; height: 24px; font-size: 12px; }
   .shot { width: 32px; height: 32px; font-size: 11px; }
@@ -131,7 +131,7 @@
   .mvTxt { display: none; }
   .sc { font-size: 19px; }
   .prof { grid-template-columns: 1fr; }
-  .nRow { grid-template-columns: 46px minmax(0, 1fr) 48px 34px; }
+  .nRow { grid-template-columns: 46px minmax(0, 1fr) 48px 44px; }
   .nName small { display: none; }
   .paging { font-size: 12px; } .paging button { padding: 0 10px; }
 }
