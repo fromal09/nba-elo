@@ -8,9 +8,9 @@ import { Explain } from './Explainer'
 
 /*
  * The all-time rankings (scripts/build_alltime.py, nightly): every player who has played, ranked by a blend of
- *   Peak 40%       his best three seasons in a row, measured against each month's No. 1 and a typical starter
- *   Career 40%     every rated game added up at that level ("No. 1-games")
- *   Dominance 20%  months ranked No. 1, plus 0.35 for each month at Nos. 2-5
+ *   Peak 40%       his best three seasons in a row, measured against each month's top three (their average Elo) and a typical starter
+ *   Career 40%     every rated game added up at that level ("top-three games")
+ *   Dominance 20%  months ranked at a month's end: 1 for No. 1, 0.35 for Nos. 2-5, 0.20 for Nos. 6-20, 0.10 for Nos. 21-50
  * Live: a game tonight adds to an active player's career part (at his current Elo against this month's marks), so his
  * score and rank move while he plays. Peak and dominance move with the nightly update.
  */
@@ -85,8 +85,8 @@ export function AllTimeRankings({ players, onSelectPlayer, lookSwitch }) {
       <header className={styles.head}>
         <small>Floor Performance Rating</small>
         <h1>All-Time Rankings <Explain title="How the all-time rankings work" icon tone="light" label="How the all-time rankings work">
-          <p>Every player in the database is ranked by three things, each measured against the league of his own time: how far above a typical starter he was, as a share of the gap to that month’s No. 1.</p>
-          <p><b>Peak (40%)</b> is his best three seasons in a row. <b>Career (40%)</b> adds up every rated game at that level, so a game played at the No. 1 level counts as one “No. 1-game”. <b>Dominance (20%)</b> counts months ranked No. 1, plus a third of a month for each month at Nos. 2–5.</p>
+          <p>Every player in the database is ranked by three things, each measured against the league of his own time: how far above a typical starter he was, as a share of the gap to that month’s top three players (their average Elo, so one runaway No. 1 doesn’t shrink everyone else in his era).</p>
+          <p><b>Peak (40%)</b> is his best three seasons in a row. <b>Career (40%)</b> adds up every rated game at that level, so a game played at the level of the league’s top three counts as one “top-three game”. <b>Dominance (20%)</b> counts where he ranked at each month’s end: a full month for No. 1, 0.35 for Nos. 2–5, 0.20 for Nos. 6–20 and 0.10 for Nos. 21–50.</p>
           <p>Each part is scaled so the best player at it scores 100. Tonight’s games add to an active player’s career part as they’re played, so his rank can move live; peak and dominance update overnight.</p>
         </Explain></h1>
         <p>{AT ? <>{AT.players.length.toLocaleString()} players ranked · through {night}{L?.any ? <> · <i className={styles.liveDot} />moving live</> : ''}</> : 'Loading…'}</p>
@@ -168,9 +168,9 @@ export function AllTimeProfile({ x, L, AT, players, chart, onCareer }) {
     {chart && <RankChart name={x.name} win={x.peak_window} />}
     <div className={styles.parts}>
       <h4>Where the score comes from <span>{f1(x.score)}</span></h4>
-      <Meter label="Peak" rank={x.peak_rank} v={x.peak} cls={styles.cP} note={`Best three seasons in a row: ${x.peak_window}, at ${x.peak_level.toFixed(2)}× the No. 1 level.`} />
-      <Meter label="Career" rank={x.career_rank} v={x.career} cls={styles.cC} note={`${ones.toLocaleString()} No. 1-games in ${x.games.toLocaleString()} games.`} />
-      <Meter label="Dominance" rank={x.dom_rank} v={x.dom} cls={styles.cD} note={x.m1 || x.m5 ? `${x.m1} month${x.m1 === 1 ? '' : 's'} at No. 1${x.m5 ? `, ${x.m5} more in the top 5` : ''}.` : 'Never ranked in the top 5 at a month’s end.'} />
+      <Meter label="Peak" rank={x.peak_rank} v={x.peak} cls={styles.cP} note={`Best three seasons in a row: ${x.peak_window}, at ${x.peak_level.toFixed(2)}× the level of the league’s top three.`} />
+      <Meter label="Career" rank={x.career_rank} v={x.career} cls={styles.cC} note={`${ones.toLocaleString()} top-three games in ${x.games.toLocaleString()} games.`} />
+      <Meter label="Dominance" rank={x.dom_rank} v={x.dom} cls={styles.cD} note={x.m1 || x.m5 || x.m20 || x.m50 ? `Months at No. 1: ${x.m1} · Nos. 2–5: ${x.m5} · 6–20: ${x.m20 ?? 0} · 21–50: ${x.m50 ?? 0}.` : 'Never ranked in the top 50 at a month’s end.'} />
       {onCareer && me && <button type="button" className={styles.open} onClick={onCareer}>Open his career card →</button>}
     </div>
     <div className={styles.hood}>

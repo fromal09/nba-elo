@@ -2,14 +2,15 @@
 build_alltime.py — the all-time player rankings, from elo.json. Every player who has played is ranked.
 
 Every part is judged against the league of its own time, month by month, among active players (played in the last 250 days, as
-build_elo.py ranks them). Two marks each month: the No. 1 player's Elo (the top) and a typical starter's — the Elo of the
-(5 x teams)-th best active player (the base: No. 150 with 30 teams, No. 45 with 9). A game's level is
+build_elo.py ranks them). Two marks each month: the top — the average Elo of the league's three best players, so one runaway
+No. 1 (Wilt, say) doesn't shrink everyone else in his era — and a typical starter's, the Elo of the (5 x teams)-th best active
+player (the base: No. 150 with 30 teams, No. 45 with 9). A game's level is
 
-    level = (his Elo - base) / (top - base)     1.0 = the best player in the league, 0 = a typical starter
+    level = (his Elo - base) / (top - base)     1.0 = the league's top three, 0 = a typical starter
 
   Peak       his best three seasons in a row (by games-weighted average level), with fewer than 150 games in them scaled down
   Career     the sum of max(0, level) over every rated game: "No. 1-equivalent games", like WAR for this rating
-  Dominance  months ranked No. 1, plus 0.35 for each month at Nos. 2-5
+  Dominance  months ranked at a month's end: 1 for No. 1, 0.35 for Nos. 2-5, 0.20 for Nos. 6-20, 0.10 for Nos. 21-50
 
 Each part is scaled so the best player at it scores 100; the overall score blends them by WEIGHTS.
 
@@ -35,7 +36,13 @@ SHARDS = 64
 ACTIVE_DAYS = 250
 WEIGHTS = {"peak": 0.4, "career": 0.4, "dom": 0.2}
 PEAK_GAMES = 150
-TOP5_CREDIT = 0.35
+TOP_N = 3                                  # the top mark: the average Elo of this many players
+CREDIT = [(1, 1.0), (5, 0.35), (20, 0.20), (50, 0.10)]   # dominance per month: (rank at most, credit)
+DOM_RANKS = CREDIT[-1][0]
+
+
+def credit(r):
+    return next(c for top, c in CREDIT if r <= top)
 
 
 def shard(name):  # same as build_careers.shard and PlayerModal.jsx
@@ -54,7 +61,7 @@ def season_of_date(d, smap):
 
 
 def month_marks(H, stop):
-    """Each month's (top, base) among active players at its end (stop for the last), and each player's top-5 months."""
+    """Each month's (top, base) among active players at its end (stop for the last), and each player's ranks in its top 50."""
     first = min(ds[0] for _, ds, _, _ in H)
     months, marks, rank_at = [], [], defaultdict(dict)
     d = dt.date(int(first[:4]), int(first[5:7]), 1)
@@ -75,8 +82,9 @@ def month_marks(H, stop):
         months.append((mes[:7], mes))
         if v:
             base_rank = min(len(v), 5 * max(1, len(teams)))
-            marks.append((-v[0][0], -v[base_rank - 1][0]))
-            for r, (_, n) in enumerate(v[:5], 1):
+            top = -sum(x[0] for x in v[:TOP_N]) / len(v[:TOP_N])
+            marks.append((top, -v[base_rank - 1][0]))
+            for r, (_, n) in enumerate(v[:DOM_RANKS], 1):
                 rank_at[n][k] = r
         else:
             marks.append(None)
@@ -125,8 +133,10 @@ def compute(players, smap, asof=None):
         r = rank_at.get(n, {})
         m1 = sum(1 for x in r.values() if x == 1)
         m5 = sum(1 for x in r.values() if 2 <= x <= 5)
-        rows.append({"name": n, "peak_raw": best, "career_raw": sum(max(0.0, l) for l in lv), "dom_raw": m1 + TOP5_CREDIT * m5,
-                     "m1": m1, "m5": m5, "win": best_w, "games": len(h), "first": h[0][0][:4], "last": h[-1][0], "team": p.get("team"),
+        m20 = sum(1 for x in r.values() if 6 <= x <= 20)
+        m50 = sum(1 for x in r.values() if 21 <= x <= 50)
+        rows.append({"name": n, "peak_raw": best, "career_raw": sum(max(0.0, l) for l in lv), "dom_raw": sum(credit(x) for x in r.values()),
+                     "m1": m1, "m5": m5, "m20": m20, "m50": m50, "win": best_w, "games": len(h), "first": h[0][0][:4], "last": h[-1][0], "team": p.get("team"),
                      "active": (dt.date.fromisoformat(last) - dt.date.fromisoformat(h[-1][0])).days < ACTIVE_DAYS})
     tops = {k: max(r[f"{k}_raw"] for r in rows) or 1 for k in ("peak", "career", "dom")}
     for r in rows:
@@ -159,7 +169,7 @@ def game_ranks(players, smap, marks, months):
     credits = defaultdict(list)
     for n, ks in rank_at.items():
         for k, r in ks.items():
-            credits[months[k][1]].append((ix[n], 1.0 if r == 1 else TOP5_CREDIT))
+            credits[months[k][1]].append((ix[n], credit(r)))
     by_day = defaultdict(list)
     for i, p in enumerate(players):
         for x in p["elo_history"]:
@@ -232,7 +242,7 @@ def main(debug=False):
             "rank": i, "name": r["name"], "team": r["team"], "active": r["active"], "years": f"{r['first']}–{r['last'][:4]}",
             "score": round(r["score"], 3), "peak": round(r["peak"], 1), "career": round(r["career"], 1), "dom": round(r["dom"], 1),
             "peak_rank": r["peak_rank"], "career_rank": r["career_rank"], "dom_rank": r["dom_rank"],
-            "m1": r["m1"], "m5": r["m5"], "games": r["games"],
+            "m1": r["m1"], "m5": r["m5"], "m20": r["m20"], "m50": r["m50"], "games": r["games"],
             "peak_window": f"{r['win'][0]}–{r['win'][1][-2:]}" if r["win"][0] != r["win"][1] else r["win"][0],
             "peak_level": round(r["win"][3], 3),
             **({"pre": pre[r["name"]]} if r["name"] in pre else {}),
