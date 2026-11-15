@@ -297,6 +297,15 @@ async function claimTeam(u, origin, team) {
   return { packs: [packView(pack)], ...(await me(fresh)) }
 }
 
+// Packs an award carries (the All-Time 100's Legend Pack): built and handed over once the card's transaction is in
+async function awardPacks(sql, u, origin, awards) {
+  for (const a of awards || []) {
+    if (!a?.pack) continue
+    const [built] = await makePacks(sql, u, origin, [a.pack], null, null)
+    await sql`insert into packs (user_id, kind, day, slots, pity) values (${u.id}, ${a.pack}, ${etDay()}, ${sql.json(built.slots)}, ${built.pity})`
+  }
+}
+
 async function pick(u, b, origin) {
   const sql = db()
   const today = etDay()
@@ -335,6 +344,7 @@ async function pick(u, b, origin) {
     if (row && !c.kind) push(await tickMeters(t, u.id, origin, c))
     return { pack: np, cardId: row ? Number(row.id) : null, awards }
   })
+  await awardPacks(sql, u, origin, result.awards)
   const [fresh] = await sql`select * from users where id = ${u.id}`
   return { pack: packView(result.pack), cardId: result.cardId, awards: result.awards, ...(await me(fresh)) }
 }
@@ -391,6 +401,7 @@ async function buyCard(u, origin, b) {
     await t`insert into coin_ledger (user_id, day, kind, ref, amount) values (${u.id}, ${today}, 'store', ${'card:' + refOf(item.card)}, ${-item.price})`
     return cardRewards(t, u.id, today, origin, item.card)
   })
+  await awardPacks(sql, u, origin, awards)
   const [fresh] = await sql`select * from users where id = ${u.id}`
   return { awards, store: await storeView(sql, fresh, origin), ...(await me(fresh)) }
 }
@@ -642,6 +653,7 @@ export default async function handler(req, res) {
     if (post && action === 'claimpred') {
       const today = etDay()
       const r = await claimReward(sql, u, origin, await readBody(req), today)
+      await awardPacks(sql, u, origin, r.awards)
       const [fresh] = await sql`select * from users where id = ${u.id}`
       return send(200, { cardId: r.cardId, awards: r.awards, predictions: await predView(sql, fresh, today, addDays(today, 1), origin), ...(await me(fresh)) })
     }

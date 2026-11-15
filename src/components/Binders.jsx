@@ -11,6 +11,8 @@ import { useIndex as usePlayerIndex, search as searchPlayers } from './PlayerSea
 import { Serial, SpecialFace, SpecialModal, isSpecial, specialTitle } from './SpecialCards'
 import { cardPoints } from '../../api/_lib/points.js'
 import { useAutoTour } from './Tour'
+import { useAllTime } from './alltimeData'
+import foil from './Foil.module.css'
 
 /*
  * Binders: a player's season (A), a player's career (C shelf + D album), a team's season (F) and a franchise (G).
@@ -555,6 +557,8 @@ export function CareerBinder({ name, env, onClose, onSeason }) {
   }, [vols])
   const peak = vols.reduce((m, v) => Math.max(m, v.peak), 0)
   const bestRank = data?.milestones.best_rank?.row.lrp
+  const AT = useAllTime()
+  const atRank = AT?.by.get(name)?.rank
   const maxN = Math.max(1, ...vols.map(v => v.n))
 
   const head = <>
@@ -568,12 +572,13 @@ export function CareerBinder({ name, env, onClose, onSeason }) {
       right={<div className={styles.right} />} />
   }
   const stats = (
-    <div className={styles.stats}>
+    <div className={`${styles.stats} ${atRank ? styles.stats6 : ''}`}>
       <div><b>{data.games.toLocaleString()}</b><small>Game cards</small></div>
       <div><b>{vols.length}</b><small>Volumes</small></div>
       <div><b className={styles.gold}>{r0(peak)}</b><small>Peak Elo</small></div>
       <div><b>{bestRank ? `#${bestRank}` : '—'}</b><small>Best rank</small></div>
       <div><b>{tot[0]}</b><small>★ GOAT pulls</small></div>
+      {atRank && <div className={styles.atTile}><b><span className={`${foil.f} ${styles.atChip}`} data-t={tierFor(atRank).id}>#{atRank.toLocaleString()}</span></b><small>All-time</small></div>}
     </div>
   )
   const MS = [
@@ -1132,6 +1137,29 @@ export function LeagueBinder({ set: startSet, env, onClose, onCareer }) {
   </>
 }
 
+// The All-Time 100: any card of each of the top 100 on the all-time list, as it stands today (finishing it earns a Legend Pack).
+// The row opens the checklist in place: every name in rank order, yours filled in.
+function AllTime100({ names, mine }) {
+  const AT = useAllTime()
+  const [open, setOpen] = useState(false)
+  if (!AT) return null
+  const top = AT.players.slice(0, 100)
+  const n = top.filter(x => names.has(x.name)).length
+  const short = nm => { const w = nm.replace(/\s*\(.*\)$/, '').split(' '); return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(' ')}` : w[0] }
+  return <div className={styles.atSet}>
+    <button type="button" className={`${styles.setRow} ${styles.atRow}`} style={{ '--c': '#c99a2e' }} onClick={() => setOpen(o => !o)} aria-expanded={open}>
+      <i /><span><b>The All-Time 100</b><small>One card of each of the top 100 all-time · {n === 100 ? 'complete' : mine ? 'finish it for a Legend Pack' : 'finished for a Legend Pack'}</small></span>
+      <span className={styles.setBar}><em style={{ width: `${n}%` }} /></span>
+      <strong>{n}<small>/100</small></strong>
+    </button>
+    {open && <div className={styles.atList}>
+      {top.map(x => <span key={x.name} className={names.has(x.name) ? styles.atHave : styles.atNo} title={`${x.name}${names.has(x.name) ? '' : ' · not yet'}`}>
+        <span className={foil.f} data-t={tierFor(x.rank).id}>{x.rank}</span><em>{short(x.name)}</em></span>)}
+      <p className={styles.atNote}>The list moves as active players climb: a player who enters the top 100 joins the set, and one who drops out leaves it.</p>
+    </div>}
+  </div>
+}
+
 // ── A personal binder: yours, or anyone's (read-only) from the leaderboard ──
 // Shelves by franchise and decade, player checklists for every team-season, Starred, the showcase, points
 const TIER_RANK = { set: -2, potw: -1, ...Object.fromEntries(TIER_IDS.map((t, i) => [t, i])), duel: TIER_IDS.length, peak: TIER_IDS.length, rival: TIER_IDS.length, duo: TIER_IDS.length, five: TIER_IDS.length, season: TIER_IDS.length }
@@ -1422,10 +1450,10 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const owned = useMemo(() => new Set(cardsOnly.map(e => `${e.s}|${e.id}|${e.name}`)), [cardsOnly])
   // Players you have, by franchise, by team-season and by season
   const have = useMemo(() => {
-    const fr = new Map(), ts = new Map(), ss = new Map(), cards = new Map()
+    const fr = new Map(), ts = new Map(), ss = new Map(), cards = new Map(), names = new Set()
     const add = (m, k, n) => { if (!m.has(k)) m.set(k, new Set()); m.get(k).add(n) }
-    cardsOnly.forEach(e => { add(fr, e.fc, e.name); add(ts, `${e.fc}|${e.s}`, e.name); add(ss, e.s, e.name); cards.set(e.fc, (cards.get(e.fc) || 0) + 1) })
-    return { fr, ts, ss, cards }
+    cardsOnly.forEach(e => { add(fr, e.fc, e.name); add(ts, `${e.fc}|${e.s}`, e.name); add(ss, e.s, e.name); cards.set(e.fc, (cards.get(e.fc) || 0) + 1); names.add(e.name) })
+    return { fr, ts, ss, cards, names }
   }, [cardsOnly])
   // Games owned per player-season with a franchise (key fc|season|player): X of Y on the checklists, and the Season card reveal
   const gamesOwned = useMemo(() => {
@@ -1612,6 +1640,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
           onSeasons={fc => { setView('team'); setGroup(fc); setMode('checklist'); setSeason(null); S.reset() }}
           onPreview={setReveal} rosters={rosters} loadRoster={fc => rosters[fc] ? Promise.resolve(rosters[fc]) : env.getJSON(`/data/explorer/binders/roster/${fc.replace('@', '_')}.json`).then(r => { setRosters(x => ({ ...x, [fc]: r })); return r })} />}
         {ck === 'sets' && <div className={styles.sets}>
+          <AllTime100 names={have.names} mine={mine} />
           {LEAGUE_SETS.filter(d => !d.duel).map(d => {
             const l = league?.sets[d.id] || []
             const n = l.filter(c => owned.has(cardRef(c))).length
@@ -1698,6 +1727,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       <div className={styles.right}>
         <div className={styles.sheetHead}><div className={styles.sheetTitle}><b>Set progress</b><span>league binders, card by card</span></div>{tools}</div>
         <div className={styles.sets}>
+          <AllTime100 names={have.names} mine={mine} />
           {LEAGUE_SETS.filter(d => !d.duel).map(d => {
             const l = league?.sets[d.id] || []
             const n = l.filter(c => owned.has(cardRef(c))).length

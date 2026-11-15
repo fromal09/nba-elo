@@ -9,7 +9,8 @@ split_elo.py — the site's two player files, written from public/data/elo.json.
 
 elo.json stays as the pipeline's full record (fetch_espn.py and update_elo.py read it).
 Run after build_elo.py:  python3 scripts/split_elo.py
-Then it runs build_careers.py (public/data/careers/, the player card's season lines).
+Then it runs build_alltime.py (public/data/alltime.json and alltime/, the all-time rankings) and build_careers.py
+(public/data/careers/, the player card's season lines).
 """
 import datetime as dt, json
 from pathlib import Path
@@ -39,6 +40,12 @@ def main():
     (DATA / "players.json").write_text(dump(summary), encoding="utf-8")
     (DATA / "history.json").write_text(dump({"epoch": EPOCH.isoformat(), "codes": codes, "h": packed}), encoding="utf-8")
     print(f"  players.json {len(dump(summary)) / 1e6:.1f} MB, history.json {(DATA / 'history.json').stat().st_size / 1e6:.1f} MB")
+    # The all-time rankings (build_alltime.py): the Rankings tab's All-Time view, the Floor Times and the cards' backs
+    try:
+        import build_alltime
+        build_alltime.main()
+    except Exception as e:  # never stops the nightly run; yesterday's all-time files stay up
+        print(f"  alltime: skipped ({e})")
     # The player card's career files (build_careers.py) come from the same ratings plus the season files
     try:
         import build_careers

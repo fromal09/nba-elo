@@ -3,6 +3,7 @@ import styles from './PlayerModal.module.css'
 import { binderTeamInfo, binderLogo, binderHeadshots } from './SeasonExplorer'
 import { norm } from './predict'
 import { TIERS as CARD_TIERS, tierFor } from './PlayerCard'
+import { useAllTime, liveAllTime, AllTimeProfile, Foil as AtFoil } from './AllTime'
 
 /*
  * The player card: a career profile (not a collectible). The hero (headshot, team, rank seal), four headline numbers, where he
@@ -111,6 +112,11 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
     return () => { on = false }
   }, [name])
   const phone = usePhone()
+  // All-time standing (scripts/build_alltime.py), with tonight's games counted
+  const AT = useAllTime()
+  const AL = useMemo(() => liveAllTime(AT, allPlayers), [AT, allPlayers])
+  const atx = AL?.by.get(name)
+  const atMove = atx ? (atx.pre && atx.active && atx.pre !== atx.rank ? `${atx.pre > atx.rank ? '▲' : '▼'}${Math.abs(atx.pre - atx.rank)} this season` : atx.active ? 'no change this season' : atx.years) : ''
 
   const hist = player.elo_history || []
   // A career file is {s: seasons, d: decades, m: monthly ranks} (older files were a bare list of seasons)
@@ -154,10 +160,11 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
           {seal && <div className={styles.seal}><span><small>{seal.top}</small><b>{seal.n}</b><small>{seal.sub}</small></span></div>}
         </div>
 
-        <div className={styles.tiles}>
+        <div className={`${styles.tiles} ${atx ? styles.five : ''}`}>
+          {atx && <div className={styles.atTile}><small>All-time{atx.live ? ' · live' : ''}</small><b><AtFoil r={atx.rank} className={styles.atChip}>#{atx.rank.toLocaleString()}</AtFoil></b><em>score {atx.score.toFixed(1)} · {atMove}</em></div>}
           <div><small>{active ? (player.live ? 'Current Elo · live' : 'Current Elo') : 'Final Elo'}</small><b>{fmt(player.current_elo)}</b>
             <em>{active ? (player.is_fpr_eligible ? `#${player.fpr_rank} in the league` : `#${player.current_tpr_rank} rated · not enough recent games`) : `last game ${md(player.last_played)}`}</em></div>
-          <div><small>Peak Elo</small><b className={styles.gold}>{fmt(player.peak_elo)}</b><em>#{peakRank} all-time</em></div>
+          <div><small>Peak Elo</small><b className={styles.gold}>{fmt(player.peak_elo)}</b><em>#{peakRank} highest ever</em></div>
           <div><small>Career average</small><b>{fmt(avgElo)}</b><em>every rated game</em></div>
           <div><small>Best season</small><b>{bestSeason?.s || '—'}</b><em>{bestSeason ? `${fmt(bestSeason.av)} avg${bestSeason.rk ? ` · #${bestSeason.rk}` : ''}` : ''}</em></div>
         </div>
@@ -165,6 +172,11 @@ export default function PlayerModal({ player, allPlayers, onClose }) {
         <section className={styles.sec}>
           <Trajectory hist={hist} monthly={monthly} seasons={seasons} name={name} />
         </section>
+
+        {atx && AL && <section className={styles.sec}>
+          <Head right={<span className={styles.dim}>of {AT.players.length.toLocaleString()} players</span>}>All-time</Head>
+          <AllTimeProfile x={atx} L={AL} AT={AT} players={allPlayers} />
+        </section>}
 
         {(medals.length > 0 || bestGame || jump) && <section className={`${styles.sec} ${styles.two}`}>
           {medals.length > 0 && <div>

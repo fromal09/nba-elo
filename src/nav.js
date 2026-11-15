@@ -8,7 +8,7 @@ export const TOP = [
   { id: 'scoreboard', label: 'The Scoreboard', short: 'Scores' },
   { id: 'gameroom', label: 'The Game Room', short: 'Games' },
   { id: 'store', label: 'The Store', short: 'Store' },
-  { id: 'rankings', label: 'Current Rankings', short: 'Rankings' },
+  { id: 'rankings', label: 'Rankings', short: 'Rankings' },
   { id: 'elo', label: 'Elo Exploration', short: 'Elo' },
 ]
 
@@ -28,7 +28,7 @@ export const ELO_SUBS = [
 ]
 const SUB_IDS = new Set(ELO_SUBS.map(s => s.view))
 // The Scoreboard's three tabs: games by day, standings (the season explorer), my predictions
-export const SCOREBOARD_VIEWS = ['scoreboard', 'explorer', 'mypicks', 'potw']
+export const SCOREBOARD_VIEWS = ['scoreboard', 'explorer', 'mypicks', 'potw', 'times']
 const KNOWN = new Set(['home', 'rankings', 'elo', 'binders', 'library', 'gameroom', ...SCOREBOARD_VIEWS, ...SUB_IDS])
 
 // Which top-level section a view sits under
@@ -40,6 +40,7 @@ export function hrefFor(view, opts = {}) {
   if (view === 'explorer') return '/scoreboard?tab=standings'
   if (view === 'mypicks') return '/scoreboard?tab=picks'
   if (view === 'potw') return '/scoreboard?tab=potw'
+  if (view === 'times') return '/scoreboard?tab=times'
   if (view === 'timemachine') return '/timemachine'
   // My Desk is still the 'binders' view: /binders links from before the split land on it
   if (view === 'binders') return opts.open ? `/desk?open=${opts.open}` : '/desk'
@@ -51,7 +52,7 @@ export function hrefFor(view, opts = {}) {
 export function viewFromUrl() {
   const p = window.location.pathname.replace(/\/+$/, '')
   const q = new URLSearchParams(window.location.search)
-  if (p === '/scoreboard') return q.get('tab') === 'standings' ? 'explorer' : q.get('tab') === 'picks' ? 'mypicks' : q.get('tab') === 'potw' ? 'potw' : 'scoreboard'
+  if (p === '/scoreboard') return q.get('tab') === 'standings' ? 'explorer' : q.get('tab') === 'picks' ? 'mypicks' : q.get('tab') === 'potw' ? 'potw' : q.get('tab') === 'times' ? 'times' : 'scoreboard'
   if (p === '/timemachine') return 'timemachine'
   if (p === '/binders' || p === '/desk') return 'binders'
   if (p === '/library') return 'library'
@@ -70,7 +71,7 @@ export const linkTo = (href, go) => ({
   },
 })
 
-export const TITLES = { scoreboard: 'Scoreboard', explorer: 'Standings', mypicks: 'My Predictions', potw: 'Player of the Week', binders: 'My Desk', library: 'The Library', gameroom: 'The Game Room', rankings: 'Current Rankings', elo: 'Elo Exploration',
+export const TITLES = { scoreboard: 'Scoreboard', explorer: 'Standings', mypicks: 'My Predictions', potw: 'Player of the Week', times: 'The Floor Times', binders: 'My Desk', library: 'The Library', gameroom: 'The Game Room', rankings: 'Rankings', elo: 'Elo Exploration',
   ...Object.fromEntries(ELO_SUBS.map(s => [s.view, s.label])) }
 
 // Go to a view from anywhere (a button inside a binder, the desk): push its URL and let App pick it up from popstate

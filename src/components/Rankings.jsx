@@ -4,6 +4,7 @@ import { binderHeadshots, binderTeamInfo } from './SeasonExplorer'
 import { norm } from './predict'
 import { useCareerHistory } from '../history.js'
 import { Explain } from './Explainer'
+import { AllTimeRankings } from './AllTime'
 
 const PER_PAGE = 50
 const SORTS = [
@@ -28,7 +29,26 @@ const useWide = () => {
 
 // Current Rankings: the top three on podium cards in their team colors, everyone else as a card row with the headshot,
 // Elo and its last move, a 20-game Elo line and the career peak. On a phone the rows drop the line and the peak.
-export default function Rankings({ players, live, onSelectPlayer }) {
+// Two looks, one tab: Current (today's ranks by Elo) and All-Time (every player ever, scripts/build_alltime.py). ?look=alltime opens the second.
+const lookFromUrl = () => (new URLSearchParams(window.location.search).get('look') === 'alltime' ? 'alltime' : 'current')
+export default function Rankings(props) {
+  const [look, setLook] = useState(lookFromUrl)
+  useEffect(() => { const f = () => setLook(lookFromUrl()); window.addEventListener('popstate', f); return () => window.removeEventListener('popstate', f) }, [])
+  const pick = l => {
+    setLook(l)
+    const u = new URL(window.location.href)
+    if (l === 'alltime') u.searchParams.set('look', 'alltime'); else u.searchParams.delete('look')
+    window.history.replaceState(null, '', u)
+    window.scrollTo(0, 0)
+  }
+  const sw = <div className={styles.look} role="tablist" aria-label="Rankings">
+    <button type="button" role="tab" aria-selected={look === 'current'} data-on={look === 'current' ? '' : undefined} onClick={() => pick('current')}>Current</button>
+    <button type="button" role="tab" aria-selected={look === 'alltime'} data-on={look === 'alltime' ? '' : undefined} onClick={() => pick('alltime')}>All-Time</button>
+  </div>
+  return look === 'alltime' ? <AllTimeRankings players={props.players} onSelectPlayer={props.onSelectPlayer} lookSwitch={sw} /> : <CurrentRankings {...props} lookSwitch={sw} />
+}
+
+function CurrentRankings({ players, live, onSelectPlayer, lookSwitch }) {
   const [search, setSearch] = useState('')
   const [team, setTeam] = useState('')
   const [sortKey, setSortKey] = useState('fpr_rank')
@@ -79,6 +99,7 @@ export default function Rankings({ players, live, onSelectPlayer }) {
           <p>Finals since the nightly update, and games in progress, move Elo and ranks live.</p>
         </Explain></h1>
         <p>{counts.active} active players · updated after every game{live?.inprog.length ? <> · <i className={styles.liveDot} />{live.inprog.length} live</> : ''}</p>
+        {lookSwitch}
       </header>
 
       <div className={styles.controls}>

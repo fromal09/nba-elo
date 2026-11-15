@@ -82,7 +82,29 @@ export async function warmRewards(origin, card) {
   if (!card || card.kind) return
   const fc = MERGE[card.t] || card.t
   if (!rosterCache.has(fc)) rosterCache.set(fc, dataJSON(origin, `binders/roster/${fc.replace('@', '_')}.json`))
-  await Promise.all([setRefs(origin), rosterCache.get(fc), honorsData(origin), rankData(origin), franchiseName(origin, fc)])
+  await Promise.all([setRefs(origin), rosterCache.get(fc), honorsData(origin), rankData(origin), franchiseName(origin, fc), allTime100(origin)])
+}
+
+// The All-Time 100 (a binder set): any card of each of the top 100 on the all-time list (scripts/build_alltime.py) as it stands
+// when you finish. Finishing it earns a Legend Pack, once (coin_ledger kind 'alltime100' marks it).
+let atCache = null
+export async function allTime100(origin) {
+  if (!atCache || Date.now() - atCache.at > 10 * 60e3) {
+    const r = await fetch(`${origin}/data/alltime.json`, { signal: AbortSignal.timeout(10e3) }).catch(() => null)
+    const d = r?.ok ? await r.json().catch(() => null) : null
+    if (d?.players?.length >= 100) atCache = { at: Date.now(), names: d.players.slice(0, 100).map(x => x.name) }
+  }
+  return atCache?.names || null
+}
+async function allTimeDone(t, userId, day, origin, card) {
+  const names = await allTime100(origin)
+  if (!names || !names.includes(card.row?.n)) return null
+  const [x] = await t`select count(distinct card->'row'->>'n')::int as n from cards where user_id = ${userId} and card->>'kind' is null
+    and card->'row'->>'n' = any(${names})`
+  if (x.n < names.length) return null
+  const rows = await t`insert into coin_ledger (user_id, day, kind, ref, amount) values (${userId}, ${day}, 'alltime100', 'alltime100', 0)
+    on conflict do nothing returning id`
+  return rows.length ? { kind: 'alltime100', amount: 0, label: 'Finished the All-Time 100: a Legend Pack is waiting', pack: 'legend' } : null
 }
 // Each league set's card refs (binders/setrefs.json; the full league.json before that file existed)
 async function setRefs(origin) {
@@ -119,6 +141,9 @@ export async function cardRewards(t, userId, day, origin, card) {
   out.push(...(await forgeSeasons(t, userId, day, origin, { s: card.s, fc, n: card.row.n })))
   // All-Star Roster, Franchise History and Completed Franchise cards this card may finish
   out.push(...(await rewardCards(t, userId, day, origin, { s: card.s, fc, n: card.row.n })))
+  // The All-Time 100
+  const at = await allTimeDone(t, userId, day, origin, card)
+  if (at) out.push(at)
   // League sets: 100 Coins at every 10% of a set
   const sets = await setRefs(origin)
   const ref = `${card.s}|${card.id}|${card.row.n}`

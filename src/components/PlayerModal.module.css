@@ -28,6 +28,8 @@
 .tiles b { display: block; margin-top: 4px; font: 700 28px 'Oswald', 'Barlow Condensed', sans-serif; color: #fff; font-variant-numeric: tabular-nums; }
 .tiles em { font-style: normal; font-size: 11.5px; color: #9fb0c6; font-weight: 600; }
 .tiles b.gold { color: #f2cf6b; }
+.tiles.five { grid-template-columns: 1.1fr repeat(4, 1fr); }
+.atChip { height: 34px; min-width: 64px; padding: 0 10px; margin: 2px 0 3px; font: 800 20px 'Inter', sans-serif; border-radius: 8px; }
 
 .sec { padding: 18px 28px; }
 .sh { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
@@ -115,6 +117,10 @@
   .seal { display: none; }
   .tiles { grid-template-columns: 1fr 1fr; } .tiles > div { padding: 10px 14px; border-bottom: 1px solid #223047; } .tiles > div:nth-child(2n) { border-right: 0; }
   .tiles > div:nth-child(n+3) { border-bottom: 0; } .tiles b { font-size: 22px; }
+  .tiles.five { grid-template-columns: 1fr 1fr; } .tiles.five > .atTile { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid #223047; }
+  .tiles.five > div:nth-child(2n) { border-right: 1px solid #223047; } .tiles.five > div:nth-child(2n+1):not(.atTile) { border-right: 0; }
+  .tiles.five > div:nth-child(n+4) { border-bottom: 0; } .tiles.five > div:nth-child(-n+3) { border-bottom: 1px solid #223047; }
+  .atChip { height: 28px; font-size: 16px; }
   .sec { padding: 14px; }
   .two { grid-template-columns: 1fr; }
   .medals { grid-template-columns: repeat(4, minmax(0, 1fr)); } .disc { width: 52px; height: 52px; font-size: 21px; } .md > span { font-size: 10px; }

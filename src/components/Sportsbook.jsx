@@ -91,7 +91,7 @@ export function SportsbookFrame({ view, setView, day, setDay, weekOf, addDays, e
   const cal = useRef(null)
   const openCal = () => { const el = cal.current; if (!el) return; try { el.showPicker() } catch { el.focus(); el.click() } }
   const yr = d => (d.slice(0, 4) !== etToday().slice(0, 4) ? { year: 'numeric' } : {})
-  const tabs = [['today', 'Tonight’s games', 'scoreboard'], ['standings', 'Standings', 'explorer'], ['picks', 'My predictions', 'mypicks'], ['potw', 'Player of the Week', 'potw']]
+  const tabs = [['today', 'Tonight’s games', 'scoreboard'], ['standings', 'Standings', 'explorer'], ['picks', 'My predictions', 'mypicks'], ['potw', 'Player of the Week', 'potw'], ['times', 'The Floor Times', 'times']]
   return (
     <div className={sb.book}>
       {/* No z-index on the room's layers: the box score and cards open fixed over the whole page, above the site header */}

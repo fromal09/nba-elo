@@ -4,6 +4,8 @@ import { Serial } from './SpecialCards'
 import './eraFonts.css'
 import { useCareerHistory } from '../history.js'
 import { HOLIDAYS, holidayOf } from './holidays'
+import { gameRanks } from './alltimeData'
+import foil from './Foil.module.css'
 
 // Rarity by where the player stood entering this game: his pre-game Elo rank among every
 // player in that season (same tier names as the Franchise Tenures cards)
@@ -790,6 +792,17 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
   }, [career, game.date, hv])
   const color = team?.color || '#173657'
   const d = row.post - row.pre
+  // All-time rank through this game (scripts/build_alltime.py)
+  const [atRank, setAtRank] = useState(null)
+  useEffect(() => {
+    const h = career?.elo_history
+    if (!h?.length) return
+    const gi = h.findIndex(e => e[0] === game.date)
+    if (gi < 0) return
+    let on = true
+    gameRanks(name).then(rs => on && rs && rs[gi] && setAtRank(rs[gi]))
+    return () => { on = false }
+  }, [name, game.date, career, hv])
 
   // Shrink long names to fit the back header
   useLayoutEffect(() => {
@@ -841,6 +854,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
                   <div>
                     <div ref={backNameRef} className={styles.backName}>{baseName(name)}</div>
                     <div className={styles.backSub}>{team?.name} · {sd.season}</div>
+                    {atRank && <div className={styles.backAt}><span className={`${foil.f} ${styles.atChip}`} data-t={tierFor(atRank).id}>#{atRank.toLocaleString()}</span><span><b>All-time</b> through this game</span></div>}
                   </div>
                   <span className={styles.tierTag}>{game.ruby ? `Ruby ${tier.label}` : tier.label}</span>
                 </div>
@@ -877,7 +891,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
                     <div><b>{r0(avgElo)}</b><small>Avg Elo</small></div>
                     <div><b>{bestRank ? ordinal(bestRank[0]) : '—'}</b><small>Best rank</small></div>
                   </div>
-                  {careerPath && <EloChart path={careerPath.path} peakAt={careerPath.peakAt} at={careerPath.at} color={color} H={88} ends={careerPath.ends} />}
+                  {careerPath && <EloChart path={careerPath.path} peakAt={careerPath.peakAt} at={careerPath.at} color={color} H={atRank ? 70 : 88} ends={careerPath.ends} />}
                 </section>}
               </div>
               <FlipBtn />

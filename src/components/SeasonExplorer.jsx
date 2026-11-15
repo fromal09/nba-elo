@@ -16,6 +16,8 @@ import { hrefFor, linkTo } from '../nav.js'
 import { buildForecaster, blendWeight, norm, WP, winChance, makeProjector, normCdf, untie } from './predict'
 import { buildRatings, scoreGame, assignRanks, dayBoards } from './live.js'
 import { watchDay, useLiveFeeds, computeLive, gameKey, liveDaysAfter } from './liveFeed.js'
+import FloorTimes from './FloorTimes'
+import { AllTimeWatch } from './AllTime'
 import { simulateOdds } from './odds.js'
 import { projHistory, projMoves, invPhi } from './projhist.js'
 import { raceAwards } from './awardsRace.js'
@@ -359,7 +361,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
   const [scoreMode, setScoreMode] = useScoreMode()
   const book = scoreMode === 'book'
   // 'standings' | 'today' | 'picks'; App owns it, so each tab has its own address under /scoreboard
-  const view = mode === 'today' ? 'today' : mode === 'picks' ? 'picks' : mode === 'potw' ? 'potw' : 'standings'
+  const view = mode === 'today' ? 'today' : mode === 'picks' ? 'picks' : mode === 'potw' ? 'potw' : mode === 'times' ? 'times' : 'standings'
   const setView = v => onMode?.(v)
   const [day, setDay] = useState(() => {
     const q = new URLSearchParams(window.location.search).get('date')
@@ -371,7 +373,8 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
     if (view === 'standings') q.set('tab', 'standings')
     if (view === 'picks') q.set('tab', 'picks')
     if (view === 'potw') q.set('tab', 'potw')
-    if (view !== 'standings' && day !== etToday()) q.set('date', day)
+    if (view === 'times') q.set('tab', 'times')
+    if (view !== 'standings' && view !== 'times' && day !== etToday()) q.set('date', day)
     const url = `/scoreboard${q.toString() ? `?${q}` : ''}`
     if (window.location.pathname.replace(/\/+$/, '') !== '/scoreboard') return
     if (window.location.pathname + window.location.search !== url) window.history.replaceState(null, '', url)
@@ -390,8 +393,8 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
   const newest = !!index && season === index.seasons[0]?.season
   // Games view: the loaded season follows the chosen day (the newest season for days past the data)
   useEffect(() => {
-    if (view !== 'today' || !index) return
-    const lab = seasonFor(day)
+    if ((view !== 'today' && view !== 'times') || !index) return
+    const lab = seasonFor(view === 'times' ? etToday() : day)
     const target = index.seasons.some(x => x.season === lab) ? lab : lab > index.seasons[0].season ? index.seasons[0].season : null
     if (target && target !== season) setSeason(target)
   }, [view, day, index])
@@ -586,7 +589,8 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
           {live.fetched && <span className={styles.muted}>Updated {new Date(live.fetched).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
         </div>
       )}
-      {view === 'potw' ? <PlayerOfWeek day={day} onSelect={selectPlayer} ratings={ratings} /> : view === 'picks' ? <MyPredictions day={day} ratings={ratings} /> : view === 'today' ? (
+      {view === 'times' ? (sd && newest ? <FloorTimes sd={sd} fc={fc} shots={shots} players={players} today={etToday()} selectPlayer={selectPlayer} kit={{ tName, tShort, tipTime }} /> : <div className={styles.empty}>Loading the paper…</div>)
+        : view === 'potw' ? <PlayerOfWeek day={day} onSelect={selectPlayer} ratings={ratings} /> : view === 'picks' ? <MyPredictions day={day} ratings={ratings} /> : view === 'today' ? (
         <Today day={day} sd={sd} index={index} fc={fc} shots={shots} ratings={ratings} careers={careers} selectPlayer={selectPlayer} book={book} onView={setView} />
       ) : !sd ? <div className={styles.empty}>Loading {s.season}…</div> : standView === 'odds' && fc ? (
         <OddsView odds={odds} teams={teams} sd={sdL} fc={fc} />
@@ -616,7 +620,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
         <div>
           <div className={styles.kicker}>Scoreboard</div>
           <div className={styles.viewTabs} role="tablist">
-            {[['today', 'Games by day', 'scoreboard'], ['standings', 'Standings', 'explorer'], ['picks', 'My Predictions', 'mypicks'], ['potw', 'PotW', 'potw']].map(([v, label, nv]) => (
+            {[['today', 'Games by day', 'scoreboard'], ['standings', 'Standings', 'explorer'], ['picks', 'My Predictions', 'mypicks'], ['potw', 'PotW', 'potw'], ['times', 'The Floor Times', 'times']].map(([v, label, nv]) => (
               <a key={v} role="tab" aria-selected={view === v} className={view === v ? styles.viewOn : ''}
                 {...linkTo(hrefFor(nv), () => setView(v))}>{label}</a>
             ))}
@@ -631,6 +635,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
             {view === 'potw' ? <h1 className={styles.title}>Week of {fmtDate(weekOf(day), { month: 'long', day: 'numeric' })} <span>{day.slice(0, 4)}</span></h1>
               : <h1 className={styles.title}>{fmtDate(day, { weekday: 'long', month: 'long', day: 'numeric' })} <span>{day.slice(0, 4)}</span></h1>}
             <p className={styles.sub}>{view === 'potw' ? 'Player of the Week: the week’s best by the Player of the Day measure added up (Game Score plus a sixth of the Elo gained, every game; two games to qualify). The week’s pick’em winner gets his card.'
+              : view === 'times' ? 'The morning paper: last night’s games written up, who moved in the rankings and all-time, tonight’s previews and the milestones to watch.'
               : view === 'picks' ? 'Your picks for the day: every game, every player matchup and your lineup, live while the games are on.'
               : 'Every game of the day with live Elo, the night\'s top performers, biggest movers and biggest upsets. Click a game for its box score.'}</p>
           </>}
@@ -642,7 +647,7 @@ export default function SeasonExplorer({ players, onSelectPlayer, mode, onMode }
               {index.seasons.map(x => <option key={x.season} value={x.season}>{x.season}{x.leagues?.includes('ABA') ? ' · NBA & ABA' : x.leagues?.includes('BAA') ? ' · BAA' : ''}</option>)}
             </select>
           </label>
-        ) : (
+        ) : view === 'times' ? null : (
           <div className={styles.dayNav}>
             <button onClick={() => setDay(d => addDays(d, view === 'potw' ? -7 : -1))} aria-label={view === 'potw' ? 'Previous week' : 'Previous day'}>‹</button>
             <input type="date" value={day} min="1946-11-01" max={addDays(etToday(), 240)} onChange={e => e.target.value && setDay(e.target.value)} />
@@ -2587,6 +2592,7 @@ function Today({ day, sd, index, fc, shots, ratings, careers, selectPlayer, book
 
   return (
     <div className={styles.dayPage}>
+      <AllTimeWatch day={day} games={scored} />
       {book ? <ShotsCtx.Provider value={shots}><SportsbookDay kit={{ gameFacts, TeamMark, Headshot, shortName, r0, sgn, tCode, tShort, tColor, tName,
           // for FanSided Tonight: the real cards, the player's season before tonight and his career record
           miniCard: (g, p) => <ShowMini g={g} p={p} sd={daySd} />,

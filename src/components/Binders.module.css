@@ -727,3 +727,19 @@
 @keyframes prizeGlow { 50% { box-shadow: 0 0 16px 2px rgba(244,210,122,.55); } }
 @media (prefers-reduced-motion: reduce) { .lPrize:not(:disabled) { animation: none; } }
 .btnRow { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* The All-Time 100 (special set) and the career binder's all-time tile */
+.atSet { display: flex; flex-direction: column; gap: 8px; }
+.atRow { box-shadow: 0 0 0 1.5px #e3c46c, 0 1px 2px rgba(0,0,0,.06); background: linear-gradient(90deg, #fff8e2, #fff 60%); }
+.atList { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 10px; border-radius: 10px; background: #fbf8ef; border: 1px solid #ece4cf; }
+.atList > span { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 5px 6px; border-radius: 7px; font-size: 11.5px; font-weight: 700; }
+.atList > span > span { flex: none; height: 20px; min-width: 30px; padding: 0 5px; border-radius: 5px; font-size: 10.5px; }
+.atList em { font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.atHave { background: #fff; border: 1px solid #e1dccd; color: #1d2b3a; }
+.atNo { background: #f1ece0; border: 1px dashed #cfc6b0; color: #9aa3ad; }
+.atNo > span { filter: grayscale(1); opacity: .55; }
+.atNote { grid-column: 1 / -1; margin: 4px 2px 0; font-size: 11.5px; color: #6b7783; }
+.stats6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.atTile b { display: flex; align-items: center; }
+.atChip { height: 26px; min-width: 50px; padding: 0 8px; border-radius: 7px; font-size: 14px; }
+@media (max-width: 760px) { .atList { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
