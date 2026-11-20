@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
 import styles from './Clash.module.css'
 import { useCollector, CardFace } from './Collector'
-import { binderLogo } from './SeasonExplorer'
+import { binderLogo, binderHeadshots } from './SeasonExplorer'
 import * as E from '../clash/engine.js'
 
 /*
@@ -109,8 +109,12 @@ function Floor({ id, revealed, children }) {
   </div>
 }
 
-export default function Clash({ env }) {
+export default function Clash({ env: env0 }) {
   const C = useCollector()
+  // The Game Room's screen host passes a headshot lookup but not the headshot map the card faces read, so load it here
+  const [shots, setShots] = useState(env0.shots || null)
+  useEffect(() => { if (!env0.shots) binderHeadshots().then(setShots).catch(() => {}) }, [])
+  const env = useMemo(() => ({ ...env0, shots: shots || {} }), [env0, shots])
   const [D, setD] = useState(null)
   const [flags, setFlags] = useState({})
   const [view, setView] = useState(null)
