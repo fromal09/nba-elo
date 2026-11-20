@@ -52,6 +52,12 @@ def main():
         build_careers.main()
     except Exception as e:  # the card falls back to the Elo history, so this never stops the nightly run
         print(f"  careers: skipped ({e})")
+    # Full Court Clash's CPU decks, daily pool, duos and ability flags (build_clash.py), from the season files
+    try:
+        import build_clash
+        build_clash.main()
+    except Exception as e:  # yesterday's Clash files stay up
+        print(f"  clash: skipped ({e})")
 
 
 if __name__ == "__main__":

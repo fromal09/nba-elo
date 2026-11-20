@@ -358,7 +358,7 @@ export function fromIndex(env, c, extra = {}) {
   const team = env.teamInfo(c.t, c.tn, c.tc), opp = env.teamInfo(c.o, c.on, c.oc)
   return {
     key: `${c.s}|${c.id}|${c.row.n}${c.ruby ? '|ruby' : ''}`, name: c.row.n, row: c.row, post: !!c.band, season: c.s, id: c.id, tier: tierOfRow(c.row), ruby: !!c.ruby,
-    team, game: { date: c.date, home: c.home, oppAbbr: opp.abbr, oppLogo: opp.logo, oppColor: opp.color, won: c.won, score: c.score, ot: c.ot, band: c.band, honor: c.honor, ruby: !!c.ruby },
+    team, game: { date: c.date, home: c.home, oppAbbr: opp.abbr, oppLogo: opp.logo, oppColor: opp.color, won: c.won, score: c.score, ot: c.ot, band: c.band, honor: c.honor, ruby: !!c.ruby, clash: c.clash || null },
     ...extra,
   }
 }
@@ -368,7 +368,7 @@ export function usePull(env, sd, owner) {
   const [pulled, setPulled] = useState(null) // { key, name, g, sd, duel }
   const pull = e => {
     if (e.special) { setPulled({ key: e.key, special: e.special, serial: e.serial }); return }
-    const set = (g, s) => setPulled({ key: e.key, name: e.name || owner, g, sd: s, serial: e.serial, ruby: !!e.ruby, duel: e.duel ? { kind: e.duel.kind, an: e.duel.a.name, bn: e.duel.b.name } : null })
+    const set = (g, s) => setPulled({ key: e.key, name: e.name || owner, g, sd: s, serial: e.serial, ruby: !!e.ruby, clash: e.game?.clash || null, duel: e.duel ? { kind: e.duel.kind, an: e.duel.a.name, bn: e.duel.b.name } : null })
     if (e.g && sd) { set(e.g, sd); return }
     env.loadSeason(e.season).then(s => {
       const g = s.games.find(x => x.id === e.id)
@@ -380,7 +380,7 @@ export function usePull(env, sd, owner) {
     ? <SpecialModal card={pulled.special} serial={pulled.serial && <Serial k={pulled.serial[0]} n={pulled.serial[1]} inline />} onClose={close} />
     : pulled.duel
     ? env.renderDuel({ ...pulled.duel, scope: 'day', g: pulled.g, sd: pulled.sd, onClose: close })
-    : env.renderCard({ name: pulled.name, g: pulled.g, sd: pulled.sd, serial: pulled.serial, ruby: pulled.ruby, onClose: close })}</div>
+    : env.renderCard({ name: pulled.name, g: pulled.g, sd: pulled.sd, serial: pulled.serial, ruby: pulled.ruby, clash: pulled.clash, onClose: close })}</div>
   return { pulled: pulled?.key, pull, view, open: !!pulled }
 }
 

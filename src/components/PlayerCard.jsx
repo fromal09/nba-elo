@@ -180,6 +180,38 @@ const fmtDay = d => `${AP_MONTHS[+d.slice(5, 7) - 1]} ${+d.slice(8, 10)}, ${d.sl
  * game: { date, home, oppAbbr, oppLogo, oppColor, won, score, ot, playoff (label or null) }
  */
 // Ruby: the Player of the Day card you called in Predictions. Near-black with glowing red veins and a neon ruby edge.
+// Full Court Clash redesigns (api/_lib/clash.js): beating a franchise on Brutal lets one card from the winning deck wear
+// one of four looks for good, in that franchise's colors. game.clash = { fc, style }
+const CLASH_NICK = { ATL: 'Hawks', BOS: 'Celtics', BKN: 'Nets', CHO: 'Hornets', CHI: 'Bulls', CLE: 'Cavaliers', DAL: 'Mavericks', DEN: 'Nuggets', DET: 'Pistons', GSW: 'Warriors',
+  HOU: 'Rockets', IND: 'Pacers', LAC: 'Clippers', LAL: 'Lakers', MEM: 'Grizzlies', MIA: 'Heat', MIL: 'Bucks', MIN: 'Timberwolves', NOP: 'Pelicans', NYK: 'Knicks', OKC: 'Thunder',
+  ORL: 'Magic', PHI: '76ers', PHO: 'Suns', POR: 'Trail Blazers', SAC: 'Kings', SAS: 'Spurs', TOR: 'Raptors', UTA: 'Jazz', WAS: 'Wizards' }
+export const CLASH_LOOKS = { floor: 'Home Floor', banner: 'Rafters', foil: 'Team Foil', prog: 'Program Cover' }
+export function ClashFront({ name, row, game, team, headshot }) {
+  const [bad, setBad] = useState(false)
+  const { fc, style } = game.clash
+  const nick = CLASH_NICK[fc] || team?.abbr || ''
+  const c1 = team?.color || '#173657', c2 = TC2[team?.abbr] || TC2[fc] || '#f2c14e'
+  const [first, ...rest] = baseName(name).split(' ')
+  const last = rest.join(' ') || first
+  const yr0 = +String(game.date).slice(0, 4), mo = +String(game.date).slice(5, 7)
+  const season = mo >= 8 ? `${yr0}–${String(yr0 + 1).slice(2)}` : `${yr0 - 1}–${String(yr0).slice(2)}`
+  const result = game.score ? `${game.won ? 'W' : 'L'} ${game.score}${game.ot ? ` ${game.ot}` : ''}` : ''
+  const shot = headshot && !bad ? <img src={headshot} alt={baseName(name)} onError={() => setBad(true)} /> : <span className={styles.cxMono}>{first[0]}{last[0]}</span>
+  const stats = <div className={styles.cxStats}><span><b>{row.pts ?? '—'}</b>PTS</span><span><b>{row.trb ?? '—'}</b>REB</span><span><b>{row.ast ?? '—'}</b>AST</span><span><b>{row.gs == null ? '—' : row.gs.toFixed(1)}</b>GMSC</span></div>
+  return (
+    <div className={`${styles.frame} ${styles.cx}`} data-front="clash" data-look={style} style={{ '--c1': c1, '--c2': c2 }}>
+      {style === 'foil' && <div className={styles.cxTile} aria-hidden="true">{`${nick} `.repeat(60)}</div>}
+      {style === 'prog' && <div className={styles.cxHead}>Game Program<small>{fmtDay(game.date)} · {game.home === false ? 'at' : 'vs'} {game.oppAbbr}</small></div>}
+      <div className={styles.cxShot}>{shot}</div>
+      {style === 'banner' && <div className={styles.cxSeason}>{season}</div>}
+      <div className={styles.cxName}>{style === 'prog' ? <b>{baseName(name)}</b> : <><small>{first !== last ? first : ''}</small><b>{last}</b></>}</div>
+      {stats}
+      <div className={styles.cxMeta}>{fmtDay(game.date)} {game.home === false ? '@' : 'vs'} {game.oppAbbr} · {result}</div>
+      <div className={styles.cxPlate}>{style === 'prog' ? team?.name || nick : nick}</div>
+      <div className={styles.cxMark}>Clash · {CLASH_LOOKS[style]}</div>
+    </div>
+  )
+}
 export function RubyFront({ name, row, game, team, headshot }) {
   const [bad, setBad] = useState(false)
   const lastRef = useRef(null)
@@ -748,7 +780,7 @@ export function SlabLabel({ row, game, kind, className }) {
 export function MiniCard({ name, row, game, team, headshot, slab }) {
   const card = (
     <div className={`${styles.card} ${styles.miniCard}`} {...cardAttrs(row, game)} style={{ '--tc': team?.color || '#173657' }} data-card-shot={`${baseName(name)} ${game?.date || ''}`}>
-      <div className={`${styles.face} ${styles.front}`}>{game?.ruby ? <RubyFront name={name} row={row} game={game} team={team} headshot={headshot} /> : <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />}</div>
+      <div className={`${styles.face} ${styles.front}`}>{game?.clash ? <ClashFront name={name} row={row} game={game} team={team} headshot={headshot} /> : game?.ruby ? <RubyFront name={name} row={row} game={game} team={team} headshot={headshot} /> : <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />}</div>
     </div>
   )
   if (!slab) return card
@@ -842,7 +874,7 @@ export default function PlayerCard({ name, row, game, sd, team, logo, headshot, 
           <div className={styles.tilt}><div className={styles.flip} onClick={e => { if (!e.target.closest('button')) setFlipped(f => !f) }}>
             {/* ── Front ── */}
             <div className={`${styles.face} ${styles.front}`} data-card-shot={`${baseName(name)} ${game.date}`}>
-              {game.ruby ? <RubyFront name={name} row={row} game={game} team={team} headshot={headshot} /> : <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />}
+              {game.clash ? <ClashFront name={name} row={row} game={game} team={team} headshot={headshot} /> : game.ruby ? <RubyFront name={name} row={row} game={game} team={team} headshot={headshot} /> : <CardFront name={name} row={row} game={game} team={team} headshot={headshot} />}
               {serial && <Serial k={serial[0]} n={serial[1]} flip />}
               <FlipBtn />
             </div>

@@ -195,6 +195,24 @@
 .ramp { display: flex; justify-content: center; gap: 4px; margin: 10px 14px 0; padding: 10px 6px; border-radius: 6px; background: linear-gradient(180deg, #2a2a2e, #141416); box-shadow: inset 0 3px 0 rgba(255,255,255,.08); }
 .ramp i { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffb070, #e2621a 60%, #8a3408); box-shadow: inset 0 0 0 1px rgba(0,0,0,.4); }
 
+/* Full Court Clash: a card table on green felt (it took the Insert Coin machine's spot; Rivalries live in King of the Court) */
+.casino { grid-column: span 3; height: 300px; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 8px; padding: 6px; border: 0; background: none; cursor: pointer; }
+.ctable { position: relative; flex: 1; border-radius: 50% / 42%; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, #1d8a55 0%, #14653f 45%, #0c4a2d 100%);
+  box-shadow: 0 0 0 10px #5a3519, 0 0 0 12px #2c1708, 0 18px 26px rgba(0,0,0,.55); margin: 12px; transition: transform .2s; }
+.casino:hover .ctable { transform: translateY(-3px); }
+.casino:focus-visible { outline: 3px solid #ffe14a; outline-offset: 4px; border-radius: 12px; }
+.ctable::before { content: ""; position: absolute; inset: 12px 20px; border-radius: 50%; border: 2px solid rgba(255,230,160,.35); }
+.cNew { position: absolute; right: 18%; top: 14px; background: #f2c14e; color: #241a02; font: 800 10px/1 'Inter', sans-serif; letter-spacing: 1.5px; text-transform: uppercase; padding: 5px 8px; border-radius: 5px; transform: rotate(8deg); }
+.cTitle { position: absolute; left: 0; right: 0; top: 26%; text-align: center; font: 900 26px/1 'Playfair Display', Georgia, serif; color: #f6e3a5; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
+.cSub { position: absolute; left: 0; right: 0; top: calc(26% + 34px); text-align: center; font: 700 10px/1 'Inter', sans-serif; letter-spacing: 3px; text-transform: uppercase; color: #d7efe0; }
+.cFan { position: absolute; left: 50%; bottom: 22%; width: 0; height: 0; }
+.cFan i { position: absolute; width: 36px; height: 52px; margin-left: -18px; bottom: 0; border-radius: 4px; border: 3px solid #fff; transform-origin: 50% 120%; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+.cChips { position: absolute; bottom: 24%; display: flex; flex-direction: column-reverse; }
+.cChips[data-side=l] { left: 16%; } .cChips[data-side=r] { right: 16%; }
+.cChips i { display: block; width: 26px; height: 7px; border-radius: 50%; margin-top: -3px; box-shadow: 0 1px 0 rgba(0,0,0,.4); }
+.casino .stTag { text-align: center; }
+.clashTable { margin: -22px -20px -60px; min-height: calc(100% + 82px); }
+
 /* Insert coin (2-player rivalries) */
 .insert { grid-column: span 3; height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 18px; border-radius: 10px;
   background: linear-gradient(160deg, #3a3f48, #1b1e24 60%, #2a2e35); box-shadow: inset 0 0 0 3px #59606b, inset 0 0 0 6px #14161a, 0 18px 24px rgba(0,0,0,.5); }
@@ -416,6 +434,8 @@
   .fight:hover { transform: translateY(-4px); }
   .cab { height: 330px; }
   .insert { height: 300px; }
+  .casino { height: 300px; }
+  .clashTable { margin: -14px -10px -50px; }
   .cabMarquee { font-size: 16px; }
   .screen .marquee { padding: 8px 10px; grid-template-columns: auto 1fr auto; }
   .back span { display: none; }
@@ -481,6 +501,7 @@
   .room .fight, .room .magnet, .room .tote { min-height: 0; height: 290px; transform: none; box-sizing: border-box; }
   .room .cab { height: 330px; }
   .room .insert { height: 260px; }
+  .room .casino { height: 290px; grid-column: auto; }
   .room .slate { min-height: 0; }
   .room .chalkGames { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
   .room .zoneHead { display: flex; align-items: center; gap: 12px; margin: 14px 0 -6px; font: 700 12px 'Inter', sans-serif; letter-spacing: 2.5px; text-transform: uppercase; color: #e9dcff; }

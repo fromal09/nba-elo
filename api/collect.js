@@ -33,6 +33,11 @@
 //   POST challengeset { level, ids } your five cards for a challenge (ids: [] clears it)
 //   GET  banner      Hang the Banner: every franchise's ladder progress; with &fc=, that ladder and its current rung
 //   POST bannerplay  { fc, ids } five cards against the current rung; a win opens a pack of the franchise's cards
+//   GET  clash       Full Court Clash: your decks, franchise progress, today's daily pulls, redesigns, any open match
+//   POST clashdeck   { slot, name, ids } or { team, ids } save a 15-card deck · POST clashactive { slot }
+//   POST clashstart  { mode: fr | lineup | daily, fc?, ln?, level, ids } start a match against the CPU
+//   GET  clashmatch  ?id= a match as you can see it · POST clashturn { match, plays: [{ k, li }] } play a turn
+//   POST clashclaim  { fc, card, style } put a franchise's redesign on a card from the deck that beat its Brutal
 //   GET  koc         King of the Court for &day=: the slate, your picks and candidates, your group, the bounty, your rivalries
 //   POST kocpick     { day, mode: 'group' | 'r<id>', game, card } a pick for one game (card: null clears it)
 //   POST rival       { to, day, wager } challenge a collector; POST rivalact { id, act: accept | decline | cancel }
@@ -58,6 +63,7 @@ import { challengeView, setChallenge, settleChallenges } from './_lib/challenge.
 import { bannerView, playRung } from './_lib/banner.js'
 import { kocView, kocTick, setPick as kocPick, challenge as kocChallenge, respond as kocRespond } from './_lib/koc.js'
 import { slate } from './_lib/slate.js'
+import { clashView, saveDeck, setActive, startMatch as clashStart, matchView as clashMatch, playClashTurn, claimRedesign } from './_lib/clash.js'
 
 const STREAK_EVERY = 7
 // The NBA's day is Eastern; team packs reset Monday. The daily pack follows packDay() below
@@ -412,6 +418,7 @@ async function sell(u, origin, b) {
   if (!c) throw fail(404, 'That card isn’t in your binder.')
   if (SPECIAL_KINDS.has(c.tier)) throw fail(409, 'Special cards (Duels, Peaks, Rivalries, Starting Fives, Season cards, Player of the Week, Complete Sets, Dynamic Duos) can’t be sold.')
   if (c.card?.ruby) throw fail(409, 'Ruby cards can’t be sold.')
+  if (c.card?.clash) throw fail(409, 'Cards with a Clash redesign can’t be sold.')
   if (u.starred.map(Number).includes(id)) throw fail(409, 'Un-star the card first. Starred and showcase cards can’t be sold.')
   const hours = (Date.now() - new Date(c.pulled_at).getTime()) / 36e5
   if (hours < RATES.sellCooldownHours) throw fail(409, `You can sell this card in ${Math.ceil(RATES.sellCooldownHours - hours)} hour${Math.ceil(RATES.sellCooldownHours - hours) === 1 ? '' : 's'}. New cards wait a day.`)
@@ -631,6 +638,18 @@ export default async function handler(req, res) {
       const [fresh] = await sql`select * from users where id = ${u.id}`
       return send(200, { koc: await kocView(sql, fresh, origin, today, q), ...(await me(fresh)) })
     }
+    if (action === 'clash') return send(200, { clash: await clashView(sql, u) })
+    if (post && action === 'clashdeck') return send(200, { clash: await saveDeck(sql, u, origin, await readBody(req)) })
+    if (post && action === 'clashactive') return send(200, { clash: await setActive(sql, u, await readBody(req)) })
+    if (post && action === 'clashstart') return send(200, await clashStart(sql, u, origin, await readBody(req)))
+    if (action === 'clashmatch') return send(200, await clashMatch(sql, u, q.id))
+    if (post && action === 'clashturn') {
+      const r = await playClashTurn(sql, u, origin, await readBody(req))
+      if (r.reward?.awards?.length) await awardPacks(sql, u, origin, r.reward.awards)
+      const [fresh] = await sql`select * from users where id = ${u.id}`
+      return send(200, { ...r, ...(r.reward?.card ? await me(fresh) : {}) })
+    }
+    if (post && action === 'clashclaim') return send(200, { clash: await claimRedesign(sql, u, await readBody(req)) })
     if (action === 'banner') return send(200, { banner: await bannerView(sql, u, origin, etDay(), q.fc ? String(q.fc) : null) })
     if (post && action === 'bannerplay') {
       const today = etDay(), b = await readBody(req)

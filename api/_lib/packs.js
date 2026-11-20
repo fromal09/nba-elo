@@ -171,6 +171,12 @@ async function fromShards(origin, idx, tiers, odds, taken, from, avoid, rowOk, p
   return null
 }
 
+// One card of a tier from the whole pool, not one in `taken` (Full Court Clash's daily pulls)
+export async function tierCard(origin, tier, taken = new Set()) {
+  const idx = await poolIndex(origin)
+  return fromShards(origin, idx, idx.tiers, { [tier]: 1 }, taken, 'clash')
+}
+
 // A holiday card at these odds (any tier it has when none at these odds is left)
 function fromHoliday(idx, hf, odds, taken, avoid) {
   if (!hf) return null

@@ -10,6 +10,7 @@ import { PredictPages } from './Predictions'
 import KingOfTheCourt from './KingOfTheCourt'
 import HangBanner from './HangBanner'
 import FiveChallenge from './FiveChallenge'
+import Clash from './Clash'
 import PlayerOfWeek from './PlayerOfWeek'
 import { FaceFit } from './TrophyRoom'
 import { usePoll, gamesHot } from './poll'
@@ -41,6 +42,7 @@ const STATIONS = {
   rivals: { title: 'King of the Court', kicker: '2-player · rivalries' },
   banner: { title: 'Hang the Banner', kicker: 'A ladder per franchise' },
   five: { title: 'Five Challenge', kicker: 'This week’s lineups' },
+  clash: { title: 'Full Court Clash', kicker: 'The card table' },
   potw: { title: 'Player of the Week', kicker: 'The champions’ wall' },
 }
 
@@ -337,6 +339,7 @@ export function GameScreen({ station, env, onClose, ratings, onSelectPlayer }) {
       </div>}
     </PredictPages>
   )
+  else if (station === 'clash') body = <div className={styles.clashTable}><Clash env={env} /></div>
   else if (station === 'potw') body = <div className={styles.potwWall}><PlayerOfWeek day={etToday()} ratings={ratings} onSelect={n => { onClose(); onSelectPlayer?.(n) }} /></div>
   else body = (
     <div className={styles.cabinet} data-game={station}>
@@ -517,10 +520,16 @@ function Stations({ C, preds, go, env }) {
         <span className={styles.coinDoor}>THIS WEEK’S LINEUPS</span>
       </button>
 
-      <button type="button" role="listitem" className={`${styles.st} ${styles.insert}`} onClick={() => go('rivals')}>
-        <span className={styles.slot2} aria-hidden="true"><i /></span>
-        <b>INSERT COIN</b><span>2-PLAYER · RIVALRIES</span>
-        <small>{RV.waiting ? `${RV.waiting} challenge${RV.waiting === 1 ? '' : 's'} waiting on you` : RV.sent ? `${RV.sent} sent · waiting` : 'Challenge a collector'}</small>
+      <button type="button" role="listitem" className={`${styles.st} ${styles.casino}`} onClick={() => go('clash')} aria-label="Full Court Clash: your cards, head to head">
+        <span className={styles.ctable}>
+          <span className={styles.cNew}>New</span>
+          <span className={styles.cTitle}>Full Court Clash</span>
+          <span className={styles.cSub}>Three courts · six turns</span>
+          <span className={styles.cFan} aria-hidden="true">{['#1D428A', '#552583', '#CE1141', '#007A33', '#E56020'].map((c, k) => <i key={k} style={{ background: c, transform: `rotate(${(k - 2) * 14}deg) translateY(${Math.abs(k - 2) * 4}px)` }} />)}</span>
+          <span className={styles.cChips} data-side="l" aria-hidden="true">{['#c8102e', '#c8102e', '#fff', '#c8102e', '#1d428a'].map((c, k) => <i key={k} style={{ background: c }} />)}</span>
+          <span className={styles.cChips} data-side="r" aria-hidden="true">{['#111', '#111', '#f2c14e', '#111'].map((c, k) => <i key={k} style={{ background: c }} />)}</span>
+        </span>
+        <span className={styles.stTag}>The card table · your cards, head to head</span>
       </button>
       </div>
     </div>
