@@ -20,6 +20,7 @@ card's tier (the player's league rank that night, as packs grade it), power from
 level gets the same cost curve; the level sets how good the nights are:
   easy    the bottom half of the franchise's cards at each cost
   medium  the 15th–50th percentile from the top
+(One card per player in every deck, as in yours.)
   hard    the 7th–20th percentile
   brutal  the top 8%, pulled toward the franchise's strongest season so its same-season bonuses stack
 Run after split_elo.py (it calls this):  python3 scripts/build_clash.py
@@ -149,14 +150,14 @@ def main():
             got = 0
             for c in lst:
                 if got >= need[k]: break
-                if per[c['n']] >= 2 or id(c) in ids: continue
+                if per[c['n']] >= 1 or id(c) in ids: continue
                 deck.append(c); ids.add(id(c)); per[c['n']] += 1; got += 1
         rest = sorted(pool, key=lambda c: -c['v'])
         if mode == 'medium': rest = rest[len(rest) // 6:]
         if mode == 'easy': rest = rest[len(rest) // 2:]
         for c in rest:
             if len(deck) >= 15: break
-            if per[c['n']] >= 2 or id(c) in ids: continue
+            if per[c['n']] >= 1 or id(c) in ids: continue
             deck.append(c); ids.add(id(c)); per[c['n']] += 1
         return deck, anchor
 

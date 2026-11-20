@@ -31,6 +31,8 @@ function AbBadge({ a, c, big }) {
   return big ? <div className={styles.abTile} data-kind={k}><span className={styles.abMark}>{AB_MARK[a]}</span><div><b>{E.AB[a].n}</b><em>{E.AB[a].k} · {KIND_TIP[k]}</em><p>{E.AB[a].t(c)}</p><small>Earned: {E.AB[a].why(c)}</small></div></div>
     : <span className={styles.abTag} data-kind={k} title={`${E.AB[a].n}: ${E.AB[a].t(c)}`}>{AB_MARK[a]}</span>
 }
+// A deck holds one card per player
+const onePer = cs => new Set(cs.map(c => c.n)).size === cs.length
 const TCURVE = { 1: 4, 2: 3, 3: 3, 4: 2, 5: 2, 6: 1 }
 const col = c => E.COLOR[c.fc] || '#334'
 const fmtDate = d => (d ? new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '')
@@ -140,14 +142,13 @@ export default function Clash({ env: env0 }) {
   }, [C.cards, flags])
   const autoTeam = fc => {
     const pool = binder.filter(c => c.fc === fc).slice().sort((a, b) => b.pw - a.pw), out = []
-    const per = {}, add = c => { if (out.length < 15 && !out.includes(c.id) && (per[c.n] || 0) < 2) { out.push(c.id); per[c.n] = (per[c.n] || 0) + 1; return true } return false }
+    const per = {}, add = c => { if (out.length < 15 && !out.includes(c.id) && (per[c.n] || 0) < 1) { out.push(c.id); per[c.n] = (per[c.n] || 0) + 1; return true } return false }
     Object.entries(TCURVE).forEach(([k, n]) => { let got = 0; pool.filter(c => c.cost === +k).forEach(c => { if (got < n && add(c)) got++ }) })
     pool.forEach(add)
-    pool.forEach(c => { if (out.length < 15 && !out.includes(c.id)) out.push(c.id) })
     return out.slice(0, 15)
   }
-  const teamDeck = fc => { const s = view?.teams?.[fc]; return s && s.length === 15 && s.every(id => byId[id]) ? s : autoTeam(fc) }
-  const activeDeck = () => { const d = view?.decks?.[view.active]; return d && d.ids.filter(id => byId[id]).length === 15 ? d : null }
+  const teamDeck = fc => { const s = view?.teams?.[fc]; return s && s.length === 15 && s.every(id => byId[id]) && onePer(s.map(id => byId[id])) ? s : autoTeam(fc) }
+  const activeDeck = () => { const d = view?.decks?.[view.active]; const cs = d ? d.ids.map(id => byId[id]).filter(Boolean) : []; return cs.length === 15 && onePer(cs) ? d : null }
 
   if (err) return <div className={styles.root}><div className={styles.felt}><p className={styles.msg}>{err}</p></div></div>
   if (!D || !view) return <div className={styles.root}><div className={styles.felt}><p className={styles.msg}>Shuffling the decks…</p></div></div>
@@ -207,10 +208,10 @@ function Decks({ view, go, byId, C, setView }) {
     <div className={styles.list}>{view.decks.map((d, k) => {
       if (!d) return <button key={k} type="button" className={`${styles.tile} ${styles.newDeck}`} onClick={() => go('build', { slot: k, name: `Deck ${k + 1}`, ids: [] })}><b>+ New deck</b><small>Slot {k + 1}</small></button>
       const cs = d.ids.map(id => byId[id]).filter(Boolean)
-      const ok = cs.length === 15
+      const dup = !onePer(cs), ok = cs.length === 15 && !dup
       return <div key={k} className={styles.tile}>
         <div className={styles.row}>
-          <div><b className={styles.cond}>{d.name}</b>{view.active === k && <em className={styles.badge}>Active</em>}<small>{ok ? `15 cards · avg cost ${avg(cs, c => c.cost)} · avg power ${avg(cs, c => c.pw)}` : `${15 - cs.length} card${15 - cs.length === 1 ? '' : 's'} no longer in your binder`}</small></div>
+          <div><b className={styles.cond}>{d.name}</b>{view.active === k && <em className={styles.badge}>Active</em>}<small>{ok ? `15 cards · avg cost ${avg(cs, c => c.cost)} · avg power ${avg(cs, c => c.pw)}` : dup ? 'Has two cards of one player. Edit it to keep one.' : `${15 - cs.length} card${15 - cs.length === 1 ? '' : 's'} no longer in your binder`}</small></div>
           <div className={styles.btns}>{view.active !== k && ok && <button type="button" className={styles.ghost} onClick={async () => { const v = await C.clashActive(k); if (v) setView(v) }}>Use</button>}
             <button type="button" className={styles.btn} onClick={() => go('build', { slot: k, name: d.name, ids: cs.map(c => c.id) })}>Edit</button></div>
         </div>
@@ -264,7 +265,14 @@ function Build({ scr, go, binder, byId, C, setView }) {
   const synCount = own.filter(c => fits[c.id] && !ids.includes(c.id)).length
   const cnt = [1, 2, 3, 4, 5, 6].map(k => cs.filter(c => c.cost === k).length), mx = Math.max(1, ...cnt)
   const deckSyn = cs.filter(c => fitWith(c, cs, pairs)).length
-  const toggle = id => setIds(x => (x.includes(id) ? x.filter(y => y !== id) : x.length >= 15 ? x : [...x, id]))
+  // One card per player: picking another card of a player already in the deck swaps it in for the one there
+  const toggle = id => setIds(x => {
+    if (x.includes(id)) return x.filter(y => y !== id)
+    const same = x.find(y => byId[y]?.n === byId[id].n)
+    if (same != null) return x.map(y => (y === same ? id : y))
+    return x.length >= 15 ? x : [...x, id]
+  })
+  const dupNames = cs.length - new Set(cs.map(c => c.n)).size
   const back = () => (team ? go('frd', { fc: team }) : go('decks'))
   const save = async () => { const v = await C.clashDeck(team ? { team, ids } : { slot: scr.slot, name, ids }); if (v) { setView(v); back() } }
   const anyFilter = q || fr || cost || ab || syn
@@ -272,7 +280,7 @@ function Build({ scr, go, binder, byId, C, setView }) {
     <div className={styles.bHead}>
       <Back onClick={back} />
       <div className={styles.bTitle}>{team ? <h3>{E.NICK[team]} deck</h3> : <input className={styles.nameIn} value={name} maxLength={24} onChange={e => setName(e.target.value)} aria-label="Deck name" />}
-        <small>{team ? `${E.NICK[team]} cards only · franchise challenges` : 'Plays the all-time lineups and daily challenges'}</small></div>
+        <small>{team ? `${E.NICK[team]} cards only · one card per player` : 'Lineups and daily challenges · one card per player'}</small></div>
       <div className={styles.meter} style={{ '--p': cs.length / 15 }}><b>{cs.length}</b><small>/15</small></div>
     </div>
     <div className={styles.shelf} aria-label="Your deck">
@@ -299,17 +307,18 @@ function Build({ scr, go, binder, byId, C, setView }) {
     <div className={styles.count}>{pool.length} card{pool.length === 1 ? '' : 's'}{anyFilter ? ' match' : ''}</div>
     {!own.length && <p className={styles.msg}>{team ? `No ${E.NICK[team]} game cards in your binder yet. Team packs and Hang the Banner packs bring them.` : 'No game cards in your binder yet.'}</p>}
     <div className={styles.grid}>{pool.slice(0, more).map(c => {
-      const inDeck = ids.includes(c.id), fit = fits[c.id]
+      const inDeck = ids.includes(c.id), fit = fits[c.id], twin = !inDeck && cs.find(o => o.n === c.n)
       return <div key={c.k} className={`${styles.cell} ${inDeck ? styles.inDeck : ''}`}>
         <Chip c={c} side="p" w={104} cost={c.cost} onClick={() => toggle(c.id)} label={`${inDeck ? 'Take out' : 'Add'} ${E.cleanName(c.n)}, ${fmtDate(c.d)}, cost ${c.cost}, power ${c.pw}`} />
         {inDeck && <span className={styles.check} aria-hidden="true">✓</span>}
         <span className={styles.cellName}>{E.lastName(c.n)} <em>{yr(c)}</em></span>
         {c.ab.length > 0 && <span className={styles.cellAb}>{c.ab.map(a => E.AB[a].n).join(' · ')}</span>}
-        {fit && !inDeck && <span className={styles.cellFit} data-v={Math.floor(fit.v)}>+{Math.floor(fit.v) || 1} {fit.t} · {E.lastName(fit.with.n)}</span>}
+        {twin && <span className={styles.cellSwap}>Swaps for his {yr(twin)} card</span>}
+        {fit && !inDeck && !twin && <span className={styles.cellFit} data-v={Math.floor(fit.v)}>+{Math.floor(fit.v) || 1} {fit.t} · {E.lastName(fit.with.n)}</span>}
       </div>
     })}</div>
     {pool.length > more && <div style={{ padding: '0 14px 20px' }}><button type="button" className={styles.ghost} style={{ width: '100%' }} onClick={() => setMore(m => m + 60)}>Show {Math.min(60, pool.length - more)} more</button></div>}
-    <div className={styles.sticky}><button type="button" className={styles.ghost} onClick={back}>Cancel</button><button type="button" className={styles.btn} disabled={cs.length !== 15} onClick={save}>{cs.length === 15 ? 'Save deck' : `Add ${15 - cs.length} more`}</button></div>
+    <div className={styles.sticky}><button type="button" className={styles.ghost} onClick={back}>Cancel</button><button type="button" className={styles.btn} disabled={cs.length !== 15 || dupNames > 0} onClick={save}>{dupNames ? 'One card per player' : cs.length === 15 ? 'Save deck' : `Add ${15 - cs.length} more`}</button></div>
   </div>
 }
 
@@ -344,10 +353,10 @@ function FranchiseDetail({ D, view, scr, go, start, teamDeck, activeDeck, byId, 
     <div className={styles.list}>
       {isL ? <div className={styles.tile}><small>You play with</small><b className={styles.cond}>{ad ? ad.name : 'No active deck'}</b><small>Any cards from any franchise. The courts are a surprise.</small>{!ad && <button type="button" className={styles.btn} onClick={() => go('decks')}>Build a deck</button>}</div>
         : <div className={styles.tile}>
-          <div className={styles.row}><div><small>Your {E.NICK[fc]} deck</small><b className={styles.cond}>{td.length}/15 {E.NICK[fc]} cards{ready ? ` · avg power ${avg(td, c => c.pw)}` : ''}</b></div>
+          <div className={styles.row}><div><small>Your {E.NICK[fc]} deck</small><b className={styles.cond}>{td.length}/15 {E.NICK[fc]} players{ready ? ` · avg power ${avg(td, c => c.pw)}` : ''}</b></div>
             <button type="button" className={styles.ghost} onClick={() => go('build', { team: fc, ids: td.map(c => c.id) })}>Edit</button></div>
           <div className={styles.strip}>{td.slice().sort((a, b) => b.pw - a.pw).slice(0, 8).map(c => <span key={c.k} style={{ background: col(c) }}>{E.initials(c.n)}</span>)}</div>
-          <small>{ready ? `Built from the best of your ${binder.filter(c => c.fc === fc).length} ${E.NICK[fc]} cards. Edit to swap any.` : `A franchise deck needs 15 of its cards; you have ${td.length}. Team packs and Hang the Banner packs bring more.`}</small>
+          <small>{ready ? `Built from the best of your ${binder.filter(c => c.fc === fc).length} ${E.NICK[fc]} cards. Edit to swap any.` : `A franchise deck needs 15 different players; you have ${td.length}. Team packs and Hang the Banner packs bring more.`}</small>
         </div>}
       {levels.map(lv => {
         const cs = E.deckOf(D, isL ? L[lv] : D.franchise[fc][lv].ids), anchor = !isL && D.franchise[fc][lv].anchor

@@ -59,6 +59,11 @@ async function myCards(sql, uid, origin, ids) {
   const flags = await data(origin, 'flags.json').catch(() => ({}))
   return rows.filter(r => playable(r.card)).map(r => cardFromBinder(r.id, r.card, flags[`${r.card.s}|${r.card.id}|${r.card.row.n}`] || ''))
 }
+// A deck holds one card per player
+function oneEach(cs) {
+  const seen = new Set()
+  for (const c of cs) { if (seen.has(c.n)) throw fail(400, `One card per player: ${c.n} is in this deck twice.`); seen.add(c.n) }
+}
 const unlocked = (prog, key, lv) => lv === 'easy' || !!prog?.[key]?.[LEVELS[LEVELS.indexOf(lv) - 1]]
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 const dailyLocs = (day, lv) => shuffle(LOCS, rng(hash(`loc${day}${lv}`))).slice(0, 3).map(l => l.id)
@@ -84,6 +89,7 @@ export async function saveDeck(sql, u, origin, b) {
   if (ids.length !== 15) throw fail(400, 'A deck is 15 different cards.')
   const cs = await myCards(sql, u.id, origin, ids)
   if (cs.length !== 15) throw fail(400, 'Every card has to be a game card in your binder.')
+  oneEach(cs)
   const r = await userRow(sql, u.id)
   if (b.team) {
     const fc = String(b.team)
@@ -116,6 +122,7 @@ export async function startMatch(sql, u, origin, b) {
   if (ids.length !== 15) throw fail(400, 'A deck is 15 different cards.')
   const mine = await myCards(sql, u.id, origin, ids)
   if (mine.length !== 15) throw fail(400, 'Every card in the deck has to be a game card in your binder.')
+  oneEach(mine)
   let cDeck, key, fc = null, locs = [], title
   const day = today()
   if (mode === 'fr') {

@@ -399,3 +399,5 @@
 @keyframes callout { 0% { transform: translateY(20px) scale(.6); opacity: 0; } 25% { transform: translateY(-6px) scale(1.08); opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(-16px); opacity: 0; } }
 @keyframes shake { 0%, 100% { transform: none; } 25% { transform: rotate(-4deg) scale(1.1); } 60% { transform: rotate(3deg); } }
 .fl { font-size: 14px; }
+
+.cellSwap { font: 700 9.5px/1.25 'Inter', sans-serif; color: #241a02; background: var(--gold); border-radius: 5px; padding: 2px 5px; text-align: center; }
