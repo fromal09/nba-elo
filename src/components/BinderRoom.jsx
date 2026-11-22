@@ -322,7 +322,7 @@ export default function BinderRoom({ players, onSelectPlayer, start, part = 'des
               <div className={styles.chalk}>
                 <Plate as="h2">To the Game Room</Plate>
                 <a className={styles.door} href="/?view=gameroom" onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navTo('gameroom') }}>
-                  <b>THE GAME ROOM</b><span>Predictions · King of the Court · Hang the Banner · Five Challenge</span><i aria-hidden="true">→</i>
+                  <b>THE GAME ROOM</b><span>Predictions · Clash · Hang the Banner · Five Challenge</span><i aria-hidden="true">→</i>
                 </a>
                 {picks && picks.leaders.length > 0 && <div className={styles.board}>
                   {picks.leaders.slice(0, 5).map(l => (

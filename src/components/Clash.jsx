@@ -1,4 +1,7 @@
-import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, createContext, useContext } from 'react'
+import { createPortal } from 'react-dom'
+import { ArenaMatch, ColorPick, SCHEMES, COACHES, any } from './ClashArena.jsx'
+import { Hub, Decks, Franchises, FranchiseDetail, Daily } from './ClashMenu.jsx'
 import styles from './Clash.module.css'
 import { useCollector, CardFace } from './Collector'
 import { binderLogo, binderHeadshots } from './SeasonExplorer'
@@ -26,7 +29,7 @@ const AB_MARK = { fifty: '50', quad: '4×', triple: '3×', swat: 'BLK', pick: 'S
   ot: 'OT', debut: '1ST', home: 'HOME', micro: 'HOT', blowout: '+40', sure: 'SAFE', clutch: 'CLU', heat: 'HEAT' }
 const AB_KIND = { 'On reveal': 'reveal', Ongoing: 'ongoing', End: 'end', Cost: 'cost' }
 const KIND_TIP = { reveal: 'Fires once, when it’s revealed', ongoing: 'Works the whole game', end: 'Checks after turn 6', cost: 'Changes what it costs' }
-function AbBadge({ a, c, big }) {
+export function AbBadge({ a, c, big }) {
   const k = AB_KIND[E.AB[a].k]
   return big ? <div className={styles.abTile} data-kind={k}><span className={styles.abMark}>{AB_MARK[a]}</span><div><b>{E.AB[a].n}</b><em>{E.AB[a].k} · {KIND_TIP[k]}</em><p>{E.AB[a].t(c)}</p><small>Earned: {E.AB[a].why(c)}</small></div></div>
     : <span className={styles.abTag} data-kind={k} title={`${E.AB[a].n}: ${E.AB[a].t(c)}`}>{AB_MARK[a]}</span>
@@ -54,8 +57,8 @@ function Back({ onClick, label = 'Back' }) {
   return <button type="button" className={styles.back} onClick={onClick} aria-label={label}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg></button>
 }
 // Every card in Clash is the binder's own card face, shrunk: your cards from their stored JSON, the CPU's built from its line
-const Faces = createContext({ face: () => null, shots: {} })
-function Chip({ c, side, pw, cls = '', onClick, w = 56, label, cost }) {
+export const Faces = createContext({ face: () => null, shots: {} })
+export function Chip({ c, side, pw, cls = '', onClick, w = 56, label, cost }) {
   const { face, shots } = useContext(Faces)
   const card = face(c)
   return <button type="button" className={`${styles.mc} ${side === 'p' ? styles.mine : styles.theirs} ${cls}`} style={{ width: w, height: Math.round(w * 1.4) }} onClick={onClick}
@@ -100,7 +103,7 @@ function HandFan({ items, sel, onPick, onInfo, disabled }) {
     <div className={styles.fanCount}>{focus + 1} / {n} · swipe through your hand · tap the front card to pick it up · press and hold for the full card</div>
   </div>
 }
-function Floor({ id, revealed, children }) {
+export function Floor({ id, revealed, children }) {
   const L = revealed && id ? E.LOCBY[id] : null
   const f = L ? L.floor : 'down'
   return <div className={styles.floor} data-floor={f} style={L ? { '--c1': L.c1 || '#555', '--c2': L.c2 || '#fff' } : undefined}>
@@ -111,7 +114,7 @@ function Floor({ id, revealed, children }) {
   </div>
 }
 
-export default function Clash({ env: env0 }) {
+export default function Clash({ env: env0, onClose }) {
   const C = useCollector()
   // The Game Room's screen host passes a headshot lookup but not the headshot map the card faces read, so load it here
   const [shots, setShots] = useState(env0.shots || null)
@@ -123,6 +126,12 @@ export default function Clash({ env: env0 }) {
   const [err, setErr] = useState(null)
   const [scr, setScr] = useState({ s: 'hub' })
   const [M, setM] = useState(null)
+  // The menus and the match take over the whole screen: hold the page still behind them
+  useEffect(() => {
+    if (scr.s === 'claim') return
+    const o = document.body.style.overflow; document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = o }
+  }, [scr.s === 'claim'])
   const go = (s, extra = {}) => { setScr({ s, ...extra }); window.scrollTo?.(0, 0); document.querySelector(`.${styles.root}`)?.scrollIntoView?.({ block: 'start' }) }
   useEffect(() => {
     fetch('/data/clash/decks.json').then(r => (r.ok ? r.json() : Promise.reject())).then(setD).catch(() => setErr('Full Court Clash’s card data isn’t published yet. It arrives with tonight’s data update.'))
@@ -153,353 +162,369 @@ export default function Clash({ env: env0 }) {
   if (err) return <div className={styles.root}><div className={styles.felt}><p className={styles.msg}>{err}</p></div></div>
   if (!D || !view) return <div className={styles.root}><div className={styles.felt}><p className={styles.msg}>Shuffling the decks…</p></div></div>
 
-  const start = async o => {
-    const r = await C.clashStart(o)
-    if (!r) return
-    setM({ id: r.match, title: r.title, mode: r.mode, level: r.level, fc: r.fc, ids: o.ids, st: E.fromPublic(r.view), staged: [], phase: 'plan', anim: null, sel: null, over: null, reward: null, again: o })
+  // Deck colors: one of the presets per deck, kept on this device; the CPU coach draws another each match
+  const colorKey = o => (o?.mode === 'fr' && o.fc ? `team:${o.fc}` : `deck:${view.active ?? 0}`)
+  const colorOf = k => { try { return SCHEMES.find(s => s.id === localStorage.getItem(`fcc-colors:${k}`)) || SCHEMES[0] } catch { return SCHEMES[0] } }
+  const ad0 = activeDeck()
+  const deckCards = ad0 ? ad0.ids.map(id => byId[id]).filter(Boolean) : []
+  const begin = (r, o) => {
+    const you = colorOf(colorKey(o || { mode: r.mode, fc: r.fc }))
+    const mode = r.mode, fc = r.fc
+    setM({ id: r.match, title: r.title, mode, level: r.level, fc, ln: o?.ln ?? null, ids: o?.ids || [], view0: r.view, again: o || null, reward: null, n: Date.now(),
+      you, opp: any(SCHEMES.filter(s => s.id !== you.id)), coach: any(COACHES),
+      deckName: mode === 'fr' && fc ? `${E.NICK[fc]} deck` : (ad0?.name || 'Your deck'),
+      label: mode === 'fr' && fc ? `${E.NICK[fc]} deck · ${E.LEVEL_NAME[r.level]}` : mode === 'daily' ? `Daily · ${E.LEVEL_NAME[r.level]}` : `${r.title || 'Lineup'} · ${E.LEVEL_NAME[r.level]}` })
     go('match')
   }
-  const resume = async () => {
-    const r = await C.clashMatch(view.open.id)
-    if (!r) return
-    setM({ id: r.match, title: r.title, mode: r.mode, level: r.level, fc: r.fc, ids: [], st: E.fromPublic(r.view), staged: [], phase: 'plan', anim: null, sel: null, over: null, reward: null })
-    go('match')
-  }
+  const start = async o => { const r = await C.clashStart(o); if (r) begin(r, o) }
+  const resume = async () => { const r = await C.clashMatch(view.open.id); if (r) begin(r, null) }
+  const play = o => start({ ...o, ids: o.ids || ad0?.ids })
+  const backFrom = m => (m?.mode === 'daily' ? go('daily') : m?.mode === 'fr' ? go('frd', { fc: m.fc }) : m?.mode === 'lineup' ? go('frd', { ln: m.ln }) : go('hub'))
   const P = { D, view, setView, binder, byId, jsonById, go, scr, start, resume, teamDeck, activeDeck, C, env, M, setM }
+  const you = colorOf(scr.s === 'frd' && scr.fc ? `team:${scr.fc}` : `deck:${view.active ?? 0}`)
+  const full = s => createPortal(<Faces.Provider value={faces}>{s}</Faces.Provider>, document.body)
   const faces = { shots: env.shots, face: c => (c.id != null && jsonById[c.id]) || (c.k && c.k[0] === 'c' ? asJson(c, D) : null) }
   return <Faces.Provider value={faces}><div className={styles.root}>
-    {scr.s === 'hub' && <Hub {...P} />}
-    {scr.s === 'decks' && <Decks {...P} />}
+    {scr.s === 'hub' && full(<Hub view={view} deck={deckCards} deckName={ad0?.name} you={you} go={go} play={play} resume={resume} onClose={onClose} />)}
+    {scr.s === 'decks' && full(<Decks {...P} you={you} />)}
+    {scr.s === 'colors' && full(<ColorPick you={you.id} deckName={ad0?.name || 'Your deck'} setYou={id => { try { localStorage.setItem(`fcc-colors:deck:${view.active ?? 0}`, id) } catch { /* private window */ } go('colors') }} start={() => go('hub')} />)}
     {scr.s === 'build' && <Build {...P} />}
-    {scr.s === 'fr' && <Franchises {...P} />}
-    {scr.s === 'frd' && <FranchiseDetail {...P} />}
-    {scr.s === 'daily' && <Daily {...P} />}
-    {scr.s === 'match' && M && <Match {...P} />}
+    {scr.s === 'fr' && full(<Franchises {...P} you={you} />)}
+    {scr.s === 'frd' && full(<FranchiseDetail {...P} you={you} />)}
+    {scr.s === 'daily' && full(<Daily {...P} you={you} />)}
+    {scr.s === 'match' && M && full(<ArenaMatch key={M.n} view0={M.view0} you={M.you} opp={M.opp} coach={M.coach} label={M.label} deckName={M.deckName}
+      turn={async plays => { const d = await C.clashTurn(M.id, plays); return d || null }}
+      onOver={d => { setM(m => ({ ...m, reward: d.reward, over: d.over })); if (d.clash) setView(d.clash) }}
+      reward={<RewardBlock M={M} go={go} env={env} />}
+      again={M.again ? () => start(M.again) : null} menu={() => backFrom(M)} />)}
     {scr.s === 'claim' && <Claim {...P} />}
   </div></Faces.Provider>
 }
 
-function Hub({ D, view, go, resume, activeDeck, byId, jsonById, env }) {
-  const d = activeDeck(), cs = d ? d.ids.map(id => byId[id]) : []
-  const beaten = Object.values(view.prog || {}).reduce((s, x) => s + Object.keys(x).length, 0)
-  const claims = Object.entries(view.claims || {})
-  return <div className={styles.felt}>
-    <h2 className={styles.hubTitle}>Full Court Clash</h2>
-    <div className={styles.hubTag}>Pull up a chair</div>
-    {view.open && <button type="button" className={styles.resume} onClick={resume}>Resume your match · turn {view.open.turn} of 6</button>}
-    <div className={styles.spots}>
-      <button type="button" className={styles.spot} onClick={() => go('decks')}><span>1</span><b>My Decks</b><small>Up to five decks of 15 from your binder</small></button>
-      <button type="button" className={styles.spot} onClick={() => go('fr')}><span>2</span><b>Franchise Challenges</b><small>30 franchises and the all-time lineups · {beaten} win{beaten === 1 ? '' : 's'}</small></button>
-      <button type="button" className={styles.spot} onClick={() => go('daily')}><span>3</span><b>Daily Challenges</b><small>Four new CPU decks every day</small></button>
-      <button type="button" className={styles.spot} disabled><span>4</span><b>1v1</b><small>Another collector · coming soon</small></button>
-    </div>
-    <div className={styles.hubDeck}>
-      <div><small>Playing with</small><b>{d ? d.name : 'No deck yet'}</b><span>{d ? `15 cards · avg cost ${avg(cs, c => c.cost)} · avg power ${avg(cs, c => c.pw)}` : 'Build one from your binder to play the lineups and dailies.'}</span></div>
-      <button type="button" className={styles.ghost} onClick={() => go('decks')}>{d ? 'Change' : 'Build'}</button>
-    </div>
-    {claims.length > 0 && <div className={styles.hubClaims}><small>Your redesigns</small><div className={styles.hscroll}>{claims.map(([fc, x]) => jsonById[x.card] && <div key={fc} className={styles.look}><CardFace card={jsonById[x.card]} shots={env.shots} w={120} /><span>{E.NICK[fc]}</span></div>)}</div></div>}
-    <div className={styles.howto}><b>How it plays.</b> Each side plays from a 15-card deck over six turns at three courts; win two. Each turn adds energy equal to the turn number, and what you don’t spend carries over. Cost comes from the card’s tier, power from that night’s Game Score (÷ 5, capped at 10), and up to two abilities from the box score. Cards from the same franchise at a court lift each other: +1, +2 from the same season, +3 from the same game.</div>
-  </div>
-}
-
-function Decks({ view, go, byId, C, setView }) {
-  return <div className={styles.page}>
-    <div className={styles.top}><Back onClick={() => go('hub')} /><div><h3>My Decks</h3><p>Five slots, 15 cards each. The active deck plays the lineups and dailies.</p></div></div>
-    <div className={styles.list}>{view.decks.map((d, k) => {
-      if (!d) return <button key={k} type="button" className={`${styles.tile} ${styles.newDeck}`} onClick={() => go('build', { slot: k, name: `Deck ${k + 1}`, ids: [] })}><b>+ New deck</b><small>Slot {k + 1}</small></button>
-      const cs = d.ids.map(id => byId[id]).filter(Boolean)
-      const dup = !onePer(cs), ok = cs.length === 15 && !dup
-      return <div key={k} className={styles.tile}>
-        <div className={styles.row}>
-          <div><b className={styles.cond}>{d.name}</b>{view.active === k && <em className={styles.badge}>Active</em>}<small>{ok ? `15 cards · avg cost ${avg(cs, c => c.cost)} · avg power ${avg(cs, c => c.pw)}` : dup ? 'Has two cards of one player. Edit it to keep one.' : `${15 - cs.length} card${15 - cs.length === 1 ? '' : 's'} no longer in your binder`}</small></div>
-          <div className={styles.btns}>{view.active !== k && ok && <button type="button" className={styles.ghost} onClick={async () => { const v = await C.clashActive(k); if (v) setView(v) }}>Use</button>}
-            <button type="button" className={styles.btn} onClick={() => go('build', { slot: k, name: d.name, ids: cs.map(c => c.id) })}>Edit</button></div>
-        </div>
-        <div className={styles.strip}>{cs.slice().sort((a, b) => b.pw - a.pw).slice(0, 8).map(c => <span key={c.k} style={{ background: col(c) }}>{E.initials(c.n)}</span>)}</div>
-      </div>
-    })}</div>
-  </div>
-}
-
-// How a card would fit the deck so far: the best synergy it has with a card already in it
-function fitWith(c, deck, pairs) {
+// ── Deck builder: a full-screen game screen. The deck sits in cost columns up top, your binder fills the rest, and a
+// tap opens the big card view. Sort slides in from the left, search and filters from the right. ──
+const BSORTS = [['cost', 'Energy cost', 1], ['pw', 'Power', -1], ['gs', 'Game Score', -1], ['syn', 'Synergy', -1], ['date', 'Game date', -1], ['name', 'Name', 1]]
+const BSORT_SHORT = { cost: 'COST', pw: 'POWER', gs: 'GS', syn: 'SYN', date: 'DATE', name: 'A–Z' }
+const SYN_LV = [['fr', 'Franchise', 1], ['season', 'Season', 2], ['game', 'Game', 3]]
+const TIER_BG = ['', '#c9d3df', '#7fbaff', '#cf9cff', '#ffd36b', '#ff9a6b', '#ffe08a']
+const TIER_RAY = ['', 'rgba(200,215,235,.10)', 'rgba(110,170,255,.14)', 'rgba(190,130,255,.15)', 'rgba(255,205,90,.17)', 'rgba(255,130,80,.17)', 'rgba(255,225,140,.2)']
+// What a card adds to a deck: the best franchise synergy it has with a card there (+1 franchise, +2 season, +3 game),
+// plus +1 for a Real Duo. Both only count when the two share a court.
+function synRows(c, deck, pairs) {
   let best = null
   for (const o of deck) {
-    if (o.id === c.id) continue
-    if (o.fc === c.fc) {
-      const t = o.g === c.g ? 3 : o.s === c.s ? 2 : 1
-      if (!best || t > best.v) best = { v: t, t: t === 3 ? 'Same game' : t === 2 ? 'Same season' : 'Same franchise', with: o }
-    }
-    if (pairs && o.n !== c.n && (pairs.get([o.n, c.n].sort().join('|')) || 0) >= 100 && (!best || best.v < 1.5)) best = { v: 1.5, t: 'Real Duo', with: o }
+    if (o.id === c.id || o.n === c.n || o.fc !== c.fc) continue
+    const v = o.g === c.g ? 3 : o.s === c.s ? 2 : 1
+    if (!best || v > best.v) best = { v, t: v === 3 ? 'Same game' : v === 2 ? 'Same season' : 'Same franchise', with: o }
   }
-  return best
+  const rows = best ? [best] : []
+  const duo = pairs && deck.find(o => o.id !== c.id && o.n !== c.n && (pairs.get([o.n, c.n].sort().join('|')) || 0) >= 100)
+  if (duo) rows.push({ v: 1, t: 'Real Duo', with: duo })
+  return { v: rows.reduce((s, r) => s + r.v, 0), rows }
 }
-const SORTS = [['pw', 'Power'], ['cost', 'Cost'], ['gs', 'Game Score'], ['new', 'Newest'], ['old', 'Oldest']]
+// The cards that would share a synergy level with card f
+const synMatch = (f, lv) => c => c.fc === f.fc && c.n !== f.n && (lv === 'game' ? c.g === f.g : lv === 'season' ? c.s === f.s : true)
+function useWidth(ref) {
+  const [w, setW] = useState(0)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    setW(el.clientWidth)
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setW(el.clientWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return w
+}
+const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+const Svg = ({ d, size = 18, w = 3 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+
 function Build({ scr, go, binder, byId, C, setView }) {
   const team = scr.team || null
   const [ids, setIds] = useState(scr.ids)
   const [name, setName] = useState(scr.name)
   const [q, setQ] = useState('')
-  const [fr, setFr] = useState(null)
-  const [cost, setCost] = useState(null)
-  const [ab, setAb] = useState(null)
-  const [syn, setSyn] = useState(false)
-  const [sort, setSort] = useState('pw')
+  const [frs, setFrs] = useState([])
+  const [costs, setCosts] = useState([])
+  const [abs, setAbs] = useState([])
+  const [fit, setFit] = useState(false)
+  const [alt, setAlt] = useState(true)
+  const [showIn, setShowIn] = useState(true)
+  const [focus, setFocus] = useState(null)
+  const [sort, setSort] = useState(['cost', 1])
+  const [drawer, setDrawer] = useState(null)
+  const [insp, setInsp] = useState(null)
+  const [fly, setFly] = useState(null)
+  const [landed, setLanded] = useState(null)
+  const [backId, setBackId] = useState(null)
+  const [pop, setPop] = useState(null)
+  const [toast, setToast] = useState(null)
+  const [leaving, setLeaving] = useState(false)
   const [more, setMore] = useState(60)
   const [pairs, setPairs] = useState(null)
+  const gridRef = useRef(null), moreRef = useRef(null), bigRef = useRef(null), ghostRef = useRef(null), trayRef = useRef(null)
+  const start = useRef(scr.ids.join(','))
+  const trayW = useWidth(trayRef), gridW = useWidth(gridRef)
   useEffect(() => { fetch('/data/clash/pairs.json').then(r => (r.ok ? r.json() : [])).then(a => setPairs(new Map(a.map(([x, y, n]) => [`${x}|${y}`, n])))).catch(() => setPairs(new Map())) }, [])
-  useEffect(() => { setMore(60) }, [q, fr, cost, ab, syn, sort])
-  const own = team ? binder.filter(c => c.fc === team) : binder
-  const cs = ids.map(id => byId[id]).filter(Boolean).sort((a, b) => a.cost - b.cost || b.pw - a.pw)
-  const fits = useMemo(() => Object.fromEntries(own.map(c => [c.id, fitWith(c, cs, pairs)])), [own, ids, pairs])
-  const franchises = useMemo(() => { const m = {}; own.forEach(c => { m[c.fc] = (m[c.fc] || 0) + 1 }); return Object.entries(m).sort((a, b) => b[1] - a[1]) }, [own])
+  useEffect(() => { const o = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = o } }, [])
+  useEffect(() => { setMore(60); gridRef.current?.scrollTo?.({ top: 0 }) }, [q, frs, costs, abs, fit, alt, showIn, focus, sort])
+  useEffect(() => {
+    const k = e => { if (e.key !== 'Escape') return; if (insp) setInsp(null); else if (drawer) setDrawer(null); else if (leaving) setLeaving(false) }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [insp, drawer, leaving])
+
+  const own = useMemo(() => (team ? binder.filter(c => c.fc === team) : binder), [binder, team])
+  const cs = useMemo(() => ids.map(id => byId[id]).filter(Boolean).sort((a, b) => a.cost - b.cost || b.pw - a.pw), [ids, byId])
+  const inDeck = useMemo(() => new Set(ids), [ids])
+  const deckBy = useMemo(() => Object.fromEntries(cs.map(c => [c.n, c])), [cs])
+  const syn = useMemo(() => { const m = {}; own.forEach(c => { m[c.id] = synRows(c, cs, pairs) }); cs.forEach(c => { if (!m[c.id]) m[c.id] = synRows(c, cs, pairs) }); return m }, [own, cs, pairs])
+  const franchises = useMemo(() => { const m = {}; own.forEach(c => { m[c.fc] = (m[c.fc] || 0) + 1 }); return Object.entries(m).sort((a, b) => (E.NICK[a[0]] || a[0]).localeCompare(E.NICK[b[0]] || b[0])) }, [own])
   const abilities = useMemo(() => { const m = {}; own.forEach(c => c.ab.forEach(a => { m[a] = (m[a] || 0) + 1 })); return Object.entries(m).sort((a, b) => E.AB_ORDER.indexOf(a[0]) - E.AB_ORDER.indexOf(b[0])) }, [own])
-  let pool = own
-  if (q) pool = pool.filter(c => c.n.toLowerCase().includes(q.toLowerCase()))
-  if (fr) pool = pool.filter(c => c.fc === fr)
-  if (cost) pool = pool.filter(c => c.cost === cost)
-  if (ab) pool = pool.filter(c => c.ab.includes(ab))
-  if (syn) pool = pool.filter(c => fits[c.id] && !ids.includes(c.id))
-  const key = { pw: c => -c.pw * 100 + c.cost, cost: c => c.cost * 100 - c.pw, gs: c => -c.gs, new: c => -Date.parse(c.d), old: c => Date.parse(c.d) }[sort]
-  pool = pool.slice().sort((a, b) => (syn ? (fits[b.id]?.v || 0) - (fits[a.id]?.v || 0) : 0) || key(a) - key(b))
-  const synCount = own.filter(c => fits[c.id] && !ids.includes(c.id)).length
-  const cnt = [1, 2, 3, 4, 5, 6].map(k => cs.filter(c => c.cost === k).length), mx = Math.max(1, ...cnt)
-  const deckSyn = cs.filter(c => fitWith(c, cs, pairs)).length
-  // One card per player: picking another card of a player already in the deck swaps it in for the one there
-  const toggle = id => setIds(x => {
-    if (x.includes(id)) return x.filter(y => y !== id)
-    const same = x.find(y => byId[y]?.n === byId[id].n)
-    if (same != null) return x.map(y => (y === same ? id : y))
-    return x.length >= 15 ? x : [...x, id]
-  })
+  const synTotal = cs.reduce((s, c) => s + (syn[c.id]?.v || 0), 0)
   const dupNames = cs.length - new Set(cs.map(c => c.n)).size
+  const full = cs.length >= 15
+  const fF = focus && byId[focus.id] ? { ...focus, c: byId[focus.id] } : null
+
+  let pool = own
+  if (fF) pool = pool.filter(synMatch(fF.c, fF.lv))
+  if (q) { const s = q.toLowerCase().trim(); pool = pool.filter(c => E.cleanName(c.n).toLowerCase().includes(s) || (E.NICK[c.fc] || '').toLowerCase().includes(s) || String(c.s).includes(s)) }
+  if (frs.length) pool = pool.filter(c => frs.includes(c.fc))
+  if (costs.length) pool = pool.filter(c => costs.includes(c.cost))
+  if (abs.length) pool = pool.filter(c => abs.some(a => c.ab.includes(a)))
+  if (fit) pool = pool.filter(c => !inDeck.has(c.id) && syn[c.id]?.v)
+  if (!alt) pool = pool.filter(c => inDeck.has(c.id) || !deckBy[c.n])
+  if (!showIn) pool = pool.filter(c => !inDeck.has(c.id))
+  const [sk, sd] = sort
+  const key = { cost: c => c.cost * 100 - c.pw, pw: c => c.pw * 100 - c.cost, gs: c => c.gs, syn: c => (syn[c.id]?.v || 0) * 100 + c.pw, date: c => Date.parse(c.d) || 0 }[sk]
+  pool = pool.slice().sort((a, b) => (sk === 'name' ? E.lastName(a.n).localeCompare(E.lastName(b.n)) || a.cost - b.cost : key(a) - key(b)) * sd)
+  const nf = frs.length + costs.length + abs.length + (fit ? 1 : 0) + (q ? 1 : 0) + (alt ? 0 : 1) + (showIn ? 0 : 1)
+
+  useEffect(() => {
+    const el = moreRef.current, root = gridRef.current
+    if (!el || !root || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(es => { if (es[0].isIntersecting) setMore(m => m + 60) }, { root, rootMargin: '400px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [pool.length > more, more])
+
+  // Sizes: six cost columns across the tray; four cards a row in the binder (five on a wider screen)
+  const colW = trayW ? (trayW - 20 - 5 * 6) / 6 : 56
+  const tw = Math.max(36, Math.min(76, Math.floor(colW - 6)))
+  const stackH = Math.round(tw * 1.4 * 1.8)
+  const cols = gridW > 500 ? 5 : 4
+  const gw = gridW ? Math.min(110, Math.floor((gridW - 24 - (cols - 1) * 8) / cols)) : 80
+
+  const say = t => { setToast({ t, n: Date.now() }); setTimeout(() => setToast(x => (x && x.t === t ? null : x)), 1800) }
+  const land = (id, v) => {
+    setLanded(id); setPop({ id, t: v ? `+${v} synergy` : 'Added', n: Date.now() })
+    setTimeout(() => { setLanded(x => (x === id ? null : x)); setPop(x => (x && x.id === id ? null : x)) }, 1300)
+  }
+  const add = id => {
+    const c = byId[id], rest = cs.filter(o => o.n !== c.n)
+    if (rest.length >= 15) { say('Take a card out first'); return }
+    const from = bigRef.current?.getBoundingClientRect()
+    const v = synRows(c, rest, pairs).v
+    setIds(x => [...x.filter(z => byId[z]?.n !== c.n), id])
+    setInsp(null)
+    if (from && from.width && !reducedMotion()) setFly({ id, from, v }); else land(id, v)
+  }
+  const remove = id => {
+    setIds(x => x.filter(z => z !== id)); setInsp(null); setBackId(id)
+    say(`${E.lastName(byId[id].n)} ${yr(byId[id])} is out`)
+    if (focus?.id === id) setFocus(null)
+    setTimeout(() => setBackId(x => (x === id ? null : x)), 800)
+  }
+  // The card flies from the big view into its column, then the column lights up
+  useLayoutEffect(() => {
+    if (!fly) return
+    const g = ghostRef.current, t = trayRef.current?.querySelector(`[data-k="${fly.id}"]`)
+    if (!g || !t || !g.animate) { setFly(null); land(fly.id, fly.v); return }
+    const a = fly.from, b = t.getBoundingClientRect(), s = b.width / a.width, dx = b.left - a.left, dy = b.top - a.top
+    const anim = g.animate([
+      { transform: 'translate(0px, 0px) scale(1) rotate(0deg)', filter: 'brightness(1)' },
+      { transform: `translate(${dx * 0.2}px, ${dy * 0.2 - 36}px) scale(.78) rotate(-7deg)`, filter: 'brightness(1.3)', offset: 0.35 },
+      { transform: `translate(${dx}px, ${dy}px) scale(${s}) rotate(0deg)`, filter: 'brightness(1.8)' }
+    ], { duration: 560, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' })
+    const f = fly
+    anim.onfinish = () => { setFly(null); land(f.id, f.v) }
+  }, [fly])
+
+  const open = id => setInsp({ id, dir: 0, n: (insp?.n || 0) + 1 })
+  const nav = insp ? (pool.some(c => c.id === insp.id) ? pool : cs).map(c => c.id) : []
+  const step = d => { if (!insp || !nav.length) return; const i = nav.indexOf(insp.id); setInsp({ id: nav[(i + d + nav.length) % nav.length], dir: d, n: insp.n + 1 }) }
   const back = () => (team ? go('frd', { fc: team }) : go('decks'))
-  const save = async () => { const v = await C.clashDeck(team ? { team, ids } : { slot: scr.slot, name, ids }); if (v) { setView(v); back() } }
-  const anyFilter = q || fr || cost || ab || syn
-  return <div className={styles.builder} style={team ? { '--c': E.COLOR[team] } : undefined}>
-    <div className={styles.bHead}>
-      <Back onClick={back} />
-      <div className={styles.bTitle}>{team ? <h3>{E.NICK[team]} deck</h3> : <input className={styles.nameIn} value={name} maxLength={24} onChange={e => setName(e.target.value)} aria-label="Deck name" />}
-        <small>{team ? `${E.NICK[team]} cards only · one card per player` : 'Lineups and daily challenges · one card per player'}</small></div>
-      <div className={styles.meter} style={{ '--p': cs.length / 15 }}><b>{cs.length}</b><small>/15</small></div>
-    </div>
-    <div className={styles.shelf} aria-label="Your deck">
-      {cs.map((c, i) => <div key={c.k} className={styles.shelfCard} style={{ '--i': i }}><Chip c={c} side="p" w={64} cost={c.cost} onClick={() => toggle(c.id)} label={`Take ${E.cleanName(c.n)} out of the deck`} /><span className={styles.x} aria-hidden="true">×</span></div>)}
-      {Array.from({ length: 15 - cs.length }, (_, k) => <i key={k} className={styles.shelfEmpty} />)}
-    </div>
-    <div className={styles.stats}>
-      <div className={styles.curve} aria-label="Energy curve">{cnt.map((n, k) => <div key={k}><i style={{ height: Math.max(3, (n / mx) * 34) }} /><span>{k + 1}</span></div>)}</div>
-      <dl><div><dt>Avg cost</dt><dd>{avg(cs, c => c.cost)}</dd></div><div><dt>Avg power</dt><dd>{avg(cs, c => c.pw)}</dd></div><div><dt>Abilities</dt><dd>{cs.reduce((s, c) => s + c.ab.length, 0)}</dd></div><div><dt>In synergy</dt><dd>{deckSyn}</dd></div></dl>
-    </div>
-    <div className={styles.fbar}>
-      <input className={styles.search} type="search" placeholder="Search players" value={q} onChange={e => setQ(e.target.value)} aria-label="Search players" />
-      <select className={styles.sortSel} value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort by">{SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
-    </div>
-    <div className={styles.fgroup}>
-      <button type="button" className={`${styles.synBtn} ${syn ? styles.on : ''}`} aria-pressed={syn} disabled={!cs.length} onClick={() => setSyn(v => !v)}>
-        <b>Fits my deck</b><small>{cs.length ? `${synCount} card${synCount === 1 ? '' : 's'} with a synergy` : 'Add a card first'}</small></button>
-      {anyFilter && <button type="button" className={styles.clear} onClick={() => { setQ(''); setFr(null); setCost(null); setAb(null); setSyn(false) }}>Clear filters</button>}
-    </div>
-    <div className={styles.frow} aria-label="Cost">{[1, 2, 3, 4, 5, 6].map(k => <button key={k} type="button" className={`${styles.gem} ${cost === k ? styles.on : ''}`} aria-pressed={cost === k} onClick={() => setCost(c => (c === k ? null : k))}><b>{k}</b><small>{E.TIER_NAME[k]}</small></button>)}</div>
-    {!team && <div className={styles.frow} aria-label="Franchise">{franchises.map(([f, n]) => <button key={f} type="button" className={`${styles.frBtn} ${fr === f ? styles.on : ''}`} style={{ '--c': E.COLOR[f] }} aria-pressed={fr === f} onClick={() => setFr(x => (x === f ? null : f))}>
-      {binderLogo(f) ? <img src={binderLogo(f)} alt="" onError={e => { e.currentTarget.replaceWith(Object.assign(document.createElement('b'), { textContent: f })) }} /> : <b>{f}</b>}<small>{E.NICK[f]} · {n}</small></button>)}</div>}
-    <div className={styles.frow} aria-label="Ability">{abilities.map(([a, n]) => <button key={a} type="button" className={`${styles.abBtn} ${ab === a ? styles.on : ''}`} aria-pressed={ab === a} onClick={() => setAb(x => (x === a ? null : a))} title={E.AB[a].t({ pts: 60, blk: 9, stl: 9, ast: 15, tp: 9, fc: team || 'LAL', min: 48 })}>{E.AB[a].n}<small>{n}</small></button>)}</div>
-    <div className={styles.count}>{pool.length} card{pool.length === 1 ? '' : 's'}{anyFilter ? ' match' : ''}</div>
-    {!own.length && <p className={styles.msg}>{team ? `No ${E.NICK[team]} game cards in your binder yet. Team packs and Hang the Banner packs bring them.` : 'No game cards in your binder yet.'}</p>}
-    <div className={styles.grid}>{pool.slice(0, more).map(c => {
-      const inDeck = ids.includes(c.id), fit = fits[c.id], twin = !inDeck && cs.find(o => o.n === c.n)
-      return <div key={c.k} className={`${styles.cell} ${inDeck ? styles.inDeck : ''}`}>
-        <Chip c={c} side="p" w={104} cost={c.cost} onClick={() => toggle(c.id)} label={`${inDeck ? 'Take out' : 'Add'} ${E.cleanName(c.n)}, ${fmtDate(c.d)}, cost ${c.cost}, power ${c.pw}`} />
-        {inDeck && <span className={styles.check} aria-hidden="true">✓</span>}
-        <span className={styles.cellName}>{E.lastName(c.n)} <em>{yr(c)}</em></span>
-        {c.ab.length > 0 && <span className={styles.cellAb}>{c.ab.map(a => E.AB[a].n).join(' · ')}</span>}
-        {twin && <span className={styles.cellSwap}>Swaps for his {yr(twin)} card</span>}
-        {fit && !inDeck && !twin && <span className={styles.cellFit} data-v={Math.floor(fit.v)}>+{Math.floor(fit.v) || 1} {fit.t} · {E.lastName(fit.with.n)}</span>}
+  const tryBack = () => (ids.join(',') !== start.current ? setLeaving(true) : back())
+  const save = async () => {
+    if (cs.length !== 15) { say(`Add ${15 - cs.length} more`); return }
+    if (dupNames) { say('One card per player'); return }
+    const v = await C.clashDeck(team ? { team, ids } : { slot: scr.slot, name, ids })
+    if (v) { setView(v); back() }
+  }
+  const tog = set => v => set(a => (a.includes(v) ? a.filter(x => x !== v) : [...a, v]))
+  const clearAll = () => { setQ(''); setFrs([]); setCosts([]); setAbs([]); setFit(false); setAlt(true); setShowIn(true) }
+
+  const ic = insp && byId[insp.id]
+  return createPortal(<div className={`${styles.root} ${styles.bx}`}>
+    <div className={styles.bxIn} style={team ? { '--c': E.COLOR[team] } : undefined}>
+      <div className={styles.bxHead}>
+        <button type="button" className={styles.bxIcon} onClick={tryBack} aria-label="Back"><Svg d="M15 5l-7 7 7 7" /></button>
+        <div className={styles.bxPlate}>{team ? <h3>{E.NICK[team]} deck</h3> : <input value={name} maxLength={24} onChange={e => setName(e.target.value)} aria-label="Deck name" />}</div>
+        <div className={styles.bxCount} data-full={full ? '' : undefined}><b>{cs.length}</b><small>/15</small></div>
       </div>
-    })}</div>
-    {pool.length > more && <div style={{ padding: '0 14px 20px' }}><button type="button" className={styles.ghost} style={{ width: '100%' }} onClick={() => setMore(m => m + 60)}>Show {Math.min(60, pool.length - more)} more</button></div>}
-    <div className={styles.sticky}><button type="button" className={styles.ghost} onClick={back}>Cancel</button><button type="button" className={styles.btn} disabled={cs.length !== 15 || dupNames > 0} onClick={save}>{dupNames ? 'One card per player' : cs.length === 15 ? 'Save deck' : `Add ${15 - cs.length} more`}</button></div>
-  </div>
-}
+      <div className={styles.bxSegs} data-full={full ? '' : undefined} aria-hidden="true">{Array.from({ length: 15 }, (_, i) => <i key={i} data-on={i < cs.length ? '' : undefined} />)}</div>
 
-function Franchises({ D, view, go }) {
-  const pr = view.prog || {}
-  return <div className={styles.page}>
-    <div className={styles.top}><Back onClick={() => go('hub')} /><div><h3>Franchise Challenges</h3><p>Your franchise cards against the franchise’s own history, at its home courts</p></div></div>
-    <div className={styles.tgrid}>{E.FRANCHISES.slice().sort((a, b) => E.NICK[a].localeCompare(E.NICK[b])).map(fc => <button key={fc} type="button" className={styles.team} style={{ '--c': E.COLOR[fc] }} onClick={() => go('frd', { fc })}>
-      {binderLogo(fc) ? <img src={binderLogo(fc)} alt="" onError={e => { e.currentTarget.style.visibility = 'hidden' }} /> : null}<b>{E.NICK[fc]}</b>
-      <span className={styles.pips}>{E.LEVELS.map(l => <i key={l} data-on={pr[fc]?.[l] ? '' : undefined} />)}</span>{view.claims?.[fc] && <em>★</em>}
-    </button>)}</div>
-    <h4 className={styles.sh}>All-time lineups · any deck, random courts</h4>
-    <div className={styles.list}>{D.lineups.map(L => <button key={L.id} type="button" className={styles.tile} onClick={() => go('frd', { ln: L.id })}>
-      <div className={styles.row}><div><b className={styles.cond}>{L.name}</b><small>{L.desc}</small></div><span className={styles.pips}>{(L.fixed ? ['brutal'] : E.LEVELS).map(l => <i key={l} data-on={pr[`L:${L.id}`]?.[l] ? '' : undefined} />)}</span></div>
-    </button>)}</div>
-  </div>
-}
+      <div className={styles.bxTray} ref={trayRef} aria-label="Your deck, by energy cost">
+        {[1, 2, 3, 4, 5, 6].map(k => {
+          const col = cs.filter(c => c.cost === k), n = col.length, ch = tw * 1.4
+          const off = n > 1 ? Math.min(tw * 0.5, (stackH - ch) / (n - 1)) : 0
+          return <div key={k} className={styles.bxCol}>
+            <div className={styles.bxColHead}><b>{k}</b><small>{n || ''}</small></div>
+            <div className={styles.bxStack} style={{ height: stackH }}>
+              {col.map((c, i) => <div key={c.id} data-k={c.id} className={`${styles.bxSlot} ${landed === c.id ? styles.bxLand : ''}`} style={{ top: i * off, zIndex: i + 1, visibility: fly?.id === c.id ? 'hidden' : undefined }}>
+                <Chip c={c} side="p" w={tw} cost={c.cost} onClick={() => open(c.id)} label={`${E.cleanName(c.n)} ${yr(c)}, in your deck`} />
+                {syn[c.id]?.v > 0 && <span className={styles.bxSynDot}>+{syn[c.id].v}</span>}
+                {pop?.id === c.id && <span key={pop.n} className={styles.bxPop}>{pop.t}</span>}
+              </div>)}
+              {!n && <span className={styles.bxColEmpty}>{E.TIER_NAME[k]}</span>}
+            </div>
+          </div>
+        })}
+      </div>
+      <div className={styles.bxRule} />
 
-function FranchiseDetail({ D, view, scr, go, start, teamDeck, activeDeck, byId, jsonById, binder, env }) {
-  const { fc, ln } = scr, isL = ln != null, L = isL ? D.lineups.find(x => x.id === ln) : null
-  const key = isL ? `L:${ln}` : fc, pr = view.prog?.[key] || {}
-  const levels = isL && L.fixed ? ['brutal'] : E.LEVELS
-  const td = isL ? null : teamDeck(fc).map(id => byId[id]).filter(Boolean)
-  const ad = activeDeck()
-  const open = lv => isL || lv === 'easy' || !!pr[E.LEVELS[E.LEVELS.indexOf(lv) - 1]]
-  const ready = isL ? !!ad : td.length === 15
-  const claim = !isL && view.claims?.[fc]
-  const sampleId = claim ? claim.card : td?.slice().sort((a, b) => b.pw - a.pw)[0]?.id
-  const sample = sampleId ? jsonById[sampleId] : !isL ? asJson(E.deckOf(D, D.franchise[fc].brutal.ids).sort((a, b) => b.pw - a.pw)[0], D) : null
-  return <div className={styles.page} style={{ '--c': isL ? '#173657' : E.COLOR[fc] }} data-team="">
-    <div className={styles.top}><Back onClick={() => go('fr')} /><div><h3>{isL ? L.name : D.teams[fc]?.name}</h3><p>{isL ? L.desc : `${E.NICK[fc]} cards only · played at ${E.NICK[fc]} home courts · beat each level to open the next`}</p></div></div>
-    <div className={styles.list}>
-      {isL ? <div className={styles.tile}><small>You play with</small><b className={styles.cond}>{ad ? ad.name : 'No active deck'}</b><small>Any cards from any franchise. The courts are a surprise.</small>{!ad && <button type="button" className={styles.btn} onClick={() => go('decks')}>Build a deck</button>}</div>
-        : <div className={styles.tile}>
-          <div className={styles.row}><div><small>Your {E.NICK[fc]} deck</small><b className={styles.cond}>{td.length}/15 {E.NICK[fc]} players{ready ? ` · avg power ${avg(td, c => c.pw)}` : ''}</b></div>
-            <button type="button" className={styles.ghost} onClick={() => go('build', { team: fc, ids: td.map(c => c.id) })}>Edit</button></div>
-          <div className={styles.strip}>{td.slice().sort((a, b) => b.pw - a.pw).slice(0, 8).map(c => <span key={c.k} style={{ background: col(c) }}>{E.initials(c.n)}</span>)}</div>
-          <small>{ready ? `Built from the best of your ${binder.filter(c => c.fc === fc).length} ${E.NICK[fc]} cards. Edit to swap any.` : `A franchise deck needs 15 different players; you have ${td.length}. Team packs and Hang the Banner packs bring more.`}</small>
-        </div>}
-      {levels.map(lv => {
-        const cs = E.deckOf(D, isL ? L[lv] : D.franchise[fc][lv].ids), anchor = !isL && D.franchise[fc][lv].anchor
-        const top = cs.slice().sort((a, b) => b.pw - a.pw || b.cost - a.cost).slice(0, 3), o = open(lv)
-        return <div key={lv} className={`${styles.tile} ${o ? '' : styles.locked}`}>
-          <div className={styles.diff}><div className={styles.lv} style={{ '--lc': LEVEL_COL[lv] }}>{!o && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>}{E.LEVEL_NAME[lv]}{pr[lv] && <small>Beaten</small>}</div>
-            <div><small>{LEVEL_TXT[lv]}{anchor ? ` Built around the ${anchor} ${E.NICK[fc]}.` : ''}</small><span><b>{o ? 'Win:' : 'Locked:'}</b> {o ? (isL ? 'No reward set yet' : FR_WIN[lv]) : `Beat ${E.LEVEL_NAME[E.LEVELS[E.LEVELS.indexOf(lv) - 1]]} to open it`}</span></div></div>
-          {o && <div className={styles.playRow}>{top.map(c => <Chip key={c.k} c={c} side="c" w={46} />)}<small>+{cs.length - 3} more · avg power {avg(cs, c => c.pw)}</small>
-            <button type="button" className={styles.btn} disabled={!ready} onClick={() => start({ mode: isL ? 'lineup' : 'fr', fc: isL ? null : fc, ln: isL ? ln : null, level: lv, ids: isL ? ad.ids : td.map(c => c.id) })}>Play</button></div>}
+      <div className={styles.bxBar}>
+        <span className={styles.bxShown}>{pool.length} card{pool.length === 1 ? '' : 's'}</span>
+        <button type="button" className={styles.bxToggle} aria-pressed={alt} onClick={() => setAlt(v => !v)}>Other versions<i className={styles.bxSw} /></button>
+        {fF && <div className={styles.bxFocus}><span>Synergy with <b>{E.lastName(fF.c.n)} {yr(fF.c)}</b> · {SYN_LV.find(l => l[0] === fF.lv)[1]} (+{SYN_LV.find(l => l[0] === fF.lv)[2]})</span>
+          <button type="button" onClick={() => setFocus(null)} aria-label="Stop filtering to this card's synergies"><Svg d="M6 6l12 12M18 6L6 18" size={14} /></button></div>}
+      </div>
+
+      <div className={styles.bxGrid} ref={gridRef}>
+        {!own.length && <p className={styles.bxNone}>{team ? `No ${E.NICK[team]} game cards in your binder yet. Team packs and Hang the Banner packs bring them.` : 'No game cards in your binder yet.'}</p>}
+        {own.length > 0 && !pool.length && <p className={styles.bxNone}>No cards match. <button type="button" className={styles.bxLink} onClick={() => { clearAll(); setFocus(null) }}>Clear filters</button></p>}
+        <div className={styles.bxCards} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {pool.slice(0, more).map(c => {
+            const d = inDeck.has(c.id), twin = !d && deckBy[c.n], v = syn[c.id]?.v || 0
+            return <div key={c.k} className={`${styles.bxCell} ${backId === c.id ? styles.bxRet : ''}`}>
+              <Chip c={c} side="p" w={gw} cost={c.cost} onClick={() => open(c.id)} label={`${E.cleanName(c.n)}, ${fmtDate(c.d)}, cost ${c.cost}, power ${c.pw}${d ? ', in your deck' : twin ? `, would swap for his ${yr(twin)} card` : ''}`} />
+              {d && <span className={styles.bxDim}><span>In deck</span></span>}
+              {twin && <span className={styles.bxTag} data-k="swap">Swap {yr(twin)}</span>}
+              {!d && !twin && v > 0 && <span className={styles.bxTag} data-k="fit" data-v={Math.min(3, v)}>▲ +{v}</span>}
+            </div>
+          })}
         </div>
-      })}
-      <p className={styles.note}>{AI_NOTE}</p>
-    </div>
-    {!isL && sample && <>
-      <h4 className={styles.sh}>The Brutal reward · a {E.NICK[fc]} redesign</h4>
-      <p className={styles.note} style={{ padding: '0 14px' }}>{claim ? `Claimed: ${LOOKS.find(l => l[0] === claim.style)[1]}.` : 'Beat Brutal and pick one card from the deck that won. It wears one of these for good, and no other card in your binder looks like it.'}</p>
-      <div className={styles.hscroll}>{LOOKS.map(([id, n, d]) => <div key={id} className={styles.look}><CardFace card={{ ...sample, clash: { fc, style: id } }} shots={env.shots} w={150} /><b>{n}</b><small>{d}</small></div>)}</div>
-      {!claim && td.length > 0 && <div style={{ padding: '0 14px 24px' }}><button type="button" className={styles.ghost} style={{ width: '100%' }} onClick={() => go('claim', { fc, ids: td.map(c => c.id), demo: true })}>Preview the claim screen</button></div>}
-    </>}
-  </div>
-}
-
-function Daily({ D, view, go, start, activeDeck, jsonById, env }) {
-  const day = view.day, ad = activeDeck()
-  return <div className={styles.page}>
-    <div className={styles.top}><Back onClick={() => go('hub')} /><div><h3>Daily Challenges</h3><p>{new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })} · any deck, surprise courts · resets at midnight ET</p></div></div>
-    <p className={styles.note} style={{ padding: '0 14px' }}>{AI_NOTE}</p>
-    <div className={styles.list}>
-      {!ad && <div className={styles.tile}><small>No active deck yet</small><button type="button" className={styles.btn} onClick={() => go('decks')}>Build a deck</button></div>}
-      {E.LEVELS.map(lv => {
-        const cs = E.dailyDeck(D, day, lv), done = view.daily?.[lv]
-        return <div key={lv} className={styles.tile}><div className={styles.diff}>
-          <div className={styles.lv} style={{ '--lc': LEVEL_COL[lv] }}>{E.LEVEL_NAME[lv]}{done && <small>Done</small>}</div>
-          <div><small>{new Set(cs.map(c => c.fc)).size} franchises · avg power {avg(cs, c => c.pw)} · {DAILY_TXT[lv]}</small><span><b>Win:</b> {DAILY_WIN[lv]}</span></div>
-          {done ? (done.card ? <span className={styles.pullThumb}><CardFace card={done.card} shots={env.shots} w={56} /></span> : null)
-            : <button type="button" className={styles.btn} disabled={!ad} onClick={() => start({ mode: 'daily', level: lv, ids: ad.ids })}>Play</button>}
-        </div></div>
-      })}
-    </div>
-  </div>
-}
-
-function Match({ M, setM, go, C, setView, D, env, jsonById, start }) {
-  const st = M.st
-  const [sheet, setSheet] = useState(null)
-  const live = useRef(M); live.current = M
-  const spent = M.staged.reduce((s, x) => s + E.costOf(st, st.cards[x.k], x.li), 0)
-  const left = st.energy.p - spent
-  const cards = M.anim?.cards || st.cards
-  const B = M.anim ? M.anim.board : E.board(st)
-  const fxBy = {}; (M.anim?.fx || []).forEach(f => { fxBy[f.u] = f })
-  const sel = M.sel
-  const proj = li => {
-    if (!sel || M.phase !== 'plan') return null
-    const c = st.cards[sel]
-    if (!E.canPlayAt(st, 'p', li, M.staged.filter(x => x.li === li).length) || E.costOf(st, c, li) > left) return null
-    return E.project(st, M.staged, sel, li)
-  }
-  const endTurn = async () => {
-    if (M.phase !== 'plan') return
-    setM(m => ({ ...m, phase: 'cpu', sel: null }))
-    const d = await C.clashTurn(M.id, M.staged.map(x => ({ k: x.k, li: x.li })))
-    if (!d) { setM(m => ({ ...m, phase: 'plan' })); return }
-    const allCards = { ...st.cards, ...d.view.cards }
-    for (const s of d.steps) {
-      if (s.skip) continue
-      const pc = allCards[s.k], call = s.end ? null : { li: s.li, side: s.side, name: pc ? E.lastName(pc.n) : '', abs: (pc?.ab || []).filter(a => E.AB[a].k === 'On reveal' && s.fx.some(f => f.t.includes(E.AB[a].n))), fx: s.fx.slice(0, 3) }
-      setM(m => ({ ...m, phase: 'reveal', anim: { board: s.board, fx: s.fx, flash: s.u, cards: allCards, call, n: (m.anim?.n || 0) + 1 } }))
-      await sleep(s.end ? (s.fx.length ? 1000 : 150) : STEP_MS)
-    }
-    setM(m => ({ ...m, st: E.fromPublic(d.view), staged: [], anim: null, phase: d.over ? 'over' : 'plan', over: d.over, reward: d.reward }))
-    if (d.clash) setView(d.clash)
-  }
-  const stage = li => {
-    if (!sel || M.phase !== 'plan') { const L = st.locs[li]; if (L.revealed) setSheet({ loc: L.id }); return }
-    if (!proj(li)) return
-    setM(m => ({ ...m, staged: [...m.staged, { k: sel, li }], sel: null }))
-  }
-  const handFree = st.hand.p.filter(k => !M.staged.some(x => x.k === k))
-  const instAt = u => { for (const L of st.locs) for (const s of ['p', 'c']) for (const i of L[s]) if (i.u === u) return i; return null }
-  const over = M.over
-  if (M.phase === 'over' && M.showResult) return <Result M={M} go={go} D={D} env={env} start={start} />
-  const banner = M.phase === 'cpu' ? 'CPU is choosing' : null
-  return <div className={styles.match}>
-    <div className={styles.mtop}>
-      <Back onClick={() => go('hub')} label="Leave the match (it stays open on the table)" />
-      <div className={styles.turn}><b>Turn {Math.min(st.turn, 6)} <span>/ 6</span></b><small>{M.phase === 'plan' ? 'Your move' : M.phase === 'cpu' ? 'CPU is choosing' : M.phase === 'over' ? 'Final' : 'Revealing'}{M.phase === 'cpu' && <span className={styles.think}><i /><i /><i /></span>}</small></div>
-      <div className={styles.cpu}><b>CPU · {E.LEVEL_NAME[M.level]}</b><small>{st.handC} in hand · {st.deckC} in deck</small></div>
-    </div>
-    <div className={styles.board}>{st.locs.map((L, li) => {
-      const b = B[li], id = b.id, revealed = !!id
-      const mine = b.p.map(x => ({ ...x, c: cards[x.k] })), theirs = b.c.map(x => ({ ...x, c: cards[x.k] }))
-      const staged = M.anim ? [] : M.staged.filter(x => x.li === li)
-      const slots = revealed ? (E.LOCBY[id].slots || 4) : 4
-      const pj = proj(li), dim = sel && M.phase === 'plan' && !pj
-      const w = over?.w?.[li]
-      const t = over && !M.anim ? over.t[li] : b.t
-      const chip = (x, side) => <div key={x.u} className={styles.slotWrap}>
-        <Chip c={x.c} side={side} pw={x.pw} cls={M.anim?.flash === x.u ? styles.flash : ''} onClick={() => !M.anim && setSheet({ u: x.u })} />
-        {M.anim?.flash === x.u && <i className={styles.burst} data-side={side} aria-hidden="true" />}
-        {fxBy[x.u] && <span className={styles.fl} data-k={fxBy[x.u].c}>{fxBy[x.u].t}</span>}
+        {pool.length > more && <div ref={moreRef} className={styles.bxMore}>More cards…</div>}
       </div>
-      const opp = [...theirs.map(x => chip(x, 'c'))]
-      while (opp.length < slots) opp.push(<i key={`e${opp.length}`} className={styles.empty} />)
-      const you = [...mine.map(x => chip(x, 'p')), ...staged.map(x => <div key={`s${x.k}`} className={styles.slotWrap}><Chip c={st.cards[x.k]} side="p" cls={`${styles.staged} ${styles.drop}`} onClick={() => M.phase === 'plan' && setM(m => ({ ...m, staged: m.staged.filter(y => y.k !== x.k) }))} label={`Take back ${E.cleanName(st.cards[x.k].n)}`} /></div>)]
-      while (you.length < slots) you.push(<i key={`e${you.length}`} className={styles.empty} />)
-      const def = revealed ? E.LOCBY[id] : null
-      return <div key={li} className={styles.col}>
-        <div className={`${styles.slots} ${styles.opp}`}>{opp.reverse()}</div>
-        <button type="button" className={`${styles.loc} ${pj ? styles.target : ''} ${dim ? styles.dim : ''}`} onClick={() => stage(li)} aria-label={def ? `${def.name}: ${def.rule}. ${def.fx}` : `Court ${li + 1}, revealed on turn ${li + 1}`}>
-          <Floor id={id} revealed={revealed}>{w && <div className={styles.wash} data-w={w} />}<div className={styles.sc}><span key={`p${t.p}`} className={M.anim ? styles.pop : ''} data-up={t.p > t.c ? '' : undefined}>{t.p}</span><span key={`c${t.c}`} className={M.anim ? styles.pop : ''} data-dn={t.c > t.p ? '' : undefined}>{t.c}</span></div></Floor>
-          {M.anim?.call?.li === li && <div key={M.anim.n} className={styles.callout} data-side={M.anim.call.side}>
-            <b>{M.anim.call.side === 'p' ? 'You' : 'CPU'}: {M.anim.call.name}</b>
-            {M.anim.call.abs.map(a => <span key={a} className={styles.calloutAb}>{AB_MARK[a]} {E.AB[a].n}</span>)}
-          </div>}
-          <div className={styles.locInfo}>{def ? <><b>{def.name}</b><small><em>{def.rule}:</em> {def.fx}{L.f?.lock ? ' Locked.' : ''}{L.f?.shut ? (L.f.shut === 'p' ? ' You can’t play here.' : ' CPU can’t play here.') : ''}</small></> : <><b>Turn {li + 1}</b><small>Revealed on turn {li + 1}. You can still play here.</small></>}</div>
-        </button>
-        {pj && <div className={styles.proj}><b>{pj.you}–{pj.opp} {pj.you > pj.opp ? '▲' : pj.you < pj.opp ? '▼' : '='}</b>
-          {pj.rows.filter(r => r[2] !== 'base').slice(0, 3).map((r, k) => <span key={k} data-k={r[2]}>{r[0] > 0 ? '+' : ''}{r[0]} {r[1]}</span>)}
-          {pj.fx.slice(0, 2).map((f, k) => <span key={`f${k}`} data-k={f.c}>{f.t} →</span>)}</div>}
-        <div className={`${styles.slots} ${styles.yours}`}>{you}</div>
+
+      <button type="button" className={styles.bxFab} data-side="l" onClick={() => setDrawer('sort')} aria-label={`Sort cards, now by ${BSORTS.find(s => s[0] === sk)[1]}`}>
+        <Svg d="M4 6h16M4 12h11M4 18h6M18 14v6m0 0l-3-3m3 3l3-3" size={22} w={2.6} /><span>{BSORT_SHORT[sk]}</span></button>
+      <button type="button" className={styles.bxFab} data-side="r" onClick={() => setDrawer('filter')} aria-label={`Search and filters${nf ? `, ${nf} on` : ''}`}>
+        <Svg d="M3 5h18l-7 8v6l-4 2v-8z" size={22} w={2.6} />{nf > 0 && <em>{nf}</em>}</button>
+
+      <div className={styles.bxFoot}>
+        <div className={styles.bxStat}><b>{avg(cs, c => c.cost)}</b><small>Avg cost</small></div>
+        <div className={styles.bxStat}><b>{avg(cs, c => c.pw)}</b><small>Avg power</small></div>
+        <div className={styles.bxStat} data-k="syn"><b>+{synTotal}</b><small>Synergy</small></div>
+        <button type="button" className={styles.bxGo} data-ready={cs.length === 15 && !dupNames ? '' : undefined} onClick={save}>
+          <span>{dupNames ? 'One per player' : cs.length === 15 ? 'Save deck' : `Add ${15 - cs.length} more`}</span></button>
       </div>
-    })}</div>
-    <div className={styles.dock}>
-      {sel && !over && M.phase === 'plan' && <Spotlight key={sel} c={st.cards[sel]} kc={E.costOf(st, st.cards[sel], null)} lit={[0, 1, 2].filter(li => proj(li)).length} onBack={() => setM(m => ({ ...m, sel: null }))} onInfo={() => setSheet({ k: sel })} />}
-      {!(sel && !over && M.phase === 'plan') && <div className={styles.panel}>
-        {over ? <><b className={styles.ph}>{over.winner === 'p' ? 'You win' : over.winner === 'c' ? 'CPU wins' : 'Draw'} · {over.np}–{over.nc}</b><small>{(st.log || []).slice(-3).map(x => `${x[0] === 'p' ? 'You' : 'CPU'}: ${x[1]}`).join(' · ')}</small></>
-          : sel ? null
-            : <><b className={styles.ph}>{M.title} · {E.LEVEL_NAME[M.level]}</b><small>{st.turn === 1 && !st.log.length ? 'Tap a card to see what it would score at each court, then tap a court. Energy you don’t spend carries over.' : (st.log || []).slice(-3).map(x => `${x[0] === 'p' ? 'You' : 'CPU'}: ${x[1]}`).join(' · ')}</small>
-              <small>CPU: {st.energy.c} energy, {st.handC} cards. It plays after you, seeing where your cards land but not which ones.</small></>}
+
+      {(drawer || leaving) && <button type="button" className={styles.bxScrim} aria-label="Close" onClick={() => { setDrawer(null); setLeaving(false) }} />}
+      {drawer === 'sort' && <div className={styles.bxDrawer} data-side="l" role="dialog" aria-label="Sort cards">
+        <div className={styles.bxDH}><span>Sort cards</span>
+          <button type="button" className={styles.bxDir} onClick={() => setSort(([k, d]) => [k, -d])} aria-label={sd === 1 ? 'Low to high. Tap for high to low' : 'High to low. Tap for low to high'} style={{ transform: sd === 1 ? 'none' : 'rotate(180deg)' }}><Svg d="M12 4v16m0 0l-6-6m6 6l6-6" /></button></div>
+        {BSORTS.map(([k, l, d0]) => <button key={k} type="button" className={styles.bxSortOpt} aria-pressed={sk === k} onClick={() => setSort(([k0, d]) => (k0 === k ? [k, -d] : [k, d0]))}>{l}</button>)}
+        <div style={{ padding: '12px 14px 0' }}><button type="button" className={styles.bxDone} onClick={() => setDrawer(null)}>Close</button></div>
       </div>}
-      {!(sel && M.phase === 'plan') && <HandFan items={handFree.map(k => { const c = st.cards[k], kc = E.costOf(st, c, null); return { k, c, kc, off: kc > left || M.phase !== 'plan', styled: !!jsonById[c.id]?.clash } })}
-        sel={sel} disabled={M.phase !== 'plan'} onInfo={k => setSheet({ k })}
-        onPick={k => setM(m => ({ ...m, sel: m.sel === k ? null : k }))} />}
-      <div className={styles.ctrl}>
-        <div className={styles.orb}>{left}<small>Energy</small></div>
-        <small className={styles.note}>{M.phase === 'plan' ? (st.turn < 6 ? `Next turn: +${st.turn + 1} energy${left ? `, plus ${left} carried over` : ''}.` : 'Last turn. Spend it all.') : ''} {st.deckP} in deck.</small>
-        {over ? <button type="button" className={styles.btn} onClick={() => setM(m => ({ ...m, showResult: true }))}>Results</button>
-          : <button type="button" className={styles.btn} disabled={M.phase !== 'plan'} onClick={endTurn}>{st.turn >= 6 ? 'Final turn' : 'End turn'}</button>}
+      {drawer === 'filter' && <div className={styles.bxDrawer} data-side="r" role="dialog" aria-label="Search and filters">
+        <div className={styles.bxFBody}>
+          <div className={styles.bxDH} style={{ padding: 0 }}><span>Search &amp; filters</span></div>
+          <label className={styles.bxLab} htmlFor="bx-q">Player, team or season</label>
+          <input id="bx-q" className={styles.bxSearch} type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" />
+          <button type="button" className={styles.bxRow} data-k="fit" aria-pressed={fit} disabled={!cs.length} onClick={() => setFit(v => !v)}>
+            <span>Fits my deck<small>{cs.length ? `${own.filter(c => !inDeck.has(c.id) && syn[c.id]?.v).length} cards with a synergy` : 'Add a card first'}</small></span><i className={styles.bxSw} /></button>
+          <button type="button" className={styles.bxRow} aria-pressed={alt} onClick={() => setAlt(v => !v)}>
+            <span>Other versions<small>More cards of players already in your deck</small></span><i className={styles.bxSw} /></button>
+          <button type="button" className={styles.bxRow} aria-pressed={showIn} onClick={() => setShowIn(v => !v)}>
+            <span>Cards in my deck<small>Keep them in the list</small></span><i className={styles.bxSw} /></button>
+          <span className={styles.bxLab}>Energy cost</span>
+          <div className={styles.bxCosts}>{[1, 2, 3, 4, 5, 6].map(k => <button key={k} type="button" className={styles.bxCost} aria-pressed={costs.includes(k)} aria-label={`Cost ${k}, ${E.TIER_NAME[k]}`} onClick={() => tog(setCosts)(k)}>{k}</button>)}</div>
+          <span className={styles.bxLab}>Abilities</span>
+          <div className={styles.bxChips}>{abilities.map(([a, n]) => <button key={a} type="button" className={styles.bxChip} aria-pressed={abs.includes(a)} onClick={() => tog(setAbs)(a)}>
+            <span className={styles.abTag} data-kind={AB_KIND[E.AB[a].k]}>{AB_MARK[a]}</span><span>{E.AB[a].n}</span><small>{n}</small></button>)}</div>
+          {!team && <><span className={styles.bxLab}>Franchise</span>
+            <div className={styles.bxChips}>{franchises.map(([f, n]) => <button key={f} type="button" className={styles.bxChip} aria-pressed={frs.includes(f)} onClick={() => tog(setFrs)(f)}>
+              {binderLogo(f) ? <img src={binderLogo(f)} alt="" onError={e => { e.currentTarget.style.visibility = 'hidden' }} /> : <i style={{ background: E.COLOR[f] }} />}<span>{E.NICK[f] || f}</span><small>{n}</small></button>)}</div></>}
+        </div>
+        <div className={styles.bxFFoot}>
+          <button type="button" className={styles.bxClear} onClick={clearAll}><span>Clear</span></button>
+          <button type="button" className={styles.bxShow} onClick={() => setDrawer(null)}><span>Show {pool.length} cards</span></button>
+        </div>
+      </div>}
+      {leaving && <div className={styles.bxLeave} role="dialog" aria-label="Leave without saving?">
+        <b>Leave without saving?</b><small>Your changes to this deck will be lost.</small>
+        <div><button type="button" className={styles.bxDone} onClick={() => setLeaving(false)}>Keep building</button><button type="button" className={styles.bxClear} onClick={back}><span>Leave</span></button></div>
+      </div>}
+
+      {ic && <BigCard key="big" c={ic} n={insp.n} dir={insp.dir} bigRef={bigRef} cs={cs} own={own} pairs={pairs} inDeck={inDeck.has(ic.id)} twin={!inDeck.has(ic.id) && deckBy[ic.n]} full={full}
+        rows={syn[ic.id] || synRows(ic, cs, pairs)} variants={own.filter(x => x.n === ic.n && x.id !== ic.id)} deckIds={inDeck}
+        onStep={step} onPick={open} onClose={() => setInsp(null)} onAdd={() => add(ic.id)} onRemove={() => remove(ic.id)}
+        onFocus={lv => { clearAll(); setFocus({ id: ic.id, lv }); setInsp(null); setDrawer(null) }} />}
+      {fly && <div ref={ghostRef} className={styles.bxGhost} style={{ left: fly.from.left, top: fly.from.top }}><Chip c={byId[fly.id]} side="p" w={fly.from.width} cost={byId[fly.id].cost} /></div>}
+      {toast && <div key={toast.n} className={styles.bxToast} role="status">{toast.t}</div>}
+    </div>
+  </div>, document.body)
+}
+
+// The big card view: swipe or use the arrows to move through the list, see what the card does and what it adds to the deck
+function BigCard({ c, n, dir, bigRef, cs, own, inDeck, twin, full, rows, variants, deckIds, onStep, onPick, onClose, onAdd, onRemove, onFocus }) {
+  const sw = useRef(null)
+  const bw = Math.min(230, Math.round((typeof window !== 'undefined' ? window.innerWidth : 390) * 0.54))
+  const stats = [[c.pts, 'PTS'], [c.reb, 'REB'], [c.ast, 'AST']]
+  if (c.stl >= 3) stats.push([c.stl, 'STL']); if (c.blk >= 3) stats.push([c.blk, 'BLK']); if (c.tp >= 4) stats.push([c.tp, '3PM']); if (c.min != null) stats.push([c.min, 'MIN'])
+  const counts = SYN_LV.map(([lv]) => own.filter(synMatch(c, lv)).length)
+  let cta = 'Add to deck', act = onAdd, kind = 'go', sub = ''
+  if (inDeck) { cta = 'Remove'; act = onRemove; kind = 'off' }
+  else if (twin) { cta = 'Swap in'; sub = `Replaces his ${yr(twin)} card. A deck holds one card per player.` }
+  else if (full) { cta = 'Deck full'; act = null; kind = 'off'; sub = 'Take a card out first.' }
+  return <div className={styles.bxInsp} role="dialog" aria-label={`${E.cleanName(c.n)}, ${fmtDate(c.d)}`} style={{ '--ray': TIER_RAY[c.cost], '--tier': TIER_BG[c.cost] }}>
+    <div className={styles.bxRays} aria-hidden="true" />
+    <div className={styles.bxIScroll}>
+      <div className={styles.bxTier}>{E.TIER_NAME[c.cost]} · {c.s}</div>
+      <div className={styles.bxStage}
+        onPointerDown={e => { sw.current = { x: e.clientX, y: e.clientY } }}
+        onPointerUp={e => { const s = sw.current; sw.current = null; if (!s) return; const dx = e.clientX - s.x, dy = e.clientY - s.y; if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.2) onStep(dx < 0 ? 1 : -1) }}
+        onPointerCancel={() => { sw.current = null }}>
+        <button type="button" className={styles.bxArrow} data-side="l" onClick={() => onStep(-1)} aria-label="Previous card"><Svg d="M15 5l-7 7 7 7" /></button>
+        <div key={n} ref={bigRef} className={styles.bxBig} data-dir={dir}><Chip c={c} side="p" w={bw} cost={c.cost} onClick={() => {}} label={`${E.cleanName(c.n)}, cost ${c.cost}, power ${c.pw}`} /></div>
+        <button type="button" className={styles.bxArrow} data-side="r" onClick={() => onStep(1)} aria-label="Next card"><Svg d="M9 5l7 7-7 7" /></button>
+      </div>
+      <div className={styles.bxGame}>{fmtDate(c.d)} · {gameLine(c)}</div>
+      <div className={styles.bxStats}>{stats.map(([v, k]) => <span key={k}><b>{v}</b>{k}</span>)}<span><b>{c.gs}</b>GS</span></div>
+      <div className={styles.bxIAbs}>{c.ab.length ? c.ab.map(a => <AbBadge key={a} a={a} c={c} big />) : <div className={styles.abTile} data-kind="none"><span className={styles.abMark}>—</span><div><b>No ability</b><p>Raw power: {c.pw}.</p></div></div>}</div>
+      <div className={styles.bxSec}>
+        <h4>{inDeck ? 'Synergy in this deck' : 'Synergy with this deck'}</h4>
+        {rows.rows.length ? <><div className={styles.bxSynRows}>{rows.rows.map(r => <span key={r.t}><b>+{r.v}</b> {r.t} · {E.lastName(r.with.n)} {yr(r.with)}</span>)}</div><p className={styles.bxNoSyn}>Counts when they share a court.</p></>
+          : <p className={styles.bxNoSyn}>{cs.length ? 'None with the cards in your deck yet.' : 'Add cards to see synergies.'}</p>}
+      </div>
+      {inDeck && <div className={styles.bxSec}>
+        <h4>Find cards that pair with him</h4>
+        <div className={styles.bxLv}>{SYN_LV.map(([lv, l, v], i) => <button key={lv} type="button" disabled={!counts[i]} onClick={() => onFocus(lv)}><b>{l} +{v}</b><small>{counts[i]} card{counts[i] === 1 ? '' : 's'}</small></button>)}</div>
+      </div>}
+      {variants.length > 0 && <div className={styles.bxSec}>
+        <h4>His other cards</h4>
+        <div className={styles.bxVars}>{variants.map(v => <div key={v.id}><Chip c={v} side="p" w={50} cost={v.cost} onClick={() => onPick(v.id)} label={`${E.cleanName(v.n)}, ${fmtDate(v.d)}${deckIds.has(v.id) ? ', in your deck' : ''}`} />{deckIds.has(v.id) && <span className={styles.bxTag} data-k="deck">Deck</span>}</div>)}</div>
+      </div>}
+    </div>
+    <div className={styles.bxIFoot}>
+      {sub && <div className={styles.bxSub}>{sub}</div>}
+      <div className={styles.bxIBtns}>
+        <button type="button" className={styles.bxX} onClick={onClose} aria-label="Close"><span><Svg d="M6 6l12 12M18 6L6 18" w={3.4} /></span></button>
+        <button type="button" className={styles.bxCta} data-k={kind} disabled={!act} onClick={act || undefined}><span>{cta}</span></button>
       </div>
     </div>
-    {banner && <div className={styles.banner}>{banner}</div>}
-    {sheet && <Sheet sheet={sheet} st={st} cards={cards} instAt={instAt} onClose={() => setSheet(null)} />}
   </div>
 }
 
@@ -537,27 +562,19 @@ function Sheet({ sheet, st, cards, instAt, onClose }) {
     <button type="button" className={styles.ghost} style={{ width: '100%' }} onClick={onClose}>Close</button></div></div>
 }
 
-function Result({ M, go, D, env, start }) {
-  const st = M.st, f = M.over, win = f.winner === 'p', r = M.reward
-  let mvp = null, mp = -1
-  st.locs.forEach(L => L.p.forEach(i => { const p = E.power(st, i); if (p > mp) { mp = p; mvp = i } }))
-  const back = () => (M.mode === 'daily' ? go('daily') : M.mode === 'fr' ? go('frd', { fc: M.fc }) : go('fr'))
-  return <div className={`${styles.result} ${win ? '' : styles.lost}`}>
-    {win && <div className={styles.confetti} aria-hidden="true">{Array.from({ length: 18 }, (_, k) => { const a = (k / 18) * Math.PI * 2; return <i key={k} style={{ '--dx': `${Math.round(Math.cos(a) * (120 + (k % 3) * 30))}px`, '--dy': `${Math.round(Math.sin(a) * 110 - 40)}px`, animationDelay: `${(k % 4) * 0.05}s` }} /> })}</div>}
-    <small className={styles.kick}>{M.title} · {E.LEVEL_NAME[M.level]}</small>
-    <h2>{win ? 'You win' : f.winner ? 'CPU wins' : 'Draw'}</h2><p className={styles.courtsTo}>{f.np} courts to {f.nc}</p>
-    <div className={styles.resCourts}>{st.locs.map((L, li) => <div key={li}><div className={styles.resFloor}><Floor id={L.id} revealed><div className={styles.wash} data-w={f.w[li] || 'none'} /><div className={styles.sc} data-c=""><span>{f.t[li].p}–{f.t[li].c}</span></div></Floor></div><b>{E.LOCBY[L.id]?.name}</b></div>)}</div>
-    {mvp && <div className={styles.tile}><div className={styles.sheetHead}><span style={{ background: col(mvp.c) }}>{E.initials(mvp.c.n)}</span><div><small className={styles.goldK}>Player of the match</small><b className={styles.cond}>{E.cleanName(mvp.c.n)}, {mvp.c.pts} pts</b><small>{fmtDate(mvp.c.d)} · {gameLine(mvp.c)} · finished at {mp} power</small></div></div></div>}
-    <h4 className={styles.sh}>Reward</h4>
-    {!win ? <div className={styles.tile}><small>No reward this time. {M.mode === 'fr' ? 'The level stays open.' : 'Try another deck.'}</small></div>
-      : r?.kind === 'daily' ? (r.card ? <div className={`${styles.tile} ${styles.pull}`}><span className={styles.flipIn}><CardFace card={r.card.card} shots={env.shots} w={140} /></span><div><small className={styles.goldK}>{E.TIER_NAME[E.TIER_COST[r.card.card.tier]]} pulled</small><b className={styles.cond}>{E.cleanName(r.card.card.row.n)}</b><small>{fmtDate(r.card.card.date)} · {r.card.card.tn}</small><small>It’s in your binder.</small></div></div>
-        : <div className={styles.tile}><small>{r.already ? 'You already took today’s card for this level.' : 'No card was left to pull. Try again later.'}</small></div>)
-        : r?.kind === 'unlock' ? <div className={styles.tile}><b className={styles.good}>{E.LEVEL_NAME[r.level]} is open.</b><small>{r.level === 'brutal' ? 'Beat it for the franchise redesign.' : 'One step closer to Brutal.'}</small></div>
-          : r?.kind === 'redesign' ? (r.claimed ? <div className={styles.tile}><small>{E.NICK[r.fc]} beaten again. Your redesign is already claimed.</small></div>
-            : <div className={styles.tile}><b className={styles.good}>{E.NICK[r.fc]} redesign unlocked</b><small>Pick one card from the deck that just won and the look it wears for good.</small><button type="button" className={styles.btn} onClick={() => go('claim', { fc: r.fc, ids: M.ids })}>Claim it</button></div>)
-            : <div className={styles.tile}><b className={styles.good}>Beaten.</b><small>No reward is set for the all-time lineups yet.</small></div>}
-    <div className={styles.resBtns}>{M.again && <button type="button" className={styles.btn} onClick={() => start(M.again)}>Play again</button>}<button type="button" className={styles.ghost} onClick={back}>Back to {M.mode === 'daily' ? 'Daily Challenges' : M.mode === 'fr' ? E.NICK[M.fc] : 'the lineups'}</button></div>
-  </div>
+// What a finished match earned, shown on the result screen
+function RewardBlock({ M, go, env }) {
+  const f = M.over, r = M.reward
+  if (!f) return null
+  const win = f.winner === 'p'
+  const box = (k, body) => <div className="ar-reward" data-k={k}>{body}</div>
+  if (!win) return box('none', <small>No reward this time. {M.mode === 'fr' ? 'The level stays open.' : 'Try another deck.'}</small>)
+  if (r?.kind === 'daily') return r.card ? box('pull', <><span className="ar-rpull"><CardFace card={r.card.card} shots={env.shots} w={110} /></span><div><small>{E.TIER_NAME[E.TIER_COST[r.card.card.tier]]} pulled</small><b>{E.cleanName(r.card.card.row.n)}</b><em>It’s in your binder.</em></div></>)
+    : box('none', <small>{r.already ? 'You already took today’s card for this level.' : 'No card was left to pull. Try again later.'}</small>)
+  if (r?.kind === 'unlock') return box('unlock', <><b>{E.LEVEL_NAME[r.level]} is open</b><small>{r.level === 'brutal' ? 'Beat it for the franchise redesign.' : 'One step closer to Brutal.'}</small></>)
+  if (r?.kind === 'redesign') return r.claimed ? box('none', <small>{E.NICK[r.fc]} beaten again. Your redesign is already claimed.</small>)
+    : box('unlock', <><b>{E.NICK[r.fc]} redesign unlocked</b><small>Pick one card from the deck that just won and the look it wears for good.</small><button type="button" className="ar-again" onClick={() => go('claim', { fc: r.fc, ids: M.ids })}><span>Claim it</span></button></>)
+  return box('none', <small>Beaten. No reward is set for the all-time lineups yet.</small>)
 }
 
 function Claim({ scr, go, byId, jsonById, env, C, setView }) {

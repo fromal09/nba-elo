@@ -820,12 +820,17 @@ async function potdView(sql, u, origin, day, games) {
       candidates.push({ name: r.name, team: t, opp: t === g.home ? g.away : g.home, home: t === g.home, tip: g.tip, elo: r.elo, mp: r.mp, status: r.status, proj: r.proj })
     }
     candidates.sort((a, b) => b.elo - a.elo)
+    // Each player's pre-game chance of being Player of the Day, for the odds board
+    const P = await potdChances(origin, day, games).catch(() => null)
+    if (P) for (const c of candidates) c.p = P.get(c.team + '|' + norm(c.name)) ?? 1 / 4000
   }
   const vfile = live.length && live.every(isDone) && origin ? await dayFile(origin, day).catch(() => null) : null
   const top = vfile ? potdOf(vfile, day, live) : null
   const board = top ? potdBoard(vfile, day) : null
   return { pick: pp ? { player: pp.player, team: pp.team, result: pp.result, ...(board ? standingOf(board, pp.player) : {}) } : null, open, lock: firstTip(games), candidates,
-    winner: top ? { name: top.row.n, team: top.t, gs: top.row.gs, pts: top.row.pts, trb: top.row.trb, ast: top.row.ast, score: board[0]?.score ?? null, card: top, ruby: pp?.result === 'win' } : null }
+    winner: top ? { name: top.row.n, team: top.t, gs: top.row.gs, pts: top.row.pts, trb: top.row.trb, ast: top.row.ast, score: board[0]?.score ?? null, card: top, ruby: pp?.result === 'win',
+      second: board[1] ? { name: board[1].name ?? board[1].n, team: board[1].team ?? board[1].t, score: board[1].score } : null,
+      board: board.slice(0, 8).map(x => ({ name: x.name ?? x.n, team: x.team ?? x.t, score: x.score })) } : null }
 }
 
 export async function potdPick(sql, u, b, today, origin) {
@@ -845,6 +850,9 @@ export async function potdPick(sql, u, b, today, origin) {
 // Called It card (points.js): a long shot called is worth more than a star called.
 const chanceMemo = new Map()
 async function potdChance(origin, day, games, player, team) {
+  return (await potdChances(origin, day, games)).get(team + '|' + norm(player)) ?? 1 / 4000
+}
+async function potdChances(origin, day, games) {
   const live = games.filter(g => g.state !== 'off')
   let hit = chanceMemo.get(day)
   if (!hit || Date.now() - hit.at > 10 * 60e3) {
@@ -860,7 +868,7 @@ async function potdChance(origin, day, games, player, team) {
     hit = { at: Date.now(), p: new Map([...wins].map(([k, w]) => [k, Math.max(1, w) / N])) }
     chanceMemo.set(day, hit)
   }
-  return hit.p.get(team + '|' + norm(player)) ?? 1 / 4000
+  return hit.p
 }
 
 // ── Player of the Week ───────────────────────────────────────────────────────

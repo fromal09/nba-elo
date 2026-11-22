@@ -6,7 +6,6 @@ import { ensurePredSchema } from './predictions.js'
 import { ensureWishSchema } from './wishes.js'
 import { ensureChallengeSchema } from './challenge.js'
 import { ensureBannerSchema } from './banner.js'
-import { ensureKocSchema } from './koc.js'
 import { ensureClashSchema } from './clash.js'
 import { applyRenames } from './renames.js'
 
@@ -24,7 +23,7 @@ export function db() {
 }
 
 // Bump when the schema below changes: a cold start whose database already has this version skips the ~60 statements
-export const SCHEMA_VERSION = '2026-11-20a'
+export const SCHEMA_VERSION = '2026-11-21a'
 
 export function ensureSchema() {
   if (!ready) {
@@ -124,7 +123,7 @@ function migrate(s) {
       await ensureWishSchema(t)
       await ensureChallengeSchema(t)
       await ensureBannerSchema(t)
-      await ensureKocSchema(t)
+      await closeKoc(t)
       await ensureClashSchema(t)
       // The binder's look: a preset from Settings (null = the favorite team's colors)
       await t`alter table users add column if not exists binder_theme text`
@@ -135,5 +134,22 @@ function migrate(s) {
       await t`delete from schema_meta`
       await t`insert into schema_meta (v) values (${SCHEMA_VERSION})`
     })
+  }
+}
+
+// King of the Court is gone. Every wager still held on an open rivalry goes back, once (the ledger ref keeps it
+// once-only, the same ref an ordinary refund would use); its tables stay as history.
+async function closeKoc(t) {
+  const [has] = await t`select to_regclass('koc_rivals') as r`
+  if (!has?.r) return
+  const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  for (const r of await t`select id, from_id, to_id, wager, status from koc_rivals where status in ('pending', 'accepted')`) {
+    const who = r.status === 'accepted' ? [r.from_id, r.to_id] : [r.from_id]
+    for (const id of who) {
+      const [x] = await t`insert into coin_ledger (user_id, day, kind, ref, amount) values (${id}, ${day}, 'rivalrefund', ${`${r.id}|${id}`}, ${r.wager})
+        on conflict do nothing returning id`
+      if (x) await t`update users set coins = coins + ${r.wager} where id = ${id}`
+    }
+    await t`update koc_rivals set status = 'closed', responded_at = now() where id = ${r.id}`
   }
 }

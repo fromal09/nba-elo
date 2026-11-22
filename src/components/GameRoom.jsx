@@ -7,9 +7,10 @@ import { useCollector, Coin } from './Collector'
 import { BinderHost, primeBinders, binderJSON, binderHeadshots, binderTeamInfo, binderLogo, binderNewest, binderLoadSeason, binderWithTeams, binderCardGameInfo } from './SeasonExplorer'
 import { norm } from './predict'
 import { PredictPages } from './Predictions'
-import KingOfTheCourt from './KingOfTheCourt'
 import HangBanner from './HangBanner'
 import FiveChallenge from './FiveChallenge'
+import PlayerOfDay from './PlayerOfDay'
+import DailyLineup from './DailyLineup'
 import Clash from './Clash'
 import PlayerOfWeek from './PlayerOfWeek'
 import { FaceFit } from './TrophyRoom'
@@ -26,7 +27,7 @@ import { useInjuries, teamReport, INJ_TAG, injPart, retShort, retAhead, lateAdd,
  *   fight poster    Player matchups as the tale of the tape
  *   magnet board    The daily lineup
  *   tote board      Player of the Day, with your betting ticket
- *   cabinets        King of the Court (1-player groups, 2-player rivalries), Hang the Banner, Five Challenge (Pop-A-Shot)
+ *   cabinets        Hang the Banner, Five Challenge (Pop-A-Shot)
  *   LED board       Pick'em standings · prize counter: prediction history and prize cards · champions' wall: Player of the Week
  * The room's address names the open station (/?view=gameroom&open=matchups), so any station can be linked to.
  */
@@ -34,12 +35,10 @@ import { useInjuries, teamReport, INJ_TAG, injPart, retShort, retAhead, lateAdd,
 const STATIONS = {
   predict: { tab: 'games', title: 'Pick’em Night', kicker: 'The chalkboard · winners' },
   matchups: { tab: 'matchups', title: 'Tale of the Tape', kicker: 'Player matchups' },
-  lineup: { tab: 'lineup', title: 'Daily Lineup', kicker: 'The magnet board' },
-  potd: { tab: 'potd', title: 'Player of the Day', kicker: 'The tote board' },
+  lineup: { title: 'Daily Lineup', kicker: 'Five of your cards' },
+  potd: { title: 'Player of the Day', kicker: 'The track' },
   standings: { tab: 'standings', title: 'High Scores', kicker: 'Pick’em standings' },
   history: { tab: 'history', title: 'Prize Counter', kicker: 'Prediction history and prize cards' },
-  koc: { title: 'King of the Court', kicker: '1-player · groups' },
-  rivals: { title: 'King of the Court', kicker: '2-player · rivalries' },
   banner: { title: 'Hang the Banner', kicker: 'A ladder per franchise' },
   five: { title: 'Five Challenge', kicker: 'This week’s lineups' },
   clash: { title: 'Full Court Clash', kicker: 'The card table' },
@@ -339,18 +338,12 @@ export function GameScreen({ station, env, onClose, ratings, onSelectPlayer }) {
       </div>}
     </PredictPages>
   )
-  else if (station === 'clash') body = <div className={styles.clashTable}><Clash env={env} /></div>
+  else if (station === 'clash') body = <div className={styles.clashTable}><Clash env={env} onClose={onClose} /></div>
+  else if (station === 'banner') body = <HangBanner env={env} onClose={onClose} />
+  else if (station === 'five') body = <FiveChallenge env={env} onClose={onClose} />
+  else if (station === 'lineup') body = <DailyLineup env={env} onClose={onClose} />
+  else if (station === 'potd') body = <PlayerOfDay env={env} ratings={ratings} onClose={onClose} />
   else if (station === 'potw') body = <div className={styles.potwWall}><PlayerOfWeek day={etToday()} ratings={ratings} onSelect={n => { onClose(); onSelectPlayer?.(n) }} /></div>
-  else body = (
-    <div className={styles.cabinet} data-game={station}>
-      <div className={styles.bezel}>
-        <div className={`${bs.arcade} ${styles.cabScreen}`}>
-          {station === 'banner' ? <HangBanner env={env} tools={null} /> : station === 'five' ? <FiveChallenge env={env} tools={null} />
-            : <KingOfTheCourt env={env} tools={null} initialTab={station === 'rivals' ? 'rivals' : 'group'} />}
-        </div>
-      </div>
-    </div>
-  )
   return (
     <div className={styles.screen} data-station={station} role="dialog" aria-modal="true" aria-label={st.title}>
       <header className={styles.marquee}>
@@ -452,7 +445,6 @@ function Stations({ C, preds, go, env }) {
   const lu = slate?.lineup, slots = preds?.rates?.slots || 5
   const potd = slate?.potd
   const cands = (potd?.candidates || []).slice(0, 4)
-  const RV = C.me?.rivals || {}
   const last = useLastCards(env, top ? [top.a, top.b] : [])
   return (
     <div className={styles.stWrap}>
@@ -496,13 +488,6 @@ function Stations({ C, preds, go, env }) {
       </div>
       <h3 className={styles.zoneHead} data-z="play">Play your cards</h3>
       <div className={styles.stGroup} data-g="play">
-      <button type="button" role="listitem" className={`${styles.st} ${styles.cab}`} data-c="koc" onClick={() => go('koc')}>
-        <span className={styles.cabMarquee}>King of the Court</span>
-        <span className={styles.cabScreenMini}><b>FIGHT!</b><small>{RV.live ? `${RV.live} rivalr${RV.live === 1 ? 'y' : 'ies'} live` : 'Groups · tonight’s games'}</small></span>
-        <span className={styles.panel}><i className={styles.stick} /><i className={styles.btnA} /><i className={styles.btnB} /><i className={styles.btnC} /></span>
-        <span className={styles.coinDoor}>1P START</span>
-      </button>
-
       <button type="button" role="listitem" className={`${styles.st} ${styles.cab}`} data-c="banner" onClick={() => go('banner')}>
         <span className={styles.cabMarquee}>Hang the Banner</span>
         <span className={styles.cabScreenMini} data-court="">

@@ -92,10 +92,17 @@ async function pool(origin, lv, sp) {
   const D = await dist(origin)
   const all = Object.entries(D?.[sp.fc] || {}).filter(([s]) => inScope(lv, sp, s)).flatMap(([, v]) => v).sort((a, b) => a - b)
   const data = { all, n: all.length, best: all[all.length - 1] ?? null, median: all.length ? all[Math.floor(all.length / 2)] : null,
-    p90: all.length ? all[Math.floor(all.length * 0.9)] : null, seasons: Object.keys(D?.[sp.fc] || {}).filter(s => inScope(lv, sp, s)).length }
+    p90: all.length ? all[Math.floor(all.length * 0.9)] : null, hist: histOf(all), seasons: Object.keys(D?.[sp.fc] || {}).filter(s => inScope(lv, sp, s)).length }
   pools.set(key, { at: Date.now(), data })
   if (pools.size > 60) pools.delete(pools.keys().next().value)
   return data
+}
+// The real fives as 40 bars from the worst to the best, for the ranking chart
+function histOf(all, n = 40) {
+  if (!all.length) return null
+  const lo = all[0], hi = all[all.length - 1], w = (hi - lo) / n || 1, bins = new Array(n).fill(0)
+  for (const v of all) bins[Math.min(n - 1, Math.floor((v - lo) / w))]++
+  return { lo: Math.round(lo), hi: Math.round(hi), bins }
 }
 // Share of real fives below this one (ties count half), 0–100
 function pctOf(P, five) {
@@ -119,7 +126,7 @@ export async function challengeView(sql, u, origin, today) {
     const e = mine.find(x => x.level === lv)
     const pct = e ? pctOf(P, e.five) : null
     levels.push({ level: lv, max: CHALLENGE[lv], perCard: PER_CARD[lv], spec: { ...sp, era: sp.era ? ERAS.find(x => x.id === sp.era) : null },
-      pool: { n: P.n, best: P.best, median: P.median, p90: P.p90, seasons: P.seasons },
+      pool: { n: P.n, best: P.best, median: P.median, p90: P.p90, seasons: P.seasons, hist: P.hist },
       entry: e ? { five: Math.round(e.five * 10) / 10, pct, coins: coinsFor(lv, pct, e.five, P, e.ids.length), base: PER_CARD[lv] * e.ids.length,
         cards: e.ids.map(id => cards.find(c => Number(c.id) === Number(id))).filter(Boolean).map(c => ({ id: Number(c.id), card: c.card })) } : null })
   }

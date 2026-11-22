@@ -4,7 +4,6 @@ import styles from './Binders.module.css'
 import { Explain } from './Explainer'
 import { MiniCard, DuelCard, tierFor, TIERS, momentsFor } from './PlayerCard'
 import { Meter, CURRENT_TEAMS } from './Collector'
-import { ChallengeModal } from './KingOfTheCourt'
 import { goTo } from '../nav.js'
 import { usePrizes, prizeNote } from './Prizes'
 import { useIndex as usePlayerIndex, search as searchPlayers } from './PlayerSearch'
@@ -1419,7 +1418,6 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const [check, setCheck] = useState(null)
   const [rosters, setRosters] = useState({})
   const [settings, setSettings] = useState(false)
-  const [chal, setChal] = useState(false)
   const [ck, setCk] = useState('fr')          // Checklists: fr (franchises) | sets (special sets) | rewards
   const [honors, setHonors] = useState(null)  // All-Star rosters by season, for the All-Star checklists
   const [allStarsOpen, setAllStarsOpen] = useState(false)
@@ -1516,8 +1514,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
   const PR = me?.predict || {}
   // The binder's buttons: packs, the store and the door to the Game Room (predictions and the challenges live there).
   // Greyed out when there's nothing to do
-  const RV = me?.rivals || {}
-  const gameNote = PR.unclaimed ? `${PR.unclaimed} prize card${PR.unclaimed === 1 ? '' : 's'} to claim` : RV.waiting ? `${RV.waiting} challenge${RV.waiting === 1 ? '' : 's'} waiting on you`
+  const gameNote = PR.unclaimed ? `${PR.unclaimed} prize card${PR.unclaimed === 1 ? '' : 's'} to claim`
     : PR.games ? `${PR.picked} of ${PR.games} games picked tonight` : 'Predictions and challenges'
   const lBtn = (key, label, sub, on, onClick, cls) => <button key={key} type="button" className={`${styles.lBtn} ${cls || ''}`} disabled={!on} onClick={onClick}><b>{label}</b>{sub && <small>{sub}</small>}</button>
   const actions = me && <div className={styles.lBtns}>
@@ -1526,7 +1523,7 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       : lBtn('daily', 'Daily Pack', !t.claimed ? (t.bonusToday ? 'Ready · streak bonus inside' : 'Ready to open') : t.waiting ? 'Waiting on last night’s games' : 'Opened · back tomorrow', !t.claimed, () => C.claim(), styles.lGold)}
     {lBtn('weekly', 'Weekly Pack', me.week.claimed ? `Opened · next ${fullDay(me.week.next)}` : 'Ready · pick a team', !me.week.claimed, () => C.openTeam(), styles.lTeam)}
     {onStore && lBtn('store', 'Store', `${(me.coins?.balance ?? 0).toLocaleString()} Coins`, true, onStore, styles.lStore)}
-    {lBtn('games', 'The Game Room →', gameNote, true, () => goTo('gameroom'), PR.unclaimed ? styles.lClaim : RV.waiting ? styles.lRival : styles.lGames)}
+    {lBtn('games', 'The Game Room →', gameNote, true, () => goTo('gameroom'), PR.unclaimed ? styles.lClaim : styles.lGames)}
   </div>
   const theme = src.user.binderTheme || null
   const settingsBtns = mine ? <div className={styles.headRow}>
@@ -1541,7 +1538,6 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
     <div className={styles.binderTitle}><b>{mine ? 'My Binder' : 'Binder'}</b>{st.rank ? <span>No. {st.rank} of {st.of} · {n0(st.score)} pts</span> : null}</div>
     <h2 className={styles.title} style={{ color: tc }}>{src.user.username}</h2>
     {mine ? settingsBtns : <p className={styles.line}>{fav ? `${env.teamInfo(fav).name} fan · ` : ''}collecting since {fullDay(src.user.joined)}</p>}
-    {!mine && C?.me && C.me.user?.username !== src.user.username && <button type="button" className={styles.chalBtn} onClick={() => setChal(true)}>⚔ Challenge to a Rivalry</button>}
   </>
   const left = <>
     {phone && settingsBtns}
@@ -1846,7 +1842,6 @@ export function CollectionBinder({ env, onClose, onLeague, pub, startSell, onSto
       locked={reveal.done ? null : reveal.lockText ? reveal.lockText : reveal.set ? `${reveal.k} of ${reveal.g} players · a card of every one earns the set card` : `${reveal.k} of ${reveal.g} games · collect every one to forge his Season card`}
       extra={!reveal.done && !reveal.set && reveal.card.kind === 'season' && mine && <WishBtn name={reveal.card.n} season={reveal.card.s} C={C} dark />} />}
     {settingsView}
-    {chal && <ChallengeModal C={C} to={src.user.username} onClose={() => setChal(false)} />}
     <Book tc={tc} theme={theme} phone={phone} onClose={onClose} head={head} left={left} right={right} dock={phone && me ? dock : null}
       summary={<span><b>{n0(st.score)} pts</b>{st.rank ? ` · No. ${st.rank}` : ''} · {all.length} cards</span>}
       onKey={e => { if (P.open) return true; if (['sets', 'badges', 'specials', 'wishes', 'toc', 'checklists'].includes(view) || mode === 'checklist') return; if (e.key === 'ArrowRight') { S.go(1); return true } if (e.key === 'ArrowLeft') { S.go(-1); return true } }} />

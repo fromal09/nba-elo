@@ -566,7 +566,6 @@
 .lBtn:disabled small { color: #a9b0b8; }
 .lGold:not(:disabled) { background: linear-gradient(180deg, #ffe39a, #e2b04a); border-color: #c99a32; color: #2a1a00; } .lGold:not(:disabled) small { color: #5a3f08; }
 .lTeam:not(:disabled) { background: var(--tc); border-color: var(--tc); color: #fff; } .lTeam:not(:disabled) small { color: rgba(255,255,255,.8); }
-.lRival { background: #a8243b !important; border-color: #a8243b !important; color: #fff !important; box-shadow: 0 0 0 3px rgba(168, 36, 59, .18); } .lRival small { color: #ffd9df !important; }
 .lClaim:not(:disabled) { background: #1a7a4a; border-color: #1a7a4a; color: #fff; } .lClaim:not(:disabled) small { color: #d6f1e2; }
 .lGames { background: #24123d !important; border-color: #24123d !important; color: #ffd84a !important; box-shadow: inset 0 0 0 1px rgba(255,90,200,.45); } .lGames small { color: #f5c6ff !important; }
 .lStore { background: #1d2633 !important; border-color: #1d2633 !important; color: #f6d77e !important; } .lStore small { color: #c9d2dc !important; }
@@ -637,7 +636,6 @@
   .gameRow i { grid-column: 2; grid-row: 1 / 3; }
 }
 
-.chalBtn { align-self: flex-start; height: 38px; padding: 0 16px; border: 0; border-radius: 19px; background: #1d2633; color: #f6d77e; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
 
 /* "Mine only" on a set binder's sheet */
 .mineBtn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #c9d2dc; background: #fff; color: #33404d; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }

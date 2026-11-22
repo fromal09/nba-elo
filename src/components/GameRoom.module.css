@@ -195,7 +195,7 @@
 .ramp { display: flex; justify-content: center; gap: 4px; margin: 10px 14px 0; padding: 10px 6px; border-radius: 6px; background: linear-gradient(180deg, #2a2a2e, #141416); box-shadow: inset 0 3px 0 rgba(255,255,255,.08); }
 .ramp i { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffb070, #e2621a 60%, #8a3408); box-shadow: inset 0 0 0 1px rgba(0,0,0,.4); }
 
-/* Full Court Clash: a card table on green felt (it took the Insert Coin machine's spot; Rivalries live in King of the Court) */
+/* Full Court Clash: a card table on green felt (it took the Insert Coin machine's spot) */
 .casino { grid-column: span 3; height: 300px; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 8px; padding: 6px; border: 0; background: none; cursor: pointer; }
 .ctable { position: relative; flex: 1; border-radius: 50% / 42%; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, #1d8a55 0%, #14653f 45%, #0c4a2d 100%);
   box-shadow: 0 0 0 10px #5a3519, 0 0 0 12px #2c1708, 0 18px 26px rgba(0,0,0,.55); margin: 12px; transition: transform .2s; }
@@ -384,16 +384,6 @@
 .poster > footer { margin-top: auto; padding: 8px 10px; background: #1a0d07; color: #ffe14a; font: 700 12px 'Inter', sans-serif; letter-spacing: .5px; text-align: center; }
 .poster[data-void] .bout { filter: grayscale(.8); }
 .poster[data-void]::after { content: "CANCELLED"; position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%) rotate(-12deg); padding: 4px 14px; border: 4px solid #c0122a; color: #c0122a; font: 400 26px 'Bungee', sans-serif; background: rgba(243,230,200,.8); pointer-events: none; }
-
-/* Cabinet games: King of the Court, Hang the Banner, Five Challenge on a big cabinet screen */
-.cabinet { --body: #b3122e; --trim: #ffe14a; padding: 16px; border-radius: 18px 18px 6px 6px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--body) 55%, #000) 0 14px, var(--body) 14px calc(100% - 14px), color-mix(in srgb, var(--body) 55%, #000) calc(100% - 14px));
-  box-shadow: 0 20px 40px rgba(0,0,0,.55), inset 0 0 0 2px color-mix(in srgb, var(--trim) 40%, transparent); }
-.cabinet[data-game="banner"] { --body: #1c3f9e; --trim: #3ef2ff; }
-.cabinet[data-game="five"] { --body: #d4560c; --trim: #fff3d6; }
-.cabinet[data-game="rivals"] { --body: #5a1a8a; --trim: #ff4fd8; }
-.bezel { padding: 14px; border-radius: 14px; background: #0a0a0c; box-shadow: inset 0 0 0 2px #2a2a2e, inset 0 0 24px rgba(62,242,255,.15); }
-.cabScreen { border-radius: 10px; overflow: hidden; color: #1d2633; }
 
 /* Player of the Week: the champions' wall */
 .potwWall { padding: 18px; border-radius: 8px; color: #1d2633; background: #f6f1e6; box-shadow: inset 0 0 0 8px #3a2414, inset 0 0 0 12px #b8871e, 0 20px 40px rgba(0,0,0,.5); }

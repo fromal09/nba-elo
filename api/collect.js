@@ -38,9 +38,6 @@
 //   POST clashstart  { mode: fr | lineup | daily, fc?, ln?, level, ids } start a match against the CPU
 //   GET  clashmatch  ?id= a match as you can see it · POST clashturn { match, plays: [{ k, li }] } play a turn
 //   POST clashclaim  { fc, card, style } put a franchise's redesign on a card from the deck that beat its Brutal
-//   GET  koc         King of the Court for &day=: the slate, your picks and candidates, your group, the bounty, your rivalries
-//   POST kocpick     { day, mode: 'group' | 'r<id>', game, card } a pick for one game (card: null clears it)
-//   POST rival       { to, day, wager } challenge a collector; POST rivalact { id, act: accept | decline | cancel }
 //   POST potdpick    { day, player, team } your Player of the Day nomination (player: '' takes it back), until the first tipoff
 //   GET  standings   ?scope=week|season pick'em points, and where you rank
 //   GET  predreward  ?day=&kind=games|duels the cards you can choose from for a day you earned one
@@ -61,7 +58,6 @@ import { potwWeek, potdPick, settlePotw, predDay, settle, predSummary, predView,
 import { achievements } from './_lib/achievements.js'
 import { challengeView, setChallenge, settleChallenges } from './_lib/challenge.js'
 import { bannerView, playRung } from './_lib/banner.js'
-import { kocView, kocTick, setPick as kocPick, challenge as kocChallenge, respond as kocRespond } from './_lib/koc.js'
 import { slate } from './_lib/slate.js'
 import { clashView, saveDeck, setActive, startMatch as clashStart, matchView as clashMatch, playClashTurn, claimRedesign } from './_lib/clash.js'
 
@@ -185,18 +181,8 @@ async function me(u) {
     predict: await predSummary(sql, u.id, today),
     achievements: await achievements(sql, u.id),
     wishes: (await wishNames(sql, u.id)).map(w => ({ id: w.id, name: w.name, season: w.season, tier: w.tier || null })),
-    // Rivalries: challenges waiting on your answer, and accepted ones still to play (the binder's Rivalries button)
-    rivals: await rivalCounts(sql, u.id, today),
   }
 }
-async function rivalCounts(sql, userId, today) {
-  const [r] = await sql`select count(*) filter (where status = 'pending' and to_id = ${userId})::int as waiting,
-      count(*) filter (where status = 'pending' and from_id = ${userId})::int as sent,
-      count(*) filter (where status = 'accepted' and day >= ${today})::int as live
-    from koc_rivals where (from_id = ${userId} or to_id = ${userId}) and day >= ${today}`.catch(() => [{}])
-  return { waiting: r?.waiting || 0, sent: r?.sent || 0, live: r?.live || 0 }
-}
-
 // Today's Coins by kind, against the caps, and the day's challenge
 async function earnings(sql, userId, day) {
   const rows = await sql`select kind, sum(amount)::int as n from coin_ledger where user_id = ${userId} and day = ${day} group by kind`
@@ -491,7 +477,6 @@ export default async function handler(req, res) {
         potwTried = Date.now()
         await settlePotw(sql, origin, etDay()).catch(e => console.error('potw', e))
         await settleChallenges(sql, origin, etDay()).catch(e => console.error('challenge', e))
-        await kocTick(sql, origin, etDay()).catch(e => console.error('koc', e))
       }
       // Once an hour per collector (per instance): Complete Set cards for checklists finished before the cards existed, and
       // Season and set cards whose season has ended turning Final
@@ -625,18 +610,6 @@ export default async function handler(req, res) {
       const view = await predView(sql, u, today, addDays(today, 1), origin)
       const [fresh] = await sql`select * from users where id = ${u.id}`
       return send(200, { predictions: view, ...(await me(fresh)), awards: [...awards, ...view.awards] })
-    }
-    if (action === 'koc' || (post && ['kocpick', 'rival', 'rivalact'].includes(action))) {
-      const today = etDay()
-      if (post) {
-        const b = await readBody(req)
-        if (action === 'kocpick') await kocPick(sql, u, origin, today, b)
-        else if (action === 'rival') await kocChallenge(sql, u, origin, today, b)
-        else await kocRespond(sql, u, origin, today, b)
-        q.day = q.day || b.day
-      }
-      const [fresh] = await sql`select * from users where id = ${u.id}`
-      return send(200, { koc: await kocView(sql, fresh, origin, today, q), ...(await me(fresh)) })
     }
     if (action === 'clash') return send(200, { clash: await clashView(sql, u) })
     if (post && action === 'clashdeck') return send(200, { clash: await saveDeck(sql, u, origin, await readBody(req)) })

@@ -18,7 +18,7 @@ export const TOURS = [
       ['[data-tour="tile-binders"]', 'My Desk', 'Your room. Your binder, today’s pack, your coins, your prize cards and today’s checklist. You’re standing in it.', 'chest_wave'],
       ['[data-tour="tile-library"]', 'The Library', 'Every league-wide binder: the Trophy case, league sets, a binder for every season, every franchise, the all-time legends and a catalog of every card.', 'open'],
       ['[data-tour="tile-scoreboard"]', 'The Scoreboard', 'Tonight’s games with live win chances, box scores, standings, Player of the Week and FanSided Tonight, our nightly show.', 'open'],
-      ['[data-tour="tile-gameroom"]', 'The Game Room', 'Every game you can play: Pick’em, matchups, the Daily Lineup, Player of the Day, King of the Court, Hang the Banner and the Five Challenge.', 'hands_up'],
+      ['[data-tour="tile-gameroom"]', 'The Game Room', 'Every game you can play: Pick’em, matchups, the Daily Lineup, Player of the Day, Full Court Clash, Hang the Banner and the Five Challenge.', 'hands_up'],
       ['[data-tour="tile-store"]', 'The Store', 'Spend coins on packs, and on cards from this day in league history.', 'shrug'],
       ['[data-tour="tile-rankings"]', 'Current Rankings', 'Every active player ranked by Elo, updated after every game, live while games are on.', 'open'],
       ['[data-tour="tile-elo"]', 'Elo Exploration', 'The archive: twelve ways into 80 years of ratings, from the Time Machine to Head-to-Head.', 'open'],
@@ -71,7 +71,6 @@ export const TOURS = [
       [ST('fight'), 'Tale of the Tape', 'Each game’s featured matchup: two players, one from each team. Call who posts the higher Game Score.', 'f_flex'],
       [ST('magnet'), 'Daily Lineup', 'Put five of your own cards into tonight’s games. They score their Game Score times the card’s multiplier, and rarer cards multiply more.', 'open'],
       [ST('tote'), 'Player of the Day', 'Nominate the player you think has the best night. Call it and his card is yours in ruby.', 'hands_up'],
-      [`${ST('cab')}`, 'King of the Court', 'One of your cards a game against a group of six, with a bounty for every Player of the Game. The 2-player cabinet is Rivalries: you against another collector, for a wager.', 'f_claws', { text: 'King' }],
       [`${ST('cab')}`, 'Hang the Banner', 'Every franchise has a ladder of its seasons. Beat each rung’s five with five of your own cards of that team. Every win opens a pack; climb the whole ladder and the Banner card is yours.', 'hands_high', { text: 'Banner' }],
       [`${ST('cab')}`, 'Five Challenge', 'Three lineups a week, the same for everyone: build a five from your cards and see how it ranks against every real five that franchise put on the floor.', 'open', { text: 'Five' }],
       ['[class*="_led_"]', 'High scores', 'This week’s Pick’em standings. The top 10 and top 50 are paid on Monday, and No. 1 wins the Player of the Week card.', 'open'],
@@ -96,26 +95,18 @@ export const TOURS = [
     ],
   },
   {
-    id: 'lineup', name: 'Daily Lineup', group: 'The Game Room', route: ['gameroom', { open: 'lineup' }], wait: '[class*="_teamSel_"]',
+    id: 'lineup', name: 'Daily Lineup', group: 'The Game Room', route: ['gameroom', { open: 'lineup' }], wait: '.dl-five, .dl-emptystate',
     steps: [
       [null, 'Daily Lineup', 'Five slots, filled from your own cards of players in tonight’s games. Each scores his Game Score times the card’s multiplier, 1 coin a point.', 'open'],
-      ['[class*="_search_"]', 'Find your players', 'Search by name, or pick a team from the menu next to it.', 'open'],
-      ['[class*="_claimBtn_"]', 'Add him', 'Rarer cards multiply more but need rest days after they play.', 'hands_up'],
+      ['.dl-search', 'Find your players', 'Search by name, or pick a team from the menu next to it.', 'open'],
+      ['.dl-add', 'Add him', 'Rarer cards multiply more but need rest days after they play.', 'hands_up'],
     ],
   },
   {
-    id: 'potd', name: 'Player of the Day', group: 'The Game Room', route: ['gameroom', { open: 'potd' }], wait: '[class*="_teamSel_"]',
+    id: 'potd', name: 'Player of the Day', group: 'The Game Room', route: ['gameroom', { open: 'potd' }], wait: '.pd-agate, .pd-wait',
     steps: [
       [null, 'Player of the Day', 'Call the night’s best player: the best Game Score plus a sixth of his Elo change. Get it right and his card is yours in ruby.', 'hands_up'],
-      ['[class*="_claimBtn_"]', 'Nominate', 'One nomination a day. You can change it until his game tips off.', 'open'],
-    ],
-  },
-  {
-    id: 'koc', name: 'King of the Court', group: 'The Game Room', route: ['gameroom', { open: 'koc' }], wait: '[class*="_chooseBtn_"], [class*="_seg"]',
-    steps: [
-      [null, 'King of the Court', 'Play one of your cards in a game tonight. Highest Game Score in your group wins the game, and every Player of the Game carries a bounty.', 'f_claws'],
-      ['[class*="_chooseBtn_"]', 'Choose your player', 'Pick from your cards of players in tonight’s games.', 'open'],
-      ['button', 'Rivalries', 'Head to head with another collector for a wager: whoever wins more of the day’s games takes it.', 'f_flex', { text: 'Rivalries' }],
+      ['.pd-agate', 'Circle a line', 'Tap a player’s line in tonight’s box to circle him. You can move your circle until the first game tips off.', 'open'],
     ],
   },
   {
@@ -125,10 +116,10 @@ export const TOURS = [
     ],
   },
   {
-    id: 'five', name: 'Five Challenge', group: 'The Game Room', route: ['gameroom', { open: 'five' }], wait: '[class*="_slotEmpty_"], [class*="_primary_"]',
+    id: 'five', name: 'Five Challenge', group: 'The Game Room', route: ['gameroom', { open: 'five' }], wait: '.fw-folder, .fw-wb',
     steps: [
-      [null, 'Five Challenge', 'Three challenges a week, the same for everyone. Easy is one franchise in any era, Medium that franchise in one era, Hard one season.', 'open'],
-      ['[class*="_primary_"]', 'Build a lineup', 'Up to five of your cards that fit. Your score is their combined Elo, ranked against every real five that franchise played. Coins pay out after the week.', 'hands_up'],
+      [null, 'Five Challenge', 'Three cases a week, the same for everyone. Easy is one franchise in any era, Medium that franchise in one era, Hard one season.', 'open'],
+      ['.fw-folder', 'Build a lineup', 'Up to five of your cards that fit. Your score is their combined Elo, ranked against every real five that franchise played. Coins pay out after the week.', 'hands_up'],
     ],
   },
   {
@@ -186,4 +177,4 @@ export const TOURS = [
 export const tourById = id => TOURS.find(t => t.id === id)
 // Which tour a page starts on its first visit
 export const ROOM_TOUR = { library: 'library', gameroom: 'gameroom', scoreboard: 'scoreboard', rankings: 'rankings', elo: 'elo' }
-export const STATION_TOUR = { predict: 'pickem', matchups: 'tape', lineup: 'lineup', potd: 'potd', koc: 'koc', banner: 'banner', five: 'five', history: 'prizes' }
+export const STATION_TOUR = { predict: 'pickem', matchups: 'tape', lineup: 'lineup', potd: 'potd', banner: 'banner', five: 'five', history: 'prizes' }
