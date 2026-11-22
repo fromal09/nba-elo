@@ -9,6 +9,7 @@ import { binderTeamInfo, binderHeadshots, binderLogo } from './SeasonExplorer'
 import { norm } from './predict'
 import { holidayNear } from './holidays'
 import SelectionBreakdown from './SelectionBreakdown'
+import { PickStage, Results } from './PackReveal'
 import { cardPoints } from '../../api/_lib/points.js'
 
 /*
@@ -314,6 +315,9 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
   const [sel, setSel] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
+  // The binder and your standing as they were when this pack opened, for the results' before and after
+  const [cards0] = useState(cards)
+  const [me0] = useState(me)
   const slot = pack.picks.length
   const offer = pack.slots[slot]
   const kept = pack.picks.map((k, i) => pack.slots[i].cards[k])
@@ -375,66 +379,15 @@ function PackOpening({ pack: start, more, me, pick, onNext, onClose, onMine, car
           <div className={styles.hintLine}>Tap the pack to tear it open</div>
         </>}
 
-        {stage === 'pick' && offer && <>
-          <div className={styles.kick}>Pick {slot + 1} of {pack.slots.length}</div>
-          <div className={`${styles.slotLab} ${pack.pity && slot === pack.slots.length - 1 ? styles.slotPity : ''}`}>{slotLabel(pack, slot, me?.lastNight)}</div>
-          <div className={styles.offer} key={slot}>
-            {offer.cards.map((c, i) => (
-              <button key={refOf(c)} type="button" className={`${styles.choice} ${up[i] ? styles.isFlipped : ''} ${sel === i ? styles.chosen : ''} ${sel != null && sel !== i ? styles.passed : ''}`}
-                data-tier={isSpecial(c) ? 'special' : c.tier} style={{ width: W, height: W * 1.4, '--d': `${i * 120}ms` }} disabled={busy}
-                onClick={() => (up[i] ? all && setSel(i) : flip(i))} aria-pressed={up[i] ? sel === i : undefined} aria-label={up[i] ? `${cardName(c)}, ${tierName(c)}` : `Card ${i + 1}, face down: turn it over`}>
-                {up[i] && (c.tier === 'goat' || c.tier === 'icon' || isSpecial(c)) && <span className={styles.rays} data-tier={isSpecial(c) ? 'special' : c.tier} aria-hidden="true" />}
-                {up[i] && <span className={styles.aura} data-tier={isSpecial(c) ? 'special' : c.tier} aria-hidden="true" />}
-                <span className={styles.flipInner}>
-                  <span className={styles.back}><span className={styles.backMark} style={{ width: W * 0.4, height: W * 0.4, fontSize: W * 0.16 }}>FPR</span></span>
-                  <span className={styles.frontSide}><CardFace card={c} shots={shots} w={W} live /></span>
-                </span>
-                {up[i] && c.wish && <span className={styles.wishTag}>♥ Wish list</span>}
-                {up[i] && <span className={styles.chip} data-tier={isSpecial(c) ? 'special' : c.tier}>{c.tier === 'goat' && !isSpecial(c) ? '★ GOAT pull' : tierName(c)} · {cardPoints(c).points.toLocaleString()} pts</span>}
-                {/* The chosen card's Selection Breakdown covers what this line says */}
-                {up[i] && !(sel === i && !isSpecial(c)) && <FitLine fit={binderFit(cards, c)} className={styles.fitLine} />}
-              </button>
-            ))}
-          </div>
-          <div className={styles.pickBar}>
-            {chosen ? <>
-              <div className={styles.pickWho}><b>{cardName(chosen)} · {cardPoints(chosen).points.toLocaleString()} pts</b><span>{isSpecial(chosen) ? line(chosen) : `${fmtDay(chosen.date)} · ${chosen.tn} ${chosen.home === false ? '@' : 'vs'} ${chosen.on} · ${line(chosen)}`}</span>
-                <small>{pointsWhy(chosen)}</small></div>
-              <button type="button" className={styles.keepBtn} onClick={keep} disabled={busy}>{busy ? 'Keeping…' : 'Keep this card'}</button>
-              {!isSpecial(chosen) && <SelectionBreakdown cards={cards} card={chosen} dark />}
-            </> : !all ? <div className={styles.flipRow}><span className={styles.hintLine}>Turn them over · tap a card{shown ? '' : ' or press space'}</span><button type="button" className={styles.flipAll} onClick={flipAll}>Flip all</button></div>
-              : <div className={styles.hintLine}>Choose one. The other two go back.</div>}
-          </div>
-          {err && <div className={styles.err}>{err}</div>}
-          <div className={styles.keptRow} aria-label="Kept so far">
-            {pack.slots.map((_, i) => kept[i]
-              ? <span key={i} className={styles.keptCard}><CardFace card={kept[i]} shots={shots} w={vw < 520 ? 34 : 44} /></span>
-              : <span key={i} className={`${styles.keptEmpty} ${i === slot ? styles.keptNow : ''}`}>{i + 1}</span>)}
-          </div>
-        </>}
+        {stage === 'pick' && offer && <PickStage pack={pack} slot={slot} slotLabel={slotLabel(pack, slot, me?.lastNight)} kept={kept} cards0={cards0} shots={shots} busy={busy} err={err}
+          W={vw < 520 ? Math.floor((vw - 48) / 3) : vw < 900 ? 170 : 200} onClose={onClose} onKeep={async i => {
+            if (busy) return
+            setBusy(true); setErr(null)
+            try { const d = await pick(pack.id, slot, i); setPack(d.pack); if (d.pack.status === 'done') setStage('done') } catch (x) { setErr(x.message) } finally { setBusy(false) }
+          }} />}
 
-        {stage === 'done' && <>
-          <div className={styles.kick}>{packTitle(pack)} · your {pack.slots.length === 5 ? "five" : pack.slots.length === 1 ? "card" : pack.slots.length}</div>
-          <div className={styles.spread}>
-            {kept.map(c => (
-              <div key={refOf(c)} className={styles.spreadCard}>
-                <CardFace card={c} shots={shots} w={vw < 520 ? 104 : 140} />
-                <span><b data-tier={isSpecial(c) ? 'special' : c.tier}>{tierName(c)}</b> · {cardPoints(c).points.toLocaleString()} pts</span>
-              </div>
-            ))}
-          </div>
-          <div className={styles.packScore}>+{kept.reduce((a, c) => a + cardPoints(c).points, 0).toLocaleString()} points{me?.standing ? ` · binder score ${me.standing.score.toLocaleString()}${me.standing.rank ? ` · No. ${me.standing.rank} of ${me.standing.of}` : ''}` : ''}</div>
-          <Meter meter={me?.meter} dark />
-          <div className={styles.actions}>
-            {more > 0
-              ? <button type="button" className={styles.primary} onClick={onNext}>Open your next pack</button>
-              : <>
-                <button type="button" className={styles.primary} onClick={onMine}>Open my binder</button>
-                <button type="button" className={styles.ghost} onClick={onClose}>Done</button>
-              </>}
-          </div>
-          {!more && (kind === 'daily' || kind === 'streak') && <div className={styles.hintLine}>Next pack once tonight’s games are final and in the data{me?.today ? ` · ${me.today.untilBonus} more day${me.today.untilBonus === 1 ? '' : 's'} to a streak bonus` : ''}</div>}
-        </>}
+        {stage === 'done' && <Results pack={pack} title={packTitle(pack)} kept={kept} cards0={cards0} me={me} me0={me0} shots={shots} more={more} onNext={onNext} onMine={onMine} onClose={onClose}
+          foot={!more && (kind === 'daily' || kind === 'streak') ? <p className="pk-hint">Next pack once tonight’s games are final and in the data{me?.today ? ` · ${me.today.untilBonus} more day${me.today.untilBonus === 1 ? '' : 's'} to a streak bonus` : ''}</p> : null} />}
       </div>
     </div>
   )

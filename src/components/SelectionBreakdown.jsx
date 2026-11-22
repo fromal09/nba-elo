@@ -17,7 +17,7 @@ const ord = n => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && 
 // The checklists, All-Stars and franchise rosters, fetched once per page
 const cache = new Map()
 const getJSON = path => { if (!cache.has(path)) cache.set(path, fetch(`/data/explorer/${path}`).then(r => (r.ok ? r.json() : null)).catch(() => null)); return cache.get(path) }
-function useData(fc) {
+export function useData(fc) {
   const [d, setD] = useState({})
   useEffect(() => {
     let on = true

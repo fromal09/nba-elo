@@ -41,6 +41,14 @@ const seenAdd = k => { try { const x = seenGet(); x.add(k); localStorage.setItem
 const etToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 const plusDay = d => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10) }
 const backDay = d => (d === plusDay(etToday()) ? 'tomorrow' : new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }))
+// How long a card sits out if it's in a winning five (api/_lib/banner.js): the next N rungs or N days, whichever ends first
+const REST_RUNGS = { goat: 10, icon: 8, legend: 6, standout: 4, rare: 2, common: 0 }, REST_DAYS = { goat: 5, icon: 4, legend: 3, standout: 2, rare: 1, common: 0 }, NO_REST = 5
+const winRest = (tier, stage) => (stage >= NO_REST ? null : REST_RUNGS[tier] ? { r: REST_RUNGS[tier], d: REST_DAYS[tier] } : null)
+const winRestLine = (tier, stage) => {
+  if (stage >= NO_REST) return 'Nothing rests at this stage: he’s free for the next rung win or lose.'
+  const w = winRest(tier, stage)
+  return w ? `If your five wins, he sits out your next ${w.r} rungs or ${w.d} day${w.d === 1 ? '' : 's'}, whichever ends first.` : 'Commons never rest: he’s free for the next rung win or lose.'
+}
 const restLine = o => `Resting · back after ${o.r} more rung${o.r === 1 ? '' : 's'} or ${backDay(o.until)}`
 let SHOTS = null
 function useShots() {
@@ -317,12 +325,12 @@ function Match({ env, fc, cur, rungs, resting, back, onPlay, won }) {
       {players.length ? <div className="hb-pool">{players.map(l => {
         const x = l.find(y => !isRest(y)) || l[0], allRest = l.every(isRest), u = used.has(x.card.row.n)
         return <button key={x.card.row.n} type="button" className="hb-pc" disabled={u} onClick={() => setView({ list: l, at: l.indexOf(x) })} data-rest={allRest ? '' : undefined}>
-          {face(x.card, 64)}<span><b>{last(x.card.row.n)}</b><em>{u ? 'On the floor' : allRest ? 'Resting' : n0(x.card.row.pre)}</em>{l.length > 1 && <i className="hb-more">+{l.length - 1} more</i>}</span>
+          {face(x.card, 64)}<span><b>{last(x.card.row.n)}</b><em>{u ? 'On the floor' : allRest ? 'Resting' : n0(x.card.row.pre)}</em>{!u && !allRest && <i className="hb-restx">{winRest(x.card.tier, cur.stage) ? `Rests ${winRest(x.card.tier, cur.stage).r}` : 'No rest'}</i>}{l.length > 1 && <i className="hb-more">+{l.length - 1} more</i>}</span>
         </button>
       })}</div> : <p className="hb-none">None of your {nick(fc)} cards fit this rung yet. Team packs, Era packs and the store are the way in.</p>}
       <button type="button" className="hb-cta hb-play" disabled={chosen.length !== 5} onClick={playIt}><span>{chosen.length === 5 ? 'Play this rung' : `Pick ${5 - chosen.length} more`}</span></button>
     </div>}
-    {V && <CardView env={env} list={view.list} at={view.at} setAt={at => setView(v => ({ ...v, at }))} chosen={chosen} resting={resting} full={chosen.length >= 5}
+    {V && <CardView env={env} list={view.list} at={view.at} setAt={at => setView(v => ({ ...v, at }))} chosen={chosen} resting={resting} stage={cur.stage} full={chosen.length >= 5}
       onPlace={place} onRemove={remove} onClose={() => setView(null)} />}
     {res && <div className="hb-verdict" data-w={res.won ? '' : undefined}>
       {res.won && <div className="hb-tape" aria-hidden="true">{Array.from({ length: 34 }, (_, i) => <i key={i} style={{ left: `${(i * 31) % 100}%`, animationDelay: `${(i % 9) * 110}ms`, '--r': `${(i * 47) % 360}deg` }} />)}</div>}
@@ -338,7 +346,7 @@ function Match({ env, fc, cur, rungs, resting, back, onPlay, won }) {
 }
 
 // A player's cards, full screen: swipe or use the arrows to pick which version takes the floor
-function CardView({ env, list, at, setAt, chosen, resting, full, onPlace, onRemove, onClose }) {
+function CardView({ env, list, at, setAt, chosen, resting, stage, full, onPlace, onRemove, onClose }) {
   const x = list[at], sw = useRef(null), shots = useShots()
   const onIt = chosen.find(y => y.id === x.id), his = chosen.find(y => y.card.row.n === x.card.row.n)
   const r = resting[Number(x.id)]
@@ -354,7 +362,7 @@ function CardView({ env, list, at, setAt, chosen, resting, full, onPlace, onRemo
     <b className="hb-uname">{baseName(x.card.row.n)}</b>
     <em className="hb-uelo">{n0(x.card.row.pre)} pre-game Elo · {x.card.s} vs {x.card.o}</em>
     {list.length > 1 && <div className="hb-dots">{list.map((y, i) => <i key={y.id} data-on={i === at ? '' : undefined} />)}</div>}
-    {r && <p className="hb-restnote">{restLine(r)}</p>}
+    {r ? <p className="hb-restnote">{restLine(r)}</p> : <p className="hb-restif" data-none={winRest(x.card.tier, stage) ? undefined : ''}>{winRestLine(x.card.tier, stage)}</p>}
     <div className="hb-vbtns">
       <button type="button" className="hb-ghost" onClick={onClose}>Close</button>
       {onIt ? <button type="button" className="hb-cta" onClick={() => onRemove(x)}><span>Take him off</span></button>
