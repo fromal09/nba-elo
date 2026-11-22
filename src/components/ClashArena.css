@@ -1,5 +1,5 @@
 /* Full Court Clash: the match, as an arena under the lights */
-.ar { position: fixed; inset: 0; display: flex; justify-content: center; background: #02050c; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; font-family: 'Barlow Condensed', 'Inter', sans-serif; color: #eef3fa; }
+.ar { position: fixed; inset: 0; z-index: 1400; display: flex; justify-content: center; background: #02050c; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; font-family: 'Barlow Condensed', 'Inter', sans-serif; color: #eef3fa; }
 .ar button { font-family: 'Barlow Condensed', 'Inter', sans-serif; }
 .ar-bg { position: absolute; inset: 0; max-width: 480px; margin: 0 auto; pointer-events: none;
   background: radial-gradient(90% 40% at 50% 38%, rgba(255,170,80,.18), transparent 70%), radial-gradient(120% 60% at 50% 110%, #2a1206 0%, transparent 60%), linear-gradient(#08142b 0%, #0b1a33 30%, #0c1426 62%, #120a06 100%); }

@@ -1,6 +1,6 @@
 /* Daily Lineup: a clean dark mobile app. Inter, one accent, cards on a near-black ground. */
 .dl { --bg: #0a0d13; --s1: #121722; --s2: #1a2130; --line: #242d3d; --tx: #eef2f8; --mute: #8995a8; --acc: #3b82f6; --acc2: #60a5fa; --ok: #22c55e; --warn: #f59e0b; --bad: #ef4444;
-  position: fixed; inset: 0; z-index: 1000; display: flex; justify-content: center; background: var(--bg); color: var(--tx); font-family: 'Inter', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+  position: fixed; inset: 0; z-index: 1400; display: flex; justify-content: center; background: var(--bg); color: var(--tx); font-family: 'Inter', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
 .dl button { font-family: inherit; color: inherit; cursor: pointer; }
 .dl button:focus-visible, .dl input:focus-visible, .dl select:focus-visible { outline: 2px solid var(--acc2); outline-offset: 2px; }
 .dl svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }

@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Special+Elite&family=Caveat:wght@600;700&family=VT323&family=Share+Tech+Mono&family=Graduate&family=Barlow+Condensed:wght@600;700;800&family=Courier+Prime:wght@400;700&display=swap');
 /* Five Challenge: a front office at night. Dark wood, a desk lamp, manila folders, a board on the wall, a projector. */
 .fw { --ink: #0c0d10; --wood: #2a1a10; --wood2: #3d2616; --manila: #ead6a6; --manila2: #d9bf86; --red: #b3261e; --gold: #f2c94c; --gold2: #fff0b8; --paper: #f6f1e4; --mute: #9b917f;
-  position: fixed; inset: 0; z-index: 1000; display: flex; justify-content: center; background: var(--ink); color: #f1ead9; overflow: hidden; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+  position: fixed; inset: 0; z-index: 1400; display: flex; justify-content: center; background: var(--ink); color: #f1ead9; overflow: hidden; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
 .fw button { font-family: inherit; color: inherit; cursor: pointer; }
 .fw button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .fw > div { position: relative; width: 100%; max-width: 480px; height: 100%; }
