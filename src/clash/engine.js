@@ -4,8 +4,10 @@
  *
  * A match: two 15-card decks, six turns, three courts revealed on turns 1–3; win two. Each turn adds energy equal to the
  * turn number and unspent energy carries over. You start with 3 cards and draw 1 a turn (7 at most in hand). Plays are
- * face-down until both sides commit; who reveals first alternates (you on odd turns). Cost comes from the card's tier,
- * power from Game Score ÷ 5 capped at 10, and up to two abilities (the two rarest) from the box score.
+ * face-down until both sides commit; a jump ball decides who reveals first on turn 1, then the possession arrow
+ * alternates it. Each turn you may use one franchise power: the power of a franchise you played a card from that turn. Cost comes from the card's tier,
+ * power from the tier's range placed by Game Score (POWER_RANGE), up to two box-score abilities on cost 1–3 cards, and
+ * one signature move on cost 4–6 cards (SIG).
  * Synergy at a court: same franchise +1, same franchise and season +2, same game and team +3 (the best one counts),
  * plus +1 for a Real Duo (100+ games together) and +2 at a historic building the card's team played in that season.
  *
@@ -38,7 +40,7 @@ export function initials(n) { const p = cleanName(n).split(' ').filter(x => !SUF
 
 // ---------- Abilities ----------
 // Rarest first (by how often each turns up in every game on record); a card keeps its two rarest
-export const AB_ORDER = ['quad', 'micro', 'perfect', 'sure', 'charity', 'heat', 'fifty', 'debut', 'triple', 'blowout', 'ot', 'splash', 'iron', 'glass', 'floor', 'swat', 'pick', 'clutch', 'home']
+export const AB_ORDER = ['quad', 'micro', 'perfect', 'sure', 'charity', 'heat', 'fifty', 'debut', 'triple', 'blowout', 'ot', 'splash', 'iron', 'glass', 'floor', 'swat', 'pick', 'clutch']
 // c: { pts, reb, ast, stl, blk, tp, min, ot, win, margin, home }; flags: 'p' perfect night, 'c' 20+ FT made, 's' 15+ assists no turnovers, 'd' debut
 export function abilitiesOf(c, flags = '') {
   const a = [], { pts, reb, ast, stl, blk, tp, min } = c
@@ -56,7 +58,6 @@ export function abilitiesOf(c, flags = '') {
   if (min != null && min >= 45) a.push('iron')
   if (c.ot && c.win) a.push('ot')
   if (flags.includes('d')) a.push('debut')
-  if (c.home) a.push('home')
   if (pts >= 30 && min != null && min <= 24) a.push('micro')
   if (c.win && c.margin >= 40) a.push('blowout')
   if (flags.includes('s')) a.push('sure')
@@ -78,7 +79,6 @@ export const AB = {
   iron: { n: 'Iron Man', k: 'Ongoing', t: () => '+1 at the end of each turn.', why: c => `${c.min} minutes` },
   ot: { n: 'Overtime', k: 'End', t: () => 'If this court is tied, you win it. Overtime cards on both sides cancel out.', why: c => `won in ${c.ot}` },
   debut: { n: 'Debut', k: 'Cost', t: () => 'Costs 1 less.', why: () => 'his first game on record' },
-  home: { n: 'Home Court', k: 'Ongoing', t: c => `+3 at ${ARENA_NAME(c.fc)}.`, why: () => 'a home game' },
   micro: { n: 'Microwave', k: 'Cost', t: () => 'Costs 1 less on turns 5 and 6.', why: c => `${c.pts} points in ${c.min} minutes` },
   blowout: { n: 'Blowout', k: 'On reveal', t: () => '+4 if you lead here by 5 or more when it’s revealed.', why: c => `won by ${c.margin}` },
   sure: { n: 'Sure Hands', k: 'Ongoing', t: () => 'Your cards here can’t be stolen from.', why: () => '15 or more assists, no turnovers' },
@@ -160,6 +160,22 @@ loc('badalona', 'Badalona, 1992', 'Global', 'Dream Team', 'Three All-Time 100 ca
 loc('tmobile', 'T-Mobile Arena', 'Global', 'Knockout', 'After turn 4, this court locks: no more cards here.', 'cup', { endTurn(st, L) { if (st.turn === 4) L.f.lock = true }, canPlay: (st, L) => !L.f.lock })
 export const LOCS = L_
 export const LOCBY = Object.fromEntries(L_.map(l => [l.id, l]))
+// Home Court: +3 for a card from a home game, at the building that game was played in. Today's arenas from the date
+// they opened (or the team moved in); the old buildings by the seasons in their era. Not the 2020 bubble, the Raptors'
+// Tampa season or the Hornets' Oklahoma City seasons.
+const ARENA_FROM = { ATL: '1999-09-01', BOS: '1995-09-01', BKN: '2012-09-01', CHO: '2005-09-01', CHI: '1994-09-01', CLE: '1994-09-01', DAL: '2001-09-01',
+  DEN: '1999-09-01', DET: '2017-09-01', GSW: '2019-09-01', HOU: '2003-09-01', IND: '1999-09-01', LAC: '2024-09-01', LAL: '1999-09-01', MEM: '2004-09-01',
+  MIA: '2000-01-01', MIL: '2018-09-01', MIN: '1990-09-01', NOP: '2002-09-01', NYK: '1968-02-14', OKC: '2008-09-01', ORL: '2010-09-01', PHI: '1996-09-01',
+  PHO: '1992-06-01', POR: '1995-09-01', SAC: '2016-09-01', SAS: '2002-09-01', TOR: '1999-02-20', UTA: '1991-09-01', WAS: '1997-12-01' }
+const AWAY_SPELLS = [['', '2020-07-01', '2020-10-31'], ['TOR', '2020-12-01', '2021-06-30'], ['NOP', '2005-09-01', '2007-06-30']]
+export function homeAt(def, c) {
+  if (!c?.home || !def) return false
+  const d = String(c.d || '')
+  if (AWAY_SPELLS.some(([fc, a, b]) => (!fc || fc === c.fc) && d >= a && d <= b)) return false
+  if (def.fc && def.g === 'Arena') return def.fc === c.fc && d >= (ARENA_FROM[c.fc] || '9999')
+  if (def.era) return def.era[0] === c.fc && sy(c) >= def.era[1] && sy(c) <= def.era[2]
+  return false
+}
 export function ARENA_NAME(fc) { return LOCBY[fc]?.name || 'his home arena' }
 // A franchise's courts: its arena, then the old buildings it played in
 export const venues = fc => [fc, ...L_.filter(l => l.era && l.era[0] === fc).map(l => l.id)].slice(0, 3)
@@ -178,8 +194,10 @@ export const DEF = L => (L.revealed ? LOCBY[L.id] : NODEF)
 export const slotsOf = L => DEF(L).slots || 4
 const base = i => i.c.pw + i.mod
 function protectedFrom(st, i) {
-  if (has(i, 'perfect')) return true
+  if (has(i, 'perfect') || i.guard) return true
   const L = st.locs[i.li]
+  if (L.f.culture?.[i.side]) return true
+  if (L.f.help?.[i.side] === st.turn || st.dna?.[i.side]) return true
   if (L[i.side].some(o => has(o, 'glass'))) return true
   if (DEF(L).guardFirst && L[i.side][0] === i) return true
   return false
@@ -187,7 +205,12 @@ function protectedFrom(st, i) {
 function fx(st, i, t, col) { st.fx.push({ u: i.u, t, c: col }) }
 function bump(st, i, v, why) {
   if (v < 0 && protectedFrom(st, i)) { fx(st, i, 'Protected', 'good'); return false }
-  i.mod += v; fx(st, i, `${v > 0 ? '+' : ''}${v} ${why}`, v > 0 ? 'up' : 'down'); return true
+  const L = st.locs[i.li]
+  if (v > 0 && L?.f.nogain?.[i.side] === st.turn) { fx(st, i, 'Lockdown', 'down'); return false }
+  i.mod += v; fx(st, i, `${v > 0 ? '+' : ''}${v} ${why}`, v > 0 ? 'up' : 'down')
+  // Putback: the first time each turn one of your other cards here loses power, this card gains it
+  if (v < 0 && L) { const pb = L[i.side].find(x => x !== i && x.c.ab.includes('putback') && x.pb !== st.turn); if (pb) { pb.pb = st.turn; bump(st, pb, -v, 'Putback') } }
+  return true
 }
 const pairN = (st, a, b) => st.pairs[[a, b].sort().join('|')] || 0
 function synergy(st, i, own) {
@@ -207,7 +230,8 @@ export function breakdown(st, i) {
   if (i.mod) rows.push([i.mod, 'Effects so far', 'mod'])
   if (def.mod) { const v = def.mod(i, { own, opp, st, L }); if (v) rows.push([v, def.rule, 'loc']) }
   own.forEach(o => { if (o === i) return; if (has(o, 'quad')) rows.push([2, `Quadruple-Double (${lastName(o.c.n)})`, 'ab']); else if (has(o, 'triple')) rows.push([1, `Triple-Double (${lastName(o.c.n)})`, 'ab']) })
-  if (has(i, 'home') && def.fc === i.c.fc && !def.noHome) rows.push([3, 'Home Court', 'ab'])
+  if (homeAt(def, i.c) && !def.noHome) rows.push([3, 'Home Court', 'ab'])
+  for (const a of i.c.ab) if (SIG[a]?.mod) { const v = SIG[a].mod(st, i, own, opp); if (v) rows.push([v, SIG[a].n, 'ab']) }
   if (def.era && def.era[0] === i.c.fc && sy(i.c) >= def.era[1] && sy(i.c) <= def.era[2]) rows.push([2, 'Era Arena', 'syn'])
   synergy(st, i, own).forEach(r => rows.push(r))
   let total = rows.reduce((s, r) => s + r[0], 0)
@@ -238,6 +262,7 @@ export function canPlayAt(st, side, li, extra = 0) {
   const L = st.locs[li]
   if (L[side].length + extra >= slotsOf(L)) return false
   if (DEF(L).canPlay && !DEF(L).canPlay(st, L, side)) return false
+  if (L.f.rim?.[side] === st.turn || L.f.wall?.[side]) return false
   return true
 }
 function strongest(st, arr) { let b = null, bp = -1; arr.forEach(i => { const p = power(st, i); if (p > bp) { b = i; bp = p } }); return b }
@@ -248,10 +273,15 @@ export function place(st, side, c, li) {
 }
 export function reveal(st, i) {
   const L = st.locs[i.li], o = other(i.side), def = DEF(L)
+  if (st.boost?.[i.side] === i.k) { delete st.boost[i.side]; bump(st, i, 1, 'Thunder Up') }
+  if (L.f.line?.[i.side]) { const v = L.f.line[i.side]; delete L.f.line[i.side]; bump(st, i, v, 'Second Line') }
+  if (L.f.boxout?.[i.side]) { delete L.f.boxout[i.side]; bump(st, i, -2, 'Box Out') }
+  if (st.lights?.[i.side]) bump(st, i, -1, 'Lights Out')
   L[o].forEach(x => { if (has(x, 'charity')) bump(st, x, 1, 'Charity Stripe') })
   if (def.onPlay) def.onPlay(st, L, i)
   if (def.noReveal) return
   for (const a of i.c.ab) {
+    if (SIG[a]?.reveal) { SIG[a].reveal(st, i); continue }
     if (a === 'fifty') bump(st, i, 1 + Math.floor((i.c.pts - 50) / 10), 'Fifty Burger')
     if (a === 'swat') { const t = strongest(st, L[o]); if (t) bump(st, t, -Math.max(1, Math.floor(i.c.blk / 3)), 'Swat Team') }
     if (a === 'pick') {
@@ -273,10 +303,25 @@ export function reveal(st, i) {
 }
 function endOfTurn(st) {
   st.locs.forEach(L => sides.forEach(s => L[s].forEach(i => { if (has(i, 'iron')) bump(st, i, 1, 'Iron Man') })))
+  // Signature moves that work at the end of each turn
+  st.locs.forEach(L => sides.forEach(s => L[s].forEach(i => { for (const a of i.c.ab) if (SIG[a]?.endTurn) SIG[a].endTurn(st, i) })))
+  // Franchise powers that wait for the end of the turn
+  st.locs.forEach(L => sides.forEach(s => L[s].forEach(i => { if (i.proc > 0) { i.proc--; bump(st, i, 1, 'The Process') } })))
+  st.locs.forEach(L => sides.forEach(s => { if (L.f.mile?.[s] === st.turn) { delete L.f.mile[s]; L[s].forEach(i => bump(st, i, 1, 'Mile High')) } }))
+  st.locs.forEach((L, li) => sides.forEach(s => {
+    if (L.f.beamFP?.[s] !== st.turn) return
+    delete L.f.beamFP[s]
+    const t = totals(st)
+    if (t[li][s] <= t[li][other(s)]) return
+    const weak = [0, 1, 2].filter(k => k !== li && st.locs[k][s].length).sort((a, b) => t[a][s] - t[b][s])[0]
+    if (weak != null) bump(st, strongest(st, st.locs[weak][s]), 3, 'Light the Beam')
+  }))
   st.locs.forEach(L => { if (L.revealed && LOCBY[L.id].endTurn) LOCBY[L.id].endTurn(st, L) })
 }
 function finalScore(st) {
   const log = []
+  // Signature moves that wait for the final buzzer
+  st.locs.forEach(L => sides.forEach(s => L[s].forEach(i => { for (const a of i.c.ab) if (SIG[a]?.final) { const m = SIG[a].final(st, i); if (m) log.push([s, m]) } })))
   const t0 = totals(st)
   st.locs.forEach((L, li) => sides.forEach(s => {
     if (L[s].some(i => has(i, 'clutch')) && Math.abs(t0[li][s] - t0[li][other(s)]) <= 3) { L.extra[s] = (L.extra[s] || 0) + 3; log.push([s, `Clutch +3 at ${LOCBY[L.id].name}`]) }
@@ -295,6 +340,7 @@ function finalScore(st) {
     const op = L.p.some(i => has(i, 'ot')), oc = L.c.some(i => has(i, 'ot'))
     if (op && !oc) return 'p'
     if (oc && !op) return 'c'
+    if (st.tieWin) return st.tieWin
     return LOCBY[L.id].tie ? LOCBY[L.id].tie(st, L) : null
   })
   st.locs.forEach((L, li) => {
@@ -309,19 +355,179 @@ function finalScore(st) {
   return { t, w, winner, np, nc, log }
 }
 
+
+
+// ---------- Signature moves ----------
+// Every Legend, Icon and GOAT card (cost 4–6) has one power: a signature move, in place of box-score abilities. His best
+// category that night (points against 30, rebounds against 12, assists against 10, steals and blocks against 5) picks
+// the group, and the card itself (player and game) picks one move from it, so it never changes. All-Time 100 players can
+// also draw from the 'other' group. Cheaper cards keep up to two box-score abilities. Legend moves are worth about +3,
+// Icon about +5, GOAT about +8 or a swing that bends the match.
+const myCards = (st, s) => st.locs.flatMap(L => L[s])
+const playedNow = (st, i) => myCards(st, i.side).filter(x => x.turn === st.turn)
+const weakestAt = (st, arr) => { let b = null, bp = 1e9; arr.forEach(x => { const v = power(st, x); if (v < bp) { b = x; bp = v } }); return b }
+const moveTo = (st, x, to) => { const L = st.locs[x.li]; L[x.side].splice(L[x.side].indexOf(x), 1); x.li = to; st.locs[to][x.side].push(x) }
+const sig = (id, tier, grp, n, k, t, h) => ({ id, tier, grp, n, k, t, ...h })
+const SIG_LIST = [
+  // Legend (4)
+  sig('heatup', 4, 'pts', 'Heat Up', 'On reveal', '+2, plus 1 for each card you played this turn, this one included.', { reveal: (st, i) => bump(st, i, playedNow(st, i).length + 2, 'Heat Up') }),
+  sig('bucket', 4, 'pts', 'Bucket Getter', 'On reveal', '+2, or +3 if an opposing card here has more power.', { reveal: (st, i) => bump(st, i, st.locs[i.li][other(i.side)].some(x => power(st, x) > power(st, i)) ? 3 : 2, 'Bucket Getter') }),
+  sig('closer', 4, 'pts', 'Closer', 'On reveal', '+4 if played on possession 5 or 6. Otherwise +1.', { reveal: (st, i) => bump(st, i, st.turn >= 5 ? 4 : 1, 'Closer') }),
+  sig('boxout', 4, 'reb', 'Box Out', 'On reveal', '+2, and the opponent’s next card played here loses 2.', { reveal: (st, i) => { bump(st, i, 2, 'Box Out'); const L = st.locs[i.li]; L.f.boxout = { ...(L.f.boxout || {}), [other(i.side)]: 1 } } }),
+  sig('putback', 4, 'reb', 'Putback', 'Ongoing', '+3. The first time each turn one of your other cards here loses power, this card gains that much.', { reveal: (st, i) => bump(st, i, 3, 'Putback') }),
+  sig('kickout', 4, 'ast', 'Kick Out', 'On reveal', 'Your weakest card at another court gets +3. If you have none, +2 here.', { reveal: (st, i) => { const o = st.locs.filter((L, k) => k !== i.li).flatMap(L => L[i.side]); const w = weakestAt(st, o); if (w) bump(st, w, 3, 'Kick Out'); else bump(st, i, 2, 'Kick Out') } }),
+  sig('extrapass', 4, 'ast', 'Extra Pass', 'On reveal', '+1, and you get 1 more energy next turn. On the final possession, +3 instead.', { reveal: (st, i) => { if (st.turn >= 6) bump(st, i, 3, 'Extra Pass'); else { bump(st, i, 1, 'Extra Pass'); st.bonusE = { ...(st.bonusE || {}), [i.side]: (st.bonusE?.[i.side] || 0) + 1 } } } }),
+  sig('lockdown', 4, 'def', 'Lockdown', 'On reveal', '+3, and opposing cards here can’t gain power this turn.', { reveal: (st, i) => { bump(st, i, 3, 'Lockdown'); const L = st.locs[i.li]; L.f.nogain = { ...(L.f.nogain || {}), [other(i.side)]: st.turn } } }),
+  sig('help', 4, 'def', 'Help Defense', 'On reveal', '+3, and your cards here can’t lose power this turn.', { reveal: (st, i) => { bump(st, i, 3, 'Help Defense'); const L = st.locs[i.li]; L.f.help = { ...(L.f.help || {}), [i.side]: st.turn } } }),
+  sig('momentum', 4, 'other', 'Momentum', 'Ongoing', '+2 now, and +1 at the end of each turn you lead here.', { reveal: (st, i) => bump(st, i, 2, 'Momentum'), endTurn: (st, i) => { const t = totals(st)[i.li]; if (t[i.side] > t[other(i.side)]) bump(st, i, 1, 'Momentum') } }),
+  sig('sixth', 4, 'other', 'Sixth Man', 'On reveal', '+3 if he’s the only card you played this turn. Otherwise +1.', { reveal: (st, i) => bump(st, i, playedNow(st, i).length === 1 ? 3 : 1, 'Sixth Man') }),
+  sig('road', 4, 'other', 'Road Warrior', 'On reveal', '+4 if his game was a road win. Otherwise +2.', { reveal: (st, i) => bump(st, i, !i.c.home && i.c.win ? 4 : 2, 'Road Warrior') }),
+  sig('takeover', 5, 'pts', 'Takeover', 'End', 'At the final buzzer, two-thirds of his power counts again here.', { final: (st, i) => { const L = st.locs[i.li], v = Math.ceil(power(st, i) * 2 / 3); L.extra[i.side] = (L.extra[i.side] || 0) + v; return `Takeover +${v} at ${LOCBY[L.id].name}` } }),
+  sig('title', 5, 'pts', 'Scoring Title', 'On reveal', '+1 for every 8 points he scored, at least +4 and at most +7.', { reveal: (st, i) => bump(st, i, Math.max(4, Math.min(7, Math.floor((i.c.pts || 0) / 8))), 'Scoring Title') }),
+  sig('iso', 5, 'pts', 'Iso', 'Ongoing', '+7 while he’s your only card here. Otherwise +2.', { mod: (st, i, own) => (own.length === 1 ? 7 : 2) }),
+  sig('rim', 5, 'reb', 'Rim Protector', 'On reveal', '+2, and the opponent can’t play cards here next turn.', { reveal: (st, i) => { bump(st, i, 2, 'Rim Protector'); const L = st.locs[i.li]; L.f.rim = { ...(L.f.rim || {}), [other(i.side)]: st.turn + 1 } } }),
+  sig('gravity', 5, 'reb', 'Gravity', 'On reveal', 'Every opposing card here loses 1, and he gains what they lose (+2 if there are none).', { reveal: (st, i) => { const o = st.locs[i.li][other(i.side)].slice(); if (!o.length) { bump(st, i, 2, 'Gravity'); return } let g = 0; o.forEach(x => { if (bump(st, x, -1, 'Gravity')) g++ }); if (g) bump(st, i, g, 'Gravity') } }),
+  sig('offense', 5, 'ast', 'Run the Offense', 'On reveal', 'Your other cards at every court get +1.', { reveal: (st, i) => { const o = myCards(st, i.side).filter(x => x !== i); if (!o.length) bump(st, i, 2, 'Run the Offense'); o.forEach(x => bump(st, x, 1, 'Run the Offense')) } }),
+  sig('spacer', 5, 'ast', 'Floor Spacer', 'On reveal', 'Your strongest card at each other court gets +2. If you have none there, +2 here.', { reveal: (st, i) => { let n = 0; st.locs.forEach((L, k) => { if (k !== i.li && L[i.side].length) { bump(st, strongest(st, L[i.side]), 2, 'Floor Spacer'); n++ } }); if (!n) bump(st, i, 2, 'Floor Spacer') } }),
+  sig('pullup', 5, 'ast', 'Pull-Up', 'On reveal', '+1, and draw the highest-cost card left in your deck.', { reveal: (st, i) => { bump(st, i, 1, 'Pull-Up'); const d = st.deck[i.side]; if (!d.length || st.hand[i.side].length >= 7) return; let b = 0; d.forEach((k, j) => { if (st.cards[k].cost > st.cards[d[b]].cost) b = j }); st.hand[i.side].push(d.splice(b, 1)[0]); fx(st, i, 'Drew his best card left', 'up') } }),
+  sig('shut', 5, 'def', 'Shut Down', 'On reveal', '+1, and the opponent’s strongest card here loses everything it has gained, plus 1.', { reveal: (st, i) => { bump(st, i, 1, 'Shut Down'); const t = strongest(st, st.locs[i.li][other(i.side)]); if (t) bump(st, t, -(Math.max(0, t.mod) + 1), 'Shut Down') } }),
+  sig('clearout', 5, 'def', 'Clear Out', 'On reveal', 'Your weakest other card here moves to another court, and he gains its base power. With none, +2.', { reveal: (st, i) => { const L = st.locs[i.li], w = weakestAt(st, L[i.side].filter(x => x !== i)), to = [0, 1, 2].find(k => k !== i.li && canPlayAt(st, i.side, k)); if (!w || to == null) { bump(st, i, 2, 'Clear Out'); return } moveTo(st, w, to); fx(st, w, 'Clear Out: moved', 'up'); bump(st, i, w.c.pw, 'Clear Out') } }),
+  sig('glue', 5, 'other', 'Glue Guy', 'On reveal', '+2 for each ability your other cards here have, at least +4 and at most +7.', { reveal: (st, i) => bump(st, i, Math.max(4, Math.min(7, 2 * st.locs[i.li][i.side].filter(x => x !== i).reduce((a, x) => a + x.c.ab.length, 0))), 'Glue Guy') }),
+  sig('fourth', 5, 'other', 'Fourth Quarter', 'End', 'At the final buzzer, +5 here if this court is within 5.', { final: (st, i) => { const L = st.locs[i.li], t = totals(st)[i.li]; if (Math.abs(t.p - t.c) <= 5) { L.extra[i.side] = (L.extra[i.side] || 0) + 5; return `Fourth Quarter +5 at ${LOCBY[L.id].name}` } } }),
+  // GOAT (6)
+  sig('lights', 6, 'pts', 'Lights Out', 'On reveal', '+6, and every opposing card played after this, anywhere, gets −1.', { reveal: (st, i) => { bump(st, i, 6, 'Lights Out'); st.lights = { ...(st.lights || {}), [other(i.side)]: true } } }),
+  sig('shot', 6, 'pts', 'The Shot', 'End', '+4. At the final buzzer, if you’re within 8 here, you win this court.', { reveal: (st, i) => bump(st, i, 4, 'The Shot'), final: (st, i) => { const L = st.locs[i.li], t = totals(st)[i.li], d = t[other(i.side)] - t[i.side]; if (d >= 0 && d <= 8) { L.extra[i.side] = (L.extra[i.side] || 0) + d + 1; return `The Shot wins ${LOCBY[L.id].name}` } } }),
+  sig('relentless', 6, 'pts', 'Relentless', 'Ongoing', '+4 now, and +2 at the end of every turn for the rest of the match.', { reveal: (st, i) => bump(st, i, 4, 'Relentless'), endTurn: (st, i) => bump(st, i, 2, 'Relentless') }),
+  sig('dna', 6, 'reb', 'Championship DNA', 'On reveal', '+7, and your cards everywhere can’t lose power for the rest of the match.', { reveal: (st, i) => { bump(st, i, 7, 'Championship DNA'); st.dna = { ...(st.dna || {}), [i.side]: true } } }),
+  sig('wall', 6, 'reb', 'The Wall', 'On reveal', '+5, and the opponent can’t play cards here for the rest of the match.', { reveal: (st, i) => { bump(st, i, 5, 'The Wall'); const L = st.locs[i.li]; L.f.wall = { ...(L.f.wall || {}), [other(i.side)]: true } } }),
+  sig('callup', 6, 'ast', 'Call Up', 'On reveal', '+4, and a random 3- or 4-cost card from your deck goes onto another court for free.', { reveal: (st, i) => {
+    const d = st.deck[i.side], pool = d.filter(k => st.cards[k].cost === 3 || st.cards[k].cost === 4), to = [0, 1, 2].filter(k => k !== i.li && canPlayAt(st, i.side, k))
+    bump(st, i, 4, 'Call Up')
+    if (!pool.length || !to.length) { bump(st, i, 2, 'Call Up'); return }
+    const k = pool[Math.floor(rand(st) * pool.length)]; d.splice(d.indexOf(k), 1)
+    const x = place(st, i.side, st.cards[k], to[Math.floor(rand(st) * to.length)]); fx(st, i, `Call Up: ${lastName(x.c.n)}`, 'up'); reveal(st, x) } }),
+  sig('dynasty', 6, 'ast', 'Dynasty', 'On reveal', '+2, and every other card you have, anywhere, gets +1.', { reveal: (st, i) => { bump(st, i, 2, 'Dynasty'); myCards(st, i.side).filter(x => x !== i).forEach(x => bump(st, x, 1, 'Dynasty')) } }),
+  sig('pace', 6, 'ast', 'Pace and Space', 'On reveal', '+5, and 1 more energy every turn for the rest of the match. On the final possession, +8 instead.', { reveal: (st, i) => { if (st.turn >= 6) bump(st, i, 8, 'Pace and Space'); else { bump(st, i, 5, 'Pace and Space'); st.pace = { ...(st.pace || {}), [i.side]: true } } } }),
+  sig('shutdown', 6, 'def', 'Shutdown', 'On reveal', 'The opponent’s strongest card here loses 4, and their strongest at each other court loses 1.', { reveal: (st, i) => { let n = 0; st.locs.forEach((L, k) => { const t = strongest(st, L[other(i.side)]); if (t) { bump(st, t, k === i.li ? -4 : -1, 'Shutdown'); n++ } }); if (!n) bump(st, i, 3, 'Shutdown') } }),
+  sig('coronation', 6, 'def', 'Coronation', 'On reveal', '+4, and the opponent’s strongest card here loses 5.', { reveal: (st, i) => { bump(st, i, 4, 'Coronation'); const t = strongest(st, st.locs[i.li][other(i.side)]); if (t) bump(st, t, -5, 'Coronation') } }),
+  sig('legacy', 6, 'other', 'Legacy', 'End', 'At the final buzzer, three-quarters of his power also counts at your weakest other court.', { final: (st, i) => { const t = totals(st), k = [0, 1, 2].filter(x => x !== i.li).sort((a, b) => t[a][i.side] - t[b][i.side])[0], v = Math.ceil(power(st, i) * 3 / 4); st.locs[k].extra[i.side] = (st.locs[k].extra[i.side] || 0) + v; return `Legacy +${v} at ${LOCBY[st.locs[k].id].name}` } }),
+  sig('comeback', 6, 'other', 'Comeback Kid', 'On reveal', '+10 if you’re winning fewer courts. Otherwise +6.', { reveal: (st, i) => { const t = totals(st), a = t.filter(x => x[i.side] > x[other(i.side)]).length, b = t.filter(x => x[other(i.side)] > x[i.side]).length; bump(st, i, a < b ? 10 : 6, 'Comeback Kid') } }),
+  sig('banner', 6, 'other', 'Banner Raised', 'On reveal', '+7, and you win every tie, at every court.', { reveal: (st, i) => { bump(st, i, 7, 'Banner Raised'); if (!st.tieWin) st.tieWin = i.side } }),
+]
+export const SIG = Object.fromEntries(SIG_LIST.map(x => [x.id, x]))
+export const SIG_GROUP = { pts: 'Scoring', reb: 'Rebounding', ast: 'Playmaking', def: 'Defense', other: 'All-Time 100' }
+// The moves read like abilities everywhere a card's abilities show
+SIG_LIST.forEach(x => { AB[x.id] = { n: x.n, k: x.k, t: () => x.t, why: () => `${['', '', '', '', 'Legend', 'Icon', 'GOAT'][x.tier]} signature move · ${SIG_GROUP[x.grp]}`, sig: x.tier } })
+// Which group a night falls in: his best category against what counts as a big night
+export function sigGroup(c) {
+  const sc = [['pts', (c.pts || 0) / 30], ['reb', (c.reb || 0) / 12], ['ast', (c.ast || 0) / 10], ['def', ((c.stl || 0) + (c.blk || 0)) / 5]]
+  return sc.sort((a, b) => b[1] - a[1])[0][0]
+}
+export function sigOf(c, top) {
+  const tier = Math.min(6, c.cost)
+  if (tier < 4) return null
+  const g = sigGroup(c)
+  const pool = SIG_LIST.filter(x => x.tier === tier && (x.grp === g || (top && x.grp === 'other')))
+  return pool[hash(`${c.n}|${c.g}|${c.s}`) % pool.length].id
+}
+// Power follows cost: each tier has a range, and that night's Game Score places the card in it
+// Tuned by simulation: a normal curve beats an all-cheap deck about 7 in 10 and splits about even with an all-expensive one
+export const POWER_RANGE = { 1: [2, 4], 2: [3, 5], 3: [3, 6], 4: [4, 7], 5: [4, 8], 6: [5, 9] }
+export const powerOf = c => { const [lo, hi] = POWER_RANGE[c.cost] || [1, 3]; return lo + Math.round((hi - lo) * Math.max(0, Math.min(1, (c.gs || 0) / 40))) }
+// A card as it plays: power from its tier and night; a Legend, Icon or GOAT trades its box-score abilities for its move
+export const RULES = { powerByCost: true, signatures: true }
+export function finalize(c, top) {
+  if (c.ab0 == null) c.ab0 = (c.ab || []).filter(a => a !== 'home')
+  c.pw = RULES.powerByCost ? powerOf(c) : Math.max(0, Math.min(10, Math.round((c.gs || 0) / 5)))
+  const m = RULES.signatures ? sigOf(c, top) : null
+  c.ab = m ? [m] : c.ab0.slice()
+  return c
+}
+
+// ---------- Franchise powers ----------
+// Each turn a side may use one: the power of a franchise it played a card from that turn. It fires when the first card
+// of that franchise played that turn is revealed, after the card's own abilities. Every power is worth about +3.
+const mine = (st, i) => st.locs[i.li][i.side]
+const theirs = (st, i) => st.locs[i.li][other(i.side)]
+const courtsWon = (st, s) => { const t = totals(st); return t.filter(x => x[s] > x[other(s)]).length }
+export const FP = {
+  ATL: { n: 'Highlight Film', t: '+2, or +4 if this card scored 30 or more.', run: (st, i) => bump(st, i, i.c.pts >= 30 ? 4 : 2, 'Highlight Film') },
+  BOS: { n: 'Banner Night', t: 'This card gets +2 and your other cards here get +1.', run: (st, i) => mine(st, i).forEach(x => bump(st, x, x === i ? 2 : 1, 'Banner Night')) },
+  BKN: { n: 'Crossover', t: '+1, and the opponent’s strongest card here moves to another court with room. If none has room, it loses 2.', run: (st, i) => {
+    bump(st, i, 1, 'Crossover')
+    const o = other(i.side), L = st.locs[i.li], tgt = strongest(st, L[o]); if (!tgt) return
+    const to = [0, 1, 2].filter(k => k !== i.li && canPlayAt(st, o, k)).sort((a, b) => { const t = totals(st); return (t[b][o] - t[b][i.side]) - (t[a][o] - t[a][i.side]) })[0]
+    if (to == null || protectedFrom(st, tgt)) { bump(st, tgt, -2, 'Crossover'); return }
+    L[o].splice(L[o].indexOf(tgt), 1); tgt.li = to; st.locs[to][o].push(tgt); fx(st, tgt, 'Crossover: moved', 'down') } },
+  CHO: { n: 'The Hive', t: 'With 2 or more of your cards here, each gets +1. Otherwise this card gets +1.', run: (st, i) => { const a = mine(st, i); if (a.length >= 2) a.forEach(x => bump(st, x, 1, 'The Hive')); else bump(st, i, 1, 'The Hive') } },
+  CHI: { n: 'Triangle', t: '+3 if you have cards at all three courts. Otherwise +1.', run: (st, i) => bump(st, i, st.locs.every(L => L[i.side].length) ? 3 : 1, 'Triangle') },
+  CLE: { n: 'Comeback', t: '+4 if you trail here. Otherwise +1.', run: (st, i) => { const t = totals(st)[i.li]; bump(st, i, t[i.side] < t[other(i.side)] ? 4 : 1, 'Comeback') } },
+  DAL: { n: 'Fadeaway', t: '+2, and this card can’t lose power.', run: (st, i) => { bump(st, i, 2, 'Fadeaway'); i.guard = true } },
+  DEN: { n: 'Mile High', t: '+1 now. At the end of next turn, your cards here get +1.', run: (st, i) => { bump(st, i, 1, 'Mile High'); const L = st.locs[i.li]; L.f.mile = { ...(L.f.mile || {}), [i.side]: st.turn + 1 } } },
+  DET: { n: 'Bad Boys', t: 'Every opposing card here loses 1. If there are none, +1.', run: (st, i) => { const o = theirs(st, i).slice(); if (!o.length) bump(st, i, 1, 'Bad Boys'); o.forEach(x => bump(st, x, -1, 'Bad Boys')) } },
+  GSW: { n: 'Strength in Numbers', t: 'Draw a card on turns 1 and 2. Later, +1 instead.', run: (st, i) => { if (st.turn >= 3 || !st.deck[i.side].length) bump(st, i, 1, 'Strength in Numbers'); else { draw(st, i.side); fx(st, i, 'Drew a card', 'up') } } },
+  HOU: { n: 'Moreyball', t: '+1 for every two threes this card made, at least +2 and at most +4.', run: (st, i) => bump(st, i, Math.max(2, Math.min(4, Math.floor((i.c.tp || 0) / 2))), 'Moreyball') },
+  IND: { n: 'Miller Time', t: '+4 on the final possession. Otherwise +1.', run: (st, i) => bump(st, i, st.turn >= 6 ? 4 : 1, 'Miller Time') },
+  LAC: { n: 'Lob City', t: '+2, and your other cards played here this turn get +1.', run: (st, i) => { bump(st, i, 2, 'Lob City'); mine(st, i).filter(x => x !== i && x.turn === st.turn).forEach(x => bump(st, x, 1, 'Lob City')) } },
+  LAL: { n: 'Showtime', t: 'This card gets +2 and every other card you played this turn gets +1.', run: (st, i) => st.locs.forEach(L => L[i.side].forEach(x => { if (x.turn === st.turn) bump(st, x, x === i ? 2 : 1, 'Showtime') })) },
+  MEM: { n: 'Grit and Grind', t: '+1 for each opposing card here after the first, at least +1 and at most +3.', run: (st, i) => bump(st, i, Math.max(1, Math.min(3, theirs(st, i).length - 1)), 'Grit and Grind') },
+  MIA: { n: 'Heat Culture', t: '+1, and your cards here can’t lose power for the rest of the match.', run: (st, i) => { bump(st, i, 1, 'Heat Culture'); const L = st.locs[i.li]; L.f.culture = { ...(L.f.culture || {}), [i.side]: true } } },
+  MIL: { n: 'Fear the Deer', t: '+3 if this is your only card here. Otherwise +1.', run: (st, i) => bump(st, i, mine(st, i).length === 1 ? 3 : 1, 'Fear the Deer') },
+  MIN: { n: 'Twin Towers', t: 'With exactly two of your cards here, both get +2. Otherwise this card gets +1.', run: (st, i) => { const a = mine(st, i); if (a.length === 2) a.forEach(x => bump(st, x, 2, 'Twin Towers')); else bump(st, i, 1, 'Twin Towers') } },
+  NOP: { n: 'Second Line', t: 'The next card you play here gets +2.', run: (st, i) => { fx(st, i, 'Second Line', 'up'); const L = st.locs[i.li]; L.f.line = { ...(L.f.line || {}), [i.side]: 2 } } },
+  NYK: { n: 'The Mecca', t: '+1 for every other card at this court, both sides, at least +1 and at most +3.', run: (st, i) => { const L = st.locs[i.li]; bump(st, i, Math.max(1, Math.min(3, L.p.length + L.c.length - 1)), 'The Mecca') } },
+  OKC: { n: 'Thunder Up', t: '+1, and the strongest card in your hand gets +1 when you play it.', run: (st, i) => { bump(st, i, 1, 'Thunder Up'); const h = st.hand[i.side].map(k => st.cards[k]).sort((a, b) => b.pw - a.pw)[0]; if (h) st.boost = { ...(st.boost || {}), [i.side]: h.k } } },
+  ORL: { n: 'Disappearing Act', t: '+1, and the opponent’s weakest card here goes back to their hand.', run: (st, i) => {
+    const o = other(i.side), L = st.locs[i.li]; let w = null, wp = 99; L[o].forEach(x => { const v = power(st, x); if (v < wp) { w = x; wp = v } })
+    bump(st, i, 1, 'Disappearing Act')
+    if (!w) return
+    if (protectedFrom(st, w)) { fx(st, w, 'Protected', 'good'); return }
+    L[o].splice(L[o].indexOf(w), 1); if (st.hand[o].length < 7) st.hand[o].push(w.k); fx(st, i, `Disappearing Act: ${lastName(w.c.n)} back to the hand`, 'up') } },
+  PHI: { n: 'The Process', t: 'This card gets +1 at the end of each turn, up to +2.', run: (st, i) => { i.proc = 2; fx(st, i, 'The Process', 'up') } },
+  PHO: { n: 'Seven Seconds', t: '+1, and you get 1 more energy next turn. On the final possession, +3 instead.', run: (st, i) => { if (st.turn >= 6) bump(st, i, 3, 'Seven Seconds'); else { bump(st, i, 1, 'Seven Seconds'); st.bonusE = { ...(st.bonusE || {}), [i.side]: 1 }; fx(st, i, '+1 energy next turn', 'up') } } },
+  POR: { n: 'Rip City', t: '+3 if you’re winning fewer courts than the opponent. Otherwise +1.', run: (st, i) => bump(st, i, courtsWon(st, i.side) < courtsWon(st, other(i.side)) ? 3 : 1, 'Rip City') },
+  SAC: { n: 'Light the Beam', t: 'If you lead here at the end of this turn, your strongest card at your weakest other court gets +3.', run: (st, i) => { const L = st.locs[i.li]; L.f.beamFP = { ...(L.f.beamFP || {}), [i.side]: st.turn }; fx(st, i, 'Light the Beam', 'up') } },
+  SAS: { n: 'Fundamentals', t: '+2 if this card has no ability. Otherwise +1.', run: (st, i) => bump(st, i, i.c.ab.length ? 1 : 2, 'Fundamentals') },
+  TOR: { n: 'Raptor Claw', t: 'Takes 1 power from the opponent’s strongest card here.', run: (st, i) => {
+    const o = theirs(st, i).slice().sort((a, b) => power(st, b) - power(st, a)).slice(0, 1)
+    if (!o.length) { bump(st, i, 1, 'Raptor Claw'); return }
+    o.forEach(x => { if (bump(st, x, -1, 'Raptor Claw')) bump(st, i, 1, 'Raptor Claw') }) } },
+  UTA: { n: 'Pick and Roll', t: 'With another of your cards here from the same season, both get +2. Otherwise this card gets +1.', run: (st, i) => { const m = mine(st, i).find(x => x !== i && x.c.s === i.c.s); if (m) { bump(st, i, 2, 'Pick and Roll'); bump(st, m, 2, 'Pick and Roll') } else bump(st, i, 1, 'Pick and Roll') } },
+  WAS: { n: 'Monuments', t: 'Your strongest card at each other court gets +1.', run: (st, i) => { let n = 0; st.locs.forEach((L, k) => { if (k !== i.li && L[i.side].length) { bump(st, strongest(st, L[i.side]), 1, 'Monuments'); n++ } }); if (!n) bump(st, i, 1, 'Monuments') } },
+}
+// The franchises a side could use this turn: the ones it played a card from
+export const fpChoices = cs => [...new Set(cs.map(c => c.fc).filter(fc => FP[fc]))]
+// Place and reveal one turn's cards in order, firing each side's chosen power on its first card of that franchise
+function runPlays(st, order, fp, steps) {
+  const fired = {}
+  for (const p of order) {
+    st.fx = []
+    if (!canPlayAt(st, p.side, p.li)) { steps?.push({ side: p.side, k: p.c.k, li: p.li, skip: true, fx: [], board: board(st) }); continue }
+    const i = place(st, p.side, p.c, p.li)
+    reveal(st, i)
+    let used = null
+    if (fp?.[p.side] && !fired[p.side] && p.c.fc === fp[p.side]) { fired[p.side] = true; used = fp[p.side]; FP[used].run(st, i); st.fps = [...(st.fps || []), { turn: st.turn, side: p.side, fc: used }] }
+    if (steps) {
+      steps.push({ side: p.side, k: p.c.k, u: i.u, li: p.li, fx: st.fx, board: board(st), ...(used ? { fp: used } : {}) })
+      st.log.push([p.side, `${cleanName(p.c.n)} to ${LOCBY[st.locs[p.li].id].name}${used ? ` · ${FP[used].n}` : ''}${st.fx.length ? ` · ${st.fx.map(f => f.t).join(', ')}` : ''}`])
+    }
+  }
+}
+
 // ---------- Matches ----------
 // opts: { pDeck, cDeck: [card], locs: [court ids] (fills to 3 at random), seed, pairs: {"a|b": n}, at100: [names], meta }
 export function newMatch({ pDeck, cDeck, locs = [], seed, pairs = {}, at100 = [], meta = {} }) {
   const r = rng(seed)
   const cards = {}
-  pDeck.forEach(c => { cards[c.k] = c }); cDeck.forEach(c => { cards[c.k] = c })
+  const top = new Set(at100)
+  pDeck.forEach(c => { cards[c.k] = finalize({ ...c }, top.has(c.n)) }); cDeck.forEach(c => { cards[c.k] = finalize({ ...c }, top.has(c.n)) })
   const ids = locs.filter(id => LOCBY[id]).slice(0, 3)
   for (const l of shuffle(LOCS, r)) { if (ids.length >= 3) break; if (!ids.includes(l.id)) ids.push(l.id) }
   const st = {
     v: 1, ...meta, seed: (seed * 31 + 17) >>> 0, rn: 0, uid: 1, turn: 0, energy: { p: 0, c: 0 },
     deck: { p: shuffle(pDeck.map(c => c.k), r), c: shuffle(cDeck.map(c => c.k), r) }, hand: { p: [], c: [] },
     locs: ids.map((id, i) => ({ i, id, revealed: false, p: [], c: [], f: {}, extra: {} })),
-    cards, pairs, at100, fx: [], log: [], over: null,
+    cards, pairs, at100, fx: [], log: [], over: null, first: r() < 0.5 ? 'p' : 'c', fps: [],
   }
   hydrate(st)
   for (let k = 0; k < 3; k++) { draw(st, 'p'); draw(st, 'c') }
@@ -333,8 +539,11 @@ function startTurn(st) {
   st.turn += 1
   if (st.turn <= 3) st.locs[st.turn - 1].revealed = true
   st.energy.p += st.turn; st.energy.c += st.turn
+  sides.forEach(s => { if (st.bonusE?.[s]) { st.energy[s] += st.bonusE[s]; delete st.bonusE[s] } if (st.pace?.[s]) st.energy[s] += 1 })
   draw(st, 'p'); draw(st, 'c')
 }
+// Who reveals first this turn: the jump ball's winner on odd turns, the other side on even ones (the possession arrow)
+export const firstThisTurn = st => (st.turn % 2 ? (st.first || 'p') : other(st.first || 'p'))
 export function hydrate(st) { st.locs.forEach((L, li) => sides.forEach(s => L[s].forEach(i => { i.c = st.cards[i.k]; i.li = li }))); st.fx = st.fx || []; return st }
 export function dehydrate(st) {
   const out = { ...st, locs: st.locs.map(L => ({ ...L, p: L.p.map(({ c, ...i }) => i), c: L.c.map(({ c, ...i }) => i) })) }
@@ -342,7 +551,7 @@ export function dehydrate(st) {
   return out
 }
 // Check and play a turn. plays: [{ k: a card in your hand, li }]. Returns the reveal, step by step, for the client
-export function playTurn(st, plays) {
+export function playTurn(st, plays, fpP) {
   if (st.over) throw new Error('This match is over.')
   plays = (plays || []).map(p => ({ k: String(p.k), li: +p.li }))
   const hand = st.hand.p.slice()
@@ -357,21 +566,16 @@ export function playTurn(st, plays) {
     spent += costOf(st, st.cards[p.k], p.li)
   }
   if (spent > st.energy.p) throw new Error('Not enough energy.')
-  const cplan = cpuPlan(st, plays)
+  if (fpP && !fpChoices(plays.map(p => st.cards[p.k])).includes(fpP)) throw new Error('That franchise power isn’t yours this turn.')
+  const cplan = cpuPlan(st, plays), fpC = st.cpuNoPower ? null : cplan.fp
+  delete cplan.fp
   st.energy.p -= spent
   cplan.forEach(x => { st.energy.c -= costOf(st, x.c, x.li); st.hand.c.splice(st.hand.c.indexOf(x.c.k), 1) })
   st.hand.p = hand
   const pp = plays.map(p => ({ side: 'p', c: st.cards[p.k], li: p.li })), cp = cplan.map(x => ({ side: 'c', c: x.c, li: x.li }))
-  const order = st.turn % 2 ? [...pp, ...cp] : [...cp, ...pp]
+  const order = firstThisTurn(st) === 'p' ? [...pp, ...cp] : [...cp, ...pp]
   const steps = []
-  for (const p of order) {
-    st.fx = []
-    if (!canPlayAt(st, p.side, p.li)) { steps.push({ side: p.side, k: p.c.k, li: p.li, skip: true, fx: [], board: board(st) }); continue }
-    const i = place(st, p.side, p.c, p.li)
-    reveal(st, i)
-    steps.push({ side: p.side, k: p.c.k, u: i.u, li: p.li, fx: st.fx, board: board(st) })
-    st.log.push([p.side, `${cleanName(p.c.n)} to ${LOCBY[st.locs[p.li].id].name}${st.fx.length ? ` · ${st.fx.map(f => f.t).join(', ')}` : ''}`])
-  }
+  runPlays(st, order, { p: fpP || null, c: fpC || null }, steps)
   st.fx = []
   endOfTurn(st)
   steps.push({ end: true, fx: st.fx, board: board(st) })
@@ -395,7 +599,7 @@ export function publicView(st) {
   return {
     turn: st.turn, energy: st.energy, hand: st.hand.p, handC: st.hand.c.length, deckP: st.deck.p.length, deckC: st.deck.c.length,
     locs: st.locs.map(L => ({ i: L.i, id: L.revealed ? L.id : null, revealed: L.revealed, f: L.f, extra: L.extra, p: L.p.map(({ c, li, ...i }) => i), c: L.c.map(({ c, li, ...i }) => i) })),
-    cards, pairs: st.pairs, at100: st.at100, over: st.over, log: st.log, uid: st.uid,
+    cards, pairs: st.pairs, at100: st.at100, over: st.over, log: st.log, uid: st.uid, first: st.first || 'p', fps: st.fps || [],
   }
 }
 // The client's copy of a public view, rebuilt as a state the rules can project on (no CPU hand: it only places your cards)
@@ -471,22 +675,33 @@ export function cpuPlan(st, pStaged) {
       if (v > best.v) best = { v, plays }
     }
   }
-  return best.plays
+  // Then the franchise power that does the most for that play
+  const out = best.plays.slice()
+  const opts = fpChoices(out.map(p => p.c))
+  if (opts.length) {
+    let bv = -Infinity
+    for (const fc of opts) {
+      const x = clone(b0); x.deck = { p: [], c: [] }; x.hand = { p: [], c: st.hand.c.filter(k => !out.some(p => p.c.k === k)) }
+      runPlays(x, out.map(p => ({ side: 'c', c: p.c, li: p.li })), { c: fc })
+      const v = evalSt(x, 'c', st.turn) + (FP[fc] && (fc === 'PHO' || fc === 'GSW' || fc === 'OKC' || fc === 'NOP' || fc === 'DEN' || fc === 'PHI' || fc === 'SAC') && st.turn < 6 ? 2 : 0)
+      if (v > bv) { bv = v; out.fp = fc }
+    }
+  }
+  return out
 }
 
 // ---------- Cards ----------
 // A row of clash/decks.json as a card
-export function cardFromRow(K, row, idx) { const c = { k: `c${idx}` }; K.forEach((f, j) => { c[f] = row[j] }); return c }
+export function cardFromRow(K, row, idx) { const c = { k: `c${idx}` }; K.forEach((f, j) => { c[f] = row[j] }); if (Array.isArray(c.ab)) c.ab = c.ab.filter(a => a !== 'home'); return finalize(c, false) }
 // A binder card (its stored JSON) as a card. flags: that game's letters from clash/flags.json
-export function cardFromBinder(id, card, flags = '') {
+export function cardFromBinder(id, card, flags = '', top = false) {
   const r = card.row || {}
   const [us, them] = String(card.score || '').split(/[–-]/).map(Number)
   const c = { k: `u${id}`, id: Number(id), n: r.n, fc: fcOf(card.t), o: fcOf(card.o), d: card.date, s: card.s, g: card.id, home: card.home ? 1 : 0, win: card.won ? 1 : 0,
     margin: Number.isFinite(us - them) ? us - them : 0, ot: card.ot || '', pos: r.pos || '', pts: r.pts || 0, reb: r.trb || 0, ast: r.ast || 0, stl: r.stl ?? null, blk: r.blk ?? null,
     tp: r.tp ?? null, min: r.mp ?? null, gs: r.gs ?? 0, lr: r.lr ?? 999, cost: TIER_COST[card.tier] || 1, tier: card.tier, ruby: !!card.ruby, tn: card.tn, on: card.on }
-  c.pw = Math.max(0, Math.min(10, Math.round((c.gs || 0) / 5)))
   c.ab = abilitiesOf(c, flags)
-  return c
+  return finalize(c, top)
 }
 // Can this binder card play? Game cards only (no special cards), from one of today's 30 franchises
 export const playable = card => !!card && !card.kind && card.row?.gs != null && FRANCHISES.includes(fcOf(card.t))

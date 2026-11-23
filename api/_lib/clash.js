@@ -157,7 +157,7 @@ export async function matchView(sql, u, id) {
   return { match: Number(m.id), title: st.title, mode: m.mode, level: m.level, fc: m.fc, view: publicView(st), winner: m.winner }
 }
 
-// Play a turn: { match, plays: [{ k, li }] }. Returns the reveal steps and the new view; a finished match settles here
+// Play a turn: { match, plays: [{ k, li }], fp: a franchise power (optional) }. Returns the reveal steps and the new view; a finished match settles here
 export async function playClashTurn(sql, u, origin, b) {
   const [m] = await sql`select * from clash_matches where id = ${Number(b.match)} and user_id = ${u.id}`
   if (!m) throw fail(404, 'That match isn’t yours.')
@@ -165,7 +165,7 @@ export async function playClashTurn(sql, u, origin, b) {
   const turn0 = m.state.turn
   const st = hydrate(m.state)
   let steps
-  try { steps = playTurn(st, b.plays) } catch (e) { throw fail(400, e.message) }
+  try { steps = playTurn(st, b.plays, typeof b.fp === 'string' ? b.fp : null) } catch (e) { throw fail(400, e.message) }
   const done = !!st.over
   const winner = done ? (st.over.winner || 'draw') : null
   let reward = null

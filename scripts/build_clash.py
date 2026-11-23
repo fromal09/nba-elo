@@ -66,7 +66,6 @@ def abilities(c):
     if mn is not None and mn >= 45: a.append('iron')
     if c['ot'] and c['win']: a.append('ot')
     if 'd' in c['flags']: a.append('debut')
-    if c['home']: a.append('home')
     if pts >= 30 and mn is not None and mn <= 24: a.append('micro')
     if c['win'] and c['margin'] >= 40: a.append('blowout')
     if 's' in c['flags']: a.append('sure')
@@ -76,8 +75,12 @@ def abilities(c):
 
 
 # Rarest first: the engine keeps a card's two rarest abilities. Fixed so a card's abilities don't shift night to night
+# Power by tier (src/clash/engine.js POWER_RANGE): the night's Game Score places the card in its tier's range
+POWER_RANGE = {1: (2, 4), 2: (3, 5), 3: (3, 6), 4: (4, 7), 5: (4, 8), 6: (5, 9)}
+
 AB_ORDER = ['quad', 'micro', 'perfect', 'sure', 'charity', 'heat', 'fifty', 'debut', 'triple', 'blowout', 'ot', 'splash',
-            'iron', 'glass', 'floor', 'swat', 'pick', 'clutch', 'home']
+            'iron', 'glass', 'floor', 'swat', 'pick', 'clutch']
+# Home Court isn't an ability: the engine checks every home game against the building it was played in
 
 
 def main():
@@ -114,8 +117,9 @@ def main():
                          blk=p['blk'], tp=p['tp'], min=p['mp'], gs=p['gs'], lr=p['lr'], cost=tier_cost(p['lrp'] if p['lrp'] is not None else p['lr']),
                          flags=fl)
                 c['ab'] = sorted(abilities(c), key=AB_ORDER.index)[:2]
-                c['pw'] = max(0, min(10, round(c['gs'] / 5)))
-                c['v'] = c['pw'] + 0.8 * len(c['ab'])
+                lo, hi = POWER_RANGE[c['cost']]
+                c['pw'] = lo + round((hi - lo) * max(0, min(1, (c['gs'] or 0) / 40)))
+                c['v'] = c['pw'] + (2.5 if c['cost'] >= 4 else 0.8 * len(c['ab']))
                 rows.append(c)
             for names in by_team.values():
                 for a, b in combinations(sorted(set(names)), 2): pairs[(a, b)] += 1

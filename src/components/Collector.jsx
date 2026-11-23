@@ -144,7 +144,7 @@ export function CollectorProvider({ children, onOpenMine, onOpenStore, onOpenPre
     clashActive: guard(async slot => (await api('clashactive', { slot })).clash),
     clashStart: guard(async b => api('clashstart', b)),
     clashMatch: guard(async id => api('clashmatch', undefined, `&id=${id}`)),
-    clashTurn: guard(async (match, plays) => { const d = await api('clashturn', { match, plays }); if (d.reward?.card) { take(d); loadCards(); setToast('A card from the daily challenge is in your binder.') } return d }),
+    clashTurn: guard(async (match, plays, fp) => { const d = await api('clashturn', { match, plays, fp }); if (d.reward?.card) { take(d); loadCards(); setToast('A card from the daily challenge is in your binder.') } return d }),
     clashClaim: guard(async b => { const d = await api('clashclaim', b); loadCards(); setToast('Redesign applied. It’s in your binder.'); return d.clash }),
     loadBanner: fc => api('banner', undefined, fc ? `&fc=${encodeURIComponent(fc)}` : '').then(d => d.banner),
     playBanner: guard(async (fc, ids, o = {}) => { const d = await api('bannerplay', { fc, ids }); take(d); const open = () => { if (d.packs?.length) setQueue(d.packs) }; if (o.defer) d.openPacks = open; else open(); if (d.result?.won) loadCards(); return d }),

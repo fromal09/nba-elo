@@ -517,3 +517,16 @@
 @keyframes shake { 0%, 100% { transform: none; } 25% { transform: rotate(-4deg) scale(1.1); } 60% { transform: rotate(3deg); } }
 .fl { font-size: 14px; }
 
+
+/* Ability icons */
+.abIcon { display: block; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.abTag { display: inline-flex; align-items: center; justify-content: center; min-width: 15px; height: 15px; padding: 0 2px; box-sizing: border-box; }
+.abMark .abIcon { stroke-width: 2.1; }
+.fcAb em .abIcon { display: inline-block; vertical-align: -1px; }
+
+/* Signature moves: the tier's metal around the badge */
+.abTag[data-sig] { box-shadow: 0 0 0 1.5px #10141c, 0 0 0 2.5px var(--sigc, #f2c14e); }
+.abTag[data-sig='4'], .abTile[data-sig='4'] { --sigc: #e7b04c; }
+.abTag[data-sig='5'], .abTile[data-sig='5'] { --sigc: #b48cff; }
+.abTag[data-sig='6'], .abTile[data-sig='6'] { --sigc: #ffd36b; }
+.abTile[data-sig] { border-color: var(--sigc); box-shadow: 0 0 16px color-mix(in srgb, var(--sigc) 35%, transparent); }

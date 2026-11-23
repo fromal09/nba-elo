@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react'
 import * as E from '../clash/engine.js'
-import { Chip as RawChip, AbBadge, Floor } from './Clash.jsx'
+import { Chip as RawChip, AbBadge, AbIcon, Floor } from './Clash.jsx'
 import styles from './Clash.module.css'
 import './ClashArena.css'
 
@@ -14,6 +14,32 @@ import './ClashArena.css'
 const Chip = memo(p => <RawChip {...p} />, (a, b) => a.c === b.c && a.pw === b.pw && a.w === b.w && a.side === b.side && a.cost === b.cost && a.label === b.label && a.cls === b.cls)
 
 const RM = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+// Vibration: Android phones buzz in patterns; iPhones (Safari has no vibration API) get a light tick from a hidden
+// switch, which is all iOS allows a web page. On by default; the match menu turns it off.
+const HAPTIC_KEY = 'fcc-haptics'
+const hapticsOn = () => { try { return localStorage.getItem(HAPTIC_KEY) !== 'off' } catch { return true } }
+const BUZZ = { tap: [8], land: [14], big: [22, 40, 30], huge: [30, 45, 30, 45, 70], goat: [40, 50, 40, 50, 40, 50, 140], hit: [35], home: [16, 35, 16], fp: [24, 40, 24, 40, 24], win: [40, 60, 40, 60, 220], loss: [90] }
+let tick = null
+function buzz(k) {
+  if (!hapticsOn()) return
+  if (typeof navigator !== 'undefined' && navigator.vibrate) { try { navigator.vibrate(BUZZ[k] || BUZZ.tap) } catch { /* not allowed */ } return }
+  try {
+    if (!tick) { const l = document.createElement('label'), i = document.createElement('input'); i.type = 'checkbox'; i.setAttribute('switch', ''); l.appendChild(i); l.style.cssText = 'position:fixed;left:-99px;top:0;opacity:0;pointer-events:none'; document.body.appendChild(l); tick = l }
+    const n = k === 'goat' ? 4 : k === 'huge' || k === 'win' ? 3 : k === 'big' || k === 'fp' || k === 'home' ? 2 : 1
+    for (let j = 0; j < n; j++) setTimeout(() => tick.click(), j * 110)
+  } catch { /* no haptics here */ }
+}
+// The first match teaches itself: a few coach marks, then out of the way
+const TUT_KEY = 'fcc-tutorial'
+const TUT = [
+  { at: '.ar-board', t: 'Win two of three', b: 'Three courts, six possessions. Each court tips off on possessions 1, 2 and 3 and shows its arena and rule. Win two to win the match.' },
+  { at: '.ar-hand', t: 'Your hand', b: 'Drag a card onto a court, or tap it and pick one. Its cost is in the corner; its power is the big number.' },
+  { at: '.ar-energy', t: 'Energy', b: 'You get one more each possession, and what you don’t spend carries over. Watch it drain as you set cards down.' },
+  { at: '.ar-arrow', t: 'Possession arrow', b: 'A jump ball decides who reveals first, then the arrow switches every possession. Revealing second lets you react.' },
+  { at: '.ar-end', t: 'End the turn', b: 'Both sides commit face down, then the cards reveal one at a time.' },
+  { at: '.ar-fp', t: 'Franchise power', b: 'Each possession, pick one power from the franchises you played. It fires when that team’s card is revealed.', when: 'fp' },
+  { at: '.ar-board', t: 'Tap for details', b: 'Tap any card for its abilities, or a court for its rule and everything active there. Home Court: +3 for a card from a home game played in that building.', when: 'reveal' },
+]
 const sleep = ms => new Promise(r => setTimeout(r, RM ? Math.min(ms, 120) : ms))
 const CURVE = { 1: 4, 2: 3, 3: 3, 4: 2, 5: 2, 6: 1 }
 // Basketball words for each ability when it fires
@@ -37,7 +63,7 @@ export const any = a => a[Math.floor(Math.random() * a.length)]
 const REVEAL_MS = [0, 520, 700, 900, 1150, 1500, 2300]
 const TIER_WORD = ['', '', 'Rare', 'Standout', 'Legend', 'Icon', 'G.O.A.T.']
 const FXC = { up: '#7cf29a', down: '#ff5a6e', good: '#9fe3ff' }
-const ONGOING = ['quad', 'triple', 'glass', 'home', 'perfect', 'sure', 'clutch', 'ot', 'heat', 'debut', 'micro', 'iron', 'charity']
+const ONGOING = ['quad', 'triple', 'glass', 'perfect', 'sure', 'clutch', 'ot', 'heat', 'debut', 'micro', 'iron', 'charity']
 const parseFx = f => { const m = /^([+-]\d+)\s+(.*)$/.exec(f.t || ''); return m ? { v: +m[1], why: m[2] } : { v: 0, why: f.t || '' } }
 const fxKind = why => (/Swat/.test(why) ? 'swat' : /Pickpocket/.test(why) ? 'pick' : /Floor General/.test(why) ? 'floor' : /Splash/.test(why) ? 'splash' : /Charity/.test(why) ? 'charity'
   : /Iron/.test(why) ? 'iron' : /Blowout/.test(why) ? 'blowout' : /Fifty/.test(why) ? 'fifty' : /Protected/.test(why) ? 'shield' : 'generic')
@@ -69,6 +95,14 @@ export function ColorPick({ you, setYou, start, deckName = 'Your deck' }) {
   </div>
 }
 
+// Markers for what keeps working on a card or court
+const ICON = {
+  shield: 'M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z', end: 'M12 7v5l3 2M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z',
+  lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z', line: 'M4 12h16M14 6l6 6-6 6', proc: 'M4 18l6-6 4 4 6-8', glass: 'M4 4h16v12H4zM9 9h6v5H9z', sure: 'M7 11V5a1.5 1.5 0 0 1 3 0v6M10 10V4a1.5 1.5 0 0 1 3 0v6M13 10V5a1.5 1.5 0 0 1 3 0v8c0 4-2 7-6 7s-6-3-6-6l-1-3a1.5 1.5 0 0 1 3-1l1 2'
+}
+const Ic = ({ k }) => <svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICON[k]} /></svg>
+const Marks = memo(({ o }) => (o && o.m.length ? <span className="ar-marks">{o.m.map(m => <i key={m.k} className="ar-mk" data-k={m.k} title={m.d || m.t} style={m.c ? { '--mc': m.c } : undefined}>{ICON[m.k] ? <Ic k={m.k} /> : m.t}</i>)}</span> : null))
+
 export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, deckName, onOver, reward }) {
   const st = useRef(null), nextRef = useRef(null)
   if (!st.current) st.current = E.fromPublic(view0)
@@ -80,7 +114,16 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
   const [oppHand, setOppHand] = useState(S.handC ?? 0)
   const [staged, setStaged] = useState([])
   const [pend, setPend] = useState([])
-  const [phase, setPhase] = useState('banner')
+  const [phase, setPhase] = useState(() => (S.turn === 1 && !S.locs.some(L => L.p.length || L.c.length) ? 'jump' : 'banner'))
+  const [jump, setJump] = useState(null)
+  const [tut, setTut] = useState(() => { try { return localStorage.getItem(TUT_KEY) === 'done' ? null : { i: 0 } } catch { return null } })
+  const [tutBox, setTutBox] = useState(null)
+  const [sheet, setSheet] = useState(false)
+  const [hap, setHap] = useState(hapticsOn())
+  const [gain, setGain] = useState(null)
+  const [fpSel, setFpSel] = useState(null)
+  const [fpShow, setFpShow] = useState(null)
+  const swings = useRef([])
   const [banner, setBanner] = useState(null)
   const [flipLi, setFlipLi] = useState(null)
   const [shown, setShown] = useState(() => S.locs.map((L, li) => L.revealed && li < S.turn - 1))
@@ -133,6 +176,28 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
   const hitRule = (li, txt) => { const n = Date.now() + li; setRuleHit(r => ({ ...(r || {}), [li]: { t: txt, n } })); setTimeout(() => setRuleHit(r => { if (!r || !r[li] || r[li].n !== n) return r; const o = { ...r }; delete o[li]; return o }), 1500) }
   const addFx = (o, ms = 1300) => { const id = Math.random().toString(36).slice(2); setFx(a => [...a, { ...o, id }]); setTimeout(() => setFx(a => a.filter(x => x.id !== id)), ms) }
 
+  // The opening tip: a jump ball decides who reveals first on possession 1; the possession arrow alternates after that
+  useEffect(() => { if (phase === 'jump') jumpBall() }, [phase])
+  async function jumpBall() {
+    const w = S.first || 'p'
+    setJump({ w, step: 0, n: Date.now() })
+    await wait(900); setJump(j => j && { ...j, step: 1 })
+    await wait(1100); setJump(j => j && { ...j, step: 2 })
+    await wait(1500); setJump(null)
+    setPhase('banner')
+  }
+  const firstSide = E.firstThisTurn(S)
+  // The tutorial: steps wait for their moment (the power bar showing up, the first reveal), then point at what they explain
+  const tutStep = tut ? TUT[tut.i] : null
+  const tutReady = tutStep && phase === 'plan' && (!tutStep.when || (tutStep.when === 'fp' ? E.fpChoices(staged.map(x => S.cards[x.k])).length > 0 : S.turn >= 2))
+  useEffect(() => {
+    if (!tutReady) { setTutBox(null); return }
+    const f = () => { const r = rel(tutStep.at); if (r) setTutBox(r) }
+    const id = setTimeout(f, 60); window.addEventListener('resize', f)
+    return () => { clearTimeout(id); window.removeEventListener('resize', f) }
+  }, [tutReady, tut?.i, staged.length])
+  const tutNext = () => { const i = tut.i + 1; if (i >= TUT.length) { setTut(null); try { localStorage.setItem(TUT_KEY, 'done') } catch { /* private */ } } else setTut({ i }) }
+  const tutSkip = () => { setTut(null); try { localStorage.setItem(TUT_KEY, 'done') } catch { /* private */ } }
   // Start of each turn: the banner, then the next court tips off
   useEffect(() => { if (phase === 'banner') startTurn() }, [phase])
   async function startTurn() {
@@ -154,17 +219,18 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       await wait(1900)
       setCallout(null)
     }
-    setShown(S.locs.map((L, li) => L.revealed)); setHand(S.hand.p.slice()); setOppHand(S.handC ?? 0); setEnergy(S.energy.p); setStaged([])
+    setShown(S.locs.map((L, li) => L.revealed)); setHand(S.hand.p.slice()); setOppHand(S.handC ?? 0); setStaged([]); setFpSel(null)
+    setEnergy(e0 => { const d = S.energy.p - (phase === 'jump' ? 0 : e0); if (S.energy.p > e0) setGain({ v: S.energy.p - e0, n: Date.now() }); return S.energy.p })
     setPhase('plan')
   }
 
   async function endTurn() {
     if (phase !== 'plan') return
     setPhase('play'); setDetail(null)
-    const plays = staged.slice()
+    const plays = staged.slice(), fp = fpNow
     setPend(plays); setStaged([]); setHand(h => h.filter(k => !plays.some(x => x.k === k)))
     // The server plays the turn; its steps come back to play out here
-    const d = await turn(plays)
+    const d = await turn(plays, fp)
     if (!d) { setPend([]); setStaged(plays); setHand(S.hand.p.slice()); setPhase('plan'); return }
     S.cards = { ...S.cards, ...d.view.cards }
     const next = E.fromPublic({ ...d.view, cards: { ...S.cards, ...d.view.cards } })
@@ -181,6 +247,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       if (s.side === 'c') { setIncoming({ k: s.k, li: s.li, n: Date.now() }); await wait(480) }
       // The full-screen moment, then the card drops into its slot
       setBig({ k: s.k, side: s.side, n: Date.now() })
+      buzz(c.cost >= 6 ? 'goat' : c.cost >= 5 ? 'huge' : c.cost >= 4 ? 'big' : 'tap')
       if (c.cost >= 5) setTimeout(() => setFlash(f => f + 1), c.cost >= 6 ? 700 : 250)
       if (c.cost >= 4) setTimeout(() => setShake(k => k + (c.cost >= 6 ? 3 : 1)), c.cost >= 6 ? 900 : 350)
       await wait(REVEAL_MS[c.cost] + (c.ab.length ? 250 : 0))
@@ -192,6 +259,9 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       setBig(null); setBigFly(null)
       setIncoming(null)
       setPend(a => a.filter(x => x.k !== s.k))
+      const before = viewRef.current[s.li]?.t
+      // A franchise power: its plate slides across in the team's colors before its effects land
+      if (s.fp && E.FP[s.fp]) { buzz('fp'); setFpShow({ fc: s.fp, side: s.side, n: Date.now() }); await wait(1500); setFpShow(null) }
       // Effects that hit other cards play out before those cards show their new power
       const all = (s.fx || []).map(f => ({ ...f, ...parseFx(f) }))
       const others = all.filter(f => f.u !== s.u)
@@ -200,6 +270,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       await wait(30)
       const at = rel(`[data-u="${s.u}"]`)
       if (at) addFx({ kind: 'slam', x: at.x, y: at.y, c: s.side === 'p' ? 'var(--you)' : 'var(--opp)', big: c.cost >= 4, tier: c.cost }, 900)
+      buzz(others.some(f => f.v < 0 && S.locs[s.li]) ? 'hit' : 'land')
       if (c.cost >= 2) setShake(k => k + (c.cost >= 5 ? 3 : c.cost >= 4 ? 2 : 1))
       await wait(200)
       await abilityShow(s, c, at, all, others)
@@ -213,6 +284,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       else if (s.side === 'p' && (c.cost >= 5 || others.some(f => f.v < 0))) setTimeout(() => talk(any(REACT)), 200)
       await wait(locRow ? 900 : 380)
       setLanded(null)
+      if (before && s.board[s.li]) { const o = s.side === 'p' ? 'c' : 'p', d = (s.board[s.li].t[s.side] - before[s.side]) - (s.board[s.li].t[o] - before[o]); swings.current.push({ k: s.k, side: s.side, li: s.li, d, fp: s.fp || null }) }
     }
     setPend([])
     st.current = next
@@ -288,6 +360,8 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       others.forEach(f => { const p = pos(f.u); if (p) addFx({ kind: 'beam', x1: at.x, y1: at.y, x2: p.x, y2: p.y, c: FXC[f.c] || '#ffd36b' }, 1000) })
       await wait(300); all.forEach(f => float(f)); await wait(500)
     }
+    // Home Court: a card from a home game, in the building it was played in. Fires on its own, whatever else the card does
+    { const LD = E.LOCBY[nextRef.current.locs[s.li]?.id]; if (LD && !LD.noHome && E.homeAt(LD, c)) { const b = rel(`[data-courtbox="${s.li}"]`); if (b) addFx({ kind: 'courtglow', x: b.x, y: b.y, w: b.w, h: b.h, c: E.COLOR[c.fc] || '#ffd36b' }, 1300); stamp('home', at.x, at.y - at.h * 0.95); setFlash(f => f + 1); buzz('home'); await wait(700) } }
     // Charity Stripe fires on the other side: a free throw for that card
     all.filter(f => fxKind(f.why) === 'charity').forEach(f => { const p = pos(f.u); if (p) { addFx({ kind: 'hoop', x: cx(p.x), y: cy(p.y - p.h * 0.9) }, 1000); addFx({ kind: 'ball', x1: p.x, y1: p.y, x2: p.x, y2: p.y - p.h * 0.9, arc: 40, d: 450 }, 600); setTimeout(() => { addFx({ kind: 'call', x: cx(p.x), y: cy(p.y - p.h * 1.2), t: CALL.charity[0], c: CALL.charity[1] }, 1300); float(f) }, 450) } })
     all.filter(f => fxKind(f.why) === 'shield').forEach(f => { cardAnim(f.u, 'shield', 900); float(f) })
@@ -320,25 +394,24 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
         if (c.ab.includes('perfect') || glass) m.push({ k: 'shield', t: c.ab.includes('perfect') ? 'Perfect Night: can’t lose power' : 'Protected by Glass Cleaner' })
         const boost = auraSrc.filter(s => s.u !== i.u).reduce((a, s) => a + (S.cards[s.k].ab.includes('quad') ? 2 : 1), 0)
         if (boost) m.push({ k: 'aura', t: `+${boost}`, d: `Getting +${boost} from a triple- or quad-double here` })
-        if (c.ab.includes('home') && LL && LL.fc === c.fc && !LL.noHome) m.push({ k: 'home', t: '+3', d: 'Home Court: +3 at his arena', c: E.COLOR[c.fc] })
+        if (LL && !LL.noHome && E.homeAt(LL, c)) m.push({ k: 'home', t: '+3', d: `Home Court: +3, a home game played in ${LL.name}`, c: E.COLOR[c.fc] })
         let lr = null; try { const inst = S.locs[li][sd].find(x => x.u === i.u); lr = inst && E.breakdown(S, inst).rows.find(r => r[2] === 'loc') } catch { lr = null }
         if (lr) m.push({ k: 'rule', t: `${lr[0] > 0 ? '+' : ''}${lr[0]}`, d: `${LL ? LL.rule : 'Court'}: ${lr[0] > 0 ? '+' : ''}${lr[0]}` })
         if (c.ab.some(a => a === 'clutch' || a === 'ot' || a === 'heat')) m.push({ k: 'end', t: 'End', d: 'Waits for the final buzzer' })
         if (c.ab.includes('iron')) m.push({ k: 'iron', t: '+1', d: 'Iron Man: +1 at the end of each possession' })
         if (c.ab.includes('charity')) m.push({ k: 'ft', t: 'FT', d: 'Charity Stripe: +1 each time the other side plays here' })
+        const inst0 = S.locs[li]?.[sd]?.find(x => x.u === i.u)
+        if (inst0?.guard && !m.some(x => x.k === 'shield')) m.push({ k: 'shield', t: 'Fadeaway: can’t lose power' })
+        if (inst0?.proc > 0) m.push({ k: 'proc', t: `+${inst0.proc}`, d: `The Process: +1 at the end of each turn, ${inst0.proc} more` })
         out[sd][i.u] = { m, aura: auraSrc.some(s => s.u === i.u) }
       })
     })
+    const F = S.locs[li]?.f || {}
+    ;['p', 'c'].forEach(sd => { if (F.culture?.[sd]) out.side[sd].push({ k: 'shield', t: 'Heat Culture: these cards can’t lose power' }); if (F.line?.[sd]) out.side[sd].push({ k: 'line', t: `Second Line: the next card played here gets +${F.line[sd]}` }) })
     if (V.f?.lock) out.court.push({ k: 'lock', t: 'Locked: no more cards here' })
     if (V.f?.shut) out.court.push({ k: 'shut', t: `${V.f.shut === 'p' ? 'You' : 'The CPU'} can’t play here`, s: V.f.shut })
     return out
   }
-  const ICON = {
-    shield: 'M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z', end: 'M12 7v5l3 2M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z',
-    lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z', glass: 'M4 4h16v12H4zM9 9h6v5H9z', sure: 'M7 11V5a1.5 1.5 0 0 1 3 0v6M10 10V4a1.5 1.5 0 0 1 3 0v6M13 10V5a1.5 1.5 0 0 1 3 0v8c0 4-2 7-6 7s-6-3-6-6l-1-3a1.5 1.5 0 0 1 3-1l1 2'
-  }
-  const Ic = ({ k }) => <svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICON[k]} /></svg>
-  const Marks = ({ o }) => (o && o.m.length ? <span className="ar-marks">{o.m.map(m => <i key={m.k} className="ar-mk" data-k={m.k} title={m.d || m.t} style={m.c ? { '--mc': m.c } : undefined}>{ICON[m.k] ? <Ic k={m.k} /> : m.t}</i>)}</span> : null)
   const ONG = useMemo(() => [0, 1, 2].map(li => ongoing(li)), [view, shown])
 
   // Drag a card from your hand onto a court
@@ -378,9 +451,14 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
     if (!d.on) { setDetail(d.k); setDrag(null); return }
     const g = drag
     setDrag(null)
-    if (g && g.ok) { setStaged(s => [...s, { k: d.k, li: g.li }]); setLanded('s' + d.k); setTimeout(() => setLanded(null), 500) }
+    if (g && g.ok) { buzz('tap'); setStaged(s => [...s, { k: d.k, li: g.li }]); setLanded('s' + d.k); setTimeout(() => setLanded(null), 500); ripple(d.k) }
   }
-  const playTo = (k, li) => { if (canDrop(k, li)) { setStaged(s => [...s, { k, li }]); setDetail(null) } }
+  const playTo = (k, li) => { if (canDrop(k, li)) { setStaged(s => [...s, { k, li }]); setDetail(null); ripple(k) } }
+  // A card set down on the floor: a ring spreads out from its slot
+  const ripple = k => setTimeout(() => { const p = rel(`[data-pk="${k}"]`); if (p) addFx({ kind: 'ripple', x: p.x, y: p.y, w: p.w }, 700) }, 40)
+  // This turn's franchise power: one of the franchises you've put a card down from
+  const fpOpts = E.fpChoices(staged.map(x => S.cards[x.k]))
+  const fpNow = fpSel && fpOpts.includes(fpSel) ? fpSel : fpSel === 'none' ? null : fpOpts[0] || null
   const unstage = k => phaseRef.current === 'plan' && setStaged(s => s.filter(x => x.k !== k))
 
   const handShown = hand.filter(k => !staged.some(x => x.k === k) && !pend.some(x => x.k === k))
@@ -393,7 +471,8 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
     <div className="ar-in" ref={inRef}>
       <header className="ar-top">
         <div className="ar-plate" data-side="p"><span className="ar-av">YOU</span><b>{deckName}</b></div>
-        <div className="ar-turn"><small>Possession</small><b>{Math.min(S.turn, 6)}<em>/6</em></b><span>{[1, 2, 3, 4, 5, 6].map(t => <i key={t} data-on={t <= S.turn ? '' : undefined} />)}</span></div>
+        <div className="ar-turn"><small>Possession</small><b>{Math.min(S.turn, 6)}<em>/6</em></b><span>{[1, 2, 3, 4, 5, 6].map(t => <i key={t} data-on={t <= S.turn ? '' : undefined} />)}</span>
+          <em className="ar-arrow" data-s={firstSide} key={'ar' + S.turn} title={firstSide === 'p' ? 'You reveal first this possession' : `${coach} reveals first this possession`}><svg viewBox="0 0 24 12" aria-hidden="true"><path d="M2 6h18M8 1L2 6l6 5" /></svg><small>{firstSide === 'p' ? 'You first' : 'CPU first'}</small></em></div>
         <div className="ar-plate ar-coach" data-side="c"><span className="ar-cn"><b>{coach}</b><small>{label}</small></span><span className="ar-av" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11a5 5 0 0 1 5-5h9l3-2v6h-4a5 5 0 1 1-13 1z" /><circle cx="8" cy="11" r="1.6" /></svg></span>
           {quip && <span key={quip.n} className="ar-quip" role="status">{quip.t}</span>}</div>
       </header>
@@ -448,9 +527,26 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
         {!handShown.length && <span className="ar-empty">Hand empty</span>}
       </div>
 
+      {phase === 'plan' && fpOpts.length > 0 && <div className="ar-fp" role="radiogroup" aria-label="Franchise power this possession">
+        <small>Franchise power</small>
+        <div className="ar-fpchips">{fpOpts.map(fc => <button key={fc} type="button" role="radio" aria-checked={fpNow === fc} onClick={() => setFpSel(fc)} style={{ '--c1': E.COLOR[fc], '--c2': E.COLOR2[fc] }}><b>{E.NICK[fc]}</b><span>{E.FP[fc].n}</span></button>)}
+          <button type="button" role="radio" className="ar-fpnone" aria-checked={!fpNow} onClick={() => setFpSel('none')}><span>None</span></button></div>
+        {fpNow && <p>{E.FP[fpNow].t}</p>}
+      </div>}
       <footer className="ar-foot">
-        <button type="button" className="ar-retreat" onClick={menu}><span>Retreat</span></button>
-        <div className="ar-orb" aria-label={`${left} energy`}><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" /><path d="M2 32h60M32 2v60M10 10c10 8 10 36 0 44M54 10c-10 8-10 36 0 44" /></svg><b key={left}>{phase === 'plan' ? left : energy}</b></div>
+        <button type="button" className="ar-retreat ar-menubtn" onClick={() => setSheet(true)} aria-label="Match menu"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>Menu</span></button>
+        {(() => {
+          // Energy: a ball filling with light. It drains as you set cards down, previews what a dragged card would take,
+          // and pops with what the new possession adds
+          const now = phase === 'plan' ? left : energy, cap = Math.max(1, energy), take = drag?.ok ? E.costOf(S, S.cards[drag.k], drag.li) : 0
+          const pct = Math.max(0, Math.min(1, now / cap)), after = Math.max(0, Math.min(1, (now - take) / cap))
+          return <div className="ar-energy" aria-label={`${now} energy`} data-empty={now <= 0 ? '' : undefined} data-low={phase === 'plan' && take > now ? '' : undefined}>
+            <div className="ar-eball"><span className="ar-efill" style={{ '--f': pct }}><i /></span>{take > 0 && <span className="ar-etake" style={{ '--a': after, '--b': pct }} />}<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M2 32h60M32 2v60M11 9c9 9 9 37 0 46M53 9c-9 9-9 37 0 46" /></svg>
+              <b key={now}>{now}</b></div>
+            <span className="ar-epips" aria-hidden="true">{Array.from({ length: Math.min(cap, 12) }, (_, i) => <i key={i} data-on={i < now ? '' : undefined} data-take={i >= now - take && i < now ? '' : undefined} />)}</span>
+            {gain && <em key={gain.n} className="ar-egain">+{gain.v}</em>}
+          </div>
+        })()}
         <button type="button" className="ar-end" data-ready={phase === 'plan' && !playable ? '' : undefined} disabled={phase !== 'plan'} onClick={endTurn}>
           <span>{phase === 'plan' ? <>End turn<small>Poss. {S.turn}/6</small></> : phase === 'play' ? <>Playing…<small>Poss. {S.turn}/6</small></> : <>Get ready<small>Poss. {S.turn}/6</small></>}</span></button>
       </footer>
@@ -460,8 +556,18 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
 
     {/* Overlays */}
     {flash > 0 && <div key={'fl' + flash} className="ar-flashes" aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, top: `${(i * 53) % 60 + 5}%`, animationDelay: `${(i % 7) * 70}ms` }} />)}</div>}
-    {banner && <div key={banner.n} className="ar-banner" aria-live="polite"><div><small>{banner.t === 6 ? 'Last chance' : banner.t === 1 ? 'Tip-off' : 'Next possession'}</small><b>{banner.t === 6 ? 'Final possession' : `Possession ${banner.t}/6`}</b></div></div>}
-    {callout && <div key={callout.n} className="ar-callout" style={{ left: callout.x, top: callout.y }}><b>{callout.name}</b><em>{callout.rule}</em><p>{callout.fx}</p></div>}
+    {banner && <div key={banner.n} className="ar-banner" aria-live="polite"><div><small>{banner.t === 6 ? 'Last chance' : banner.t === 1 ? 'Tip-off' : 'Next possession'}</small><b>{banner.t === 6 ? 'Final possession' : `Possession ${banner.t}/6`}</b><em className="ar-bnarrow" data-s={E.firstThisTurn(S)}>{E.firstThisTurn(S) === 'p' ? 'Possession arrow: you reveal first' : `Possession arrow: ${coach} reveals first`}</em></div></div>}
+    {jump && <div key={jump.n} className="ar-jump" data-step={jump.step} data-w={jump.w} aria-live="polite">
+      <div className="ar-jcircle" aria-hidden="true"><i /></div>
+      <div className="ar-jplates"><span data-s="p">You</span><span data-s="c">{coach}</span></div>
+      <span className="ar-jball" aria-hidden="true" />
+      <div className="ar-jtxt"><small>Jump ball</small><b>{jump.step < 2 ? 'Tip-off' : jump.w === 'p' ? 'You win the tip' : `${coach} wins the tip`}</b>{jump.step >= 2 && <em>{jump.w === 'p' ? 'You reveal first on possession 1. The arrow alternates after that.' : `${coach} reveals first on possession 1. The arrow alternates after that.`}</em>}</div>
+    </div>}
+    {fpShow && <div key={fpShow.n} className="ar-fpplate" data-side={fpShow.side} style={{ '--c1': E.COLOR[fpShow.fc], '--c2': E.COLOR2[fpShow.fc] }} aria-live="polite">
+      <div><small>{fpShow.side === 'p' ? 'Your franchise power' : `${coach} · franchise power`}</small><b>{E.NICK[fpShow.fc]}</b><strong>{E.FP[fpShow.fc].n}</strong><p>{E.FP[fpShow.fc].t}</p></div>
+    </div>}
+    {callout && <div key={callout.n} className="ar-l3" style={{ '--c1': E.LOCBY[S.locs[callout.li].id]?.c1 || '#1c2b4a', '--c2': E.LOCBY[S.locs[callout.li].id]?.c2 || '#ffd36b' }}>
+      <span className="ar-l3k">Court {callout.li + 1} · tonight at</span><b>{callout.name}</b><span className="ar-l3r"><em>{callout.rule}</em>{callout.fx}</span></div>}
     {big && (() => { const c = S.cards[big.k]; return <div key={big.n} className="ar-big" data-side={big.side} data-tier={c.cost} data-fly={bigFly ? '' : undefined}>
       {c.cost >= 5 && <div className="ar-blackout" />}
       {c.cost >= 5 && <div className="ar-spot" />}
@@ -472,7 +578,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       {TIER_WORD[c.cost] && <div className="ar-tierword">{TIER_WORD[c.cost]}</div>}
       <div className="ar-bigcard" ref={bigRef} data-fly={bigFly ? '' : undefined} style={bigFly ? { transform: `translate(${bigFly.x}px, ${bigFly.y}px) scale(${bigFly.s})` } : undefined}><Chip c={c} side={big.side} w={Math.min(220, W * 0.56)} cost={c.cost} onClick={() => {}} /></div>
       <div className="ar-bigname"><b>{E.cleanName(c.n)}</b><small>{big.side === 'p' ? 'You' : coach} · {E.TIER_NAME[c.cost]}</small></div>
-      {c.ab.length > 0 && <div className="ar-bigab">{c.ab.map(a => <span key={a} style={{ '--k': (CALL[a] || [])[1] }}><b>{E.AB[a].n}</b>{E.AB[a].t(c)}</span>)}</div>}
+      {c.ab.length > 0 && <div className="ar-bigab">{c.ab.map(a => <span key={a} style={{ '--k': (CALL[a] || [])[1] }}><b><AbIcon a={a} s={14} /> {E.AB[a].n}</b>{E.AB[a].t(c)}</span>)}</div>}
     </div> })()}
     {fx.map(f => f.kind === 'float' ? <span key={f.id} className="ar-float" style={{ left: f.x, top: f.y, color: f.c || '#fff' }}>{f.t}</span>
       : f.kind === 'slam' ? <span key={f.id} className="ar-slam" data-big={f.big ? '' : undefined} data-tier={f.tier} style={{ left: f.x, top: f.y, '--c': f.c }}><i /><i /><i /></span>
@@ -485,11 +591,26 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       : f.kind === 'digits' ? <span key={f.id} className="ar-digits" style={{ left: f.x, top: f.y }}>{f.t}</span>
       : f.kind === 'dust' ? <span key={f.id} className="ar-dust" style={{ left: f.x, top: f.y }}>{Array.from({ length: 10 }, (_, i) => <i key={i} style={{ '--a': `${i * 36}deg` }} />)}</span>
       : f.kind === 'glass' ? <span key={f.id} className="ar-glass" style={{ left: f.x, top: f.y, width: f.w + 8, height: f.h + 8 }}><i /></span>
+      : f.kind === 'ripple' ? <span key={f.id} className="ar-ripple" style={{ left: f.x, top: f.y, '--w': `${f.w}px` }}><i /><i /></span>
       : f.kind === 'courtglow' ? <span key={f.id} className="ar-cglow" style={{ left: f.x, top: f.y, width: f.w, height: f.h, '--c': f.c }} />
       : f.kind === 'buzzer' ? <span key={f.id} className="ar-buzz" style={{ left: f.x, top: f.y, width: f.w, height: f.h }}><b>Buzzer</b></span>
       : f.kind === 'aura' ? <span key={f.id} className="ar-aura" style={{ left: f.x, top: f.y }}><i /><i /><i /></span>
       : f.kind === 'hoop' ? <span key={f.id} className="ar-hoop" style={{ left: f.x, top: f.y }}><i /></span>
       : f.kind === 'beam' ? <svg key={f.id} className="ar-beam" aria-hidden="true"><line x1={f.x1} y1={f.y1} x2={f.x2} y2={f.y2} stroke={f.c} /></svg> : null)}
+    {tutReady && tutBox && <div className="ar-tut" role="dialog" aria-label={tutStep.t}>
+      <span className="ar-tuthole" style={{ left: tutBox.x - tutBox.w / 2 - 6, top: tutBox.y - tutBox.h / 2 - 6, width: tutBox.w + 12, height: tutBox.h + 12 }} />
+      <div className="ar-tutcard" data-pos={tutBox.y > box().height * 0.55 ? 'above' : 'below'} style={tutBox.y > box().height * 0.55 ? { bottom: box().height - (tutBox.y - tutBox.h / 2) + 16 } : { top: tutBox.y + tutBox.h / 2 + 16 }}>
+        <small>How to play · {tut.i + 1} of {TUT.length}</small><b>{tutStep.t}</b><p>{tutStep.b}</p>
+        <div><button type="button" className="ar-tutskip" onClick={tutSkip}>Skip</button><button type="button" className="ar-tutnext" onClick={() => { buzz('tap'); tutNext() }}>{tut.i + 1 >= TUT.length ? 'Got it' : 'Next'}</button></div>
+      </div>
+    </div>}
+    {sheet && <div className="ar-sheetwrap" onClick={() => setSheet(false)}><div className="ar-sheet" role="dialog" aria-label="Match menu" onClick={e => e.stopPropagation()}>
+      <span className="ar-grab" aria-hidden="true" />
+      <button type="button" onClick={() => setSheet(false)}><b>Resume</b></button>
+      <button type="button" onClick={() => { setSheet(false); setTut({ i: 0 }) }}><b>How to play</b><small>Walk through the basics again</small></button>
+      <button type="button" role="switch" aria-checked={hap} onClick={() => { const v = !hap; setHap(v); try { localStorage.setItem(HAPTIC_KEY, v ? 'on' : 'off') } catch { /* private */ } if (v) buzz('big') }}><b>Vibration</b><small>{typeof navigator !== 'undefined' && navigator.vibrate ? 'Buzzes on reveals, powers and the final buzzer' : 'On iPhone, a light tick: Safari allows nothing stronger'}</small><span className="ar-tog" data-on={hap ? '' : undefined}><i /></span></button>
+      <button type="button" className="ar-sheetbad" onClick={() => { setSheet(false); menu() }}><b>Retreat</b><small>Leave this match</small></button>
+    </div></div>}
     {drag && <div ref={ghostRef} className="ar-ghost" style={{ left: 0, top: 0, translate: `${dragRef.current?.x ?? drag.x}px ${dragRef.current?.y ?? drag.y}px` }} data-ok={drag.ok ? '' : undefined}><Chip c={S.cards[drag.k]} side="p" w={hw * 1.15} cost={S.cards[drag.k].cost} onClick={() => {}} /></div>}
     {detail && (() => { const c = S.cards[detail], inHand = handShown.includes(detail); return <div className="ar-detail" role="dialog" aria-label={E.cleanName(c.n)} onClick={e => { if (e.target === e.currentTarget) setDetail(null) }}>
       <div className="ar-dcard"><Chip c={c} side={detail.startsWith('c') ? 'c' : 'p'} w={Math.min(210, W * 0.52)} cost={c.cost} onClick={() => {}} /></div>
@@ -521,11 +642,12 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
         <button type="button" className="ar-x" onClick={() => setCourtInfo(null)} aria-label="Close"><span>✕</span></button>
       </div>
     })()}
-    {phase === 'over' && over && <Result S={S} totals={totals} again={again} menu={menu} coach={coach} reward={reward} />}
+    {phase === 'over' && over && <Buzz k={over.winner === 'p' ? 'win' : 'loss'} />}
+    {phase === 'over' && over && <Result S={S} view={view} swings={swings.current} totals={totals} again={again} menu={menu} coach={coach} reward={reward} W={W} />}
   </div>
 }
 
-function Result({ S, totals, again, menu, coach, reward }) {
+function Result({ S, view, swings, totals, again, menu, coach, reward, W }) {
   const w = totals.filter(t => t.p > t.c).length, l = totals.filter(t => t.c > t.p).length
   const res = S.over.winner === 'p' ? 'win' : S.over.winner === 'c' ? 'loss' : (w > l ? 'win' : l > w ? 'loss' : 'draw')
   return <div className="ar-result" data-r={res}>
@@ -533,8 +655,18 @@ function Result({ S, totals, again, menu, coach, reward }) {
     <small>Final</small>
     <b>{res === 'win' ? 'Victory' : res === 'loss' ? 'Defeat' : 'Draw'}</b>
     <div className="ar-rcourts">{S.locs.map((L, i) => <div key={i} data-w={totals[i].p > totals[i].c ? 'p' : totals[i].c > totals[i].p ? 'c' : ''}><span>{E.LOCBY[L.id].name}</span><em>{totals[i].p}<i>–</i>{totals[i].c}</em></div>)}</div>
+    {(() => {
+      // The match's MVP: your strongest card on the floor at the final buzzer; then the three biggest swings, either side
+      const mine = view.flatMap(L => L.p).sort((a, b) => b.pw - a.pw)[0]
+      const top = swings.filter(x => x.d).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 3)
+      return <div className="ar-recap">
+        {mine && <div className="ar-mvp"><span className="ar-mvptag">MVP</span><Chip c={S.cards[mine.k]} side="p" w={Math.min(96, W * 0.24)} pw={mine.pw} onClick={() => {}} /><div><b>{E.cleanName(S.cards[mine.k].n)}</b><small>{mine.pw} power at the buzzer</small></div></div>}
+        {top.length > 0 && <div className="ar-swings"><small>Biggest swings</small><ol>{top.map((x, n) => <li key={n} data-s={x.side}><b>{x.d > 0 ? '+' : ''}{x.d}</b><span>{E.lastName(S.cards[x.k]?.n || '')}{x.fp ? ` · ${E.FP[x.fp].n}` : ''}</span><em>{E.LOCBY[S.locs[x.li].id]?.name}</em></li>)}</ol></div>}
+      </div>
+    })()}
     <p className="ar-rquip"><b>{coach}:</b> {res === 'win' ? 'Good game. Run it back?' : res === 'loss' ? 'Better luck next possession.' : 'Overtime next time.'}</p>
     {reward}
     <div className="ar-rbtns">{again && <button type="button" className="ar-again" onClick={again}><span>Run it back</span></button>}<button type="button" className="ar-x ar-menu" onClick={menu}><span>Menu</span></button></div>
   </div>
 }
+function Buzz({ k }) { useEffect(() => { buzz(k) }, []); return null }

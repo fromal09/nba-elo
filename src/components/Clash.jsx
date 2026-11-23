@@ -29,10 +29,36 @@ const AB_MARK = { fifty: '50', quad: '4×', triple: '3×', swat: 'BLK', pick: 'S
   ot: 'OT', debut: '1ST', home: 'HOME', micro: 'HOT', blowout: '+40', sure: 'SAFE', clutch: 'CLU', heat: 'HEAT' }
 const AB_KIND = { 'On reveal': 'reveal', Ongoing: 'ongoing', End: 'end', Cost: 'cost' }
 const KIND_TIP = { reveal: 'Fires once, when it’s revealed', ongoing: 'Works the whole game', end: 'Checks after turn 6', cost: 'Changes what it costs' }
+// One icon per ability, drawn on the same 24-unit grid: the card shows the icon, a tap shows the words
+const AB_ICON = {
+  fifty: 'M12 2.5c1.2 4 5.5 5.6 5.5 11a5.5 5.5 0 0 1-11 0c0-3 1.6-4.4 2-7 1.2 1.2 2.1 2.4 2.6 3.6.6-2.4.9-4.8.9-7.6z',
+  quad: 'M7 2.5l2.2 3.5L7 9.5 4.8 6zM17 2.5l2.2 3.5L17 9.5 14.8 6zM7 14.5l2.2 3.5L7 21.5 4.8 18zM17 14.5l2.2 3.5-2.2 3.5-2.2-3.5z',
+  triple: 'M12 2.5l2.2 3.5-2.2 3.5L9.8 6zM6.5 13.5l2.2 3.5-2.2 3.5L4.3 17zM17.5 13.5l2.2 3.5-2.2 3.5-2.2-3.5z',
+  swat: 'M6 21v-9a1.8 1.8 0 0 1 3.6 0v3M9.6 13V6.5a1.8 1.8 0 0 1 3.6 0V13M13.2 12V7.5a1.8 1.8 0 0 1 3.6 0V15c0 3.5-2.4 6-5.6 6H9M18 2.5a2.6 2.6 0 1 1 0 5.2 2.6 2.6 0 0 1 0-5.2z',
+  pick: 'M5 13l2.5-7M9.5 13l1.5-8M14 13l1-7.5M18.5 13l-1-5.5M4 13h16l-2 8H6z',
+  floor: 'M3 16c3.5-7.5 13.5-7.5 18 0M17 12.5l4 3.5-4.5 2.5M6 18a1.5 1.5 0 1 1 0 .01',
+  glass: 'M3.5 3.5h17v10h-17zM9 8.5h6v5M9.5 13.5l1.2 6h2.6l1.2-6',
+  splash: 'M12 2.5c3.4 4.4 5.5 7.6 5.5 11a5.5 5.5 0 0 1-11 0c0-3.4 2.1-6.6 5.5-11zM9.5 14.5a2.5 2.5 0 0 0 2.5 2.5',
+  perfect: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM12 7.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zM12 11.2a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6z',
+  charity: 'M6 5h12M8.5 5l1.3 5h4.4L15.5 5M3.5 20.5h17M12 13.5v7',
+  iron: 'M3 9v6M6.5 6.5v11M17.5 6.5v11M21 9v6M6.5 12h11',
+  ot: 'M3.5 12a8.5 8.5 0 1 0 2.8-6.3M3.5 3.5v4h4M12 8v4.5l3 2',
+  debut: 'M12 2.5l2.2 6.3 6.3 2.2-6.3 2.2L12 19.5l-2.2-6.3L3.5 11l6.3-2.2z',
+  micro: 'M13.5 2.5L5 14h6.5l-1 7.5L19 10h-6.5z',
+  blowout: 'M12 2l2 5.5 5.5-2.5-2.5 5.5L22 12l-5 1.5 2.5 5.5-5.5-2.5L12 22l-2-5.5L4.5 19l2.5-5.5L2 12l5-1.5L4.5 5l5.5 2.5z',
+  sure: 'M3 12.5l4.5-4.5 4.5 3 4.5-3 4.5 4.5-9 8.5zM7.5 8l4.5-4.5L16.5 8',
+  clutch: 'M12 8.5v4.5l3 2M9.5 2.5h5M12 4.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17zM19 5.5l1.5 1.5',
+  heat: 'M10 14V5a2 2 0 0 1 4 0v9a4.2 4.2 0 1 1-4 0zM12 11v6',
+}
+export function AbIcon({ a, s = 12 }) {
+  // A signature move wears its group's icon: scoring a flame, rebounding a backboard, playmaking a pass, defense a block
+  const d = AB_ICON[a] || AB_ICON[{ pts: 'fifty', reb: 'glass', ast: 'floor', def: 'swat', other: 'quad' }[E.SIG[a]?.grp]] || AB_ICON.debut
+  return <svg className={styles.abIcon} width={s} height={s} viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
+}
 export function AbBadge({ a, c, big }) {
   const k = AB_KIND[E.AB[a].k]
-  return big ? <div className={styles.abTile} data-kind={k}><span className={styles.abMark}>{AB_MARK[a]}</span><div><b>{E.AB[a].n}</b><em>{E.AB[a].k} · {KIND_TIP[k]}</em><p>{E.AB[a].t(c)}</p><small>Earned: {E.AB[a].why(c)}</small></div></div>
-    : <span className={styles.abTag} data-kind={k} title={`${E.AB[a].n}: ${E.AB[a].t(c)}`}>{AB_MARK[a]}</span>
+  return big ? <div className={styles.abTile} data-kind={k} data-sig={E.SIG[a] ? E.SIG[a].tier : undefined}><span className={styles.abMark}><AbIcon a={a} s={22} /></span><div><b>{E.AB[a].n}</b><em>{E.AB[a].k} · {KIND_TIP[k]}</em><p>{E.AB[a].t(c)}</p><small>Earned: {E.AB[a].why(c)}</small></div></div>
+    : <span className={styles.abTag} data-kind={k} data-sig={E.SIG[a] ? E.SIG[a].tier : undefined} title={`${E.AB[a].n}: ${E.AB[a].t(c)}`} aria-label={E.AB[a].n}><AbIcon a={a} s={10} /></span>
 }
 // A deck holds one card per player
 const onePer = cs => new Set(cs.map(c => c.n)).size === cs.length
@@ -95,7 +121,7 @@ function HandFan({ items, sel, onPick, onInfo, disabled }) {
           {face(x.c) ? <CardFace card={face(x.c)} shots={shots} w={104} /> : null}
           <span className={styles.fcC} data-dn={x.kc < x.c.cost ? '' : undefined}>{x.kc}</span>
           <span className={styles.fcP}>{x.c.pw}</span>
-          {d === 0 && x.c.ab.length > 0 && <span className={styles.fcAb}>{x.c.ab.map(a => <em key={a} data-kind={AB_KIND[E.AB[a].k]}>{AB_MARK[a]} · {E.AB[a].n}</em>)}</span>}
+          {d === 0 && x.c.ab.length > 0 && <span className={styles.fcAb}>{x.c.ab.map(a => <em key={a} data-kind={AB_KIND[E.AB[a].k]}><AbIcon a={a} s={10} /> {E.AB[a].n}</em>)}</span>}
         </button>
       })}
     </div>
@@ -143,12 +169,12 @@ export default function Clash({ env: env0, onClose }) {
     const binder = [], byId = {}, jsonById = {}
     for (const x of C.cards || []) {
       if (!E.playable(x.card)) continue
-      const c = E.cardFromBinder(x.id, x.card, flags[`${x.card.s}|${x.card.id}|${x.card.row.n}`] || '')
+      const c = E.cardFromBinder(x.id, x.card, flags[`${x.card.s}|${x.card.id}|${x.card.row.n}`] || '', !!D?.at100?.includes(x.card.row.n))
       binder.push(c); byId[c.id] = c; jsonById[c.id] = x.card
     }
     binder.sort((a, b) => a.cost - b.cost || b.pw - a.pw)
     return { binder, byId, jsonById }
-  }, [C.cards, flags])
+  }, [C.cards, flags, D])
   const autoTeam = fc => {
     const pool = binder.filter(c => c.fc === fc).slice().sort((a, b) => b.pw - a.pw), out = []
     const per = {}, add = c => { if (out.length < 15 && !out.includes(c.id) && (per[c.n] || 0) < 1) { out.push(c.id); per[c.n] = (per[c.n] || 0) + 1; return true } return false }
@@ -193,7 +219,7 @@ export default function Clash({ env: env0, onClose }) {
     {scr.s === 'frd' && full(<FranchiseDetail {...P} you={you} />)}
     {scr.s === 'daily' && full(<Daily {...P} you={you} />)}
     {scr.s === 'match' && M && full(<ArenaMatch key={M.n} view0={M.view0} you={M.you} opp={M.opp} coach={M.coach} label={M.label} deckName={M.deckName}
-      turn={async plays => { const d = await C.clashTurn(M.id, plays); return d || null }}
+      turn={async (plays, fp) => { const d = await C.clashTurn(M.id, plays, fp); return d || null }}
       onOver={d => { setM(m => ({ ...m, reward: d.reward, over: d.over })); if (d.clash) setView(d.clash) }}
       reward={<RewardBlock M={M} go={go} env={env} />}
       again={M.again ? () => start(M.again) : null} menu={() => backFrom(M)} />)}
@@ -453,7 +479,7 @@ function Build({ scr, go, binder, byId, C, setView }) {
           <div className={styles.bxCosts}>{[1, 2, 3, 4, 5, 6].map(k => <button key={k} type="button" className={styles.bxCost} aria-pressed={costs.includes(k)} aria-label={`Cost ${k}, ${E.TIER_NAME[k]}`} onClick={() => tog(setCosts)(k)}>{k}</button>)}</div>
           <span className={styles.bxLab}>Abilities</span>
           <div className={styles.bxChips}>{abilities.map(([a, n]) => <button key={a} type="button" className={styles.bxChip} aria-pressed={abs.includes(a)} onClick={() => tog(setAbs)(a)}>
-            <span className={styles.abTag} data-kind={AB_KIND[E.AB[a].k]}>{AB_MARK[a]}</span><span>{E.AB[a].n}</span><small>{n}</small></button>)}</div>
+            <span className={styles.abTag} data-kind={AB_KIND[E.AB[a].k]}><AbIcon a={a} s={10} /></span><span>{E.AB[a].n}</span><small>{n}</small></button>)}</div>
           {!team && <><span className={styles.bxLab}>Franchise</span>
             <div className={styles.bxChips}>{franchises.map(([f, n]) => <button key={f} type="button" className={styles.bxChip} aria-pressed={frs.includes(f)} onClick={() => tog(setFrs)(f)}>
               {binderLogo(f) ? <img src={binderLogo(f)} alt="" onError={e => { e.currentTarget.style.visibility = 'hidden' }} /> : <i style={{ background: E.COLOR[f] }} />}<span>{E.NICK[f] || f}</span><small>{n}</small></button>)}</div></>}
