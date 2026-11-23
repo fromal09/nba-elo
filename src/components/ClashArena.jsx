@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useMemo, memo } from 'react'
+import { useState, useEffect, useRef, useMemo, memo, useContext } from 'react'
 import * as E from '../clash/engine.js'
-import { Chip as RawChip, AbBadge, AbIcon, Floor } from './Clash.jsx'
+import { Chip as RawChip, AbBadge, AbIcon, Floor, Faces } from './Clash.jsx'
+import { norm } from './predict'
 import styles from './Clash.module.css'
 import './ClashArena.css'
 
@@ -60,7 +61,10 @@ const TAUNT = ['Put that on the jumbotron.', 'Too small, too slow.', 'That’s a
 const REACT = ['Lucky bounce.', 'Somebody guard him!', 'We’ll answer that.', 'Okay, okay. I see you.', 'Timeout! …just kidding.', 'That won’t happen twice.']
 export const any = a => a[Math.floor(Math.random() * a.length)]
 // How long each tier holds the spotlight: a Common is in and out, a GOAT gets the whole arena
-const REVEAL_MS = [0, 520, 700, 900, 1150, 1500, 2300]
+// Generous on purpose: Speed up (and a tap) is there for anyone who wants it faster
+const REVEAL_MS = [0, 1500, 1800, 2100, 2600, 3200, 4000]
+const PACE = 1.25
+const words = t => String(t || '').trim().split(/\s+/).filter(Boolean).length
 const TIER_WORD = ['', '', 'Rare', 'Standout', 'Legend', 'Icon', 'G.O.A.T.']
 const FXC = { up: '#7cf29a', down: '#ff5a6e', good: '#9fe3ff' }
 const ONGOING = ['quad', 'triple', 'glass', 'perfect', 'sure', 'clutch', 'ot', 'heat', 'debut', 'micro', 'iron', 'charity']
@@ -157,7 +161,47 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
   useEffect(() => { if (shake && inRef.current?.animate && !RM) inRef.current.animate([{ transform: 'none' }, { transform: 'translate(-5px, 3px)' }, { transform: 'translate(5px, -3px)' }, { transform: 'translate(-4px, -2px)' }, { transform: 'translate(3px, 2px)' }, { transform: 'none' }], { duration: 320, easing: 'ease-out' }) }, [shake])
   const [W, setW] = useState(390)
   useEffect(() => { const f = () => setW(Math.min(480, window.innerWidth)); f(); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f) }, [])
-  const wait = ms => sleep(fastRef.current ? ms * 0.35 : ms)
+  const wait = ms => sleep(fastRef.current ? ms * 0.35 : ms * PACE)
+  // Reading time: counts down only while nothing is held down, and a tap moves on. Speed up cuts it to 40%
+  const pressRef = useRef(false), pressT = useRef(0), skipRef = useRef(false), holdingRef = useRef(false)
+  const [holding, setHolding] = useState(false)
+  const hold = ms => new Promise(res => {
+    skipRef.current = false; holdingRef.current = true; setHolding(true)
+    let left = ms * (fastRef.current ? 0.4 : 1), last = Date.now()
+    const tick = () => {
+      const now = Date.now(); if (!pressRef.current) left -= now - last; last = now
+      if (skipRef.current || left <= 0) { const sk = skipRef.current; skipRef.current = false; holdingRef.current = false; setHolding(false); res(sk); return }
+      setTimeout(tick, 50)
+    }
+    setTimeout(tick, 50)
+  })
+  const onHoldDown = e => { const b = e.target.closest?.('button'); if (b && !b.closest('.ar-big')) return; pressRef.current = true; pressT.current = Date.now() }
+  const onHoldUp = () => { if (!pressRef.current) return; pressRef.current = false; if (holdingRef.current && Date.now() - pressT.current < 320) skipRef.current = true }
+  // The big card waits for its photo (already loading since the match began), up to a second
+  const imgReady = async () => { const t0 = Date.now(); while (Date.now() - t0 < 1000) { const im = bigRef.current?.querySelector('img'); if (im && im.complete) return; if (!im && Date.now() - t0 > 150) return; await new Promise(r => setTimeout(r, 50)) } }
+  // Hold the page still behind the match: on iPhone a drag would otherwise scroll it and the browser bars would collapse and jump
+  useEffect(() => {
+    const b = document.body, h = document.documentElement, y = window.scrollY
+    const was = { p: b.style.position, t: b.style.top, w: b.style.width, o: b.style.overflow, ho: h.style.overflow, ob: h.style.overscrollBehavior }
+    Object.assign(b.style, { position: 'fixed', top: `-${y}px`, width: '100%', overflow: 'hidden' }); h.style.overflow = 'hidden'; h.style.overscrollBehavior = 'none'
+    const tm = e => { if (!e.target.closest?.('[data-scroll]')) e.preventDefault() }
+    document.addEventListener('touchmove', tm, { passive: false })
+    return () => {
+      document.removeEventListener('touchmove', tm)
+      Object.assign(b.style, { position: was.p, top: was.t, width: was.w, overflow: was.o }); h.style.overflow = was.ho; h.style.overscrollBehavior = was.ob
+      window.scrollTo(0, y)
+    }
+  }, [])
+  // Load every photo before its card is revealed (the deck at the start, the CPU's plays as they come back), so no reveal shows an empty frame
+  const { shots } = useContext(Faces)
+  const warmed = useRef(new Map())
+  const warm = (cards, max) => {
+    const ps = cards.map(c => { const u = shots?.[norm(c.n || '')]?.headshot; if (!u) return null
+      if (!warmed.current.has(u)) warmed.current.set(u, new Promise(r => { const im = new Image(); im.onload = im.onerror = () => r(); im.src = u; im.decode?.().then(r, r) }))
+      return warmed.current.get(u) }).filter(Boolean)
+    return Promise.race([Promise.all(ps), new Promise(r => setTimeout(r, max))])
+  }
+  useEffect(() => { warm(Object.values(S.cards), 0) }, [shots])
 
   const spent = staged.reduce((s, x) => s + E.costOf(S, S.cards[x.k], x.li), 0)
   const left = energy - spent
@@ -172,19 +216,24 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
   const box = () => root.current?.getBoundingClientRect() || { width: W, height: 844 }
   const cx = x => Math.max(62, Math.min(box().width - 62, x))
   const cy = y => Math.max(56, Math.min(box().height - 80, y))
-  const talk = t => { const n = Date.now(); setQuip({ t, n }); setTimeout(() => setQuip(q => (q && q.n === n ? null : q)), 2200) }
-  const hitRule = (li, txt) => { const n = Date.now() + li; setRuleHit(r => ({ ...(r || {}), [li]: { t: txt, n } })); setTimeout(() => setRuleHit(r => { if (!r || !r[li] || r[li].n !== n) return r; const o = { ...r }; delete o[li]; return o }), 1500) }
-  const addFx = (o, ms = 1300) => { const id = Math.random().toString(36).slice(2); setFx(a => [...a, { ...o, id }]); setTimeout(() => setFx(a => a.filter(x => x.id !== id)), ms) }
+  const talk = t => { const n = Date.now(); setQuip({ t, n }); setTimeout(() => setQuip(q => (q && q.n === n ? null : q)), 3400) }
+  const hitRule = (li, txt) => { const n = Date.now() + li; setRuleHit(r => ({ ...(r || {}), [li]: { t: txt, n } })); setTimeout(() => setRuleHit(r => { if (!r || !r[li] || r[li].n !== n) return r; const o = { ...r }; delete o[li]; return o }), 2400) }
+  const addFx = (o, ms = 2000) => { const id = Math.random().toString(36).slice(2); setFx(a => [...a, { ...o, id }]); setTimeout(() => setFx(a => a.filter(x => x.id !== id)), ms) }
 
   // The opening tip: a jump ball decides who reveals first on possession 1; the possession arrow alternates after that
   useEffect(() => { if (phase === 'jump') jumpBall() }, [phase])
   async function jumpBall() {
     const w = S.first || 'p'
+    // Shorter once the tutorial is done; a tap skips it either way
+    let seen = false; try { seen = localStorage.getItem(TUT_KEY) === 'done' } catch { /* private */ }
     setJump({ w, step: 0, n: Date.now() })
-    await wait(900); setJump(j => j && { ...j, step: 1 })
-    await wait(1100); setJump(j => j && { ...j, step: 2 })
-    await wait(1500); setJump(null)
-    setPhase('banner')
+    const done = () => { setJump(null); setPhase('banner') }
+    if (await hold(seen ? 700 : 1000)) return done()
+    setJump(j => j && { ...j, step: 1 })
+    if (await hold(seen ? 800 : 1300)) return done()
+    setJump(j => j && { ...j, step: 2 })
+    await hold(seen ? 2400 : 3600)
+    done()
   }
   const firstSide = E.firstThisTurn(S)
   // The tutorial: steps wait for their moment (the power bar showing up, the first reveal), then point at what they explain
@@ -203,7 +252,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
   async function startTurn() {
     const t = S.turn
     setBanner({ t, n: Date.now() })
-    await wait(1250)
+    await hold(2300)
     setBanner(null)
     if (t <= 3 && !st.current.locs[t - 1].shownOnce) {
       const li = t - 1
@@ -216,7 +265,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       const L = E.LOCBY[S.locs[li].id]
       const cp = rel(`[data-courtbox="${li}"]`), half = Math.min(130, box().width * 0.35)
       setCallout({ li, name: L.name, rule: L.rule, fx: L.fx, n: Date.now(), x: cp ? Math.max(half + 8, Math.min(box().width - half - 8, cp.x)) : box().width / 2, y: cp ? cp.y + 50 : 300 })
-      await wait(1900)
+      await hold(2000 + words(`${L.rule} ${L.fx}`) * 240)
       setCallout(null)
     }
     setShown(S.locs.map((L, li) => L.revealed)); setHand(S.hand.p.slice()); setOppHand(S.handC ?? 0); setStaged([]); setFpSel(null)
@@ -231,6 +280,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
     setPend(plays); setStaged([]); setHand(h => h.filter(k => !plays.some(x => x.k === k)))
     // The server plays the turn; its steps come back to play out here
     const d = await turn(plays, fp)
+    if (d?.view?.cards) await warm(Object.values(d.view.cards), 1500)
     if (!d) { setPend([]); setStaged(plays); setHand(S.hand.p.slice()); setPhase('plan'); return }
     S.cards = { ...S.cards, ...d.view.cards }
     const next = E.fromPublic({ ...d.view, cards: { ...S.cards, ...d.view.cards } })
@@ -246,11 +296,14 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       if (s.skip) { setPend(a => a.filter(x => x.k !== s.k)); continue }
       if (s.side === 'c') { setIncoming({ k: s.k, li: s.li, n: Date.now() }); await wait(480) }
       // The full-screen moment, then the card drops into its slot
+      setQuip(null)
       setBig({ k: s.k, side: s.side, n: Date.now() })
       buzz(c.cost >= 6 ? 'goat' : c.cost >= 5 ? 'huge' : c.cost >= 4 ? 'big' : 'tap')
       if (c.cost >= 5) setTimeout(() => setFlash(f => f + 1), c.cost >= 6 ? 700 : 250)
       if (c.cost >= 4) setTimeout(() => setShake(k => k + (c.cost >= 6 ? 3 : 1)), c.cost >= 6 ? 900 : 350)
-      await wait(REVEAL_MS[c.cost] + (c.ab.length ? 250 : 0))
+      await imgReady()
+      const abWords = c.ab.reduce((n, a) => n + words(E.AB[a].n) + words(E.AB[a].t(c)), 0)
+      await hold(REVEAL_MS[c.cost] + (abWords ? 800 + abWords * 220 : 0))
       const dest = rel(s.side === 'p' ? `[data-pk="${s.k}"]` : '[data-in]'), bc = bigRef.current?.getBoundingClientRect(), r0 = root.current?.getBoundingClientRect()
       if (dest && bc && r0 && !RM) {
         setBigFly({ x: dest.x - (bc.left - r0.left + bc.width / 2), y: dest.y - (bc.top - r0.top + bc.height / 2), s: dest.w / bc.width })
@@ -261,7 +314,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       setPend(a => a.filter(x => x.k !== s.k))
       const before = viewRef.current[s.li]?.t
       // A franchise power: its plate slides across in the team's colors before its effects land
-      if (s.fp && E.FP[s.fp]) { buzz('fp'); setFpShow({ fc: s.fp, side: s.side, n: Date.now() }); await wait(1500); setFpShow(null) }
+      if (s.fp && E.FP[s.fp]) { buzz('fp'); setQuip(null); setFpShow({ fc: s.fp, side: s.side, n: Date.now() }); await hold(2000 + words(`${E.NICK[s.fp]} ${E.FP[s.fp].n} ${E.FP[s.fp].t}`) * 240); setFpShow(null) }
       // Effects that hit other cards play out before those cards show their new power
       const all = (s.fx || []).map(f => ({ ...f, ...parseFx(f) }))
       const others = all.filter(f => f.u !== s.u)
@@ -298,7 +351,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
     const opp = s.side === 'p' ? 'c' : 'p'
     const kinds = new Set(all.map(f => fxKind(f.why)))
     const fired = c.ab.find(a => kinds.has(a)) || c.ab.find(a => ONGOING.includes(a))
-    const stamp = (a, x, y) => { const [w, col] = CALL[a] || [E.AB[a]?.n || a, '#fff']; addFx({ kind: 'call', x: cx(x), y: cy(y), t: w, c: col }, 1500) }
+    const stamp = (a, x, y) => { const [w, col] = CALL[a] || [E.AB[a]?.n || a, '#fff']; addFx({ kind: 'call', x: cx(x), y: cy(y), t: w, c: col }, 2000) }
     const pos = u => rel(`[data-u="${u}"]`)
     const float = (f, dy = 0) => { const p = pos(f.u); if (p) addFx({ kind: 'float', x: cx(p.x), y: cy(p.y - 30 - dy), t: f.t, c: FXC[f.c] || '#fff' }) }
     if (kinds.has('swat')) {
@@ -466,7 +519,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
   const totals = view.map(L => L.t)
   const over = S.over
 
-  return <div className={`${styles.root} ar`} style={{ '--you': you.a, '--youInk': you.ink, '--opp': opp.a, '--oppInk': opp.ink }} ref={root} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => { dragRef.current = null; setDrag(null) }}>
+  return <div className={`${styles.root} ar`} style={{ '--you': you.a, '--youInk': you.ink, '--opp': opp.a, '--oppInk': opp.ink }} ref={root} onPointerDown={onHoldDown} onPointerMove={onMove} onPointerUp={e => { onHoldUp(); onUp(e) }} onPointerCancel={() => { pressRef.current = false; dragRef.current = null; setDrag(null) }}>
     <div className="ar-bg" aria-hidden="true"><i /><i /><i /></div>
     <div className="ar-in" ref={inRef}>
       <header className="ar-top">
@@ -529,7 +582,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
 
       {phase === 'plan' && fpOpts.length > 0 && <div className="ar-fp" role="radiogroup" aria-label="Franchise power this possession">
         <small>Franchise power</small>
-        <div className="ar-fpchips">{fpOpts.map(fc => <button key={fc} type="button" role="radio" aria-checked={fpNow === fc} onClick={() => setFpSel(fc)} style={{ '--c1': E.COLOR[fc], '--c2': E.COLOR2[fc] }}><b>{E.NICK[fc]}</b><span>{E.FP[fc].n}</span></button>)}
+        <div className="ar-fpchips" data-scroll="">{fpOpts.map(fc => <button key={fc} type="button" role="radio" aria-checked={fpNow === fc} onClick={() => setFpSel(fc)} style={{ '--c1': E.COLOR[fc], '--c2': E.COLOR2[fc] }}><b>{E.NICK[fc]}</b><span>{E.FP[fc].n}</span></button>)}
           <button type="button" role="radio" className="ar-fpnone" aria-checked={!fpNow} onClick={() => setFpSel('none')}><span>None</span></button></div>
         {fpNow && <p>{E.FP[fpNow].t}</p>}
       </div>}
@@ -547,14 +600,16 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
             {gain && <em key={gain.n} className="ar-egain">+{gain.v}</em>}
           </div>
         })()}
-        <button type="button" className="ar-end" data-ready={phase === 'plan' && !playable ? '' : undefined} disabled={phase !== 'plan'} onClick={endTurn}>
-          <span>{phase === 'plan' ? <>End turn<small>Poss. {S.turn}/6</small></> : phase === 'play' ? <>Playing…<small>Poss. {S.turn}/6</small></> : <>Get ready<small>Poss. {S.turn}/6</small></>}</span></button>
+        {/* While a possession plays out, the same button speeds it up, so it never sits on top of the action */}
+        <button type="button" className="ar-end" data-ready={phase === 'plan' && !playable ? '' : undefined} data-fast={phase === 'play' ? (fast ? 'on' : 'off') : undefined} disabled={phase !== 'plan' && phase !== 'play'}
+          onClick={() => { if (phase === 'play') { fastRef.current = !fastRef.current; setFast(f => !f) } else endTurn() }}>
+          <span>{phase === 'plan' ? <>End turn<small>Poss. {S.turn}/6</small></> : phase === 'play' ? <>{fast ? 'Normal speed' : 'Speed up ››'}<small>Poss. {S.turn}/6</small></> : <>Get ready<small>Poss. {S.turn}/6</small></>}</span></button>
       </footer>
     </div>
 
-    {phase === 'play' && <button type="button" className="ar-fast" onClick={() => { fastRef.current = !fastRef.current; setFast(f => !f) }}>{fast ? 'Normal speed' : 'Speed up ››'}</button>}
 
     {/* Overlays */}
+    {holding && (big || fpShow || callout || jump || banner) && <div className="ar-hint" aria-hidden="true">Tap to continue · hold to keep reading</div>}
     {flash > 0 && <div key={'fl' + flash} className="ar-flashes" aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, top: `${(i * 53) % 60 + 5}%`, animationDelay: `${(i % 7) * 70}ms` }} />)}</div>}
     {banner && <div key={banner.n} className="ar-banner" aria-live="polite"><div><small>{banner.t === 6 ? 'Last chance' : banner.t === 1 ? 'Tip-off' : 'Next possession'}</small><b>{banner.t === 6 ? 'Final possession' : `Possession ${banner.t}/6`}</b><em className="ar-bnarrow" data-s={E.firstThisTurn(S)}>{E.firstThisTurn(S) === 'p' ? 'Possession arrow: you reveal first' : `Possession arrow: ${coach} reveals first`}</em></div></div>}
     {jump && <div key={jump.n} className="ar-jump" data-step={jump.step} data-w={jump.w} aria-live="polite">
@@ -604,7 +659,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
         <div><button type="button" className="ar-tutskip" onClick={tutSkip}>Skip</button><button type="button" className="ar-tutnext" onClick={() => { buzz('tap'); tutNext() }}>{tut.i + 1 >= TUT.length ? 'Got it' : 'Next'}</button></div>
       </div>
     </div>}
-    {sheet && <div className="ar-sheetwrap" onClick={() => setSheet(false)}><div className="ar-sheet" role="dialog" aria-label="Match menu" onClick={e => e.stopPropagation()}>
+    {sheet && <div className="ar-sheetwrap" onClick={() => setSheet(false)}><div className="ar-sheet" data-scroll="" role="dialog" aria-label="Match menu" onClick={e => e.stopPropagation()}>
       <span className="ar-grab" aria-hidden="true" />
       <button type="button" onClick={() => setSheet(false)}><b>Resume</b></button>
       <button type="button" onClick={() => { setSheet(false); setTut({ i: 0 }) }}><b>How to play</b><small>Walk through the basics again</small></button>
@@ -612,7 +667,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       <button type="button" className="ar-sheetbad" onClick={() => { setSheet(false); menu() }}><b>Retreat</b><small>Leave this match</small></button>
     </div></div>}
     {drag && <div ref={ghostRef} className="ar-ghost" style={{ left: 0, top: 0, translate: `${dragRef.current?.x ?? drag.x}px ${dragRef.current?.y ?? drag.y}px` }} data-ok={drag.ok ? '' : undefined}><Chip c={S.cards[drag.k]} side="p" w={hw * 1.15} cost={S.cards[drag.k].cost} onClick={() => {}} /></div>}
-    {detail && (() => { const c = S.cards[detail], inHand = handShown.includes(detail); return <div className="ar-detail" role="dialog" aria-label={E.cleanName(c.n)} onClick={e => { if (e.target === e.currentTarget) setDetail(null) }}>
+    {detail && (() => { const c = S.cards[detail], inHand = handShown.includes(detail); return <div className="ar-detail" data-scroll="" role="dialog" aria-label={E.cleanName(c.n)} onClick={e => { if (e.target === e.currentTarget) setDetail(null) }}>
       <div className="ar-dcard"><Chip c={c} side={detail.startsWith('c') ? 'c' : 'p'} w={Math.min(210, W * 0.52)} cost={c.cost} onClick={() => {}} /></div>
       <div className="ar-dabs">{c.ab.length ? c.ab.map(a => <AbBadge key={a} a={a} c={c} big />) : <p className="ar-noab">No ability. Raw power: {c.pw}.</p>}</div>
       {inHand && phase === 'plan' && <div className="ar-dplay"><small>Drag it to a court, or tap one</small><div>{[0, 1, 2].map(li => <button key={li} type="button" disabled={!canDrop(detail, li)} onClick={() => playTo(detail, li)}>{shown[li] ? E.LOCBY[S.locs[li].id].name : `Court ${li + 1}`}</button>)}</div></div>}
@@ -621,7 +676,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
     {courtInfo != null && (() => {
       const li = courtInfo, L = S.locs[li], rev = shown[li], LL = rev ? E.LOCBY[L.id] : null, V = view[li]
       const row = (sd, i) => { const c = S.cards[i.k]; return <li key={i.u}><span className="ar-ci-dot" data-s={sd} /><b>{E.cleanName(c.n)}</b><em>{i.pw}</em></li> }
-      return <div className="ar-detail" role="dialog" aria-label={rev ? LL.name : `Court ${li + 1}`} onClick={e => { if (e.target === e.currentTarget) setCourtInfo(null) }}>
+      return <div className="ar-detail" data-scroll="" role="dialog" aria-label={rev ? LL.name : `Court ${li + 1}`} onClick={e => { if (e.target === e.currentTarget) setCourtInfo(null) }}>
         <div className="ar-ci">
           <div className="ar-ci-floor"><Floor id={L.id} revealed={rev}><span /></Floor></div>
           {rev ? <>
@@ -650,7 +705,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
 function Result({ S, view, swings, totals, again, menu, coach, reward, W }) {
   const w = totals.filter(t => t.p > t.c).length, l = totals.filter(t => t.c > t.p).length
   const res = S.over.winner === 'p' ? 'win' : S.over.winner === 'c' ? 'loss' : (w > l ? 'win' : l > w ? 'loss' : 'draw')
-  return <div className="ar-result" data-r={res}>
+  return <div className="ar-result" data-scroll="" data-r={res}>
     {res === 'win' && <div className="ar-confetti" aria-hidden="true">{Array.from({ length: 40 }, (_, i) => <i key={i} style={{ left: `${(i * 23) % 100}%`, animationDelay: `${(i % 10) * 90}ms`, background: ['#ffd36b', '#5aadff', '#ff6a1f', '#fff'][i % 4] }} />)}</div>}
     <small>Final</small>
     <b>{res === 'win' ? 'Victory' : res === 'loss' ? 'Defeat' : 'Draw'}</b>

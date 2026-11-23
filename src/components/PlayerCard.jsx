@@ -99,7 +99,8 @@ export function momentsFor(row) {
 
 const r0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
 const f1 = v => (v == null || Number.isNaN(v) ? '—' : v.toFixed(1))
-const sgn = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1)
+// Blank when there's no number to show (a CPU card built from a box score has no Elo before and after)
+const sgn = v => (Number.isFinite(v) ? (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1) : '')
 const baseName = n => n.replace(/\s*\(.*\)$/, '')
 const fmtDate = (d, o = { month: 'short', day: 'numeric', year: 'numeric' }) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', o)
 const ordinal = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 >> 3 ^ 1 && n % 10) || 0] || 'th')
@@ -415,7 +416,7 @@ export function CardFront({ name, row, game, team, headshot }) {
         {moments.stamps.length > 0 && <div className={styles.msLine}>
           {moments.stamps.map(m => <span key={m.text} className={m.up ? styles.msUp : styles.msDown}>{m.up ? '◆' : '▼'} {m.text}</span>)}
         </div>}
-        <div className={styles.stripElo}><small>Elo</small><b>{r0(row.post)}</b><em className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</em></div>
+        {Number.isFinite(row.post) && <div className={styles.stripElo}><small>Elo</small><b>{r0(row.post)}</b>{Number.isFinite(d) && <em className={d >= 0 ? styles.up : styles.down}>{sgn(d)}</em>}</div>}
       </div>
     </div>
   )

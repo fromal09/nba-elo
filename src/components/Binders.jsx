@@ -30,7 +30,7 @@ const fold = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '
 const lastFirst = n => { const b = fold(n).replace(/\s*\(.*\)$/, '').replace(/ (jr|sr|ii|iii|iv)\.?$/, ''); const i = b.lastIndexOf(' '); return i < 0 ? b : `${b.slice(i + 1)} ${b.slice(0, i)}` }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const r0 = v => (v == null ? '—' : Math.round(v).toLocaleString())
-const sgn = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1)
+const sgn = v => (Number.isFinite(v) ? (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1) : '')
 const day = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 const fullDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 const baseName = n => n.replace(/\s*\(.*\)$/, '')
