@@ -473,6 +473,18 @@ def build_elo(df):
     # Normalize team abbreviations to canonical modern form
     df["Team"] = df["Team"].apply(canon_team)
     df["Opp"]  = df["Opp"].apply(canon_team)
+    # Before 2002-09 every Charlotte/Hornets code is the original Charlotte Hornets. The season files disagree with each
+    # other (Charlotte's players say "CHA", their opponents say "NOP"), which split every such game into two one-team
+    # halves: Season Explorer dropped them (so most 1988-2002 Charlotte cards never existed) and Elo never paired the sides
+    _pre_no = df["Date"] < pd.Timestamp("2002-09-01")
+    for _col in ("Team", "Opp"):
+        df.loc[_pre_no & df[_col].isin(["CHA", "CHH", "NOH", "NOP", "NOK"]), _col] = "CHA"
+    # Same split for the Chicago Packers (1961-62) and Zephyrs (1962-63): one source files their players under the
+    # franchise's code today (WAS) while every opponent says CHP/CHZ. There was no WAS before 1963
+    for _a, _b, _code in (("1961-09-01", "1962-09-01", "CHP"), ("1962-09-01", "1963-09-01", "CHZ")):
+        _in = (df["Date"] >= pd.Timestamp(_a)) & (df["Date"] < pd.Timestamp(_b))
+        for _col in ("Team", "Opp"):
+            df.loc[_in & df[_col].eq("WAS"), _col] = _code
 
     # Fill missing Opp with Team so game_id is still usable
     null_opp = (df["Opp"].str.strip() == "") | (df["Opp"] == "nan")
@@ -553,25 +565,15 @@ def build_elo(df):
             opp_map[p] = _CHA_NORM.get(_raw_opp, _raw_opp)
             result_str     = str(prow.get("Result","")).strip()
             won_map[p]     = result_str.startswith("W") if result_str else None
-            # Charlotte disambiguation using franchise CSV
-            # charlotte_keys contains New Orleans players (NOH/NOP era, 2002-2013)
-            # CHO = Charlotte Bobcats (2004-2014) OR New Orleans Hornets (2002-2004)
-            # Only remap CHO -> NOH if the game is in the New Orleans era (pre-2005)
-            # Charlotte/NO disambiguation
-            # charlotte_keys = confirmed Charlotte Bobcats/Hornets players (CHO)
-            # If in charlotte_keys -> CHO (Charlotte)
-            # If NOT in charlotte_keys + pre-2004 -> NOH (New Orleans)
-            # If NOT in charlotte_keys + post-2004 -> CHO (Charlotte Bobcats era)
-            _re2 = __import__('re')
-            _p_base = _re2.sub(r' \(\d{4}\)$', '', p)
+            # Charlotte vs New Orleans, decided for the whole team by date so a game never splits one side across two codes
+            # (a split side made three "teams" and Season Explorer dropped the game, which is how most 1988-2002 Charlotte
+            # games went missing from the cards):
+            #   before 2002-09-01  the original Charlotte Hornets            -> CHO (their history belongs to Charlotte)
+            #   2002-09 to 2004-09 there was no Charlotte team               -> NOH (New Orleans)
+            #   from 2004-10-01    the Bobcats and today's Hornets           -> CHO
             _raw_team = team_map.get(p, '')
             if _raw_team in ("CHA", "CHO", "CHH"):
-                if (_norm(_p_base), date_str) in charlotte_keys:
-                    team_map[p] = "CHO"  # confirmed Charlotte player
-                elif date_str < "2004-10-01":
-                    team_map[p] = "NOH"  # pre-Bobcats = New Orleans
-                else:
-                    team_map[p] = "CHO"  # post-2004 not in charlotte_keys = Charlotte Bobcats
+                team_map[p] = "NOH" if "2002-09-01" <= date_str < "2004-10-01" else "CHO"
             last_played[p] = date_str
 
         deltas = defaultdict(float)

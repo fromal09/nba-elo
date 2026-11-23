@@ -1935,7 +1935,9 @@ function WishMaker({ C, env, wishes, onDone }) {
     C.wishCards(name, season || null).then(x => live && setCards(x)).catch(e => live && setCards({ error: e.message }))
     return () => { live = false }
   }, [name, season])
-  const has = (tier) => wishes.some(w => w.name === name && (w.season || null) === (season || null) && (w.tier || null) === (tier || null))
+  // A wish keeps the name on the player's cards ("Patrick Ewing (1985)"), which can differ from the name searched
+  const same = (a, b) => a === b || a.replace(/ \((\d{4}|[A-Z]{2,3})\)$/, '') === b
+  const has = (tier) => wishes.some(w => same(w.name, name) && (w.season || null) === (season || null) && (w.tier || null) === (tier || null))
   const make = async tier => { setBusy(true); const x = await C.wish(name, season || null, tier); setBusy(false); if (x) { onDone(x); setName(null); setQ(''); setSeason('') } }
   const ord = n => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`
   const METER = { common: 100, rare: 60, standout: 40, legend: 25, icon: 15, goat: 10 }

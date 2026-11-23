@@ -36,7 +36,7 @@ band = [level, label, champ] or null; honor = "potd" | "potg" | null
 Run after build_binders.py (it calls this at the end):  python3 scripts/build_packs.py
 """
 import hashlib
-import heapq, itertools, json, math, sys
+import heapq, itertools, json, math, re, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -289,6 +289,28 @@ def main():
         if not f_.exists() or f_.read_text(encoding="utf-8") != body:   # unchanged files keep their date, so the sync skips them
             f_.write_text(body, encoding="utf-8")
         written.add(name)
+    # Names the site shows vs names on the cards. elo.json gives the better of two same-named players the plain name
+    # ("Patrick Ewing") after the season files were written with the suffix ("Patrick Ewing (1985)"), so a wish or a
+    # search by the shown name finds no cards. aliases.json maps the shown name to the card name
+    try:
+        shown = {p["name"] for p in json.loads((ROOT / "public" / "data" / "elo.json").read_text(encoding="utf-8"))["players"]}
+    except (OSError, ValueError, KeyError):
+        shown = set()
+    by_base = {}
+    for n in who:
+        b = re.sub(r" \((\d{4}|[A-Z]{2,3})\)$", "", n)
+        if b != n:
+            by_base.setdefault(b, []).append(n)
+    aliases = {}
+    for b, ns in by_base.items():
+        if b in who or b not in shown:
+            continue
+        cand = [n for n in ns if n not in shown]   # the suffixed card name nobody is shown under
+        if len(cand) == 1:
+            aliases[b] = cand[0]
+    (OUT / "aliases.json").write_text(json.dumps(aliases, ensure_ascii=False, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+    written.add("aliases.json")
+    print(f"  {len(aliases)} shown names point at suffixed card names")
     # The card database: every card of each player (written only when it changed, so the sync skips the rest), the player
     # list for search, and the 3,000 best cards on record
     (OUT / "players").mkdir(parents=True, exist_ok=True)

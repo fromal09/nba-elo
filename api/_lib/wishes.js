@@ -42,6 +42,13 @@ export function whoOf(origin, name) {
   if (whoCache.size > 400) whoCache.delete(whoCache.keys().next().value)
   return p
 }
+// The name on a player's cards. The site shows the better of two same-named players under the plain name ("Patrick
+// Ewing") while his cards carry the suffix ("Patrick Ewing (1985)"); build_packs.py writes that map
+let aliasCache = null
+export async function cardName(origin, name) {
+  if (!aliasCache || Date.now() - aliasCache.at > 10 * 60e3) aliasCache = { at: Date.now(), p: poolJSON(origin, 'aliases.json').catch(() => ({})) }
+  return (await aliasCache.p)?.[name] || name
+}
 // The wish's entries at a tier: [[shard, row], ...], its season only when it names one
 function entries(who, tier, season) {
   const out = []
@@ -190,9 +197,10 @@ export async function wishView(sql, user, origin) {
 
 // A player's cards, for choosing a wish: how many at each tier (in one season or all), how many you have, his seasons
 export async function wishCards(sql, u, origin, q) {
-  const name = String(q.name || ''), season = q.season ? String(q.season) : null
+  const asked = String(q.name || ''), season = q.season ? String(q.season) : null
+  const name = await cardName(origin, asked)
   const who = await whoOf(origin, name)
-  if (!who) throw fail(404, `${name} has no cards.`)
+  if (!who) throw fail(404, `${asked} has no cards.`)
   const own = u ? await ownedByTier(sql, u.id, { name, season }) : {}
   const seasons = {}
   for (const t of TIER_ORDER) for (const [base, rows] of Object.entries(who[t] || {})) { const s_ = base.slice(0, 7); seasons[s_] = (seasons[s_] || 0) + rows.length }
@@ -202,8 +210,9 @@ export async function wishCards(sql, u, origin, q) {
 }
 
 export async function addWish(sql, u, origin, b) {
-  const name = String(b.name || '').trim(), season = b.season ? String(b.season) : null, tier = b.tier ? String(b.tier) : null
-  if (!name) throw fail(400, 'Pick a player.')
+  const asked = String(b.name || '').trim(), season = b.season ? String(b.season) : null, tier = b.tier ? String(b.tier) : null
+  if (!asked) throw fail(400, 'Pick a player.')
+  const name = await cardName(origin, asked)   // the wish keeps the name on his cards, so it can match them
   if (season && !/^\d{4}-\d{2}$/.test(season)) throw fail(400, 'That season isn’t right.')
   if (tier && !TIER_ORDER.includes(tier)) throw fail(400, 'That tier isn’t right.')
   const who = await whoOf(origin, name)
