@@ -115,18 +115,25 @@ function Rafters({ list, fieldable, open, onClose }) {
         <span className="hb-cont-bn"><Fabric fc={next.fc} w={46} /></span>
         <span className="hb-cont-t"><small>{next.cleared ? 'Keep climbing' : 'Start a climb'}</small><b>{teamName(next.fc)}</b><em>Rung {next.cleared + 1} of {next.rungs}{ready(next) ? '' : ' · you need more of their cards in the window'}</em></span>
       </button>}
+      {/* Ladders you can play right now: five or more different players of that franchise free for its next rung */}
+      {(() => { const rd = sorted.filter(f => !f.banner && ready(f)); return <div className="hb-readyrow">
+        <small>{rd.length ? `Ready to play · ${rd.length} franchise${rd.length === 1 ? '' : 's'}` : 'No franchise has five players ready yet'}</small>
+        {rd.length > 0 && <div className="hb-readychips">{rd.map(f => <button key={f.fc} type="button" onClick={() => open(f.fc)} style={{ '--c': tColor(f.fc), '--c2': tColor2(f.fc) }}
+          aria-label={`${teamName(f.fc)}: ${fieldable[f.fc]} players ready for rung ${f.cleared + 1}`}><b>{nick(f.fc)}</b><span>{fieldable[f.fc]} ready</span></button>)}</div>}
+      </div> })()}
       <div className="hb-ceiling">{rows.map((r, ri) => <div key={ri} className="hb-rafter">
         <div className="hb-truss" aria-hidden="true" />
         <div className="hb-row">{r.map((f, i) => {
           const done = !!f.banner, drop = done ? 0 : Math.round((1 - f.cleared / f.rungs) * 70)
           return <button key={f.fc} type="button" className="hb-hang" style={{ '--drop': `${drop}px`, '--d': `${(ri * 5 + i) * 0.35}s` }} data-done={done ? '' : undefined} data-ready={!done && ready(f) ? '' : undefined}
-            onClick={() => open(f.fc)} aria-label={`${teamName(f.fc)}, ${done ? 'banner hung' : `${f.cleared} of ${f.rungs} rungs beaten`}`}>
+            onClick={() => open(f.fc)} aria-label={`${teamName(f.fc)}, ${done ? 'banner hung' : `${f.cleared} of ${f.rungs} rungs beaten, ${fieldable[f.fc] ?? 0} players ready`}`}>
             <span className="hb-rope" aria-hidden="true" />
             <Fabric fc={f.fc} w={56} done={done} prog={done ? null : `${f.cleared}/${f.rungs}`} />
+            {!done && f.cur && <span className="hb-readytag" data-on={ready(f) ? '' : undefined}>{ready(f) ? `${fieldable[f.fc]} ready` : `${fieldable[f.fc] ?? 0}/5`}</span>}
           </button>
         })}</div>
       </div>)}</div>
-      <p className="hb-note">A glowing rope means you have five players ready for that franchise’s next rung.</p>
+      <p className="hb-note">Under each banner: how many different players you could field for its next rung, counting only cards in that rung’s window that aren’t resting. Five or more and it’s ready.</p>
     </>}
   </div>
 }

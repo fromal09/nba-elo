@@ -160,7 +160,16 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
   const cardAnim = (u, k, ms, vars) => { const n = Date.now() + Math.random(); setCa(m => ({ ...m, [u]: { k, n, vars } })); setTimeout(() => setCa(m => (m[u] && m[u].n === n ? (({ [u]: _, ...r }) => r)(m) : m)), ms) }
   useEffect(() => { if (shake && inRef.current?.animate && !RM) inRef.current.animate([{ transform: 'none' }, { transform: 'translate(-5px, 3px)' }, { transform: 'translate(5px, -3px)' }, { transform: 'translate(-4px, -2px)' }, { transform: 'translate(3px, 2px)' }, { transform: 'none' }], { duration: 320, easing: 'ease-out' }) }, [shake])
   const [W, setW] = useState(390)
-  useEffect(() => { const f = () => setW(Math.min(480, window.innerWidth)); f(); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f) }, [])
+  // Short screens (an in-app browser keeps its bars) get a lower court and hand so the board fits without overlapping
+  const [tight, setTight] = useState(false)
+  useEffect(() => { const f = () => { setW(Math.min(480, window.innerWidth)); setTight(window.innerHeight < 780) }; f(); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f) }, [])
+  const boardRef = useRef(null)
+  const [boardH, setBoardH] = useState(0)
+  useEffect(() => {
+    const el = boardRef.current; if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => setBoardH(Math.round(e.contentRect.height))); ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const wait = ms => sleep(fastRef.current ? ms * 0.35 : ms * PACE)
   // Reading time: counts down only while nothing is held down, and a tap moves on. Speed up cuts it to 40%
   const pressRef = useRef(false), pressT = useRef(0), skipRef = useRef(false), holdingRef = useRef(false)
@@ -169,7 +178,8 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
     skipRef.current = false; holdingRef.current = true; setHolding(true)
     let left = ms * (fastRef.current ? 0.4 : 1), last = Date.now()
     const tick = () => {
-      const now = Date.now(); if (!pressRef.current) left -= now - last; last = now
+      // Holding pauses for up to 8 seconds at a stretch, never forever
+      const now = Date.now(); if (!pressRef.current || now - pressT.current > 8000) left -= now - last; last = now
       if (skipRef.current || left <= 0) { const sk = skipRef.current; skipRef.current = false; holdingRef.current = false; setHolding(false); res(sk); return }
       setTimeout(tick, 50)
     }
@@ -177,6 +187,12 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
   })
   const onHoldDown = e => { const b = e.target.closest?.('button'); if (b && !b.closest('.ar-big')) return; pressRef.current = true; pressT.current = Date.now() }
   const onHoldUp = () => { if (!pressRef.current) return; pressRef.current = false; if (holdingRef.current && Date.now() - pressT.current < 320) skipRef.current = true }
+  // A finger can lift where the game never hears it (the card under it re-rendered, the app lost focus): let go anyway
+  useEffect(() => {
+    const up = () => onHoldUp(), off = () => { pressRef.current = false }
+    window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', off, true); window.addEventListener('blur', off); document.addEventListener('visibilitychange', off)
+    return () => { window.removeEventListener('pointerup', up, true); window.removeEventListener('pointercancel', off, true); window.removeEventListener('blur', off); document.removeEventListener('visibilitychange', off) }
+  }, [])
   // The big card waits for its photo (already loading since the match began), up to a second
   const imgReady = async () => { const t0 = Date.now(); while (Date.now() - t0 < 1000) { const im = bigRef.current?.querySelector('img'); if (im && im.complete) return; if (!im && Date.now() - t0 > 150) return; await new Promise(r => setTimeout(r, 50)) } }
   // Hold the page still behind the match: on iPhone a drag would otherwise scroll it and the browser bars would collapse and jump
@@ -208,8 +224,16 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
   const perLi = li => staged.filter(x => x.li === li).length
   const canDrop = (k, li) => phase === 'plan' && li != null && E.canPlayAt(S, 'p', li, perLi(li)) && E.costOf(S, S.cards[k], li) <= left
   const colW = (W - 16 - 16) / 3
-  const sw = Math.floor((colW - 8) / 2)
-  const hw = Math.min(92, Math.floor((W - 24) / 4.2))
+  // Card size fits the width and the height: a side shows a second row only once it needs one (while planning,
+  // your side keeps room for one more card so a drop never reflows the board)
+  const nIn = (li, sd) => (sd === 'c' ? view[li].c.length + (incoming && incoming.li === li ? 1 : 0) : view[li].p.length + pend.filter(x => x.li === li).length + staged.filter(x => x.li === li).length + (phase === 'plan' ? 1 : 0))
+  const rowsC = Math.min(2, Math.max(1, ...[0, 1, 2].map(li => Math.ceil(nIn(li, 'c') / 2))))
+  const rowsP = Math.min(2, Math.max(1, ...[0, 1, 2].map(li => Math.ceil(nIn(li, 'p') / 2))))
+  const CH = tight ? 66 : 84
+  const fixedH = 8 + 6 + 22 + CH + 7 + 4 * (rowsC - 1) + 4 * (rowsP - 1) + 8 + 6
+  const swW = Math.floor((colW - 8) / 2), swH = boardH ? Math.floor((boardH - fixedH) / (1.4 * (rowsC + rowsP))) : swW
+  const sw = Math.max(30, Math.min(swW, swH))
+  const hw = Math.min(tight ? 82 : 92, Math.floor((W - 24) / 4.2))
 
   // Where something is on screen, relative to the game
   const rel = sel => { const el = root.current?.querySelector(sel), r0 = root.current?.getBoundingClientRect(); if (!el || !r0) return null; const r = el.getBoundingClientRect(); return { x: r.left - r0.left + r.width / 2, y: r.top - r0.top + r.height / 2, w: r.width, h: r.height } }
@@ -290,10 +314,11 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
     const cpuN = steps.filter(s => s.side === 'c').length
     setOppHand(n => Math.max(0, n - cpuN))
     await wait(350)
-    for (const s of steps) {
-      if (s.end) { await endStep(s); continue }
+    // Each step plays out on its own: if one animation fails, the board catches up and the match keeps going
+    const playStep = async s => {
+      if (s.end) { await endStep(s); return }
       const c = S.cards[s.k]
-      if (s.skip) { setPend(a => a.filter(x => x.k !== s.k)); continue }
+      if (s.skip) { setPend(a => a.filter(x => x.k !== s.k)); return }
       if (s.side === 'c') { setIncoming({ k: s.k, li: s.li, n: Date.now() }); await wait(480) }
       // The full-screen moment, then the card drops into its slot
       setQuip(null)
@@ -338,6 +363,13 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       await wait(locRow ? 900 : 380)
       setLanded(null)
       if (before && s.board[s.li]) { const o = s.side === 'p' ? 'c' : 'p', d = (s.board[s.li].t[s.side] - before[s.side]) - (s.board[s.li].t[o] - before[o]); swings.current.push({ k: s.k, side: s.side, li: s.li, d, fp: s.fp || null }) }
+        }
+    for (const s of steps) {
+      try { await playStep(s) } catch (err) {
+        console.error('Clash step', err)
+        setBig(null); setBigFly(null); setFpShow(null); setIncoming(null); setLanded(null); holdingRef.current = false; setHolding(false)
+        setPend(a => a.filter(x => x.k !== s.k)); if (s.board) showView(s.board)
+      }
     }
     setPend([])
     st.current = next
@@ -531,7 +563,7 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
       </header>
       <div className="ar-opphand" aria-label={`Opponent has ${oppHand} cards`}>{Array.from({ length: oppHand }, (_, i) => <i key={i} />)}</div>
 
-      <div className="ar-board">
+      <div className="ar-board" ref={boardRef} style={{ '--ch': `${CH}px` }}>
         {S.locs.map((L, li) => {
           const V = view[li], rev = shown[li], LL = rev ? E.LOCBY[L.id] : null, t = totals[li]
           const mine = [...V.p.map(i => ({ ...i, st: 'on' })), ...pend.filter(x => x.li === li).map(x => ({ k: x.k, st: 'pend' })), ...staged.filter(x => x.li === li).map(x => ({ k: x.k, st: 'staged' }))]
@@ -541,11 +573,11 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
           const lead = !rev ? 0 : t.p > t.c ? 1 : t.c > t.p ? -1 : 0
           return <div key={li} className="ar-col" data-court={li} data-hot={hot ? (drag.ok ? 'ok' : 'no') : undefined}>
             <div className="ar-side" data-s="c" data-sidebox={`${li}-c`} data-glass={og.side.c.some(x => x.k === 'glass') ? '' : undefined} data-shut={og.court.some(x => x.k === 'shut' && x.s === 'c') || og.court.some(x => x.k === 'lock') ? '' : undefined}>
-              {og.side.c.length > 0 && <span className="ar-sidetags">{og.side.c.map(x => <i key={x.k} title={x.t}><Ic k={x.k} /></i>)}</span>}{[2, 3, 0, 1].map(j => { const x = theirs[j]; return <div key={j} className="ar-slot" style={{ width: sw, height: Math.round(sw * 1.4) }}>
+              {og.side.c.length > 0 && <span className="ar-sidetags">{og.side.c.map(x => <i key={x.k} title={x.t}><Ic k={x.k} /></i>)}</span>}{(rowsC > 1 ? [2, 3, 0, 1] : [0, 1]).map(j => { const x = theirs[j]; return <div key={j} className="ar-slot" style={{ width: sw, height: Math.round(sw * 1.4) }}>
               {x && (x.st === 'in' ? <div data-in="" className="ar-back ar-in-fly" style={{ width: sw, height: Math.round(sw * 1.4) }} /> : <div data-u={x.u} className={`ar-card ${landed === x.u ? 'ar-land' : ''} ${og.c[x.u]?.aura ? 'ar-pers-aura' : ''} ${og.c[x.u]?.m.some(m => m.k === 'shield') ? 'ar-pers-shield' : ''}`}><div className={`ar-cw ${ca[x.u] ? 'ar-ca-' + ca[x.u].k : ''}`} key={ca[x.u]?.n || 0} style={ca[x.u]?.vars}><Chip c={S.cards[x.k]} side="c" w={sw} pw={x.pw} onClick={() => setDetail(x.k)} /></div><Marks o={og.c[x.u]} /></div>)}
             </div> })}</div>
-            {rev ? <Tot v={t.c} side="c" lead={lead < 0} /> : <div className="ar-tot" />}
             <div className="ar-cwrap" data-li={li}>
+            {rev && <Tot v={t.c} side="c" lead={lead < 0} />}
             <div className={`ar-court ${flipLi === li ? 'ar-flip' : ''} ${ruleHit?.[li] ? 'ar-rulehit' : ''}`} key={'ct' + li + (ruleHit?.[li]?.n || '')} data-rev={rev ? '' : undefined} data-courtbox={li} role="button" tabIndex={0} aria-label={rev ? `${LL.name}: ${LL.rule}. Tap for details.` : `Court ${li + 1}, not revealed yet`}
               onClick={() => !drag && setCourtInfo(li)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCourtInfo(li) } }}>
               <Floor id={L.id} revealed={rev}>
@@ -555,10 +587,10 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
               {og.court.length > 0 && <span className="ar-courttag" title={og.court.map(x => x.t).join('. ')}><Ic k="lock" /></span>}
             </div>
             {ruleHit?.[li] && <span key={ruleHit[li].n} className="ar-rulestamp">{ruleHit[li].t}</span>}
+            {rev && <Tot v={t.p} side="p" lead={lead > 0} />}
             </div>
-            {rev ? <Tot v={t.p} side="p" lead={lead > 0} /> : <div className="ar-tot" />}
             <div className="ar-side" data-s="p" data-sidebox={`${li}-p`} data-glass={og.side.p.some(x => x.k === 'glass') ? '' : undefined} data-shut={og.court.some(x => x.k === 'shut' && x.s === 'p') || og.court.some(x => x.k === 'lock') ? '' : undefined}>
-              {og.side.p.length > 0 && <span className="ar-sidetags">{og.side.p.map(x => <i key={x.k} title={x.t}><Ic k={x.k} /></i>)}</span>}{[0, 1, 2, 3].map(j => { const x = mine[j]; const ghost = hot && drag.ok && j === mine.length; return <div key={j} className="ar-slot" data-ghost={ghost ? '' : undefined} style={{ width: sw, height: Math.round(sw * 1.4) }}>
+              {og.side.p.length > 0 && <span className="ar-sidetags">{og.side.p.map(x => <i key={x.k} title={x.t}><Ic k={x.k} /></i>)}</span>}{(rowsP > 1 ? [0, 1, 2, 3] : [0, 1]).map(j => { const x = mine[j]; const ghost = hot && drag.ok && j === mine.length; return <div key={j} className="ar-slot" data-ghost={ghost ? '' : undefined} style={{ width: sw, height: Math.round(sw * 1.4) }}>
               {x && <div data-u={x.u} data-pk={x.st !== 'on' ? x.k : undefined} className={`ar-card ${x.st !== 'on' ? 'ar-staged' : ''} ${landed === x.u || landed === 's' + x.k ? 'ar-land' : ''} ${og.p[x.u]?.aura ? 'ar-pers-aura' : ''} ${og.p[x.u]?.m.some(m => m.k === 'shield') ? 'ar-pers-shield' : ''}`}><div className={`ar-cw ${ca[x.u] ? 'ar-ca-' + ca[x.u].k : ''}`} key={ca[x.u]?.n || 0} style={ca[x.u]?.vars}>
                 <Chip c={S.cards[x.k]} side="p" w={sw} pw={x.pw} onClick={() => (x.st === 'staged' ? unstage(x.k) : setDetail(x.k))} label={x.st === 'staged' ? `${E.cleanName(S.cards[x.k].n)}, tap to take back` : undefined} /></div>{x.u && <Marks o={og.p[x.u]} />}</div>}
             </div> })}</div>
@@ -566,6 +598,14 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
         })}
       </div>
 
+      {/* The franchise power bar always holds its place, so the board never resizes when it fills in */}
+      <div className="ar-fp" role="radiogroup" aria-label="Franchise power this possession">
+        {phase === 'plan' && fpOpts.length > 0 ? <>
+          <div className="ar-fpchips" data-scroll="">{fpOpts.map(fc => <button key={fc} type="button" role="radio" aria-checked={fpNow === fc} onClick={() => setFpSel(fc)} style={{ '--c1': E.COLOR[fc], '--c2': E.COLOR2[fc] }}><b>{E.NICK[fc]}</b><span>{E.FP[fc].n}</span></button>)}
+            <button type="button" role="radio" className="ar-fpnone" aria-checked={!fpNow} onClick={() => setFpSel('none')}><span>None</span></button></div>
+          <p>{fpNow ? E.FP[fpNow].t : 'No franchise power this possession.'}</p>
+        </> : <p className="ar-fpidle"><small>Franchise power</small>{phase === 'plan' ? 'Play a card to choose its franchise’s power for this possession.' : 'Picked from the teams you play each possession.'}</p>}
+      </div>
       <div className="ar-hand" data-n={handShown.length}>
         {handShown.map((k, i) => {
           const c = S.cards[k], n = handShown.length, mid = (n - 1) / 2, rot = (i - mid) * 4, lift = Math.abs(i - mid) * 3.5
@@ -580,12 +620,6 @@ export function ArenaMatch({ view0, turn, again, you, opp, coach, menu, label, d
         {!handShown.length && <span className="ar-empty">Hand empty</span>}
       </div>
 
-      {phase === 'plan' && fpOpts.length > 0 && <div className="ar-fp" role="radiogroup" aria-label="Franchise power this possession">
-        <small>Franchise power</small>
-        <div className="ar-fpchips" data-scroll="">{fpOpts.map(fc => <button key={fc} type="button" role="radio" aria-checked={fpNow === fc} onClick={() => setFpSel(fc)} style={{ '--c1': E.COLOR[fc], '--c2': E.COLOR2[fc] }}><b>{E.NICK[fc]}</b><span>{E.FP[fc].n}</span></button>)}
-          <button type="button" role="radio" className="ar-fpnone" aria-checked={!fpNow} onClick={() => setFpSel('none')}><span>None</span></button></div>
-        {fpNow && <p>{E.FP[fpNow].t}</p>}
-      </div>}
       <footer className="ar-foot">
         <button type="button" className="ar-retreat ar-menubtn" onClick={() => setSheet(true)} aria-label="Match menu"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>Menu</span></button>
         {(() => {
